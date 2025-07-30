@@ -976,30 +976,10 @@ footer {
   text-align: center;
   margin-top: 0.5rem;
   margin-bottom: 2rem;
-  font-size: 21px;
+  font-size: 18px;
   color: #333;
   font-weight: 500;
 }
 
-.custom-note .custom-link {
-  display: inline-block;
-  margin-left: 0.6rem;
-  padding: 6px 12px;
-  background-color: #111;
-  color: #fff;
-  border-radius: 1px;
-  text-decoration: none;
-  font-size: 19px;
-  transition: background-color 0.2s ease;
-}
-
-.custom-note .custom-link:hover {
-  background-color: #ffffff;
-  color: #111;
-        border-left: 0.001px solid #040404;
-  border-right: 0.001px solid #080808;  
-  border-top: 0.001px solid #070707;   
-    border-bottom: 0.001px solid #080808; 
-}
 
 
