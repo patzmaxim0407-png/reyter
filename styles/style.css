@@ -963,7 +963,7 @@ footer {
   font-family: 'Inter', sans-serif;
 }  
 .discount-label {
-  color: #e53935 !important;
+  color:  #004AAD !important;
   font-size: 0.9rem;
   font-weight: 500;
   margin-top: 4px;
@@ -1001,6 +1001,5 @@ footer {
   border-top: 0.001px solid #070707;   
     border-bottom: 0.001px solid #080808; 
 }
-
 
 
