@@ -279,8 +279,8 @@
 @media (max-width: 900px) {
   .modal-wrapper {
     flex-direction: column;
-    width: 95vw;
-    max-width: 95vw;
+    width: 98vw;
+    max-width: 98vw;
     padding: 0;
   }
   .modal-gallery, .modal-details {
@@ -294,8 +294,8 @@
 }
 @media (max-width: 600px) {
   .modal-wrapper {
-    width: 85vw;
-    max-width: 95vw;
+    width: 98vw;
+    max-width: 98vw;
     min-width: 0;
     border-radius: 0;
     padding: 0;
