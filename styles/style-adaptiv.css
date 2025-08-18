@@ -291,6 +291,10 @@
   .modal-details {
     padding: 18px 8px;
   }
+  .modal-gallery img {
+    max-width: auto;
+    height: 100%;
+  }
 }
 @media (max-width: 600px) {
   .modal-wrapper {
@@ -301,7 +305,7 @@
     padding: 0;
   }
   .modal-gallery img {
-    max-width: auto;
+    max-width: 90%;
     height: 60vh;
   }
   .modal-details {
