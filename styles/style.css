@@ -151,10 +151,9 @@ section {
 
 .about-text .subtitle {
   font-weight: 600;
-  font-size: 1.3rem;
-  color: #555;
+  font-size: 1.1rem;
   margin-bottom: 1.8em;
-  font-style: italic;
+  letter-spacing: 0.02em;
 }
 
 #readMoreBtn {
