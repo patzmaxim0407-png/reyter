@@ -20,7 +20,11 @@ body {
   background-color: var(--bg-color);
   color: var(--text-color);
 }
-
+body {
+      margin: 0;
+      min-height: 100vh;
+      background-color: rgba(0, 74, 173, 0.15); /* синій #004AAD з прозорістю 50% */
+    }
 
 /* --- Header --- */
 header {
@@ -200,7 +204,8 @@ section {
 
 #products {
   padding: 60px 20px;
-  background-color: #fff;
+   background-color: rgba(0, 74, 173, 0);
+
 }
 
 .section-title {
@@ -228,6 +233,7 @@ section {
     border-bottom: 0.001px solid #eae9e9; 
     border-radius: 0.1%;
     margin: 50px 0;
+    background-color: #ffffff;
 }
 
 @media (max-width: 768px) {
@@ -604,7 +610,7 @@ section {
 
 /* --- Contacts section --- */
 .contacts {
-  background: #fff;
+   background-color: rgba(0, 74, 173, 0);
   padding: 60px 0 40px 0;
   text-align: center;
 }
