@@ -21,6 +21,7 @@ body {
   color: var(--text-color);
 }
 
+
 /* --- Header --- */
 header {
   display: flex;
