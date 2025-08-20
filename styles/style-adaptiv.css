@@ -522,3 +522,16 @@ body {
   }
 }
 
+@media (max-width: 701px) {
+.marquee {
+  font-weight: 500;           
+  font-size: 12px;
+}
+}
+
+@media (max-width: 301px) {
+.marquee {
+  font-weight: 500;           
+  font-size: 10px;
+}
+}
