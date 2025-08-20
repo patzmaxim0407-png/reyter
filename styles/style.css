@@ -989,3 +989,29 @@ footer {
 
 
 
+.marquee {
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  background: rgba(0, 74, 173, 0.015);             /* білий фон */
+  color: #000;                  /* чорний текст */
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;             /* тонкий, елегантний текст */
+  font-size: 14px;
+  letter-spacing: 1px;          /* легке розрідження, як у Zara */
+  padding: 12px 0;
+  border-top: 1px solid #e5e5e5;
+  border-bottom: 1px solid #e5e5e5;
+  text-transform: uppercase;    /* великі літери для ефекту Zara */
+}
+
+.marquee span {
+  display: inline-block;
+  padding-left: 100%;
+  animation: marquee 40s linear infinite;
+}
+
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
