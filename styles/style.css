@@ -1059,6 +1059,11 @@ footer {
 
 /* Mobile version */
 @media (max-width: 768px) {
+  html, body {
+    overflow-x: hidden;
+    width: 100%;
+  }
+
   .holiday-branch {
     position: absolute;
     top: 18px;
