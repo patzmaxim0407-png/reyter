@@ -1044,3 +1044,30 @@ footer {
   75% { transform: rotate(15deg); }
   100% { transform: rotate(0deg); }
 }
+
+/* Snow Container */
+#snow-animation-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Mobile version */
+@media (max-width: 768px) {
+  .holiday-branch {
+    position: absolute;
+    top: 18px;
+    left: 56px;
+    z-index: 999;
+    cursor: pointer;
+  }
+
+  .branch-image {
+    height: 100px;
+  }
+}
