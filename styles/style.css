@@ -1096,8 +1096,8 @@ footer {
 
   .holiday-branch {
     position: absolute;
-    top: 18px;
-    left: 56px;
+    top: 24px;
+    left: 62px;
     z-index: 999;
     cursor: pointer;
   }
