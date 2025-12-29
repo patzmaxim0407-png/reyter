@@ -44,12 +44,36 @@ header {
   position: relative;
   display: flex;
   align-items: center;
+  gap: 40px;
 }
 
 .logo img {
   height: 100px;
   object-fit: contain;
-  margin: 0 95px;
+}
+
+.new-year-greeting {
+  font-size: 16px;
+  line-height: 1.5;
+  color: #111;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  max-width: 250px;
+}
+
+.new-year-greeting p {
+  margin: 0;
+}
+
+.new-year-greeting p:first-child {
+  margin-bottom: 6px;
+  font-size: 15px;
+  color: #555;
+}
+
+.new-year-greeting strong {
+  font-weight: 700;
+  color: #111;
 }
 
 nav {
