@@ -44,6 +44,31 @@
   }
 }
 
+/* --- New Year Banner --- */
+@media (max-width: 900px) {
+  .new-year-banner {
+    padding: 18px 15px;
+  }
+  .banner-text {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .new-year-banner {
+    padding: 14px 12px;
+    border-top: 1px solid rgba(255, 215, 0, 0.15);
+    border-bottom: 1px solid rgba(255, 215, 0, 0.15);
+  }
+  .banner-text {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .banner-text:first-child {
+    margin-bottom: 4px;
+  }
+}
+
 /* --- ABOUT Section --- */
 @media (max-width: 1100px) {
   #about {
