@@ -47,7 +47,12 @@
   <span>— БЕЗКОШТОВНА ДОСТАВКА НА ЗАМОВЛЕННЯ ВІД 1500 ГРН —</span>
 </div>
 <header>
-  <div class="logo"><img src="/assets/images/logo_3.PNG" alt="REYTER"></div>
+  <div class="logo">
+    <img src="/assets/images/logo_3.PNG" alt="REYTER">
+    <div class="holiday-branch" id="holidayBranch">
+      <img src="/assets/images/2026HN.png" alt="Новорічна гілка" class="branch-image swing">
+    </div>
+  </div>
   <button class="burger" id="burgerBtn" aria-label="Відкрити меню">
     <span></span><span></span><span></span>
   </button>
@@ -555,20 +560,29 @@
       holidayBranch.addEventListener('click', triggerSwing);
     }
 
-    // Generate falling snowflakes
+    // Generate falling snowflakes with realistic motion
     function createSnowflake() {
       const snowContainer = document.getElementById('snowContainer');
       const snowflake = document.createElement('div');
       snowflake.className = 'snowflake';
       snowflake.textContent = '❄';
       
+      // Random size variations
+      const sizeVariation = Math.random();
+      if (sizeVariation < 0.3) {
+        snowflake.classList.add('size-small');
+      } else if (sizeVariation > 0.7) {
+        snowflake.classList.add('size-large');
+      }
+      
       const leftPosition = Math.random() * 100;
-      const duration = Math.random() * 10 + 10; // 10-20 seconds
+      const duration = Math.random() * 15 + 12; // 12-27 seconds for slower fall
+      const swayDuration = Math.random() * 4 + 3; // 3-7 seconds for sway
       const delay = Math.random() * 5; // 0-5 seconds delay
       
       snowflake.style.left = leftPosition + '%';
-      snowflake.style.animationDuration = duration + 's';
-      snowflake.style.animationDelay = delay + 's';
+      snowflake.style.animationDuration = duration + 's, ' + swayDuration + 's';
+      snowflake.style.animationDelay = delay + 's, ' + (Math.random() * 2) + 's';
       
       snowContainer.appendChild(snowflake);
       
@@ -578,8 +592,8 @@
       }, (duration + delay) * 1000);
     }
 
-    // Create snowflakes continuously
-    setInterval(createSnowflake, 200);
+    // Create snowflakes continuously with varying frequency
+    setInterval(createSnowflake, 150);
   </script>
 
 </body>
