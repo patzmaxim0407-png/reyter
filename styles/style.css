@@ -1025,8 +1025,8 @@ footer {
 /* --- Holiday Branch Animation --- */
 .holiday-branch {
   position: absolute;
-  top: 47px;
-  left: 154px;
+  top: 40px;
+  left: 140px;
   z-index: 999;
   cursor: pointer;
 }
@@ -1072,8 +1072,8 @@ footer {
 
   .holiday-branch {
     position: absolute;
-    top: 24px;
-    left: 62px;
+    top: 17px;
+    left: 56px;
     z-index: 999;
     cursor: pointer;
   }
