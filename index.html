@@ -501,6 +501,11 @@
     <p style="font-size: 12px;">&copy; 2025 REYTER. Зроблено з ❤️ в Україні.</p>
   </footer>
 
+  <!-- Новорічна гілка -->
+  <div class="holiday-branch" id="holidayBranch">
+    <img src="/assets/images/2026HN.png" alt="Новорічна гілка" class="branch-image">
+  </div>
+
 <div id="productModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalName" aria-describedby="modalDescription">
   <div class="modal-wrapper">
     <button class="modal-close" onclick="closeModal()" aria-label="Закрити">&times;</button>
@@ -530,6 +535,23 @@
   <script src="../scripts/contacts.js"></script>
   <script src="../scripts/observer.js"></script>
   <script src="../scripts/size-guide.js"></script>
+
+  <!-- Holiday Branch Script -->
+  <script>
+    const branchImage = document.querySelector('.branch-image');
+    const holidayBranch = document.getElementById('holidayBranch');
+
+    function triggerSwing() {
+      branchImage.classList.remove('swing');
+      void branchImage.offsetWidth; // Trigger reflow
+      branchImage.classList.add('swing');
+    }
+
+    if (branchImage && holidayBranch) {
+      holidayBranch.addEventListener('mouseenter', triggerSwing);
+      holidayBranch.addEventListener('click', triggerSwing);
+    }
+  </script>
 
 </body>
 </html>  

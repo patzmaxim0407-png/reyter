@@ -1015,3 +1015,32 @@ footer {
   0%   { transform: translateX(0); }
   100% { transform: translateX(-100%); }
 }
+
+/* --- Holiday Branch Animation --- */
+.holiday-branch {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 999;
+  cursor: pointer;
+}
+
+.branch-image {
+  max-width: 120px;
+  height: auto;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.branch-image.swing {
+  animation: swing 0.6s ease-in-out;
+  transform-origin: top center;
+}
+
+@keyframes swing {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(-15deg); }
+  50% { transform: rotate(0deg); }
+  75% { transform: rotate(15deg); }
+  100% { transform: rotate(0deg); }
+}
