@@ -546,7 +546,6 @@
   <script>
     const branchImage = document.querySelector('.branch-image');
     const holidayBranch = document.getElementById('holidayBranch');
-    const logoDiv = document.querySelector('.logo');
 
     function triggerSwing() {
       branchImage.classList.remove('swing');
@@ -558,17 +557,6 @@
       holidayBranch.addEventListener('mouseenter', triggerSwing);
       holidayBranch.addEventListener('click', triggerSwing);
     }
-
-    // Make holiday branch follow logo on scroll
-    window.addEventListener('scroll', function() {
-      if (logoDiv && holidayBranch) {
-        const logoRect = logoDiv.getBoundingClientRect();
-        // Position relative to logo
-        holidayBranch.style.position = 'fixed';
-        holidayBranch.style.top = (logoRect.top + 77) + 'px';
-        holidayBranch.style.left = '154px';
-      }
-    });
   </script>
 
   <!-- Snow Animation Script -->
