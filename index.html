@@ -41,10 +41,12 @@
 <meta name="twitter:description" content="Купити чоловічу білизну REYTER онлайн. Стиль, комфорт і якість з доставкою по Україні.">
 <meta name="twitter:image" content="https://твой-сайт/assets/images/preview.jpg">
 
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/1.20.3/TweenMax.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/1.20.3/TweenMax.min.js"></script>
 
-
+  <!-- Падаючий сніг -->
+  <div id="snow-animation-container"></div>
+  
 
 <div class="marquee">
   <span>— БЕЗКОШТОВНА ДОСТАВКА НА ЗАМОВЛЕННЯ ВІД 1500 ГРН —</span>
@@ -539,25 +541,6 @@
   <script src="../scripts/observer.js"></script>
   <script src="../scripts/size-guide.js"></script>
 
-  <!-- Падаючий сніг -->
-  <div id="snow-animation-container"></div>
-
-  <!-- Holiday Branch Script -->
-  <script>
-    const branchImage = document.querySelector('.branch-image');
-    const holidayBranch = document.getElementById('holidayBranch');
-
-    function triggerSwing() {
-      branchImage.classList.remove('swing');
-      void branchImage.offsetWidth; // Trigger reflow
-      branchImage.classList.add('swing');
-    }
-
-    if (branchImage && holidayBranch) {
-      holidayBranch.addEventListener('mouseenter', triggerSwing);
-      holidayBranch.addEventListener('click', triggerSwing);
-    }
-  </script>
 
   <!-- Snow Animation Script -->
   <script>
