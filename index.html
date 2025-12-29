@@ -536,6 +536,9 @@
   <script src="../scripts/observer.js"></script>
   <script src="../scripts/size-guide.js"></script>
 
+  <!-- Падаючий сніг -->
+  <div class="snowflakes" id="snowContainer"></div>
+
   <!-- Holiday Branch Script -->
   <script>
     const branchImage = document.querySelector('.branch-image');
@@ -551,6 +554,32 @@
       holidayBranch.addEventListener('mouseenter', triggerSwing);
       holidayBranch.addEventListener('click', triggerSwing);
     }
+
+    // Generate falling snowflakes
+    function createSnowflake() {
+      const snowContainer = document.getElementById('snowContainer');
+      const snowflake = document.createElement('div');
+      snowflake.className = 'snowflake';
+      snowflake.textContent = '❄';
+      
+      const leftPosition = Math.random() * 100;
+      const duration = Math.random() * 10 + 10; // 10-20 seconds
+      const delay = Math.random() * 5; // 0-5 seconds delay
+      
+      snowflake.style.left = leftPosition + '%';
+      snowflake.style.animationDuration = duration + 's';
+      snowflake.style.animationDelay = delay + 's';
+      
+      snowContainer.appendChild(snowflake);
+      
+      // Remove snowflake after animation completes
+      setTimeout(() => {
+        snowflake.remove();
+      }, (duration + delay) * 1000);
+    }
+
+    // Create snowflakes continuously
+    setInterval(createSnowflake, 200);
   </script>
 
 </body>
