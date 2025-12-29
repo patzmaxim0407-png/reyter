@@ -1017,29 +1017,6 @@ footer {
   animation: marquee 20s linear infinite;
 }
 
-.marquee-holiday {
-  background: linear-gradient(90deg, rgba(255, 215, 0, 0.08) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(255, 215, 0, 0.08) 100%);
-  border-top: 1px solid rgba(255, 215, 0, 0.2);
-  border-bottom: 1px solid rgba(255, 215, 0, 0.2);
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: 0.5px;
-  text-transform: none;
-  padding: 8px 0;
-}
-
-.marquee-holiday span {
-  font-size: 15px;
-  color: #111;
-  animation: marquee 25s linear infinite;
-}
-
-.marquee-holiday strong {
-  font-weight: 700;
-  color: #d4af37;
-  text-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
-}
-
 @keyframes marquee {
   0%   { transform: translateX(0); }
   100% { transform: translateX(-100%); }
