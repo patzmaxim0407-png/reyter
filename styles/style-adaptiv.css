@@ -2,11 +2,11 @@
 @media (max-width: 900px) {
   header {
     flex-direction: column;
-  }
-  .logo {
-    padding: 10px 10px !important;
+    align-items: flex-start;
+    padding: 10px 10px;
   }
   .logo img {
+    margin: 0 0 10px 0;
     height: 70px;
   }
   nav {
@@ -16,7 +16,6 @@
     flex-wrap: wrap;
     gap: 10px;
     justify-content: flex-start;
-    padding: 8px 10px !important;
   }
   nav a {
     margin-left: 0.7rem;
@@ -26,49 +25,22 @@
 @media (max-width: 600px) {
   header {
     flex-direction: column;
-  }
-  .logo {
-    padding: 8px 4px !important;
-    justify-content: center;
+    align-items: center;
+    padding: 8px 4px;
   }
   .logo img {
     height: 48px;
+    margin: 0 0 8px 0;
   }
   nav {
-    flex-direction: row;
+    flex-direction: column;
     align-items: center;
     gap: 6px;
     width: 100%;
-    padding: 6px 4px !important;
   }
   nav a {
-    margin: 0 0.5rem;
-    font-size: 0.9rem;
-  }
-}
-
-/* --- New Year Banner --- */
-@media (max-width: 900px) {
-  .new-year-banner {
-    padding: 18px 15px;
-  }
-  .banner-text {
-    font-size: 16px;
-  }
-}
-
-@media (max-width: 600px) {
-  .new-year-banner {
-    padding: 14px 12px;
-    border-top: 1px solid rgba(255, 215, 0, 0.15);
-    border-bottom: 1px solid rgba(255, 215, 0, 0.15);
-  }
-  .banner-text {
-    font-size: 14px;
-    line-height: 1.5;
-  }
-  .banner-text:first-child {
-    margin-bottom: 4px;
+    margin: 0;
+    font-size: 0.98rem;
   }
 }
 
