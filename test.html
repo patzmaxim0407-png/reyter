@@ -537,107 +537,102 @@
     <p style="font-size: 12px;">&copy; 2025 REYTER. Зроблено з ❤️ в Україні.</p>
   </footer>
 
-<div id="productModal" class="productBoxing hidden" role="dialog" aria-modal="true" aria-labelledby="modalName" aria-describedby="modalDescription">
-    <div class="close-btn" onclick="closeModal()" aria-label="Закрити">&times;</div>
-      <div class="left">
-        <div class="matImages">
-          <div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
-            <div class="pswp__bg"></div>
-            <div class="pswp__scroll-wrap">
-              <div class="pswp__container">
-                <div class="pswp__item"></div>
-                <div class="pswp__item"></div>
-                <div class="pswp__item"></div>
-              </div>
-              <div class="pswp__ui pswp__ui--hidden">
-                <div class="pswp__top-bar">
-                  <div class="pswp__counter"></div>
-                  <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
-                  <button class="pswp__button pswp__button--share" title="Share"></button>
-                  <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
-                  <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
-                  <div class="pswp__preloader"><div class="pswp__preloader__icn"><div class="pswp__preloader__cut"><div class="pswp__preloader__donut"></div></div></div></div>
+<div id="productModal" class="productBoxing hidden">
+  <div class="close-btn" onclick="closeModal()">&times;</div>
+  <div class="left">
+    <div class="matImages">
+      <div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="pswp__bg"></div>
+        <div class="pswp__scroll-wrap">
+          <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+          </div>
+          <div class="pswp__ui pswp__ui--hidden">
+            <div class="pswp__top-bar">
+              <div class="pswp__counter"></div>
+              <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+              <button class="pswp__button pswp__button--share" title="Share"></button>
+              <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+              <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+              <div class="pswp__preloader">
+                <div class="pswp__preloader__icn">
+                  <div class="pswp__preloader__cut">
+                    <div class="pswp__preloader__donut"></div>
+                  </div>
                 </div>
-                <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class="pswp__share-tooltip"></div></div>
-                <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)"></button>
-                <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button>
-                <div class="pswp__caption"><div class="pswp__caption__center"></div></div>
               </div>
             </div>
-          </div>
-
-          <div class="bigImage">
-            <div class="hiddenGallery" data-pswp-uid="1"></div>
-            <span class="image"><img id="modalImage" src="" alt="Фото товару"></span>
-            <div class="cloneImg">
-              <img src="" class="clone" alt="">
-              <span class="stikerBox" id="modalStickerBox" style="display:none;">
-                <span class="special" id="modalSticker"></span>
-              </span>
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+              <div class="pswp__share-tooltip"></div>
             </div>
-            <div class="arrowCase">
-              <div class="arrow prev" onclick="prevImage()"></div>
-              <div class="arrow next" onclick="nextImage()"></div>
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)"></button>
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button>
+            <div class="pswp__caption">
+              <div class="pswp__caption__center"></div>
             </div>
-          </div>
-
-          <div class="swiper-container thumbsBox" id="thumbsVertical">
-            <div class="swiper-wrapper"></div>
-            <div class="vertNavigation">
-              <div class="next" tabindex="0" role="button" aria-label="Next slide" aria-disabled="false"></div>
-              <div class="prev" tabindex="0" role="button" aria-label="Previous slide" aria-disabled="true"></div>
-            </div>
-            <span class="swiper-notification" aria-live="assertive" aria-atomic="true"></span>
           </div>
         </div>
       </div>
 
-      <div class="right">
-        <div class="modal-details">
-        <h2 id="modalName"></h2>
-        
-        <div class="modal-article">
-          <div id="modalStatus" class="available ava yes">Товар в наявності</div>
-          <div id="modalArticle" class="article"></div>
+      <div class="bigImage">
+        <div class="hiddenGallery" data-pswp-uid="1"></div>
+        <span class="image"><img id="globalImage" src="" alt="" itemprop="image"></span>
+        <div class="cloneImg">
+          <img src="" class="clone" alt="">
         </div>
-
-        <div class="modal-price-section">
-          <p class="modal-price" id="modalPrice"></p>
+        <div class="arrowCase">
+          <div class="arrow prev"></div>
+          <div class="arrow next"></div>
         </div>
-
-        <div class="modal-divider"></div>
-
-        <div class="modal-sizes">
-          <div class="size-title"><span>Розмір</span><a href="#size-guide" class="size-link" id="sizeGuideLink">Таблиця розмірів</a></div>
-          <div class="size-options" id="modalSizes"></div>
-        </div>
-
-        <div class="modal-divider"></div>
-
-        <p id="modalDescription" class="modal-description"></p>
-
-        <div id="modalCharacteristics" class="modal-characteristics" style="display:none;">
-          <div class="modal-divider"></div>
-          <h4>Характеристики:</h4>
-          <ul id="characteristicsList"></ul>
-        </div>
-
-        <div id="modalMaterial" class="modal-material" style="display:none;">
-          <div class="modal-divider"></div>
-          <h4>Матеріал:</h4>
-          <ul id="materialList"></ul>
-        </div>
-
-        <div id="modalCare" class="modal-care" style="display:none;">
-          <div class="modal-divider"></div>
-          <h4>Рекомендації по догляду:</h4>
-          <ul id="careList"></ul>
-        </div>
-
-        <div class="modal-divider"></div>
-
-        <button class="order-button" id="orderBtn">Замовити товар</button>
       </div>
+
+      <div class="swiper-container thumbsBox count-5 swiper-container-initialized swiper-container-vertical" data-columns="5" id="thumbsVertical">
+        <div class="swiper-wrapper"></div>
+        <div class="vertNavigation">
+          <div class="next" tabindex="0" role="button" aria-label="Next slide" aria-disabled="false"></div>
+          <div class="prev swiper-button-disabled" tabindex="0" role="button" aria-label="Previous slide" aria-disabled="true"></div>
+        </div>
+        <span class="swiper-notification" aria-live="assertive" aria-atomic="true"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <h1 class="name" itemprop="name" id="modalName"></h1>
+    <div class="article">
+      <div class="available ava yes" id="modalStatus">Товар в наявності</div>
+      <link itemprop="availability" href="https://schema.org/InStock">
+      <span id="modalArticle"></span>
+    </div>
+    
+    <div class="priceLine">
+      <input type="hidden" name="product_id" value="">
+      <input type="hidden" name="quantity" value="1" id="input-quantity" class="form-control">
+      <button type="button" class="btnRed purchase btnPurchase" id="button-cart" onclick="orderProduct()">Придбати</button>
+      <div class="price valG" itemprop="price" id="modalPrice">
+        <meta itemprop="priceCurrency" content="UAH">
+      </div>
+    </div>
+
+    <div class="varsLine inputs radio" id="modalSizesContainer" style="display:none;">
+      <div class="title"><span>Розмір</span></div>
+      <div class="inptBox size" id="modalSizes"></div>
+    </div>
+
+    <div class="textDscpt" itemprop="description" id="modalDescription"></div>
+    
+    <div class="dopInfo">
+      <div class="novPochta">
+        Відправимо замовлення Новою Поштою <span>вже сьогодні</span> при оформленні замовлення <span>до 16:00</span>
+      </div>
+      <div class="freeDel">
+        Доставка по всій Україні <span>безкоштовна</span>
+        <br>при оплаті <span>100%</span> через сайт <span class="toDo">(від 2500 грн)</span>
+      </div>
+    </div>
+  </div>
 
     </div>
 </div>
