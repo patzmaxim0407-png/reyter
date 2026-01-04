@@ -135,35 +135,41 @@ function initSwiper() {
       modalThumbsSwiper = null;
     }
     
-    // Create new Swiper instance
+    // Create new Swiper instance for vertical/horizontal carousel
+    const thumbsContainer = document.querySelector('#thumbsVertical');
+    if (!thumbsContainer) return;
+    
+    const isVertical = window.innerWidth > 1024;
+    
     modalThumbsSwiper = new Swiper('#thumbsVertical', {
-      direction: 'vertical',
-      slidesPerView: 4,
-      spaceBetween: 12,
+      direction: isVertical ? 'vertical' : 'horizontal',
+      slidesPerView: isVertical ? 4 : 3,
+      spaceBetween: isVertical ? 8 : 6,
       navigation: {
         nextEl: '.vertNavigation .next',
         prevEl: '.vertNavigation .prev',
       },
+      freeMode: false,
       breakpoints: {
         320: {
           direction: 'horizontal',
-          slidesPerView: 2,
-          spaceBetween: 8,
+          slidesPerView: 3,
+          spaceBetween: 6,
         },
         480: {
           direction: 'horizontal',
-          slidesPerView: 3,
-          spaceBetween: 12,
+          slidesPerView: 4,
+          spaceBetween: 6,
         },
         768: {
           direction: 'horizontal',
           slidesPerView: 4,
-          spaceBetween: 12,
+          spaceBetween: 8,
         },
         1024: {
           direction: 'vertical',
           slidesPerView: 4,
-          spaceBetween: 12,
+          spaceBetween: 8,
         }
       }
     });
@@ -221,7 +227,7 @@ document.addEventListener('keydown', function (e) {
       touchStartX = e.touches[0].screenX;
       touchStartY = e.touches[0].screenY;
     }
-  });
+  }, false);
   
   galleryArea.addEventListener('touchend', function(e) {
     if (touchStartX === null) return;
@@ -242,5 +248,5 @@ document.addEventListener('keydown', function (e) {
     
     touchStartX = null;
     touchStartY = null;
-  });
+  }, false);
 })();
