@@ -93,13 +93,16 @@ function openModal(card) {
   populateThumbs(currentImages);
   setImage(0);
 
+  console.log('Modal element:', modal);
+  console.log('Modal classes before:', modal.className);
   modal.classList.remove('hidden');
+  console.log('Modal classes after:', modal.className);
   document.body.style.overflow = 'hidden';
 
   setTimeout(() => {
     initSwiper();
     initPhotoSwipe();
-  }, 0);
+  }, 100);
 }
 
 function initSwiper() {
@@ -167,17 +170,16 @@ function initPhotoSwipe() {
     hideAnimationDuration: 0
   });
 
-  pswp.init();
+  // НЕ викликаємо pswp.init() тут - PhotoSwipe не має автоматично відкриватись
 
   const mainImg = document.getElementById('modalImage');
   if (mainImg) {
     mainImg.style.cursor = 'pointer';
     mainImg.onclick = function() {
-      if (!pswp) {
-        initPhotoSwipe();
-        return;
+      if (pswp) {
+        pswp.init();
+        pswp.goTo(currentIndex);
       }
-      pswp.goTo(currentIndex);
     };
   }
 }
