@@ -46,8 +46,8 @@ function setImage(idx) {
     thumbsSwiper.slideTo(currentIndex);
   }
 
-  // Оновлюємо PhotoSwipe тільки якщо галерея вже відкрита
-  if (pswp && typeof pswp.getCurrentIndex === 'function') {
+  // Оновлюємо PhotoSwipe тільки якщо галерея відкрита (перевіряємо через framework)
+  if (pswp && pswp.framework && pswp.framework.isOpen) {
     try {
       pswp.goTo(currentIndex);
     } catch(e) {
