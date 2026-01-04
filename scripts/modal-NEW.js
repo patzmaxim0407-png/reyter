@@ -257,3 +257,4 @@ document.addEventListener('DOMContentLoaded', function() {
   window.setImage = setImage;
 });
 
+});
