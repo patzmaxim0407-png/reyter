@@ -33,7 +33,6 @@ function setImage(idx) {
   }
   if (cloneImg) {
     cloneImg.src = src;
-    console.log('Clone image updated to:', src);
   }
 
   const slides = document.querySelectorAll('#thumbsVertical .swiper-slide');
