@@ -249,7 +249,7 @@ function initPhotoSwipe() {
 function closeModal() {
   const modal = document.getElementById('productModal');
   if (modal) modal.classList.add('hidden');
-  document.body.style.overflow = 'auto';
+  document.body.style.removeProperty('overflow');
 
   if (thumbsSwiper) {
     thumbsSwiper.destroy(true, true);
