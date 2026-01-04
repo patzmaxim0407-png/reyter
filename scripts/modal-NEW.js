@@ -116,6 +116,7 @@ function openModal(card) {
   }
   
   // Show modal
+  const modal = document.getElementById('productModal');
   modal.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
   
@@ -241,6 +242,7 @@ function initPhotoSwipe() {
 
 // Close modal and cleanup
 function closeModal() {
+  const modal = document.getElementById('productModal');
   modal.classList.add('hidden');
   document.body.style.overflow = 'auto';
   
@@ -268,6 +270,8 @@ function prevImage() {
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', function() {
+  const modal = document.getElementById('productModal');
+  
   // Close modal on outside click
   window.addEventListener('click', function (e) {
     if (e.target === modal) {
@@ -277,6 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Close modal on ESC key, navigate with arrow keys
   document.addEventListener('keydown', function (e) {
+    const modal = document.getElementById('productModal');
     if (modal.classList.contains('hidden')) return;
     
     if (e.key === 'Escape') {
