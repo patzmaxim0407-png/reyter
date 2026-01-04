@@ -13,6 +13,10 @@
     if (!currentImages.length) return;
     currentIndex = (idx + currentImages.length) % currentImages.length;
     modalImage.src = currentImages[currentIndex].trim();
+    // update active thumbnail
+    const slides = document.querySelectorAll('#thumbsVertical .swiper-slide');
+    slides.forEach(s => s.classList.remove('active'));
+    if (slides[currentIndex]) slides[currentIndex].classList.add('active');
   }
 
   function openModal(card) {
@@ -22,6 +26,49 @@
     currentImages = card.dataset.images.split(',').map(s => s.trim()).filter(Boolean);
     showImage(0);
     modal.classList.remove('hidden');
+    // populate hiddenGallery and thumbnails
+    const hiddenGalleryEl = document.querySelector('.hiddenGallery');
+    const thumbsWrapper = document.querySelector('#thumbsVertical .swiper-wrapper');
+    if (hiddenGalleryEl) hiddenGalleryEl.innerHTML = '';
+    if (thumbsWrapper) thumbsWrapper.innerHTML = '';
+    currentImages.forEach((src, i) => {
+      if (hiddenGalleryEl) hiddenGalleryEl.insertAdjacentHTML('beforeend', `<figure><a href="${src}" data-size=""><img src="${src}" alt=""></a></figure>`);
+      if (thumbsWrapper) thumbsWrapper.insertAdjacentHTML('beforeend', `<div class="swiper-slide itmSImg" data-index="${i}"><a href="${src}" data-popup="${src}" data-size=""><img class="thumb" src="${src}" alt=""></a></div>`);
+    });
+    // attach click handlers to thumbs
+    const thumbSlides = document.querySelectorAll('#thumbsVertical .swiper-slide');
+    thumbSlides.forEach((el, idx) => {
+      el.addEventListener('click', function(e){
+        e.preventDefault();
+        showImage(idx);
+      });
+    });
+    // init or update Swiper for vertical thumbnails
+    try {
+      if (window.Swiper) {
+        if (!window._modalThumbsSwiper) {
+          window._modalThumbsSwiper = new Swiper('#thumbsVertical', {
+            direction: 'vertical',
+            slidesPerView: 4,
+            spaceBetween: 24,
+            navigation: {
+              nextEl: '.vertNavigation .next',
+              prevEl: '.vertNavigation .prev',
+            },
+            breakpoints: {
+              250:{ direction: 'horizontal', spaceBetween:0, slidesPerView: 1 },
+              330:{ direction: 'horizontal', spaceBetween:30, slidesPerView: 2 },
+              480:{ direction: 'horizontal', spaceBetween:30, slidesPerView: 3 },
+              730:{ direction: 'horizontal', spaceBetween:30, slidesPerView: 4 }
+            }
+          });
+        } else {
+          window._modalThumbsSwiper.update();
+        }
+      }
+    } catch (e) {
+      console.warn('Swiper init failed', e);
+    }
   }
 
   function closeModal() {
