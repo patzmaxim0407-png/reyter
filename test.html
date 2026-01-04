@@ -879,5 +879,33 @@ function documentReady() {
 <!-- Modal Script -->
 <script src="scripts/modal-NEW.js?v=1.0"></script>
 
+<!-- Clear Cache on Page Load -->
+<script>
+  // Очищення кешу при завантаженні сторінки
+  window.addEventListener('load', function() {
+    // Очищення Service Worker кешу (якщо є)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+        }
+      });
+      
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for (let name of names) {
+            caches.delete(name);
+          }
+        });
+      }
+    }
+  });
+  
+  // Примусове перезавантаження CSS і JS при Ctrl+F5 або Cmd+Shift+R
+  if (performance.navigation.type === 1) {
+    console.log('Page was reloaded - cache should be cleared');
+  }
+</script>
+
 </body>
 </html>  
