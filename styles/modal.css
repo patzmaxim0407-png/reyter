@@ -9,22 +9,12 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgb(255 255 255 / 99%);
   z-index: 10000;
   overflow-y: auto;
   padding: 40px 20px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-}
-
-.productBoxing > .modal-wrapper {
   display: table;
-  max-width: 1400px;
-  width: 100%;
-  background: #fff;
-  border-radius: 8px;
-  overflow: hidden;
+  margin: 0 auto;
 }
 
 .productBoxing > div {
