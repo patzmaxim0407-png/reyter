@@ -3,7 +3,9 @@ const modal = document.getElementById('productModal');
 let currentImages = [];
 let currentIndex = 0;
 let modalThumbsSwiper = null;
+let photoswipeInstance = null;
 
+// Utility: Set current image (main gallery + Swiper sync)
 function setImage(idx) {
   if (!currentImages.length) return;
   currentIndex = (idx + currentImages.length) % currentImages.length;
@@ -13,26 +15,31 @@ function setImage(idx) {
   modalImage.src = currentImages[currentIndex].trim();
   if (cloneImage) cloneImage.src = currentImages[currentIndex].trim();
   
-  // Update active thumbnail
+  // Update active thumbnail class
   const slides = document.querySelectorAll('#thumbsVertical .swiper-slide');
   slides.forEach(s => s.classList.remove('active'));
   if (slides[currentIndex]) slides[currentIndex].classList.add('active');
   
-  // Scroll thumbnail into view if needed
+  // Scroll thumbnail carousel to active slide
   if (modalThumbsSwiper) {
     modalThumbsSwiper.slideTo(currentIndex);
   }
+  
+  // Update PhotoSwipe index
+  if (photoswipeInstance) {
+    photoswipeInstance.goTo(currentIndex);
+  }
 }
 
+// Open modal with product card data
 function openModal(card) {
   const modalName = document.getElementById('modalName');
   const modalPrice = document.getElementById('modalPrice');
   const modalDescription = document.getElementById('modalDescription');
   
   // Populate basic product info
-  modalName.textContent = card.dataset.name;
-  modalPrice.textContent = card.dataset.price;
-  modalDescription.innerHTML = card.dataset.description.replace(/\n|\r|\r\n|&#10;/g, '<br>');
+  modalName.textContent = card.dataset.name || '';
+  modalPrice.textContent = card.dataset.price || '';
   
   // Extract and prepare images
   currentImages = card.dataset.images.split(',').map(s => s.trim()).filter(Boolean);
@@ -47,7 +54,7 @@ function openModal(card) {
   // Populate article/status
   const articleEl = document.getElementById('modalArticle');
   if (articleEl && card.dataset.article) {
-    articleEl.textContent = card.dataset.article;
+    articleEl.textContent = 'Артикул: ' + card.dataset.article;
   }
   
   // Populate sizes
@@ -92,25 +99,19 @@ function openModal(card) {
     document.getElementById('modalCare').style.display = 'none';
   }
   
-  // Populate hiddenGallery for PhotoSwipe
-  const hiddenGalleryEl = document.querySelector('.hiddenGallery');
-  if (hiddenGalleryEl) {
-    hiddenGalleryEl.innerHTML = '';
-    currentImages.forEach((src) => {
-      hiddenGalleryEl.insertAdjacentHTML('beforeend', 
-        `<figure><a href="${src}" data-size=""><img src="${src}" alt=""></a></figure>`
-      );
-    });
+  // Populate description
+  if (modalDescription && card.dataset.description) {
+    modalDescription.innerHTML = card.dataset.description.replace(/\n|\r|\r\n|&#10;/g, '<br>');
   }
   
-  // Populate thumbnails
+  // Populate thumbnails in Swiper
   const thumbsWrapper = document.querySelector('#thumbsVertical .swiper-wrapper');
   if (thumbsWrapper) {
     thumbsWrapper.innerHTML = '';
     currentImages.forEach((src, i) => {
       thumbsWrapper.insertAdjacentHTML('beforeend', 
         `<div class="swiper-slide itmSImg ${i === 0 ? 'active' : ''}" data-index="${i}">
-          <a href="${src}"><img class="thumb" src="${src}" alt="Фото ${i + 1}" onclick="setImage(${i})"></a>
+          <a href="javascript:void(0)" onclick="setImage(${i}); return false;"><img class="thumb" src="${src}" alt="Photo ${i + 1}"></a>
         </div>`
       );
     });
@@ -118,24 +119,27 @@ function openModal(card) {
   
   // Show modal
   modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
   
-  // Initialize or update Swiper
+  // Initialize Swiper thumbnail carousel
   setTimeout(() => {
     initSwiper();
+    initPhotoSwipe();
   }, 0);
 }
 
+// Initialize Swiper v4.5.0 thumbnail carousel
 function initSwiper() {
   if (!window.Swiper) return;
   
   try {
-    // Destroy existing Swiper instance if it exists
+    // Destroy existing Swiper instance
     if (modalThumbsSwiper) {
       modalThumbsSwiper.destroy();
       modalThumbsSwiper = null;
     }
     
-    // Create new Swiper instance for vertical/horizontal carousel
+    // Create new Swiper v4.5.0 instance
     const thumbsContainer = document.querySelector('#thumbsVertical');
     if (!thumbsContainer) return;
     
@@ -145,47 +149,117 @@ function initSwiper() {
       direction: isVertical ? 'vertical' : 'horizontal',
       slidesPerView: isVertical ? 4 : 3,
       spaceBetween: isVertical ? 8 : 6,
-      navigation: {
-        nextEl: '.vertNavigation .next',
-        prevEl: '.vertNavigation .prev',
-      },
       freeMode: false,
+      roundLengths: true,
+      keyboard: {
+        enabled: true,
+        onlyInViewport: false
+      },
       breakpoints: {
         320: {
           direction: 'horizontal',
           slidesPerView: 3,
-          spaceBetween: 6,
+          spaceBetween: 6
         },
         480: {
           direction: 'horizontal',
           slidesPerView: 4,
-          spaceBetween: 6,
+          spaceBetween: 6
         },
         768: {
           direction: 'horizontal',
           slidesPerView: 4,
-          spaceBetween: 8,
+          spaceBetween: 8
         },
-        1024: {
+        1025: {
           direction: 'vertical',
           slidesPerView: 4,
-          spaceBetween: 8,
+          spaceBetween: 8
         }
       }
     });
+    
+    // Sync click on thumbnail with setImage
+    modalThumbsSwiper.on('click', function() {
+      if (this.clickedIndex !== undefined) {
+        setImage(this.clickedIndex);
+      }
+    });
+    
   } catch (e) {
-    console.warn('Swiper init failed:', e);
+    console.warn('Swiper v4.5.0 init failed:', e);
   }
 }
 
+// Initialize PhotoSwipe v4.1.3 lightbox
+function initPhotoSwipe() {
+  if (!window.PhotoSwipe || !window.PhotoSwipeUI_Default) return;
+  
+  try {
+    // Prepare gallery items for PhotoSwipe
+    const items = currentImages.map(img => ({
+      src: img.trim(),
+      w: 800,
+      h: 800,
+      title: ''
+    }));
+    
+    const pswpElement = document.querySelector('.pswp');
+    if (!pswpElement || items.length === 0) return;
+    
+    const options = {
+      index: currentIndex,
+      shareButtons: [
+        { id: 'facebook', label: 'Share on Facebook', url: 'https://www.facebook.com/sharer/sharer.php?u={{url}}' },
+        { id: 'twitter', label: 'Tweet', url: 'https://twitter.com/intent/tweet?text={{text}}&url={{url}}' },
+        { id: 'pinterest', label: 'Pin it', url: 'http://www.pinterest.com/pin/create/button/?url={{url}}&media={{image_url}}&description={{text}}' }
+      ],
+      captionEl: true,
+      fullscreenEl: true,
+      shareEl: true,
+      counterEl: true
+    };
+    
+    // Initialize PhotoSwipe instance
+    photoswipeInstance = new PhotoSwipe(pswpElement, PhotoSwipeUI_Default, items, options);
+    
+    // Add click handler to main image for fullscreen view
+    const mainImage = document.getElementById('modalImage');
+    if (mainImage) {
+      mainImage.style.cursor = 'pointer';
+      mainImage.onclick = function() {
+        if (photoswipeInstance) {
+          photoswipeInstance.updateItems(items);
+          photoswipeInstance.goTo(currentIndex);
+          photoswipeInstance.init();
+        }
+      };
+    }
+    
+  } catch (e) {
+    console.warn('PhotoSwipe v4.1.3 init failed:', e);
+  }
+}
+
+// Close modal and cleanup
 function closeModal() {
   modal.classList.add('hidden');
+  document.body.style.overflow = 'auto';
+  
+  // Destroy Swiper instance
   if (modalThumbsSwiper) {
     modalThumbsSwiper.destroy();
     modalThumbsSwiper = null;
   }
+  
+  // Close PhotoSwipe if open
+  if (photoswipeInstance) {
+    photoswipeInstance.close();
+    photoswipeInstance = null;
+  }
 }
 
+// Navigation functions
 function nextImage() {
   setImage(currentIndex + 1);
 }
@@ -194,59 +268,60 @@ function prevImage() {
   setImage(currentIndex - 1);
 }
 
-// Close modal by clicking outside
-window.addEventListener('click', function (e) {
-  if (e.target === modal) {
-    closeModal();
-  }
-});
+// Event listeners
+document.addEventListener('DOMContentLoaded', function() {
+  // Close modal on outside click
+  window.addEventListener('click', function (e) {
+    if (e.target === modal) {
+      closeModal();
+    }
+  });
 
-// Close modal by ESC key, navigate with arrow keys
-document.addEventListener('keydown', function (e) {
-  if (modal.classList.contains('hidden')) return;
+  // Close modal on ESC key, navigate with arrow keys
+  document.addEventListener('keydown', function (e) {
+    if (modal.classList.contains('hidden')) return;
+    
+    if (e.key === 'Escape') {
+      closeModal();
+    } else if (e.key === 'ArrowLeft') {
+      prevImage();
+    } else if (e.key === 'ArrowRight') {
+      nextImage();
+    }
+  });
   
-  if (e.key === 'Escape') {
-    closeModal();
-  } else if (e.key === 'ArrowLeft') {
-    prevImage();
-  } else if (e.key === 'ArrowRight') {
-    nextImage();
-  }
-});
-
-// Touch swipe support for mobile
-(function enableSwipe() {
+  // Touch swipe support for mobile
   const galleryArea = document.querySelector('.matImages');
-  if (!galleryArea) return;
-  
-  let touchStartX = null;
-  let touchStartY = null;
-  
-  galleryArea.addEventListener('touchstart', function(e) {
-    if (e.touches.length === 1) {
-      touchStartX = e.touches[0].screenX;
-      touchStartY = e.touches[0].screenY;
-    }
-  }, false);
-  
-  galleryArea.addEventListener('touchend', function(e) {
-    if (touchStartX === null) return;
+  if (galleryArea) {
+    let touchStartX = null;
+    let touchStartY = null;
     
-    const touchEndX = e.changedTouches[0].screenX;
-    const touchEndY = e.changedTouches[0].screenY;
-    const diffX = touchEndX - touchStartX;
-    const diffY = touchEndY - touchStartY;
-    
-    // Swipe right = previous, Swipe left = next
-    if (Math.abs(diffX) > 50 && Math.abs(diffY) < 60) {
-      if (diffX > 0) {
-        prevImage();
-      } else {
-        nextImage();
+    galleryArea.addEventListener('touchstart', function(e) {
+      if (e.touches.length === 1) {
+        touchStartX = e.touches[0].screenX;
+        touchStartY = e.touches[0].screenY;
       }
-    }
+    }, false);
     
-    touchStartX = null;
-    touchStartY = null;
-  }, false);
-})();
+    galleryArea.addEventListener('touchend', function(e) {
+      if (touchStartX === null) return;
+      
+      const touchEndX = e.changedTouches[0].screenX;
+      const touchEndY = e.changedTouches[0].screenY;
+      const diffX = touchEndX - touchStartX;
+      const diffY = touchEndY - touchStartY;
+      
+      // Swipe right = previous, Swipe left = next
+      if (Math.abs(diffX) > 50 && Math.abs(diffY) < 60) {
+        if (diffX > 0) {
+          prevImage();
+        } else {
+          nextImage();
+        }
+      }
+      
+      touchStartX = null;
+      touchStartY = null;
+    }, false);
+  }
+});
