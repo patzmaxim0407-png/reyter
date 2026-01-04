@@ -601,13 +601,13 @@
       <div class="swiper-container thumbsBox count-3 swiper-container-initialized swiper-container-vertical" data-columns="3" id="thumbsVertical">
         <div class="swiper-wrapper">
           <div class="swiper-slide itmSImg active swiper-slide-active" data-index="0">
-            <a href="javascript:void(0)"><img class="thumb" src="assets/images/sets/sbi5.webp" alt="Photo 1"></a>
+            <a href="javascript:void(0)" data-popup="assets/images/sets/sbi5.webp"><img class="thumb" src="assets/images/sets/sbi5.webp" alt="Photo 1"></a>
           </div>
           <div class="swiper-slide itmSImg swiper-slide-next" data-index="1">
-            <a href="javascript:void(0)"><img class="thumb" src="assets/images/sets/sbi6.webp" alt="Photo 2"></a>
+            <a href="javascript:void(0)" data-popup="assets/images/sets/sbi6.webp"><img class="thumb" src="assets/images/sets/sbi6.webp" alt="Photo 2"></a>
           </div>
           <div class="swiper-slide itmSImg" data-index="2">
-            <a href="javascript:void(0)"><img class="thumb" src="assets/images/sets/sbi7.webp" alt="Photo 3"></a>
+            <a href="javascript:void(0)" data-popup="assets/images/sets/sbi7.webp"><img class="thumb" src="assets/images/sets/sbi7.webp" alt="Photo 3"></a>
           </div>
         </div>
         <div class="vertNavigation">
@@ -848,8 +848,34 @@ function documentReady() {
 <!-- Swiper v4.5.0 JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Swiper/4.5.0/js/swiper.min.js"></script>
 
+<!-- Swiper Initialization -->
+<script>
+  // Initialize Swiper for vertical thumbnails
+  if (document.querySelector('#thumbsVertical')) {
+    vertswiper = new Swiper('#thumbsVertical', {
+      direction: 'vertical',
+      slidesPerView: 3,
+      spaceBetween: 10,
+      navigation: {
+        nextEl: '.swiper-button-next',
+        prevEl: '.swiper-button-prev',
+      },
+      breakpoints: {
+        320: {
+          slidesPerView: 3,
+          spaceBetween: 5
+        },
+        768: {
+          slidesPerView: 3,
+          spaceBetween: 10
+        }
+      }
+    });
+  }
+</script>
+
 <!-- Modal Script -->
-<script src="../scripts/modal-NEW.js"></script>
+<script src="scripts/modal-NEW.js"></script>
 
 </body>
 </html>  
