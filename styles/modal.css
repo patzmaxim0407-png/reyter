@@ -1255,12 +1255,19 @@
     padding: 0;
     height: auto;
     min-height: 120px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  
+  .productBoxing > .left .thumbsBox.swiper-container .swiper-wrapper {
+    flex-direction: row !important;
+    transform: translate3d(0px, 0px, 0px) !important;
   }
   
   .productBoxing > .left .thumbsBox.swiper-container .itmSImg {
     padding-bottom: 0;
-    height: 120px;
-    width: auto;
+    height: 120px !important;
+    width: auto !important;
     flex-shrink: 0;
   }
   
