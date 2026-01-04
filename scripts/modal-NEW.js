@@ -132,10 +132,10 @@ function initSwiper() {
       thumbsSwiper = null;
     }
 
-    const vertical = window.innerWidth > 1000;
+    const vertical = window.innerWidth > 1200;
     thumbsSwiper = new Swiper('#thumbsVertical', {
       direction: vertical ? 'vertical' : 'horizontal',
-      slidesPerView: vertical ? 4 : 3,
+      slidesPerView: vertical ? 4 : 'auto',
       spaceBetween: vertical ? 48 : 12,
       navigation: {
         nextEl: '.vertNavigation .next',
@@ -149,7 +149,10 @@ function initSwiper() {
         850: { direction: 'horizontal', spaceBetween: 30, slidesPerView: 3 },
         1000:{ direction: 'horizontal', spaceBetween: 30, slidesPerView: 4 },
         1200:{ direction: 'vertical',   spaceBetween: 48, slidesPerView: 4 }
-      }
+      },
+      observer: true,
+      observeParents: true,
+      observeSlideChildren: true
     });
 
     thumbsSwiper.on('click', function() {
@@ -161,6 +164,20 @@ function initSwiper() {
     console.warn('Swiper init error', err);
   }
 }
+
+// Обробник зміни розміру вікна
+let resizeTimeout;
+window.addEventListener('resize', function() {
+  const modal = document.getElementById('productModal');
+  if (!modal || modal.classList.contains('hidden')) return;
+  
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    if (thumbsSwiper) {
+      initSwiper();
+    }
+  }, 250);
+});
 
 function initPhotoSwipe() {
   if (!window.PhotoSwipe || !window.PhotoSwipeUI_Default) {
