@@ -602,18 +602,15 @@
   <div class="right">
     <h1 class="name" itemprop="name" id="modalName"></h1>
     <div class="article">
-      <div class="available ava yes" id="modalStatus">Товар в наявності</div>
-      <link itemprop="availability" href="https://schema.org/InStock">
+      <div class="available ava yes" id="modalStatus">Товар в наявності</div><link itemprop="availability" href="https://schema.org/InStock">
       <span id="modalArticle"></span>
     </div>
     
     <div class="priceLine">
       <input type="hidden" name="product_id" value="">
       <input type="hidden" name="quantity" value="1" id="input-quantity" class="form-control">
-      <button type="button" class="btnRed purchase btnPurchase" id="button-cart" onclick="orderProduct()">Придбати</button>
-      <div class="price valG" itemprop="price" id="modalPrice">
-        <meta itemprop="priceCurrency" content="UAH">
-      </div>
+      <button type="button" class="btnRed purchase btnPurchase" id="button-cart" data-loading-text="Завантаження..." onclick="orderProduct()">Придбати</button>
+      <div class="price valG" itemprop="price" id="modalPrice" content=""><meta itemprop="priceCurrency" content="UAH"></div>
     </div>
 
     <div class="varsLine inputs radio" id="modalSizesContainer" style="display:none;">
