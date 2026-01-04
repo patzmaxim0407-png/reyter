@@ -179,6 +179,13 @@ window.addEventListener('resize', function() {
   }, 250);
 });
 
+// Закриття модального вікна при кліку на посилання розмірної сітки
+document.addEventListener('click', function(e) {
+  if (e.target && e.target.id === 'sizeLink') {
+    closeModal();
+  }
+});
+
 function initPhotoSwipe() {
   if (!window.PhotoSwipe || !window.PhotoSwipeUI_Default) {
     console.warn('PhotoSwipe not loaded');
