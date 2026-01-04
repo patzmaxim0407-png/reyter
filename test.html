@@ -879,6 +879,22 @@ function documentReady() {
 <!-- Modal Script -->
 <script src="scripts/modal-NEW.js?v=1.0"></script>
 
+<!-- Auto-adjust grid columns based on product count -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const productGrids = document.querySelectorAll('.product-grid');
+    
+    productGrids.forEach(grid => {
+      const productCount = grid.querySelectorAll('.product-card').length;
+      
+      // Якщо 4 продукти - робимо 4 колонки
+      if (productCount === 4) {
+        grid.classList.add('grid-4-cols');
+      }
+    });
+  });
+</script>
+
 <!-- Clear Cache on Page Load -->
 <script>
   // Очищення кешу при завантаженні сторінки
