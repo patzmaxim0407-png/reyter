@@ -26,6 +26,54 @@
     currentImages = card.dataset.images.split(',').map(s => s.trim()).filter(Boolean);
     showImage(0);
     modal.classList.remove('hidden');
+    
+    // Populate article
+    const articleEl = document.getElementById('modalArticle');
+    if (articleEl && card.dataset.article) {
+      articleEl.textContent = card.dataset.article;
+    }
+    
+    // Populate sizes
+    const sizesContainer = document.getElementById('modalSizes');
+    if (sizesContainer) {
+      const sizes = ['S', 'M', 'L'];
+      sizesContainer.innerHTML = sizes.map((size, idx) => 
+        `<label class="size-radio"><input type="radio" name="modal-size" value="${size}" data-index="${idx}"> ${size}</label>`
+      ).join('');
+    }
+    
+    // Populate characteristics if provided
+    const charList = card.dataset.characteristics;
+    if (charList) {
+      const charArray = charList.split('|');
+      const charContainer = document.getElementById('characteristicsList');
+      document.getElementById('modalCharacteristics').style.display = 'block';
+      if (charContainer) charContainer.innerHTML = charArray.map(c => `<li>${c}</li>`).join('');
+    } else {
+      document.getElementById('modalCharacteristics').style.display = 'none';
+    }
+    
+    // Populate material if provided
+    const material = card.dataset.material;
+    if (material) {
+      const matArray = material.split('|');
+      const matContainer = document.getElementById('materialList');
+      document.getElementById('modalMaterial').style.display = 'block';
+      if (matContainer) matContainer.innerHTML = matArray.map(m => `<li>${m}</li>`).join('');
+    } else {
+      document.getElementById('modalMaterial').style.display = 'none';
+    }
+    
+    // Populate care if provided
+    const care = card.dataset.care;
+    if (care) {
+      const careArray = care.split('|');
+      const careContainer = document.getElementById('careList');
+      document.getElementById('modalCare').style.display = 'block';
+      if (careContainer) careContainer.innerHTML = careArray.map(c => `<li>${c}</li>`).join('');
+    } else {
+      document.getElementById('modalCare').style.display = 'none';
+    }
     // populate hiddenGallery and thumbnails
     const hiddenGalleryEl = document.querySelector('.hiddenGallery');
     const thumbsWrapper = document.querySelector('#thumbsVertical .swiper-wrapper');

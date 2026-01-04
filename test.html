@@ -109,7 +109,11 @@
      data-name="Beige anderwear"
      data-price="700 UAH/ 17$"
      data-description="Склад: віскоза 95%, еластан 5%&#10;Розміри: S, M, L"
-     data-images="assets/images/boxers/Oc1.webp,assets/images/boxers/Oc2.webp,assets/images/boxers/Oc3.webp">
+     data-images="assets/images/boxers/Oc1.webp,assets/images/boxers/Oc2.webp,assets/images/boxers/Oc3.webp"
+     data-article="BG-001"
+     data-characteristics="Еластичний матеріал|Комфортна посадка|Міцна фурнітура"
+     data-material="Віскоза 95%|Еластан 5%"
+     data-care="Машинне прання 30°C|Делікатний режим|Сушіння на повітрі">
       <img src="assets/images/boxers/Oc1.webp" alt="Товар 6">
       <h3 class="product-title">
         <span>Beige anderwear</span>
@@ -122,7 +126,11 @@
      data-name="Powder anderwear"
      data-price="700 UAH/ 17$"
      data-description="Склад: віскоза 95%, еластан 5%&#10;Розміри: S, M, L"
-     data-images="assets/images/boxers/pa1.webp,assets/images/boxers/pa2.webp,assets/images/boxers/pa3.webp">
+     data-images="assets/images/boxers/pa1.webp,assets/images/boxers/pa2.webp,assets/images/boxers/pa3.webp"
+     data-article="PW-002"
+     data-characteristics="М'яка та дихаюча тканина|Приємна на дотик|Довготривалий колір"
+     data-material="Віскоза 95%|Еластан 5%"
+     data-care="Машинне прання 30°C|Делікатний режим|Сушіння на повітрі">
       <img src="assets/images/boxers/pa1.webp" alt="Товар 6">
       <h3 class="product-title">
         <span>Powder anderwear</span>
@@ -135,7 +143,11 @@
      data-name="Swimwear - rich"
      data-price="880 UAH/ 21$"
      data-description="Склад: еконіл 78%, спандекс 22%&#10;Розміри: S, M, L&#10;Білизна для басейну, пляжу та активного відпочинку"
-     data-images="assets/images/boxers/sr1.webp,assets/images/boxers/sr2.webp,assets/images/boxers/sr3.webp">
+     data-images="assets/images/boxers/sr1.webp,assets/images/boxers/sr2.webp,assets/images/boxers/sr3.webp"
+     data-article="SW-003"
+     data-characteristics="Стійкість до хлору і солі|Швидке висихання|Еластичний матеріал"
+     data-material="Еконіл 78%|Спандекс 22%"
+     data-care="Прання в холодній воді|Не використовуйте пральну машину|Сушіння вдалині від сонця">
       <img src="assets/images/boxers/sr1.webp" alt="Товар 6">
       <h3 class="product-title">
         <span>Swimwear - rich</span>
@@ -572,11 +584,47 @@
 
       <div class="modal-details">
         <h2 id="modalName"></h2>
-        <div class="color-options" id="modalColors"></div>
+        
+        <div class="modal-article">
+          <div id="modalStatus" class="available ava yes">Товар в наявності</div>
+          <div id="modalArticle" class="article"></div>
+        </div>
+
+        <div class="modal-price-section">
+          <p class="modal-price" id="modalPrice"></p>
+        </div>
+
         <div class="modal-divider"></div>
+
+        <div class="modal-sizes">
+          <div class="size-title"><span>Розмір</span><a href="#size-guide" class="size-link" id="sizeGuideLink">Таблиця розмірів</a></div>
+          <div class="size-options" id="modalSizes"></div>
+        </div>
+
+        <div class="modal-divider"></div>
+
         <p id="modalDescription" class="modal-description"></p>
-        <p class="modal-price" id="modalPrice"></p>
-        <a href="#size-guide" class="size-link" id="sizeLink">Як обрати розмір?</a>
+
+        <div id="modalCharacteristics" class="modal-characteristics" style="display:none;">
+          <div class="modal-divider"></div>
+          <h4>Характеристики:</h4>
+          <ul id="characteristicsList"></ul>
+        </div>
+
+        <div id="modalMaterial" class="modal-material" style="display:none;">
+          <div class="modal-divider"></div>
+          <h4>Матеріал:</h4>
+          <ul id="materialList"></ul>
+        </div>
+
+        <div id="modalCare" class="modal-care" style="display:none;">
+          <div class="modal-divider"></div>
+          <h4>Рекомендації по догляду:</h4>
+          <ul id="careList"></ul>
+        </div>
+
+        <div class="modal-divider"></div>
+
         <button class="order-button" id="orderBtn">Замовити товар</button>
       </div>
 
