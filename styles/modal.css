@@ -1198,6 +1198,7 @@
     -webkit-box-sizing: content-box;
     -moz-box-sizing: content-box;
     box-sizing: content-box;
+    flex-direction: row;
   }
   
   .productBoxing > .left .thumbsBox.swiper-container .itmSImg {
