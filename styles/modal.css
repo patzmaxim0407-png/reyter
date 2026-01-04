@@ -1015,7 +1015,8 @@
   font-weight: 500;
   text-decoration: underline;
   text-transform: uppercase;
-  color: #000;
+  color: #4a70ff;
+  font-weight: bold;
 }
 
 .varsLine .title a:hover {
@@ -1359,7 +1360,7 @@
 
 /* Button Styles */
 .btnRed {
-  background: #d22a2b;
+  background: #4866c2;
   color: #fff;
   border: none;
   padding: 12px 24px;
@@ -1372,7 +1373,7 @@
 }
 
 .btnRed:hover {
-  background: #b02020;
+  background: #334d9c;
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(210, 42, 43, 0.3);
 }
