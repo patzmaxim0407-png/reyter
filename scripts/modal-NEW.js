@@ -1,5 +1,3 @@
-const modal = document.getElementById('productModal');
-
 let currentImages = [];
 let currentIndex = 0;
 let modalThumbsSwiper = null;

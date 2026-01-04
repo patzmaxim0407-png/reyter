@@ -208,7 +208,7 @@
   bottom: 18px;
   width: 32px;
   height: 32px;
-  background: url(../images/svg/icoBtnFullPhoto.svg) no-repeat;
+  background: url(/assets/images/svg/icoBtnFullPhoto.svg) no-repeat;
   -webkit-background-size: 100%;
   background-size: 100%;
   transition: all 0.3s ease 0s;
@@ -545,7 +545,7 @@
   display: block;
   width: 12px;
   height: 20px;
-  background: url(../images/svg/ico_Arrow.svg) no-repeat;
+  background: url(/assets/images/svg/ico_Arrow.svg) no-repeat;
   -webkit-background-size: 100% auto;
   background-size: 100% auto;
   position: absolute;
