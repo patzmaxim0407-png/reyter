@@ -186,6 +186,17 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// Обробники кліків на стрілки навігації
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('arrow')) {
+    if (e.target.classList.contains('prev')) {
+      prevImage();
+    } else if (e.target.classList.contains('next')) {
+      nextImage();
+    }
+  }
+});
+
 function initPhotoSwipe() {
   if (!window.PhotoSwipe || !window.PhotoSwipeUI_Default) {
     console.warn('PhotoSwipe not loaded');
