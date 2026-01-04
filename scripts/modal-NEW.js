@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+(function() {
 // Modal & gallery logic tailored for test.html
 
 let currentImages = [];
@@ -207,54 +207,52 @@ function prevImage() {
   setImage(currentIndex - 1);
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-  const modal = document.getElementById('productModal');
+const modal = document.getElementById('productModal');
 
-  // Close on outside click
-  window.addEventListener('click', function(e) {
-    if (e.target === modal) {
-      closeModal();
+// Close on outside click
+window.addEventListener('click', function(e) {
+  if (e.target === modal) {
+    closeModal();
+  }
+});
+
+// Keyboard navigation
+document.addEventListener('keydown', function(e) {
+  if (!modal || modal.classList.contains('hidden')) return;
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'ArrowLeft') prevImage();
+  if (e.key === 'ArrowRight') nextImage();
+});
+
+// Touch swipe on gallery area
+const galleryArea = document.querySelector('.matImages');
+if (galleryArea) {
+  let sx = null;
+  let sy = null;
+  galleryArea.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 1) {
+      sx = e.touches[0].screenX;
+      sy = e.touches[0].screenY;
     }
   });
-
-  // Keyboard navigation
-  document.addEventListener('keydown', function(e) {
-    if (!modal || modal.classList.contains('hidden')) return;
-    if (e.key === 'Escape') closeModal();
-    if (e.key === 'ArrowLeft') prevImage();
-    if (e.key === 'ArrowRight') nextImage();
+  galleryArea.addEventListener('touchend', function(e) {
+    if (sx === null) return;
+    const dx = e.changedTouches[0].screenX - sx;
+    const dy = e.changedTouches[0].screenY - sy;
+    if (Math.abs(dx) > 50 && Math.abs(dy) < 60) {
+      if (dx > 0) prevImage();
+      else nextImage();
+    }
+    sx = null;
+    sy = null;
   });
+}
 
-  // Touch swipe on gallery area
-  const galleryArea = document.querySelector('.matImages');
-  if (galleryArea) {
-    let sx = null;
-    let sy = null;
-    galleryArea.addEventListener('touchstart', function(e) {
-      if (e.touches.length === 1) {
-        sx = e.touches[0].screenX;
-        sy = e.touches[0].screenY;
-      }
-    });
-    galleryArea.addEventListener('touchend', function(e) {
-      if (sx === null) return;
-      const dx = e.changedTouches[0].screenX - sx;
-      const dy = e.changedTouches[0].screenY - sy;
-      if (Math.abs(dx) > 50 && Math.abs(dy) < 60) {
-        if (dx > 0) prevImage();
-        else nextImage();
-      }
-      sx = null;
-      sy = null;
-    });
-  }
+// Bind inline handlers to global scope
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.nextImage = nextImage;
+window.prevImage = prevImage;
+window.setImage = setImage;
 
-  // Bind inline handlers to global scope
-  window.openModal = openModal;
-  window.closeModal = closeModal;
-  window.nextImage = nextImage;
-  window.prevImage = prevImage;
-  window.setImage = setImage;
-});
-
-});
+})();
