@@ -24,6 +24,8 @@
 
 .productBoxing > .left {
   position: relative;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
 }
 
 .productBoxing > .left > .matImages {
@@ -602,6 +604,9 @@
 .productBoxing > .right {
   width: 390px;
   padding-left: 95px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .productBoxing > .right h1.name {
