@@ -1259,7 +1259,8 @@
   
   .productBoxing > .left .thumbsBox.swiper-container .itmSImg {
     padding-bottom: 0;
-    height: 120px;
+    height: 120px !important;
+    width: auto !important;
     flex-shrink: 0;
   }
   
