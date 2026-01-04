@@ -23,7 +23,7 @@ function setImage(idx) {
   if (!currentImages.length) return;
   currentIndex = (idx + currentImages.length) % currentImages.length;
 
-  const mainImg = document.getElementById('modalImage');
+  const mainImg = document.getElementById('globalImage');
   const cloneImg = document.querySelector('.clone');
   const src = currentImages[currentIndex];
 
@@ -60,6 +60,17 @@ function populateThumbs(images) {
       </div>`
     );
   });
+  
+  // Додаємо обробники кліків на кожну мініатюру
+  setTimeout(() => {
+    const thumbSlides = document.querySelectorAll('#thumbsVertical .swiper-slide');
+    thumbSlides.forEach((slide, index) => {
+      slide.addEventListener('click', function(e) {
+        e.preventDefault();
+        setImage(index);
+      });
+    });
+  }, 50);
 }
 
 function openModal(card) {
@@ -211,7 +222,7 @@ function initPhotoSwipe() {
   }
 
   // Клік по головному зображенню відкриває галерею
-  const mainImg = document.getElementById('modalImage');
+  const mainImg = document.getElementById('globalImage');
   if (mainImg) {
     mainImg.style.cursor = 'pointer';
     mainImg.onclick = function(e) {
