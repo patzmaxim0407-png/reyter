@@ -1252,12 +1252,25 @@
   .productBoxing > .left .thumbsBox.swiper-container {
     width: 100%;
     padding: 0;
+    height: auto;
+    min-height: 120px;
   }
   
   .productBoxing > .left .thumbsBox.swiper-container .itmSImg {
     padding-bottom: 0;
-    height: auto;
+    height: 120px;
     flex-shrink: 0;
+  }
+  
+  .productBoxing > .left .thumbsBox.swiper-container .itmSImg a {
+    display: block;
+    height: 100%;
+  }
+  
+  .productBoxing > .left .thumbsBox.swiper-container .itmSImg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .productBoxing > .right {
