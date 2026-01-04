@@ -221,6 +221,10 @@ function initPhotoSwipe() {
 
     pswp.listen('close', function() {
       pswp = null;
+      // PhotoSwipe встановлює overflow: auto при закритті, тому скидаємо це
+      setTimeout(() => {
+        document.body.style.removeProperty('overflow');
+      }, 0);
     });
 
   } catch(e) {
@@ -249,7 +253,6 @@ function initPhotoSwipe() {
 function closeModal() {
   const modal = document.getElementById('productModal');
   if (modal) modal.classList.add('hidden');
-  document.body.style.removeProperty('overflow');
 
   if (thumbsSwiper) {
     thumbsSwiper.destroy(true, true);
@@ -260,6 +263,11 @@ function closeModal() {
     pswp.close();
     pswp = null;
   }
+  
+  // Видаляємо overflow після того як PhotoSwipe закриється
+  setTimeout(() => {
+    document.body.style.removeProperty('overflow');
+  }, 50);
 }
 
 function nextImage() {
