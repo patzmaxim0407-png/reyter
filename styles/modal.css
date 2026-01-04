@@ -23,9 +23,9 @@
 
 .productBoxing > .left {
   position: relative;
-  max-height: calc(100vh - 80px);
-  width: 490px;
-  padding-left: 95px;
+    max-height: calc(100vh - 80px);
+    width: 50%;
+    padding-left: 35px;
 }
 
 .productBoxing > .left > .matImages {
@@ -603,12 +603,11 @@
 
 /* Right Panel - Product Information */
 .productBoxing > .right {
-  max-width: 1000px;
-  min-width: 700px;
-  width: 50%;
-  padding-left: 95px;
-  overflow-y: auto;
-  overflow-x: hidden;
+    min-width: 400px;
+    width: 50%;
+    padding-left: 35px;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .productBoxing > .right h1.name {
@@ -1234,7 +1233,7 @@
   .productBoxing > .left {
     width: auto;
     float: none;
-    max-width: 450px;
+    max-height: calc(300vh - 100px);
     margin: 0 auto;
     left: -7.5px;
     position: relative;
