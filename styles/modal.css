@@ -59,8 +59,8 @@
 
 .productBoxing > .left .thumbsBox.swiper-container .itmSImg {
   padding-bottom: 0;
-  width: auto !important;
-  height: auto !important;
+  width: auto ;
+  height: auto ;
 }
 
 .productBoxing > .left .thumbsBox.count-1,
