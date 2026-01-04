@@ -1,4 +1,3 @@
-(function() {
 // Modal & gallery logic tailored for test.html
 
 let currentImages = [];
@@ -247,12 +246,3 @@ if (galleryArea) {
     sy = null;
   });
 }
-
-// Bind inline handlers to global scope
-window.openModal = openModal;
-window.closeModal = closeModal;
-window.nextImage = nextImage;
-window.prevImage = prevImage;
-window.setImage = setImage;
-
-})();
