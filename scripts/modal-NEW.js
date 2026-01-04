@@ -12,9 +12,8 @@ function buildHiddenGallery(images) {
   const defaultSize = '1200x1600';
   hidden.innerHTML = images
     .map((src) => {
-      const clean = src.trim();
       const size = defaultSize;
-      return `<figure><a href="${clean}" data-size="${size}"><img src="${clean}" alt=""></a></figure>`;
+      return `<figure><a href="${src}" data-size="${size}"><img src="${src}" alt=""></a></figure>`;
     })
     .join('');
 }
@@ -26,7 +25,7 @@ function setImage(idx) {
 
   const mainImg = document.getElementById('modalImage');
   const cloneImg = document.querySelector('.clone');
-  const src = currentImages[currentIndex].trim();
+  const src = currentImages[currentIndex];
 
   if (mainImg) {
     mainImg.src = src;
@@ -57,7 +56,7 @@ function populateThumbs(images) {
     wrapper.insertAdjacentHTML(
       'beforeend',
       `<div class="swiper-slide itmSImg ${i === 0 ? 'active' : ''}" data-index="${i}">
-        <a href="javascript:void(0)"><img class="thumb" src="${src.trim()}" alt="Photo ${i + 1}"></a>
+        <a href="javascript:void(0)"><img class="thumb" src="${src}" alt="Photo ${i + 1}"></a>
       </div>`
     );
   });
@@ -145,40 +144,84 @@ function initSwiper() {
 }
 
 function initPhotoSwipe() {
-  if (!window.PhotoSwipe || !window.PhotoSwipeUI_Default) return;
+  if (!window.PhotoSwipe || !window.PhotoSwipeUI_Default) {
+    console.warn('PhotoSwipe not loaded');
+    return;
+  }
 
   const pswpEl = document.querySelector('.pswp');
-  if (!pswpEl || !currentImages.length) return;
+  if (!pswpEl) {
+    console.warn('PhotoSwipe DOM element (.pswp) not found');
+    return;
+  }
+  
+  if (!currentImages.length) {
+    console.warn('No images to display in PhotoSwipe');
+    return;
+  }
 
   const items = currentImages.map((src) => ({
-    src: src.trim(),
+    src: src,
     w: 1200,
     h: 1600,
     title: ''
   }));
 
+  // Закриваємо попередній екземпляр якщо існує
   if (pswp) {
-    pswp.close();
+    try {
+      pswp.close();
+    } catch(e) {
+      console.warn('Error closing previous PhotoSwipe instance:', e);
+    }
     pswp = null;
   }
 
-  pswp = new PhotoSwipe(pswpEl, PhotoSwipeUI_Default, items, {
-    index: currentIndex,
-    history: false,
-    focus: false,
-    showAnimationDuration: 0,
-    hideAnimationDuration: 0
-  });
+  // Створюємо новий екземпляр PhotoSwipe
+  try {
+    pswp = new PhotoSwipe(pswpEl, PhotoSwipeUI_Default, items, {
+      index: currentIndex,
+      history: false,
+      focus: false,
+      showAnimationDuration: 0,
+      hideAnimationDuration: 0,
+      closeOnScroll: false,
+      closeOnVerticalDrag: false,
+      escKey: true,
+      arrowKeys: true,
+      clickToCloseNonZoomable: false
+    });
 
-  // НЕ викликаємо pswp.init() тут - PhotoSwipe не має автоматично відкриватись
+    // Обробники подій PhotoSwipe
+    pswp.listen('afterChange', function() {
+      const newIndex = pswp.getCurrentIndex();
+      if (newIndex !== currentIndex) {
+        setImage(newIndex);
+      }
+    });
 
+    pswp.listen('close', function() {
+      pswp = null;
+    });
+
+  } catch(e) {
+    console.error('Error creating PhotoSwipe instance:', e);
+    pswp = null;
+    return;
+  }
+
+  // Клік по головному зображенню відкриває галерею
   const mainImg = document.getElementById('modalImage');
   if (mainImg) {
     mainImg.style.cursor = 'pointer';
-    mainImg.onclick = function() {
-      if (pswp) {
-        pswp.init();
-        pswp.goTo(currentIndex);
+    mainImg.onclick = function(e) {
+      e.preventDefault();
+      if (pswp && typeof pswp.init === 'function') {
+        try {
+          pswp.init();
+        } catch(err) {
+          console.error('Error initializing PhotoSwipe:', err);
+        }
       }
     };
   }

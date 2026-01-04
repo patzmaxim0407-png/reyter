@@ -897,7 +897,7 @@
   vertical-align: middle;
   width: 17px;
   height: 17px;
-  background: url(../images/svg/icoPaM.svg) no-repeat;
+  background: url(/assets/images/svg/icoPaM.svg) no-repeat;
   -webkit-background-size: 100% auto;
   background-size: 100% auto;
   margin-right: 13px;
@@ -965,7 +965,7 @@
   display: block;
   width: 29px;
   height: 27px;
-  background: url(../images/svg/icoNullDeliv.svg) no-repeat;
+  background: url(/assets/images/svg/icoNullDeliv.svg) no-repeat;
   position: absolute;
   left: 0;
   top: 50%;
