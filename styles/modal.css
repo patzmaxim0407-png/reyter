@@ -607,7 +607,6 @@
   min-width: 700px;
   width: 50%;
   padding-left: 95px;
-  max-height: calc(100vh - 80px);
   overflow-y: auto;
   overflow-x: hidden;
 }
