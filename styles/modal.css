@@ -1143,11 +1143,11 @@
 
   .productBoxing > .left {
     float: left;
-    width: 400px;
+    width: 300px;
   }
 
   .productBoxing > .right {
-    margin-left: 460px;
+    margin-left: 335px;
     width: auto;
     padding-left: 0;
     max-width: max-content;
@@ -1278,6 +1278,7 @@
     margin-left: 0;
     max-width: max-content;
     min-width: min-content;
+    padding-left: inherit;
   }
 
   .productBoxing > .right h1.name {
