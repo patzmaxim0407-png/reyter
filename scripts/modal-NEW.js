@@ -24,14 +24,17 @@ function setImage(idx) {
   currentIndex = (idx + currentImages.length) % currentImages.length;
 
   const mainImg = document.getElementById('globalImage');
-  const cloneImg = document.querySelector('.clone');
+  const cloneImg = document.querySelector('.cloneImg .clone');
   const src = currentImages[currentIndex];
 
   if (mainImg) {
     mainImg.src = src;
     mainImg.dataset.large = src;
   }
-  if (cloneImg) cloneImg.src = src;
+  if (cloneImg) {
+    cloneImg.src = src;
+    console.log('Clone image updated to:', src);
+  }
 
   const slides = document.querySelectorAll('#thumbsVertical .swiper-slide');
   slides.forEach((s, i) => {
