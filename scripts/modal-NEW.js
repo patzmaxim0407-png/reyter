@@ -156,28 +156,42 @@ function openModal(card) {
       const sizesText = sizesMatch[1].trim();
       if (sizesTitle) sizesTitle.textContent = 'Розмір';
       
-      // Перевіряємо чи є "(5 шт)" або подібне
+      // Всі можливі розміри
+      const allSizes = ['S', 'M', 'L', 'XL'];
+      
+      // Парсимо доступні розміри
+      let availableSizes = [];
+      
+      // Перевіряємо чи є "(5 шт)" або подібне (один розмір з кількістю)
       const singleSizeMatch = sizesText.match(/^(\w+)\s*\([^)]+\)$/);
       
       if (singleSizeMatch) {
         // Тільки один розмір, наприклад "S (5 шт)"
-        const size = singleSizeMatch[1];
-        sizesBox.innerHTML = `
-          <div class="varInpt">
-            <input type="radio" name="size" value="${size}" id="size-${size.toLowerCase()}" checked>
-            <label for="size-${size.toLowerCase()}">${size}</label>
-          </div>
-        `;
+        availableSizes = [singleSizeMatch[1]];
       } else {
         // Кілька розмірів, наприклад "S, M, L"
-        const sizes = sizesText.split(',').map(s => s.trim()).filter(Boolean);
-        sizesBox.innerHTML = sizes.map((size, idx) => `
-          <div class="varInpt">
-            <input type="radio" name="size" value="${size}" id="size-${size.toLowerCase()}" ${idx === 1 ? 'checked' : ''}>
-            <label for="size-${size.toLowerCase()}">${size}</label>
-          </div>
-        `).join('');
+        availableSizes = sizesText.split(',').map(s => s.trim()).filter(Boolean);
       }
+      
+      // Генеруємо всі розміри, але деякі з них disabled
+      sizesBox.innerHTML = allSizes.map((size, idx) => {
+        const isAvailable = availableSizes.includes(size);
+        const shouldBeChecked = idx === 0 && isAvailable; // Перший доступний розмір за замовчуванням
+        const checkedDefault = idx === 1; // Якщо немає доступних S, то M за замовчуванням
+        
+        return `
+          <div class="varInpt">
+            <input 
+              type="radio" 
+              name="size" 
+              value="${size}" 
+              id="size-${size.toLowerCase()}" 
+              ${isAvailable ? (shouldBeChecked ? 'checked' : '') : 'disabled'}
+            >
+            <label for="size-${size.toLowerCase()}" ${!isAvailable ? 'class="disabled"' : ''}>${size}</label>
+          </div>
+        `;
+      }).join('');
       sizesContainer.style.display = '';
     } else {
       // Немає ні розмірів, ні об'єму - ховаємо блок

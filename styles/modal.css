@@ -998,6 +998,22 @@ a.pswp__share--download:hover{background:#DDD;}
   padding: 5px 3px;
 }
 
+/* Disabled sizes */
+.varsLine input[type=radio]:disabled ~ label,
+.varsLine label.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: #999;
+  border-color: #ddd;
+  background-color: #f5f5f5;
+}
+
+.varsLine input[type=radio]:disabled ~ label:hover {
+  border-color: #ddd;
+  font-size: 12px;
+  padding: 5px 10px;
+}
+
 /* Color Selection */
 .productBoxing > .right .colorBox {
   position: relative;
