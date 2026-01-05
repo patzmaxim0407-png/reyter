@@ -320,7 +320,7 @@
 .pswp__container,
 .pswp__zoom-wrap{-webkit-backface-visibility:hidden;}
 .pswp__item{position:absolute;left:0;right:0;top:0;bottom:0;overflow:hidden;}
-.pswp__img{position:absolute;height:auto !important;max-width:100%;top:0;left:0;}
+.pswp__img{position:absolute;width:auto!important;height:auto;top:0;left:0;}
 
 .pswp__img--placeholder{-webkit-backface-visibility:hidden;}
 .pswp__img--placeholder--blank{background:#222;}
@@ -1266,7 +1266,7 @@ a.pswp__share--download:hover{background:#DDD;}
   font-weight: bold;
   color: #999;
   cursor: pointer;
-  z-index: 1;
+  z-index: 10001;
   background: none;
   border: none;
   padding: 0;

@@ -300,12 +300,17 @@ function initPhotoSwipe() {
     e.preventDefault();
     e.stopPropagation();
     
-    const items = currentImages.map((src) => ({
-      src: src,
-      w: 1200,
-      h: 0,
-      title: ''
-    }));
+    const items = currentImages.map((src) => {
+      // Завантажуємо зображення для отримання реальних розмірів
+      const img = new Image();
+      img.src = src;
+      return {
+        src: src,
+        w: img.naturalWidth || 1024,
+        h: img.naturalHeight || 1365,
+        title: ''
+      };
+    });
 
     // Закриваємо попередній екземпляр якщо існує
     if (pswp) {
