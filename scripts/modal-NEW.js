@@ -97,7 +97,12 @@ function openModal(card) {
   
   // Обробка статусу наявності
   const inStock = card.dataset.inStock || 'В наявності';
+  const inStock1 = card.dataset.inStock1 || ''; // Додатковий статус за розміром (наприклад: "Закінчується S")
   const orderBtn = document.getElementById('orderBtn');
+  
+  // Зберігаємо основний та розмірно-залежний статус для подальшого використання
+  modal.dataset.mainStatus = inStock;
+  modal.dataset.sizeStatus = inStock1;
   
   if (statusEl) {
     statusEl.textContent = inStock;
@@ -194,6 +199,10 @@ function openModal(card) {
   populateThumbs(currentImages);
   setImage(0);
 
+  // Додаємо обробник зміни розміру для dynamically update статусу
+  setTimeout(() => {
+    addSizeChangeListener();
+  }, 50);
 
   modal.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
@@ -202,6 +211,53 @@ function openModal(card) {
     initSwiper();
     initPhotoSwipe();
   }, 100);
+}
+
+// Функція для додання обробника зміни розміру
+function addSizeChangeListener() {
+  const sizeInputs = document.querySelectorAll('input[name="size"]');
+  const modal = document.getElementById('productModal');
+  
+  sizeInputs.forEach(input => {
+    // Видаляємо старих обробників
+    input.removeEventListener('change', handleSizeChange);
+    // Додаємо новий обробник
+    input.addEventListener('change', handleSizeChange);
+  });
+}
+
+// Функція для оновлення статусу при зміні розміру
+function handleSizeChange(e) {
+  const selectedSize = e.target.value;
+  const modal = document.getElementById('productModal');
+  const mainStatus = modal.dataset.mainStatus || 'В наявності';
+  const sizeStatus = modal.dataset.sizeStatus || '';
+  const statusEl = document.getElementById('modalStatus');
+  
+  if (!statusEl || !sizeStatus) return;
+  
+  // Парсимо sizeStatus - формат: "Закінчується S" або "Закінчується M, L" тощо
+  const statusParts = sizeStatus.split(' ');
+  const statusText = statusParts[0]; // "Закінчується"
+  const affectedSizes = statusParts.slice(1).join(' ').split(',').map(s => s.trim());
+  
+  // Перевіряємо чи обраний розмір входить в список обмежених розмірів
+  if (affectedSizes.includes(selectedSize)) {
+    // Змінюємо статус на жовтий з текстом статусу
+    statusEl.textContent = statusText;
+    statusEl.classList.remove('yes', 'no');
+    statusEl.classList.add('pre');
+  } else {
+    // Повертаємо основний статус
+    statusEl.textContent = mainStatus;
+    if (mainStatus === 'Продано') {
+      statusEl.classList.remove('yes', 'pre');
+      statusEl.classList.add('no');
+    } else {
+      statusEl.classList.remove('no', 'pre');
+      statusEl.classList.add('yes');
+    }
+  }
 }
 
 function initSwiper() {
