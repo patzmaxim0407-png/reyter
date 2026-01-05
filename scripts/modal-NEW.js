@@ -107,8 +107,8 @@ function openModal(card) {
   if (statusEl) {
     statusEl.textContent = inStock;
     if (inStock === 'Продано') {
-      statusEl.style.color = 'red';
-      statusEl.classList.remove('yes');
+      statusEl.style.color = '';
+      statusEl.classList.remove('yes', 'pre');
       statusEl.classList.add('no');
       // Блокуємо кнопку придбати
       if (orderBtn) {
@@ -116,9 +116,19 @@ function openModal(card) {
         orderBtn.style.opacity = '0.5';
         orderBtn.style.cursor = 'not-allowed';
       }
+    } else if (inStock === 'Закінчується') {
+      statusEl.style.color = '';
+      statusEl.classList.remove('yes', 'no');
+      statusEl.classList.add('pre');
+      // Розблоковуємо кнопку придбати
+      if (orderBtn) {
+        orderBtn.disabled = false;
+        orderBtn.style.opacity = '';
+        orderBtn.style.cursor = '';
+      }
     } else {
       statusEl.style.color = '';
-      statusEl.classList.remove('no');
+      statusEl.classList.remove('no', 'pre');
       statusEl.classList.add('yes');
       // Розблоковуємо кнопку придбати
       if (orderBtn) {
@@ -140,14 +150,17 @@ function openModal(card) {
     const sizesMatch = description.match(/Розміри:\s*([^\n&#]+)/i);
     const volumeMatch = description.match(/Обʼєм:\s*([^\n&#]+)/i);
     
+    // Перевіряємо чи статус "Продано" - тоді всі розміри disabled
+    const isSoldOut = inStock === 'Продано';
+    
     if (volumeMatch) {
       // Є об'єм замість розмірів
       const volume = volumeMatch[1].trim();
       if (sizesTitle) sizesTitle.textContent = 'Обʼєм';
       sizesBox.innerHTML = `
         <div class="varInpt">
-          <input type="radio" name="size" value="${volume}" id="size-volume" checked>
-          <label for="size-volume">${volume}</label>
+          <input type="radio" name="size" value="${volume}" id="size-volume" ${isSoldOut ? 'disabled' : 'checked'}>
+          <label for="size-volume" ${isSoldOut ? 'class="disabled"' : ''}>${volume}</label>
         </div>
       `;
       sizesContainer.style.display = '';
@@ -157,7 +170,7 @@ function openModal(card) {
       if (sizesTitle) sizesTitle.textContent = 'Розмір';
       
       // Всі можливі розміри
-      const allSizes = ['S', 'M', 'L'];
+      const allSizes = ['S', 'M', 'L', 'XL'];
       
       // Парсимо доступні розміри
       let availableSizes = [];
@@ -175,9 +188,18 @@ function openModal(card) {
       
       // Генеруємо всі розміри, але деякі з них disabled
       sizesBox.innerHTML = allSizes.map((size, idx) => {
-        const isAvailable = availableSizes.includes(size);
-        const shouldBeChecked = idx === 0 && isAvailable; // Перший доступний розмір за замовчуванням
-        const checkedDefault = idx === 1; // Якщо немає доступних S, то M за замовчуванням
+        let isDisabled = false;
+        let isChecked = false;
+        
+        // Якщо товар "Продано" - всі розміри disabled
+        if (isSoldOut) {
+          isDisabled = true;
+        } else {
+          // Інакше дивимось на наявність розміру
+          const isAvailable = availableSizes.includes(size);
+          isDisabled = !isAvailable;
+          isChecked = idx === 0 && isAvailable; // Перший доступний розмір за замовчуванням
+        }
         
         return `
           <div class="varInpt">
@@ -186,9 +208,9 @@ function openModal(card) {
               name="size" 
               value="${size}" 
               id="size-${size.toLowerCase()}" 
-              ${isAvailable ? (shouldBeChecked ? 'checked' : '') : 'disabled'}
+              ${isDisabled ? 'disabled' : (isChecked ? 'checked' : '')}
             >
-            <label for="size-${size.toLowerCase()}" ${!isAvailable ? 'class="disabled"' : ''}>${size}</label>
+            <label for="size-${size.toLowerCase()}" ${isDisabled ? 'class="disabled"' : ''}>${size}</label>
           </div>
         `;
       }).join('');
