@@ -970,7 +970,7 @@ a.pswp__share--download:hover{background:#DDD;}
   min-width: 44px;
   height: 30px;
   border: 1px solid #e8e8e8;
-  border-radius: 20px;
+  border-radius: 10px;
   font-size: 12px;
   font-weight: 400;
   text-align: center;
@@ -1295,7 +1295,7 @@ a.pswp__share--download:hover{background:#DDD;}
   text-transform: uppercase;
   cursor: pointer;
   transition: all 0.3s ease;
-  border-radius: 20px;
+  border-radius: 10px;
 }
 
 .btnRed:hover {
