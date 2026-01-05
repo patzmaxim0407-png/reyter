@@ -3,6 +3,7 @@
   header {
     flex-direction: column;
     align-items: flex-start;
+    height: auto;
     padding: 10px 10px;
   }
   .logo img {
@@ -26,6 +27,7 @@
   header {
     flex-direction: column;
     align-items: center;
+    height: auto;
     padding: 8px 4px;
   }
   .logo img {
@@ -385,6 +387,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 8px 8px;
+    height: auto;
     position: sticky;
     top: 0;
     z-index: 1000;
