@@ -88,6 +88,7 @@
   -webkit-box-sizing: border-box;
   -moz-box-sizing: border-box;
   box-sizing: border-box;
+  border-radius: 10px;
 }
 
 .productBoxing > .left .thumbsBox .itmSImg a:before {
@@ -103,6 +104,7 @@
   margin-left: -34.5%;
   background: #fff;
   box-shadow: 0 0 79px rgba(0, 0, 0, .13);
+  border-radius: 10px;
   opacity: 0;
   visibility: hidden;
   transition: all 0.3s ease 0s;
@@ -121,6 +123,7 @@
   height: 100%;
   max-width: 100%;
   transition: all 0.3s ease 0s;
+  border-radius: 10px;
 }
 
 .productBoxing > .left .thumbsBox .itmSImg a .cloneimage {
@@ -950,6 +953,7 @@
   font-weight: 500;
   line-height: 18px;
   color: #000;
+  border-radius: 10px 0px 0px 10px;
 }
 
 .productBoxing > .right .dopInfo .novPochta span {
@@ -1052,6 +1056,7 @@
   min-width: 44px;
   height: 30px;
   border: 1px solid #e8e8e8;
+  border-radius: 20px;
   font-size: 12px;
   font-weight: 400;
   text-align: center;
@@ -1376,7 +1381,7 @@
   text-transform: uppercase;
   cursor: pointer;
   transition: all 0.3s ease;
-  border-radius: 2px;
+  border-radius: 20px;
 }
 
 .btnRed:hover {
