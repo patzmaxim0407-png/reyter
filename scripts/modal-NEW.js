@@ -94,7 +94,91 @@ function openModal(card) {
   if (priceEl) priceEl.textContent = card.dataset.price || '';
   if (descEl) descEl.innerHTML = (card.dataset.description || '').replace(/\r?\n|&#10;/g, '<br>');
   if (articleEl) articleEl.textContent = card.dataset.article ? `Артикул: ${card.dataset.article}` : '';
-  if (statusEl) statusEl.textContent = card.dataset.status || 'Товар в наявності';
+  
+  // Обробка статусу наявності
+  const inStock = card.dataset.inStock || 'В наявності';
+  const orderBtn = document.getElementById('orderBtn');
+  
+  if (statusEl) {
+    statusEl.textContent = inStock;
+    if (inStock === 'Продано') {
+      statusEl.style.color = 'red';
+      statusEl.classList.remove('yes');
+      statusEl.classList.add('no');
+      // Блокуємо кнопку придбати
+      if (orderBtn) {
+        orderBtn.disabled = true;
+        orderBtn.style.opacity = '0.5';
+        orderBtn.style.cursor = 'not-allowed';
+      }
+    } else {
+      statusEl.style.color = '';
+      statusEl.classList.remove('no');
+      statusEl.classList.add('yes');
+      // Розблоковуємо кнопку придбати
+      if (orderBtn) {
+        orderBtn.disabled = false;
+        orderBtn.style.opacity = '';
+        orderBtn.style.cursor = '';
+      }
+    }
+  }
+
+  // Парсинг розмірів або об'єму з description
+  const description = card.dataset.description || '';
+  const sizesContainer = document.getElementById('modalSizesContainer');
+  const sizesTitle = sizesContainer ? sizesContainer.querySelector('.title span') : null;
+  const sizesBox = document.getElementById('modalSizes');
+  
+  if (sizesContainer && sizesBox) {
+    // Шукаємо "Розміри:" або "Обʼєм:"
+    const sizesMatch = description.match(/Розміри:\s*([^\n&#]+)/i);
+    const volumeMatch = description.match(/Обʼєм:\s*([^\n&#]+)/i);
+    
+    if (volumeMatch) {
+      // Є об'єм замість розмірів
+      const volume = volumeMatch[1].trim();
+      if (sizesTitle) sizesTitle.textContent = 'Обʼєм';
+      sizesBox.innerHTML = `
+        <div class="varInpt">
+          <input type="radio" name="size" value="${volume}" id="size-volume" checked>
+          <label for="size-volume">${volume}</label>
+        </div>
+      `;
+      sizesContainer.style.display = '';
+    } else if (sizesMatch) {
+      // Є розміри
+      const sizesText = sizesMatch[1].trim();
+      if (sizesTitle) sizesTitle.textContent = 'Розмір';
+      
+      // Перевіряємо чи є "(5 шт)" або подібне
+      const singleSizeMatch = sizesText.match(/^(\w+)\s*\([^)]+\)$/);
+      
+      if (singleSizeMatch) {
+        // Тільки один розмір, наприклад "S (5 шт)"
+        const size = singleSizeMatch[1];
+        sizesBox.innerHTML = `
+          <div class="varInpt">
+            <input type="radio" name="size" value="${size}" id="size-${size.toLowerCase()}" checked>
+            <label for="size-${size.toLowerCase()}">${size}</label>
+          </div>
+        `;
+      } else {
+        // Кілька розмірів, наприклад "S, M, L"
+        const sizes = sizesText.split(',').map(s => s.trim()).filter(Boolean);
+        sizesBox.innerHTML = sizes.map((size, idx) => `
+          <div class="varInpt">
+            <input type="radio" name="size" value="${size}" id="size-${size.toLowerCase()}" ${idx === 1 ? 'checked' : ''}>
+            <label for="size-${size.toLowerCase()}">${size}</label>
+          </div>
+        `).join('');
+      }
+      sizesContainer.style.display = '';
+    } else {
+      // Немає ні розмірів, ні об'єму - ховаємо блок
+      sizesContainer.style.display = 'none';
+    }
+  }
 
   currentImages = (card.dataset.images || '')
     .split(',')
