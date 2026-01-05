@@ -349,20 +349,38 @@ function initPhotoSwipe() {
     return;
   }
 
+  // Функція для відкриття PhotoSwipe
+  const openPhotoSwipe = function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (pswp && typeof pswp.init === 'function') {
+      try {
+        pswp.init();
+      } catch(err) {
+        console.error('Error initializing PhotoSwipe:', err);
+      }
+    }
+  };
+
   // Клік по головному зображенню відкриває галерею
   const mainImg = document.getElementById('globalImage');
   if (mainImg) {
     mainImg.style.cursor = 'pointer';
-    mainImg.onclick = function(e) {
-      e.preventDefault();
-      if (pswp && typeof pswp.init === 'function') {
-        try {
-          pswp.init();
-        } catch(err) {
-          console.error('Error initializing PhotoSwipe:', err);
-        }
-      }
-    };
+    mainImg.onclick = openPhotoSwipe;
+  }
+
+  // Клік по клонованому зображенню відкриває галерею
+  const cloneImg = document.querySelector('.cloneImg');
+  if (cloneImg) {
+    cloneImg.style.cursor = 'pointer';
+    cloneImg.onclick = openPhotoSwipe;
+  }
+
+  // Клік по bigImage (включаючи ::after) відкриває галерею
+  const bigImage = document.querySelector('.bigImage');
+  if (bigImage) {
+    bigImage.style.cursor = 'pointer';
+    bigImage.onclick = openPhotoSwipe;
   }
 }
 
