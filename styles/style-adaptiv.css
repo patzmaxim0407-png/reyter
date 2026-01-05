@@ -210,7 +210,7 @@
     justify-content: center;
     font-size: 1.5rem;
     padding: 10px 0;
-    border-radius: 1px;
+    border-radius: 20px;
     margin: 0;
     box-shadow: 0 2px 12px 0 rgba(0,0,0,0.03);
     background: #fafafa;
@@ -246,7 +246,7 @@
     justify-content: center;
     font-size: 1.5rem;
     padding: 10px 0;
-    border-radius: 1px;
+    border-radius: 20px;
     margin: 0;
     box-shadow: 0 2px 12px 0 rgba(0,0,0,0.03);
     background: #fafafa;
