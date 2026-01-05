@@ -1266,7 +1266,7 @@ a.pswp__share--download:hover{background:#DDD;}
   font-weight: bold;
   color: #999;
   cursor: pointer;
-  z-index: 10001;
+  z-index: 1;
   background: none;
   border: none;
   padding: 0;
