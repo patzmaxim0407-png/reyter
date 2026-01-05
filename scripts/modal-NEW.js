@@ -157,7 +157,7 @@ function openModal(card) {
       if (sizesTitle) sizesTitle.textContent = 'Розмір';
       
       // Всі можливі розміри
-      const allSizes = ['S', 'M', 'L', 'XL'];
+      const allSizes = ['S', 'M', 'L'];
       
       // Парсимо доступні розміри
       let availableSizes = [];
