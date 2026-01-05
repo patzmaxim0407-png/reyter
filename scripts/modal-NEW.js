@@ -295,70 +295,65 @@ function initPhotoSwipe() {
     return;
   }
 
-  const items = currentImages.map((src) => ({
-    src: src,
-    w: 1200,
-    h: 1600,
-    title: ''
-  }));
-
-  // Закриваємо попередній екземпляр якщо існує
-  if (pswp) {
-    try {
-      pswp.close();
-    } catch(e) {
-      console.warn('Error closing previous PhotoSwipe instance:', e);
-    }
-    pswp = null;
-  }
-
-  // Створюємо новий екземпляр PhotoSwipe
-  try {
-    pswp = new PhotoSwipe(pswpEl, PhotoSwipeUI_Default, items, {
-      index: currentIndex,
-      history: false,
-      focus: false,
-      showAnimationDuration: 0,
-      hideAnimationDuration: 0,
-      closeOnScroll: false,
-      closeOnVerticalDrag: false,
-      escKey: true,
-      arrowKeys: true,
-      clickToCloseNonZoomable: false
-    });
-
-    // Обробники подій PhotoSwipe
-    pswp.listen('afterChange', function() {
-      const newIndex = pswp.getCurrentIndex();
-      if (newIndex !== currentIndex) {
-        setImage(newIndex);
-      }
-    });
-
-    pswp.listen('close', function() {
-      pswp = null;
-      // PhotoSwipe встановлює overflow: auto при закритті, тому скидаємо це
-      setTimeout(() => {
-        document.body.style.removeProperty('overflow');
-      }, 0);
-    });
-
-  } catch(e) {
-    console.error('Error creating PhotoSwipe instance:', e);
-    pswp = null;
-    return;
-  }
-
-  // Функція для відкриття PhotoSwipe
+  // Функція для створення та відкриття PhotoSwipe
   const openPhotoSwipe = function(e) {
     e.preventDefault();
     e.stopPropagation();
-    if (pswp && typeof pswp.init === 'function') {
+    
+    const items = currentImages.map((src) => ({
+      src: src,
+      w: 1200,
+      h: 1600,
+      title: ''
+    }));
+
+    // Закриваємо попередній екземпляр якщо існує
+    if (pswp) {
       try {
-        pswp.init();
-      } catch(err) {
-        console.error('Error initializing PhotoSwipe:', err);
+        pswp.close();
+      } catch(e) {
+        console.warn('Error closing previous PhotoSwipe instance:', e);
       }
+      pswp = null;
+    }
+
+    // Створюємо новий екземпляр PhotoSwipe
+    try {
+      pswp = new PhotoSwipe(pswpEl, PhotoSwipeUI_Default, items, {
+        index: currentIndex,
+        history: false,
+        focus: false,
+        showAnimationDuration: 0,
+        hideAnimationDuration: 0,
+        closeOnScroll: false,
+        closeOnVerticalDrag: false,
+        escKey: true,
+        arrowKeys: true,
+        clickToCloseNonZoomable: false
+      });
+
+      // Обробники подій PhotoSwipe
+      pswp.listen('afterChange', function() {
+        const newIndex = pswp.getCurrentIndex();
+        if (newIndex !== currentIndex) {
+          setImage(newIndex);
+        }
+      });
+
+      pswp.listen('close', function() {
+        pswp = null;
+        // PhotoSwipe встановлює overflow: auto при закритті, тому скидаємо це
+        setTimeout(() => {
+          document.body.style.removeProperty('overflow');
+        }, 0);
+      });
+
+      // Ініціалізуємо та відкриваємо PhotoSwipe
+      pswp.init();
+
+    } catch(err) {
+      console.error('Error creating PhotoSwipe instance:', err);
+      pswp = null;
     }
   };
 
