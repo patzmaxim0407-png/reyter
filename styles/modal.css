@@ -644,14 +644,17 @@
 .productBoxing > .right .article .available {
   float: right;
   text-transform: none;
+  font-size: 22px;
 }
 
 .productBoxing > .right .article .available.yes {
   color: #6dc96d;
+  font-size: 22px;
 }
 
 .productBoxing > .right .article .available.pre {
   color: #f0c208;
+  font-size: 22px;
 }
 
 .productBoxing > .right .article .available.no {
