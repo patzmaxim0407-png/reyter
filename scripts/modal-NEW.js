@@ -302,8 +302,8 @@ function initPhotoSwipe() {
     
     const items = currentImages.map((src) => ({
       src: src,
-      w: 1200,
-      h: 1600,
+      w: 0,
+      h: 0,
       title: ''
     }));
 

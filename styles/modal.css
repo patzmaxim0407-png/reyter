@@ -320,7 +320,7 @@
 .pswp__container,
 .pswp__zoom-wrap{-webkit-backface-visibility:hidden;}
 .pswp__item{position:absolute;left:0;right:0;top:0;bottom:0;overflow:hidden;}
-.pswp__img{position:absolute;width:auto!important;height:auto;top:0;left:0;}
+.pswp__img{position:absolute;width:auto;height:auto;top:0;left:0;}
 
 .pswp__img--placeholder{-webkit-backface-visibility:hidden;}
 .pswp__img--placeholder--blank{background:#222;}
