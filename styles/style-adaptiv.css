@@ -114,7 +114,7 @@
     font-size: 0.93rem;
   }
   .product-card img {
-    border-radius: 1%;
+    border-radius: 20px;
     height: 27vh;
   }
   .product-card h10 {
