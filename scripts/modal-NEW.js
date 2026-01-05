@@ -194,10 +194,8 @@ function openModal(card) {
   populateThumbs(currentImages);
   setImage(0);
 
-  console.log('Modal element:', modal);
-  console.log('Modal classes before:', modal.className);
+
   modal.classList.remove('hidden');
-  console.log('Modal classes after:', modal.className);
   document.body.style.overflow = 'hidden';
 
   setTimeout(() => {
