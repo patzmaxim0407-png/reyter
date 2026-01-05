@@ -369,18 +369,18 @@ function initPhotoSwipe() {
     mainImg.onclick = openPhotoSwipe;
   }
 
+  // Клік по контейнеру image відкриває галерею
+  const imageContainer = document.querySelector('.bigImage .image');
+  if (imageContainer) {
+    imageContainer.style.cursor = 'pointer';
+    imageContainer.onclick = openPhotoSwipe;
+  }
+
   // Клік по клонованому зображенню відкриває галерею
   const cloneImg = document.querySelector('.cloneImg');
   if (cloneImg) {
     cloneImg.style.cursor = 'pointer';
     cloneImg.onclick = openPhotoSwipe;
-  }
-
-  // Клік по bigImage (включаючи ::after) відкриває галерею
-  const bigImage = document.querySelector('.bigImage');
-  if (bigImage) {
-    bigImage.style.cursor = 'pointer';
-    bigImage.onclick = openPhotoSwipe;
   }
 }
 
