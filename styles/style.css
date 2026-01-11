@@ -83,14 +83,14 @@ nav a:hover::after {
 
 
 .banner-text .highlight {
-  font-weight: 700;
-  color: #d26d02;
+  font-weight: 500;
+  color: #000000;
   position: relative;
-  font-size: 22px;
+  font-size: 18px;
 }
 
 .banner-text strong {
-  font-weight: 700;
+  font-weight: 500;
   color: #111;
 }
 
