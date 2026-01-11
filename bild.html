@@ -404,6 +404,7 @@
      data-price="720 UAH / 19$"
      data-in-stock="В наявності"
      data-article="BSP-001"
+     data-sale="SALE"
      data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L&#10;*мають мішечок для зручної посадки."
      data-images="assets/images/boxers/bld1.webp,assets/images/boxers/bld2.webp,assets/images/boxers/bld3.webp">
@@ -1053,6 +1054,17 @@ function documentReady() {
         grid.classList.add('grid-4-cols');
       }
       // Для 3 товарів залишаємо дефолтні 3 колонки (без додаткового класу)
+    });
+    
+    // Додавання бейджів знижки для карточок з data-sale="SALE"
+    const productCards = document.querySelectorAll('.product-card[data-sale="SALE"]');
+    productCards.forEach(card => {
+      const badge = document.createElement('div');
+      badge.className = 'sale-badge';
+      badge.innerHTML = '<img src="/assets/images/badge-percent.svg" alt="Знижка">';
+      
+      // Додаємо бейдж на початок карточки (над зображенням)
+      card.insertBefore(badge, card.firstChild);
     });
   });
 </script>
