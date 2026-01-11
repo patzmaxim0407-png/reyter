@@ -531,3 +531,13 @@ body {
   font-size: 10px;
 }
 }
+
+/* --- Sale Badge Adaptive --- */
+@media (max-width: 768px) {
+  .product-card .sale-badge {
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+  }
+}
