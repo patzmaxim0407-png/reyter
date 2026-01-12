@@ -590,8 +590,6 @@ a.pswp__share--download:hover{background:#DDD;}
 .productBoxing > .right .priceLine button {
   border: none;
   float: right;
-  width: 165px;
-  height: 44px;
 }
 
 .productBoxing > .right .priceLine .price {
@@ -1240,7 +1238,6 @@ a.pswp__share--download:hover{background:#DDD;}
     float: none;
     width: 100%;
     font-size: 16px;
-    height: 54px;
     line-height: 34px;
     margin-bottom: 20px;
   }
