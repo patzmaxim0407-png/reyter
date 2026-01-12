@@ -133,7 +133,7 @@ function openModal(card) {
       // Розблоковуємо кнопку придбати
       if (orderBtn) {
         orderBtn.disabled = false;
-        orderBtn.style.opacity = '';
+        orderBtn.style.opacity = ''; 
         orderBtn.style.cursor = '';
       }
     }
