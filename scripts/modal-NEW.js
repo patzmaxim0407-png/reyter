@@ -144,6 +144,7 @@ function openModal(card) {
   const sizesContainer = document.getElementById('modalSizesContainer');
   const sizesTitle = sizesContainer ? sizesContainer.querySelector('.title span') : null;
   const sizesBox = document.getElementById('modalSizes');
+  const careSection = document.getElementById('modalCareSection');
   
   if (sizesContainer && sizesBox) {
     // Шукаємо "Розміри:" або "Обʼєм:"
@@ -164,6 +165,8 @@ function openModal(card) {
         </div>
       `;
       sizesContainer.style.display = '';
+      // Приховуємо секцію догляду для продуктів з об'ємом
+      if (careSection) careSection.style.display = 'none';
     } else if (sizesMatch) {
       // Є розміри
       const sizesText = sizesMatch[1].trim();
@@ -215,9 +218,13 @@ function openModal(card) {
         `;
       }).join('');
       sizesContainer.style.display = '';
+      // Показуємо секцію догляду для продуктів з розмірами
+      if (careSection) careSection.style.display = '';
     } else {
       // Немає ні розмірів, ні об'єму - ховаємо блок
       sizesContainer.style.display = 'none';
+      // Також приховуємо секцію догляду
+      if (careSection) careSection.style.display = 'none';
     }
   }
 
