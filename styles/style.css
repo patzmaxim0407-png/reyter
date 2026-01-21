@@ -616,6 +616,7 @@ section {
   width: 60px;
   height: 60px;
   animation: pulse 3s ease-in-out infinite;
+  margin: 0px 40px;
 }
 
 .icon.master {
@@ -623,6 +624,7 @@ section {
   width: 60px;
   height: 60px;
   animation: pulse 3s ease-in-out infinite;
+  margin: 0px 40px;
 }
 
 
