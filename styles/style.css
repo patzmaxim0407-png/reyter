@@ -611,6 +611,19 @@ section {
   animation: pulse 3s ease-in-out infinite;
 }
 
+.icon.visa {
+  background: url('/assets/images/visa.svg') no-repeat center/contain;
+  width: 60px;
+  height: 60px;
+  animation: pulse 3s ease-in-out infinite;
+}
+
+.icon.master {
+  background: url('/assets/images/master-card.svg') no-repeat center/contain;
+  width: 60px;
+  height: 60px;
+  animation: pulse 3s ease-in-out infinite;
+}
 
 
 
