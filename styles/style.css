@@ -206,7 +206,6 @@ section {
 .support-project {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 1.5rem 2.5rem;
   display: flex;
   justify-content: center;
 }
@@ -240,8 +239,8 @@ section {
 }
 
 .support-button:hover {
-  background-color: #fff;
-  color: #000;
+  background-color: #0a0025;
+  color: #ffffff;
   border-color: #000;
 }
 
