@@ -23,7 +23,7 @@ body {
 body {
       margin: 0;
       min-height: 100vh;
-      background-color: rgba(0, 74, 173, 0.15); /* синій #004AAD з прозорістю 50% */
+      background-color: #cd000054; /* синій #004AAD з прозорістю 50% */
     }
 
 /* --- Header --- */
