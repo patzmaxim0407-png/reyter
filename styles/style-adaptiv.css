@@ -277,6 +277,20 @@
     font-size: 0.93rem;
     padding: 1rem 0;
   }
+
+  .footer-inner {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .footer-text {
+    text-align: center;
+  }
+
+  .footer-offer {
+    margin-top: 0.4rem;
+  }
 }
 
 /* --- Modal --- */

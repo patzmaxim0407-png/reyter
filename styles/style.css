@@ -820,10 +820,53 @@ section {
 footer {
   background-color: var(--primary-color);
   color: white;
-  text-align: center;
   padding: 2rem 1rem;
   font-size: 24px;
   letter-spacing: 0.5px;
+}
+
+.footer-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.footer-text {
+  text-align: left;
+}
+
+.footer-text p {
+  margin: 0;
+}
+
+.footer-offer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  font-size: 0.95rem;
+  letter-spacing: 0.4px;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+}
+
+.footer-offer p {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.footer-offer:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.8);
+  transform: translateY(-1px);
 }
 
 /* --- Адаптивність --- */
