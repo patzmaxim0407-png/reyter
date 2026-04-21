@@ -555,6 +555,16 @@ body {
 }
 }
 
+/* --- Section & Category Titles Adaptive --- */
+@media (max-width: 768px) {
+  .section-title {
+    font-size: 1.33rem;
+  }
+  .category-animated {
+    font-size: 0.98rem;
+  }
+}
+
 /* --- Sale Badge Adaptive --- */
 @media (max-width: 768px) {
   .product-card .sale-badge {
