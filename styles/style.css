@@ -135,7 +135,7 @@ section {
   height: 500px;
   margin: 0; 
   position: relative;
-  border-radius: 10px;
+  border-radius: 0px;
   overflow: hidden;
   box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
 }
@@ -149,7 +149,7 @@ section {
 .about-image-wrapper img {
   display: block;
   width: 100%;
-  border-radius: 10px;
+  border-radius: 0px;
   position: relative;
   z-index: 2;
   object-fit: cover;
