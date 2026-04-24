@@ -1250,3 +1250,34 @@ footer {
     height: 100px;
   }
 }
+
+#scrollTopBtn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 48px;
+  height: 48px;
+  background: #fff;
+  color: #111;
+  border: 1px solid #e0e0e0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, box-shadow 0.2s ease;
+  z-index: 9999;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+}
+
+#scrollTopBtn:hover {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+}
+
+#scrollTopBtn svg {
+  width: 22px;
+  height: 22px;
+  stroke: #111;
+}
