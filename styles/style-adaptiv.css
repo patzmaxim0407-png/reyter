@@ -360,10 +360,6 @@ section, .modal-wrapper, .product-card, .contact-link, .delivery-item {
 }
 
 /* --- Додатково: покращення скролу на мобільних --- */
-html, body {
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
-}
 
 /* --- Додатково: приховати зайві скроллбари на мобільних --- */
 body {

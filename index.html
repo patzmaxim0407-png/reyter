@@ -1257,26 +1257,26 @@ function documentReady() {
 </button>
 
 <script>
-  lucide.createIcons();
+  try { lucide.createIcons(); } catch(e) {}
 
-  function getScrollTop() {
-    return window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-  }
+  var _scrollBtn = document.getElementById('scrollTopBtn');
+  var _lastScroll = -1;
 
-  function updateScrollBtn() {
-    var btn = document.getElementById('scrollTopBtn');
-    if (!btn) return;
-    if (getScrollTop() > 300) {
-      btn.style.opacity = '1';
-      btn.style.pointerEvents = 'auto';
-    } else {
-      btn.style.opacity = '0';
-      btn.style.pointerEvents = 'none';
+  function _checkScroll() {
+    var s = document.documentElement.scrollTop || document.body.scrollTop || window.pageYOffset || 0;
+    if (s === _lastScroll) return;
+    _lastScroll = s;
+    if (_scrollBtn) {
+      _scrollBtn.style.opacity = s > 300 ? '1' : '0';
+      _scrollBtn.style.pointerEvents = s > 300 ? 'auto' : 'none';
     }
   }
 
-  window.addEventListener('scroll', updateScrollBtn, { passive: true });
-  document.addEventListener('scroll', updateScrollBtn, { passive: true });
+  function _scrollLoop() {
+    _checkScroll();
+    requestAnimationFrame(_scrollLoop);
+  }
+  _scrollLoop();
 </script>
 
 </body>
