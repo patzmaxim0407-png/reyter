@@ -391,7 +391,7 @@ body {
   cursor: pointer;
   z-index: 1200;
   margin-left: auto;
-  margin-right: 5px;
+  margin-right: 10px;
 }
 .burger span {
   display: block;
