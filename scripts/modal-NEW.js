@@ -173,7 +173,7 @@ function openModal(card) {
       if (sizesTitle) sizesTitle.textContent = 'Розмір';
       
       // Всі можливі розміри
-      const allSizes = ['XS','S', 'M', 'L'];
+      const allSizes = ['XS','S', 'M', 'L', 'XL'];
       
       // Парсимо доступні розміри
       let availableSizes = [];
@@ -185,7 +185,7 @@ function openModal(card) {
         // Тільки один розмір, наприклад "S (5 шт)"
         availableSizes = [singleSizeMatch[1]];
       } else {
-        // Кілька розмірів, наприклад "S, M, L"
+        // Кілька розмірів, наприклад "S, M, L, XL"
         availableSizes = sizesText.split(',').map(s => s.trim()).filter(Boolean);
       }
       
