@@ -410,13 +410,22 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 8px 8px;
-    height: auto;
-    position: sticky;
+    height: 56px;
+    position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
     z-index: 1000;
-    background: rgba(255,255,255,0.95);
+    background: rgba(255,255,255,0.97);
     border-bottom: 1px solid #eaeaea;
-    backdrop-filter: blur(0px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-sizing: border-box;
+  }
+
+  body {
+    padding-top: 56px;
   }
   .logo {
     margin: 0 auto 0 0;
