@@ -2,6 +2,9 @@
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-BWRC6C9CV8"></script>
 <script>
@@ -20,14 +23,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="icon" href="assets/images/logo_4.webp" type="image/webp">
 <link rel="apple-touch-icon" href="assets/images/logo_4.webp">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="REYTER">
 <meta name="theme-color" content="#ffffff">
 <meta name="description" content="Купити чоловічу білизну онлайн від українського бренду REYTER. Стильна та комфортна білизна. Доставка по Україні.">
 <meta name="keywords" content="чоловіча білизна, український бренд, комфортна білизна, стильна білизна, доставка по Україні, купити онлайн, чоловічі труси, чоловічі боксери, чоловічі плавки, чоловічі сліпи, якісна білизна, білизна Україна, REYTER, рейтер">
 <meta name="author" content="REYTER">
 <meta name="robots" content="index, follow">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="language" content="uk">
 <meta name="geo.region" content="UA">
 <meta name="geo.placename" content="Ukraine">
@@ -44,23 +46,32 @@
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/1.20.3/TweenMax.min.js"></script>
 
+  <!-- PhotoSwipe v4.1.3 CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.3/photoswipe.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.3/default-skin/default-skin.min.css">
+
+  <!-- Swiper v4.5.0 CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Swiper/4.5.0/css/swiper.min.css">
+
+  <!-- Modal Window Styles -->
+  <link rel="stylesheet" href="../styles/modal.css?v=1.3">
+
   <!-- Падаючий сніг -->
   <div id="snow-animation-container"></div>
   
 
 <div class="marquee">
-  <span>— БЕЗКОШТОВНА ДОСТАВКА НА ЗАМОВЛЕННЯ ВІД 1500 ГРН —</span>
+  <span>— МІЖНАРОДНА ДОСТАВКА - INTERNATIONAL DELIVERY - БЕЗКОШТОВНА ДОСТАВКА ПО УКРАЇНІ ВІД 1500 ГРН —</span>
 </div>
 <header>
   <div class="logo">
     <img src="/assets/images/logo_3.webp" alt="REYTER">
-    <div class="holiday-branch" id="holidayBranch">
+    <!-- <div class="holiday-branch" id="holidayBranch">
       <img src="/assets/images/2026HN.webp" alt="Новорічна гілка" class="branch-image swing">
-    </div>
+    </div> -->
   </div>
   <div class="new-year-banner">
-    <p class="banner-text">Новий рік - <span class="highlight">новий характер</span>.</p>
-    <p class="banner-text">Будь собою разом із <strong>REYTER</strong></p>
+    <p class="banner-text">summer vibe</p>
   </div>
   <button class="burger" id="burgerBtn" aria-label="Відкрити меню">
     <span></span><span></span><span></span>
@@ -77,7 +88,7 @@
 <section id="about" class="about">
   <div class="about-image-wrapper">
     <div class="image-bg"></div>
-    <img src="/assets/images/about.webp" alt="Про REYTER — український бренд чоловічої білизни" />
+    <img src="/assets/images/boxers/pa1.webp" alt="Про REYTER — український бренд чоловічої білизни" />
   </div>
 
   <div class="about-text">
@@ -96,21 +107,162 @@
   </div>
 </section>
 
- <section id="products">
-  <h2 class="section-title">Наші позиції</h2>
-<div class="custom-note">
-  <span>Відшиваємо розмір під замовлення, якщо його немає в розмірній сітці.</span>
+
+<div class="support-project">
+  <a class="support-button" href="https://send.monobank.ua/jar/Rh5zUVWxb" target="_blank" rel="noopener">
+    <img src="assets/images/jar_0.png" alt="Підтримай проєкт">
+    <span>Підтримай проєкт</span>
+  </a>
 </div>
+
+
+ <section id="products">
+
+  <video autoplay loop muted playsinline style="width:100%;display:block;margin-top: 30px;margin-bottom: 30px;">
+    <source src="assets/videos/video-page.MP4" type="video/mp4">
+  </video>
+
+<!-- <div class="section-category">
+  <h3 class="category-animated">Home Collection</h3>
+  <div class="product-grid">
+
+    <div class="product-card" onclick="openModal(this)"
+     data-name="Candle Reyter"
+     data-price="750 UAH/ 18$"
+     data-in-stock="В наявності"
+     data-article="CRH-001"
+     data-description="Аромат: бренді & груша&#10;Склад: деревʼяний гніт, соєвий віск, натуральні аромаолії.&#10;❗️Рекомендації: Після кожного використання свічки з дерев’яним гнітом акуратно приберіть обгорілу частину гніту.❗️&#10;Обʼєм: 250 мл&#10;"
+     data-characteristics="Склад: деревʼяний гніт, соєвий віск, натуральні аромаолії."
+     data-images="assets/images/home/Home01.webp,assets/images/home/Home02.webp,assets/images/home/Home03.webp">
+      <img src="assets/images/home/Home02.webp" alt="Candle Reyter">
+      <h3 class="product-title">
+        <span>Candle Reyter</span>
+      </h3>
+       <p>750 UAH/ 18$</p>
+    </div>
+
+    <div class="product-card" onclick="openModal(this)"
+     data-name="Duffuser"
+     data-price="750 UAH/ 18$"
+     data-in-stock="В наявності"
+     data-article="DUF-001"
+     data-description="Аромат: бренді-груша&#10;Склад: натуральна(косметична) аромаолія, база для аромадифузорів&#10;Обʼєм: 50 мл&#10;"
+     data-characteristics="Склад: деревʼяний гніт, соєвий віск, натуральні аромаолії."
+     data-images="assets/images/home/Duffuser.webp">
+      <img src="assets/images/home/Duffuser.webp" alt="Duffuser">
+      <h3 class="product-title">
+        <span>Duffuser</span>
+      </h3>
+       <p>750 UAH/ 18$</p>
+    </div>
+
+    </div>
+  </div> -->
+
+  <h2 class="section-title">Наші позиції</h2>
+
+
+<div class="section-category">
+  <h3 class="category-animated">Джоки</h3>
+  <div class="product-grid">
+
+   <div class="product-card" onclick="openModal(this)"
+     data-name="Red Jockstrap"
+     data-price="960 UAH/ 23$"
+     data-article="RDJOCK-002"
+     data-in-stock="Закінчується"
+     data-in-stock1="Закінчується S, M, L"
+     data-material="Бавовна 95%, еластан 5%"
+     data-description="Склад: 95% бавовна, 5% еластан&#10;Розміри: S, M, L&#10;Параметри моделі: 181 см, 96 кг, талія 86 см"
+     data-images="assets/images/jocks/01.02.2026-1.webp,assets/images/jocks/01.02.2026-2.webp,assets/images/jocks/01.02.2026-3.webp">
+      <img src="assets/images/jocks/01.02.2026-1.webp" alt="Red Jockstrap">
+      <h3 class="product-title">
+        <span>Red Jockstrap</span>
+        <span class="color-dot" style="background-color: #c10000;"></span>
+      </h3>
+       <p>960 UAH/ 23$</p>
+    </div>
+
+    <div class="product-card" onclick="openModal(this)"
+     data-name="Black Jockstrap"
+     data-price="850 UAH/ 20$"
+     data-article="BLJOCK-001"
+     data-in-stock="Продано"
+     data-in-stock1=" "
+     data-material="Бавовна 95%, еластан 5%"
+     data-description="Склад: Бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
+     data-images="assets/images/jocks/jocksB01.webp,assets/images/jocks/jocksB02.webp,assets/images/jocks/jocksB03.webp">
+      <img src="assets/images/jocks/jocksB01.webp" alt="Black Jockstrap">
+      <h3 class="product-title">
+        <span>Black Jockstrap</span>
+        <span class="color-dot" style="background-color: #000000;"></span>
+      </h3>
+       <p>850 UAH/ 20$</p>
+    </div>
+
+    </div>
+  </div>
+
   <div class="section-category">
   <h3 class="category-animated">Новинки</h3>
   <div class="product-grid">
 
     <div class="product-card" onclick="openModal(this)"
+     data-name="Swimwear - rich"
+     data-price="880 UAH/ 21$"
+     data-in-stock="В наявності"
+     data-description="Склад: еконіл 78%, спандекс 22%&#10;Розміри: S, M, L&#10;Білизна для басейну, пляжу та активного відпочинку"
+     data-images="assets/images/boxers/sr1.webp,assets/images/boxers/sr2.webp,assets/images/boxers/sr3.webp"
+     data-article="SW-003"
+     data-characteristics="Стійкість до хлору і солі|Швидке висихання|Еластичний матеріал"
+     data-material="Еконіл 78%|Спандекс 22%"
+     data-care="Прання в холодній воді|Не використовуйте пральну машину|Сушіння вдалині від сонця">
+      <img src="assets/images/boxers/sr1.webp" alt="Swimwear - rich">
+      <h3 class="product-title">
+        <span>Swimwear - rich</span>
+        <span class="color-dot" style="background-color: #09543ad4;"></span>
+      </h3>
+       <p>880 UAH/ 21$</p>
+    </div>
+
+    <div class="product-card" onclick="openModal(this)"
+     data-name="Wave white"
+     data-price="750 UAH/ 18$"
+     data-in-stock="Закінчується"
+     data-in-stock1="Закінчується S"
+     data-description="Склад: віскоза 95%, еластан 5%&#10;Розміри: S, L"
+     data-images="assets/images/boxers/2026A01.webp,assets/images/boxers/2026A02.webp,assets/images/boxers/2026A03.webp"
+     data-article="WW-001"
+     data-characteristics="Еластичний матеріал|Комфортна посадка|Міцна фурнітура"
+     data-material="Віскоза 95%|Еластан 5%"
+     data-care="Машинне прання 30°C|Делікатний режим|Сушіння на повітрі">
+      <img src="assets/images/boxers/2026A03.webp" alt="Wave white">
+      <h3 class="product-title">
+        <span>Wave white</span>
+        <span class="color-dot" style="background-color: #ffffff;"></span>
+      </h3>
+       <p>750 UAH/ 18$  (5 шт)</p>
+    </div>
+
+     </div>
+</div>
+
+  <div class="section-category">
+  <h3 class="category-animated">Рубчик</h3>
+  <div class="product-grid">
+
+    <div class="product-card" onclick="openModal(this)"
      data-name="Beige anderwear"
      data-price="700 UAH/ 17$"
-     data-description="Склад: віскоза 95%, еластан 5%&#10;Розміри: S, M, L"
-     data-images="assets/images/boxers/Oc1.webp,assets/images/boxers/Oc2.webp,assets/images/boxers/Oc3.webp">
-      <img src="assets/images/boxers/Oc1.webp" alt="Товар 6">
+     data-in-stock="В наявності"
+     data-in-stock1="Закінчується XS"
+     data-description="Склад: віскоза 95%, еластан 5%&#10;Розміри: XS"
+     data-images="assets/images/boxers/Oc1.webp,assets/images/boxers/Oc2.webp,assets/images/boxers/Oc3.webp"
+     data-article="BG-001"
+     data-characteristics="Еластичний матеріал|Комфортна посадка|Міцна фурнітура"
+     data-material="Віскоза 95%|Еластан 5%"
+     data-care="Машинне прання 30°C|Делікатний режим|Сушіння на повітрі">
+      <img src="assets/images/boxers/Oc1.webp" alt="Beige anderwear">
       <h3 class="product-title">
         <span>Beige anderwear</span>
         <span class="color-dot" style="background-color: #f2eede;"></span>
@@ -121,9 +273,14 @@
     <div class="product-card" onclick="openModal(this)"
      data-name="Powder anderwear"
      data-price="700 UAH/ 17$"
+     data-in-stock="В наявності"
      data-description="Склад: віскоза 95%, еластан 5%&#10;Розміри: S, M, L"
-     data-images="assets/images/boxers/pa1.webp,assets/images/boxers/pa2.webp,assets/images/boxers/pa3.webp">
-      <img src="assets/images/boxers/pa1.webp" alt="Товар 6">
+     data-images="assets/images/boxers/pa1.webp,assets/images/boxers/pa2.webp,assets/images/boxers/pa3.webp"
+     data-article="PW-002"
+     data-characteristics="М'яка та дихаюча тканина|Приємна на дотик|Довготривалий колір"
+     data-material="Віскоза 95%|Еластан 5%"
+     data-care="Машинне прання 30°C|Делікатний режим|Сушіння на повітрі">
+      <img src="assets/images/boxers/pa1.webp" alt="Powder anderwear">
       <h3 class="product-title">
         <span>Powder anderwear</span>
         <span class="color-dot" style="background-color: #fdd6c7ec;"></span>
@@ -131,30 +288,22 @@
        <p>700 UAH/ 17$</p>
     </div>
 
-    <div class="product-card" onclick="openModal(this)"
-     data-name="Swimwear - rich"
-     data-price="880 UAH/ 21$"
-     data-description="Склад: еконіл 78%, спандекс 22%&#10;Розміри: S, M, L&#10;Білизна для басейну, пляжу та активного відпочинку"
-     data-images="assets/images/boxers/sr1.webp,assets/images/boxers/sr2.webp,assets/images/boxers/sr3.webp">
-      <img src="assets/images/boxers/sr1.webp" alt="Товар 6">
-      <h3 class="product-title">
-        <span>Swimwear - rich</span>
-        <span class="color-dot" style="background-color: #09543ad4;"></span>
-      </h3>
-       <p>880 UAH/ 21$</p>
     </div>
      </div>
-</div>
 
-      <div class="section-category">
+
+  <div class="section-category">
   <h3 class="category-animated">Royal shorts</h3>
   <div class="product-grid">
     <div class="product-card" onclick="openModal(this)"
      data-name="Royal shorts mint"
      data-price="1 090 UAH/ 26$"
+     data-in-stock="В наявності"
+     data-material="бавовна 100%"
+     data-article="RSM-001"
      data-description="Склад: бавовна 100%&#10;Розміри: S, M, L&#10;Сімейні боксери - індивідуальна модель для щоденного комфорту"
      data-images="assets/images/boxers/rs1.webp,assets/images/boxers/rs2.webp,assets/images/boxers/rs3.webp">
-      <img src="assets/images/boxers/rs1.webp" alt="Товар 6">
+      <img src="assets/images/boxers/rs1.webp" alt="Royal shorts mint">
       <h3 class="product-title">
         <span>Royal shorts mint</span>
         <span class="color-dot" style="background-color: #c7fde7f8;"></span>
@@ -165,9 +314,12 @@
     <div class="product-card" onclick="openModal(this)"
      data-name="Royal shorts"
      data-price="1 150 UAH/ 28$"
+     data-in-stock="В наявності"
+     data-material="бавовна 100%"
+     data-article="RH-001"
      data-description="Склад: бавовна 100%&#10;Розміри: S, M, L&#10;Сімейні боксери - індивідуальна модель для щоденного комфорту"
      data-images="assets/images/boxers/rsh1.webp,assets/images/boxers/rsh2.webp,assets/images/boxers/rsh3.webp">
-      <img src="assets/images/boxers/rsh1.webp" alt="Товар 6">
+      <img src="assets/images/boxers/rsh1.webp" alt="Royal shorts">
       <h3 class="product-title">
         <span>Royal shorts</span>
         <span class="color-dot" style="background-color: #21098ef8;"></span>
@@ -184,7 +336,11 @@
     
   <div class="product-card" onclick="openModal(this)"
      data-name="Бріфи classic"
-     data-price="770 UAH / 19$"
+     data-price="550 UAH / 14$"
+     data-in-stock="В наявності"
+     data-article="BCL-001"
+     data-sale="SALE"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/boxers/bl5.webp,assets/images/boxers/bl6.webp,assets/images/boxers/bl7.webp">
   <img src="assets/images/boxers/bl5.webp" alt="Бріфи classic">
@@ -193,139 +349,185 @@
   <span class="color-dot" style="background-color: #3004d1;"></span>
   <span class="color-dot" style="background-color: #ed1505;"></span>
 </h3>
-  <p>770 UAH / 19$</p>
+  <p><del>770 UAH</del> <strong style="color: #cc0000;">550 UAH</strong> / 14$</p>
 </div>
 
     <div class="product-card" onclick="openModal(this)"
      data-name="Бріфи red wave"
-     data-price="735 UAH/ 18$"
+     data-price="550 UAH/ 14$"
+     data-in-stock="В наявності"
+     data-article="BRW-001"
+     data-sale="SALE"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/boxers/r4.webp,assets/images/boxers/r5.webp,assets/images/boxers/r6.webp">
       <img src="assets/images/boxers/r4.webp" alt="Бріфи red wave">
       <h3 class="product-title">
-  <span>Бріфи red wave</span>
-  <span class="color-dot" style="background-color: #ed1505;"></span>
-</h3>
-      <p>735 UAH/ 18$</p>
+       <span>Бріфи red wave</span>
+       <span class="color-dot" style="background-color: #ed1505;"></span>
+       </h3>
+      <p><del>735 UAH</del> <strong style="color: #cc0000;">550 UAH</strong> / 14$</p>
     </div>
-        <div class="product-card" onclick="openModal(this)"
+
+    <div class="product-card" onclick="openModal(this)"
      data-name="Бріфи classic"
-     data-price="770 UAH/ 19$"
+     data-price="550 UAH/ 14$"
+     data-in-stock="В наявності"
+     data-article="BCL-002"
+     data-sale="SALE"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/boxers/rw5.webp,assets/images/boxers/rw6.webp">
       <img src="assets/images/boxers/rw5.webp" alt="Бріфи classic">
       <h3 class="product-title">
-  <span>Бріфи classic</span>
-  <span class="color-dot" style="background-color: #ed1505;"></span>
-  <span class="color-dot" style="background-color: #3004d1;"></span>
-</h3>
-      <p>770 UAH/ 19$</p>
+      <span>Бріфи classic</span>
+      <span class="color-dot" style="background-color: #ed1505;"></span>
+      <span class="color-dot" style="background-color: #3004d1;"></span>
+      </h3>
+      <p><del>770 UAH</del> <strong style="color: #cc0000;">550 UAH</strong> / 14$</p>
     </div>
+
     <div class="product-card" onclick="openModal(this)"
      data-name="Бріфи milk"
-     data-price="730 UAH/ 19$"
+     data-price="550 UAH/ 14$"
+     data-in-stock="В наявності"
+     data-article="BM-001"
+     data-sale="SALE"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/boxers/w4.webp,assets/images/boxers/w5.webp,assets/images/boxers/w6.webp">
       <img src="assets/images/boxers/w4.webp" alt="Бріфи milk">
       <h3 class="product-title">
-  <span>Бріфи milk</span>
-  <span class="color-dot" style="background-color: #fdfcfc;"></span>
-</h3>
-      <p>730 UAH/ 19$</p>
+      <span>Бріфи milk</span>
+      <span class="color-dot" style="background-color: #fdfcfc;"></span>
+      </h3>
+      <p><del>730 UAH</del> <strong style="color: #cc0000;">550 UAH</strong> / 14$</p>
     </div>
+
     <div class="product-card" onclick="openModal(this)"
      data-name="Бріфи dark wave"
-     data-price="735 UAH/ 18$"
+     data-price="550 UAH/ 14$"
+     data-in-stock="В наявності"
+     data-article="BDW-001"
+     data-sale="SALE"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/boxers/b5.webp,assets/images/boxers/b6.webp,assets/images/boxers/b7.webp">
       <img src="assets/images/boxers/b5.webp" alt="Бріфи dark wave">
       <h3 class="product-title">
-  <span>Бріфи dark wave</span>
-  <span class="color-dot" style="background-color: #0a0101f8;"></span>
-</h3>
-      <p>735 UAH/ 18$</p>
+      <span>Бріфи dark wave</span>
+      <span class="color-dot" style="background-color: #0a0101f8;"></span>
+      </h3>
+      <p><del>735 UAH</del> <strong style="color: #cc0000;">550 UAH</strong> / 14$</p>
     </div>
+
     <div class="product-card" onclick="openModal(this)"
      data-name="Бріфи menthol"
-     data-price="760 UAH/ 19$"
+     data-price="690 UAH/ 16$"
+     data-in-stock="В наявності"
+     data-article="BME-001"
+     data-sale="SALE"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/boxers/g5.webp,assets/images/boxers/g6.webp">
       <img src="assets/images/boxers/g5.webp" alt="Товар 6">
       <h3 class="product-title">
       <span>Бріфи menthol</span>
-  <span class="color-dot" style="background-color: #62d4faf8;"></span>
-</h3>
-      <p>760 UAH/ 19$</p>
+      <span class="color-dot" style="background-color: #62d4faf8;"></span>
+      </h3>
+      <p><del>760 UAH</del> <strong style="color: #cc0000;">690 UAH</strong> / 16$</p>
     </div>
 
-      <div class="product-card" onclick="openModal(this)"
+  <div class="product-card" onclick="openModal(this)"
      data-name="Бріфи Boxers sport (подовженні)"
-     data-price="920 UAH / 22$"
+     data-price="720 UAH / 19$"
+     data-in-stock="В наявності"
+     data-article="BSP-001"
+     data-sale="SALE"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L&#10;*мають мішечок для зручної посадки."
      data-images="assets/images/boxers/bld1.webp,assets/images/boxers/bld2.webp,assets/images/boxers/bld3.webp">
-  <img src="assets/images/boxers/bld1.webp" alt="Бріфи classic">
-  <h3 class="product-title">
-  <span>Boxers sport</span>
-  <span class="color-dot" style="background-color: #3004d1;"></span>
-</h3>
-  <p>920 UAH / 22$</p>
-</div>
+     <img src="assets/images/boxers/bld1.webp" alt="Бріфи classic">
+     <h3 class="product-title">
+     <span>Boxers sport</span>
+     <span class="color-dot" style="background-color: #3004d1;"></span>
+     </h3>
+      <p><del>920 UAH</del> <strong style="color: #cc0000;">720 UAH</strong> / 19$</p>
+    </div>
 
-<div class="product-card" onclick="openModal(this)"
+    <div class="product-card" onclick="openModal(this)"
      data-name="Бріфи Boxers sport (подовженні)"
-     data-price="920 UAH / 22$"
-     data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L&#10;*мають мішечок для зручної посадки."
+     data-price="720 UAH / 19$"
+     data-in-stock="В наявності"
+     data-in-stock1="Закінчується L"
+     data-article="BXS-001"
+     data-sale="SALE"
+     data-material="бавовна 95%, еластан 5%"
+     data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: L&#10;*мають мішечок для зручної посадки."
      data-images="assets/images/boxers/bldb1.webp,assets/images/boxers/bldb2.webp,assets/images/boxers/bldb3.webp">
-  <img src="assets/images/boxers/bldb1.webp" alt="Бріфи classic">
-  <h3 class="product-title">
-  <span>Boxers sport</span>
-  <span class="color-dot" style="background-color: #030303;"></span>
-</h3>
-  <p>920 UAH / 22$</p>
-</div>
+      <img src="assets/images/boxers/bldb1.webp" alt="Бріфи classic">
+      <h3 class="product-title">
+     <span>Boxers sport</span>
+      <span class="color-dot" style="background-color: #030303;"></span>
+    </h3>
+      <p><del>920 UAH</del> <strong style="color: #cc0000;">720 UAH</strong> / 19$</p>
+    </div>
+
     </div>
     </div>
 
 
-    <div class="section-category">
-    <h3 class="category-animated">Майки</h3>
+  <div class="section-category">
+  <h3 class="category-animated">Майки</h3>
   <div class="product-grid">
     <div class="product-card" onclick="openModal(this)"
      data-name="Майка milk"
      data-price="560 UAH/ 14$"
+     data-article="MM-001"
+     data-in-stock="В наявності"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/tank_top/m4.webp,assets/images/tank_top/m5.webp,assets/images/tank_top/m6.webp,assets/images/tank_top/m7.webp,assets/images/tank_top/m8.webp,assets/images/tank_top/m9.webp,assets/images/tank_top/m10.webp">
       <img src="assets/images/tank_top/m4.webp" alt="Товар 6">
       <h3 class="product-title">
       <span>Майка milk</span>
-  <span class="color-dot" style="background-color: #f6f7f8f8;"></span>
-</h3>
+      <span class="color-dot" style="background-color: #f6f7f8f8;"></span>
+     </h3>
       <p>560 UAH/ 14$</p>
     </div>
+
     <div class="product-card" onclick="openModal(this)"
      data-name="Майка black"
      data-price="560 UAH/ 14$"
+     data-in-stock="В наявності"
+     data-article="MBL-001"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/sets/sb7.webp,assets/images/sets/sb8.webp,assets/images/sets/sb9.webp">
       <img src="assets/images/sets/sb7.webp" alt="Товар 6">
       <h3 class="product-title">
       <span>Майка black</span>
-  <span class="color-dot" style="background-color: #0c0c0cf8;"></span>
-</h3>
+      <span class="color-dot" style="background-color: #0c0c0cf8;"></span>
+      </h3>
       <p>560 UAH/ 14$</p>
     </div>
+
     <div class="product-card" onclick="openModal(this)"
      data-name="Майка menthol"
      data-price="560 UAH/ 14$"
+     data-in-stock="В наявності"
+     data-article="MME-002"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
           data-images="assets/images/sets/sbi5.webp,assets/images/sets/sbi6.webp,assets/images/sets/sbi7.webp">
       <img src="assets/images/sets/sbi5.webp" alt="Товар 6">
       <h3 class="product-title">
       <span>Майка menthol</span>
-  <span class="color-dot" style="background-color: #4bc5e7f8;"></span>
-</h3>
+      <span class="color-dot" style="background-color: #4bc5e7f8;"></span>
+     </h3>
       <p>560 UAH/ 14$</p>
     </div>
+
      </div>
     </div>
 
@@ -336,6 +538,10 @@
     <div class="product-card" onclick="openModal(this)"
      data-name="Комплект menthol"
      data-price="1250 UAH/ 30$"
+     data-in-stock="В наявності"
+     data-article="CME-003"
+     data-sale="SALE"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/sets/sbi5.webp,assets/images/sets/sbi6.webp,assets/images/sets/sbi7.webp">
       <img src="assets/images/sets/sbi5.webp" alt="Товар 6">
@@ -343,13 +549,17 @@
         <span>Комплект menthol</span>
         <span class="color-dot" style="background-color: #4bc5e7f8;"></span>
       </h3>
-      <p><del>1320 UAH</del> <strong>1250 UAH</strong> / 30$</p>
+      <p><del>1320 UAH</del> <strong style="color: #cc0000;">1250 UAH</strong> / 30$</p>
       <p class="discount-label">Економія 5% <h10>при покупці комплектом</h10></p>
     </div>
 
     <div class="product-card" onclick="openModal(this)"
      data-name="Комплект black"
-     data-price="1250 UAH/ 30$"
+     data-price="1100 UAH/ 27$"
+     data-in-stock="В наявності"
+     data-article="CBLE-001"
+     data-sale="SALE"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/sets/sb7.webp,assets/images/sets/sb8.webp,assets/images/sets/sb9.webp">
       <img src="assets/images/sets/sb7.webp" alt="Товар 6">
@@ -357,13 +567,17 @@
         <span>Комплект black</span>
         <span class="color-dot" style="background-color: #0c0c0cf8;"></span>
       </h3>
-      <p><del>1320 UAH</del> <strong>1250 UAH</strong> / 30$</p>
+      <p><del>1320 UAH</del> <strong style="color: #cc0000;">1110 UAH</strong> / 27$</p>
       <p class="discount-label">Економія 5% <h10>при покупці комплектом</h10></p>
     </div>
 
     <div class="product-card" onclick="openModal(this)"
      data-name="Комплект black box"
-     data-price="1350 UAH/ 33$"
+     data-price="1280 UAH/ 31$"
+     data-in-stock="В наявності"
+     data-article="CBLEB-001"
+     data-sale="SALE"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/sets/bldb1.webp,assets/images/sets/bldb2.webp,assets/images/sets/bldb3.webp">
       <img src="assets/images/sets/bldb1.webp" alt="Товар 6">
@@ -371,7 +585,7 @@
         <span>Комплект black box</span>
         <span class="color-dot" style="background-color: #0c0c0cf8;"></span>
       </h3>
-      <p><del>1480 UAH</del> <strong>1350 UAH</strong> / 33$</p>
+      <p><del>1480 UAH</del> <strong style="color: #cc0000;">1280 UAH</strong> / 31$</p>
       <p class="discount-label">Економія 5% <h10>при покупці комплектом</h10></p>
     </div>
 
@@ -384,38 +598,48 @@
     <div class="product-card" onclick="openModal(this)"
      data-name="Майка black"
      data-price="560 UAH/ 14$"
+     data-in-stock="В наявності"
+     data-article="MBLE-003"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/she/bl1.webp,assets/images/she/bl2.webp,assets/images/she/bl3.webp,assets/images/she/bl4.webp,assets/images/she/bl5.webp">
       <img src="assets/images/she/bl1.webp" alt="Майка black">
       <h3 class="product-title">
       <span>Майка black</span>
-  <span class="color-dot" style="background-color: #020202f8;"></span>
-</h3>
+      <span class="color-dot" style="background-color: #020202f8;"></span>
+      </h3>
       <p>560 UAH/ 14$</p>
     </div>
+    
     <div class="product-card" onclick="openModal(this)"
      data-name="Майка milk"
      data-price="560 UAH/ 14$"
+     data-in-stock="В наявності"
+     data-article="MMIL-001"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/she/m1.webp,assets/images/she/m2.webp,assets/images/she/m3.webp">
       <img src="assets/images/she/m1.webp" alt="Товар 6">
       <h3 class="product-title">
       <span>Майка milk</span>
-  <span class="color-dot" style="background-color: #f6f7f8f8;"></span>
-</h3>
+      <span class="color-dot" style="background-color: #f6f7f8f8;"></span>
+     </h3>
       <p>560 UAH/ 14$</p>
     </div>
 
     <div class="product-card" onclick="openModal(this)"
      data-name="Майка menthol"
      data-price="560 UAH/ 14$"
+     data-in-stock="В наявності"
+     data-article="MAME-004"
+     data-material="бавовна 95%, еластан 5%"
      data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
      data-images="assets/images/she/mbi1.webp,assets/images/she/mbi2.webp,assets/images/she/mbi3.webp,assets/images/she/mbi4.webp">
       <img src="assets/images/she/mbi1.webp" alt="Товар 6" >
       <h3 class="product-title">
       <span>Майка menthol</span>
-  <span class="color-dot" style="background-color: #4bc5e7f8;"></span>
-</h3>
+      <span class="color-dot" style="background-color: #4bc5e7f8;"></span>
+     </h3>
       <p>560 UAH/ 14$</p>
     </div>
 
@@ -440,7 +664,6 @@
             <tr><td>S</td><td>84-88</td><td>99-103</td></tr>
             <tr><td>M</td><td>88-92</td><td>103-107</td></tr>
             <tr><td>L</td><td>92-96</td><td>107-111</td></tr>
-            <tr><td>XL</td><td>96-100</td><td>111-115</td></tr>
           </tbody>
         </table>
       </div>
@@ -453,9 +676,18 @@
   </div>
 </section>
 
-
-
 <section id="info" class="conditions">
+
+<section>
+  <h2 class="section-title">Спосіб оплати</h2>
+    <div class="delivery-item" style="width: 100%;max-width: 100%;height: 150px;">
+    <div style="width: 100%;display: flex;justify-content: center;align-items: center;flex-wrap: wrap;flex-direction: row;">
+       <div class="icon visa"></div><div class="icon master"></div>
+    </div>
+      <p><strong>на Рахунок або на картка ФОП, чи PayPal</strong></p>
+    </div>
+</section>
+
   <h2 class="section-title">Умови доставки</h2>
   <div class="delivery-container">
     <div class="delivery-item">
@@ -489,8 +721,8 @@
     Ми завжди на звʼязку. Обирайте зручний спосіб — відповімо швидко та допоможемо з будь-яким питанням.
   </p>
 <div class="contacts-wrapper">
-  <a href="https://t.me/reyter_ua" target="_blank" rel="noopener" class="contact-link">
-    <i class="fab fa-telegram-plane"></i> <span class="contact-text">Telegram</span>
+  <a href="https://www.tiktok.com/@reyter.ua5" target="_blank" rel="noopener" class="contact-link">
+    <i class="fab fa-tiktok"></i> <span class="contact-text">TikTok</span>
   </a>
   <a href="https://www.instagram.com/reyter.ua/" target="_blank" rel="noopener" class="contact-link">
     <i class="fab fa-instagram"></i> <span class="contact-text">Instagram</span>
@@ -509,35 +741,167 @@
 
 
 
-  <footer>
-    <p>Характер - це REYTER!</p> 
-    <p style="font-size: 12px; color: black;">і.</p>
-    <p style="font-size: 12px;">&copy; 2025 REYTER. Зроблено з ❤️ в Україні.</p>
-  </footer>
-
-<div id="productModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalName" aria-describedby="modalDescription">
-  <div class="modal-wrapper">
-    <button class="modal-close" onclick="closeModal()" aria-label="Закрити">&times;</button>
-    <div class="modal-gallery">
-      <button class="nav prev" onclick="prevImage()" aria-label="Попереднє зображення">&#10094;</button>
-      <img id="modalImage" src="" alt="Фото товару">
-      <button class="nav next" onclick="nextImage()" aria-label="Наступне зображення">&#10095;</button>
+<footer>
+    <div class="footer-inner">
+      <p>Характер - це REYTER!</p><div class="footer-text">
+        <p style="font-size: 12px;margin-top: 10px;">© 2026 REYTER. Зроблено з ❤️ в Україні.</p>
+      <p style="font-size: 15px;margin-top: 10px;">Працюємо офіційно ФОП Пац М.</p></div>
+      <a href="/public-offer.pdf" target="_blank" class="footer-offer Linkweb__Anchor-sc-144if1g-1 Mnieo">
+        <p class="Textweb__Text-sc-142oijk-0 Textweb__TextWrapper-sc-142oijk-1 Textweb__MediumText-sc-142oijk-3 ItemsList__ListItem-sc-1waqnyd-2 gHkSBI MWEub deZPkc dthVOL">Публічна оферта</p>
+      </a>
+      <a href="/political.pdf" target="_blank" class="footer-offer Linkweb__Anchor-sc-144if1g-1 Mnieo">
+        <p class="Textweb__Text-sc-142oijk-0 Textweb__TextWrapper-sc-142oijk-1 Textweb__MediumText-sc-142oijk-3 ItemsList__ListItem-sc-1waqnyd-2 gHkSBI MWEub deZPkc dthVOL">Політика конфіденційності</p>
+      </a>
     </div>
-    <div class="modal-details">
-      <h2 id="modalName"></h2>
-      <div class="color-options" id="modalColors">
+</footer>
 
+<div id="productModal" class="productBoxing hidden">
+  <div class="close-btn" onclick="closeModal()">&times;</div>
+  <div class="left">
+    <div class="matImages">
+      <div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="pswp__bg"></div>
+        <div class="pswp__scroll-wrap">
+          <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+          </div>
+          <div class="pswp__ui pswp__ui--hidden">
+            <div class="pswp__top-bar">
+              <div class="pswp__counter"></div>
+              <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+              <button class="pswp__button pswp__button--share" title="Share"></button>
+              <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+              <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+              <div class="pswp__preloader">
+                <div class="pswp__preloader__icn">
+                  <div class="pswp__preloader__cut">
+                    <div class="pswp__preloader__donut"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+              <div class="pswp__share-tooltip"></div>
+            </div>
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)"></button>
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button>
+            <div class="pswp__caption">
+              <div class="pswp__caption__center"></div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="modal-divider"></div>
-      <p id="modalDescription" class="modal-description"></p>
-      <p class="modal-price" id="modalPrice"></p>
-      <a href="#size-guide" class="size-link" id="sizeLink">Як обрати розмір?</a>
-      <button class="order-button" id="orderBtn">Замовити товар</button>
-      
+
+      <div class="bigImage">
+        <div class="hiddenGallery" data-pswp-uid="1">
+          <figure>
+            <a href="assets/images/sets/sbi5.webp" data-size="1200x1600"><img src="assets/images/sets/sbi5.webp" alt=""></a>
+          </figure>
+          <figure>
+            <a href="assets/images/sets/sbi6.webp" data-size="1200x1600"><img src="assets/images/sets/sbi6.webp" alt=""></a>
+          </figure>
+          <figure>
+            <a href="assets/images/sets/sbi7.webp" data-size="1200x1600"><img src="assets/images/sets/sbi7.webp" alt=""></a>
+          </figure>
+        </div>
+        <span class="image"><img id="globalImage" src="assets/images/sets/sbi5.webp" alt="Комплект menthol" itemprop="image"></span>
+        <div class="cloneImg">
+          <img src="assets/images/sets/sbi5.webp" class="clone" alt="">
+        </div>
+        <div class="arrowCase">
+          <div class="arrow prev"></div>
+          <div class="arrow next"></div>
+        </div>
+      </div>
+
+      <div class="swiper-container thumbsBox count-3 swiper-container-initialized swiper-container-vertical" data-columns="3" id="thumbsVertical">
+        <div class="swiper-wrapper">
+          <div class="swiper-slide itmSImg active swiper-slide-active" data-index="0">
+            <a href="javascript:void(0)" data-popup="assets/images/sets/sbi5.webp"><img class="thumb" src="assets/images/sets/sbi5.webp" alt="Photo 1"></a>
+          </div>
+          <div class="swiper-slide itmSImg swiper-slide-next" data-index="1">
+            <a href="javascript:void(0)" data-popup="assets/images/sets/sbi6.webp"><img class="thumb" src="assets/images/sets/sbi6.webp" alt="Photo 2"></a>
+          </div>
+          <div class="swiper-slide itmSImg" data-index="2">
+            <a href="javascript:void(0)" data-popup="assets/images/sets/sbi7.webp"><img class="thumb" src="assets/images/sets/sbi7.webp" alt="Photo 3"></a>
+          </div>
+        </div>
+        <div class="vertNavigation">
+          <div class="next swiper-button-disabled" tabindex="0" role="button" aria-label="Next slide" aria-disabled="true"></div>
+          <div class="prev swiper-button-disabled" tabindex="0" role="button" aria-label="Previous slide" aria-disabled="true"></div>
+        </div>
+        <span class="swiper-notification" aria-live="assertive" aria-atomic="true"></span>
+      </div>
     </div>
   </div>
+
+  <div class="right">
+    <h1 class="name" itemprop="name" id="modalName">Комплект menthol</h1>
+    <div class="article">
+      <div class="available ava yes" id="modalStatus">Товар в наявності</div><link itemprop="availability" href="https://schema.org/InStock">
+      <span id="modalArticle">SBI-005</span>
+    </div>
+    
+    <div class="priceLine">
+      <input type="hidden" name="product_id" value="">
+      <input type="hidden" name="quantity" value="1" id="input-quantity" class="form-control">
+      <button type="button" class="btnRed purchase btnPurchase" id="orderBtn" data-loading-text="Завантаження...">Написати менеджеру</button>
+      <div class="price valG" itemprop="price" id="modalPrice" content="1250">1250<meta itemprop="priceCurrency" content="UAH"></div>
+    </div>
+
+    <div class="varsLine inputs radio" id="modalSizesContainer">
+      <div class="title"><span>Розмір</span><a href="#size-guide" id="sizeLink">Як обрати розмір?</a></div>
+      <div class="inptBox size" id="modalSizes">
+        <div class="varInpt">
+          <input type="radio" name="size" value="XS" id="size-xs">
+          <label for="size-xs">XS</label>
+        </div>        
+        <div class="varInpt">
+          <input type="radio" name="size" value="S" id="size-s">
+          <label for="size-s">S</label>
+        </div>
+        <div class="varInpt">
+          <input type="radio" name="size" value="M" id="size-m" checked>
+          <label for="size-m">M</label>
+        </div>
+        <div class="varInpt">
+          <input type="radio" name="size" value="L" id="size-l">
+          <label for="size-l">L</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="textDscpt" itemprop="description" id="modalDescription">
+      <b>Тканина:</b> кулір<br>
+      <b>Склад:</b> бавовна 95%, еластан 5%<br>
+    </div>
+
+    <div class="textDscpt" id="modalCareSection">
+      <p></p>
+      <b>Рекомендації щодо догляду:</b>
+      <li><b>Прання</b>: Навиворіт при температурі до 30°C</li>   
+    </div>
+    
+    <div class="dopInfo">
+      <div class="novPochta">
+        Відправимо замовлення Новою Поштою <span>вже сьогодні</span> при оформленні замовлення <span>до 16:00</span>
+      </div>
+      <div class="freeDel">
+        Доставка по всій Україні <span>безкоштовна</span>
+        <br>при оплаті <span>100%</span> <span class="toDo"> (від 1500 грн)</span>
+      </div>
+    </div>
+        <div class="dopInfo">
+      <div class="novPochta">
+        Також здійснюємо Міжнародну доставку. При оплаті <span>100%</span>
+      </div>
+    </div>
+  </div>
+
 </div>
-  <script src="../scripts/modal.js"></script>
+  <script src="https://unpkg.com/swiper/swiper-bundle.min.js"></script>
   <script src="../scripts/burger.js"></script>
   <script src="../scripts/readmore.js"></script>
   <script src="../scripts/order.js"></script>
@@ -555,7 +919,7 @@ function documentReady() {
   var MAX_SNOW_SIZE = 7;
   var MAX_SNOW_SPEED = 1;
 
-  snowStart();
+  //  snowStart(); // 
 
   function snowStart() {
     // console.log("// Snow animation start");
@@ -708,6 +1072,105 @@ function documentReady() {
 
 }
   </script>
+
+<!-- PhotoSwipe v4.1.3 JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.3/photoswipe.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.3/photoswipe-ui-default.min.js"></script>
+
+<!-- Swiper v4.5.0 JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Swiper/4.5.0/js/swiper.min.js"></script>
+
+<!-- Swiper Initialization -->
+<script>
+  // Initialize Swiper for vertical thumbnails
+  if (document.querySelector('#thumbsVertical')) {
+    vertswiper = new Swiper('#thumbsVertical', {
+      direction: 'vertical',
+      slidesPerView: 3,
+      spaceBetween: 10,
+      navigation: {
+        nextEl: '.swiper-button-next',
+        prevEl: '.swiper-button-prev',
+      },
+      breakpoints: {
+        320: {
+          slidesPerView: 3,
+          spaceBetween: 5
+        },
+        768: {
+          slidesPerView: 3,
+          spaceBetween: 10
+        }
+      }
+    });
+  }
+</script>
+
+<!-- Modal Script -->
+<script src="scripts/modal-NEW.js?v=2.0"></script>
+
+<!-- Auto-adjust grid columns based on product count -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const productGrids = document.querySelectorAll('.product-grid');
+    
+    productGrids.forEach(grid => {
+      const productCount = grid.querySelectorAll('.product-card').length;
+      
+      // Видаляємо всі класи колонок
+      grid.classList.remove('grid-1-col', 'grid-2-cols', 'grid-4-cols');
+      
+      // Додаємо відповідний клас залежно від кількості товарів
+      if (productCount === 1) {
+        grid.classList.add('grid-1-col');
+      } else if (productCount === 2) {
+        grid.classList.add('grid-2-cols');
+      } else if (productCount === 4) {
+        grid.classList.add('grid-4-cols');
+      }
+      // Для 3 товарів залишаємо дефолтні 3 колонки (без додаткового класу)
+    });
+    
+    // Додавання бейджів знижки для карточок з data-sale="SALE"
+    const productCards = document.querySelectorAll('.product-card[data-sale="SALE"]');
+    productCards.forEach(card => {
+      const badge = document.createElement('div');
+      badge.className = 'sale-badge';
+      badge.innerHTML = '<img src="/assets/images/price-drop.svg" alt="Знижка">';
+      
+      // Додаємо бейдж на початок карточки (над зображенням)
+      card.insertBefore(badge, card.firstChild);
+    });
+  });
+</script>
+
+<!-- Clear Cache on Page Load -->
+<script>
+  // Очищення кешу при завантаженні сторінки
+  window.addEventListener('load', function() {
+    // Очищення Service Worker кешу (якщо є)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+        }
+      });
+      
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for (let name of names) {
+            caches.delete(name);
+          }
+        });
+      }
+    }
+  });
+  
+  // Примусове перезавантаження CSS і JS при Ctrl+F5 або Cmd+Shift+R
+  if (performance.navigation.type === 1) {
+    console.log('Page was reloaded - cache should be cleared');
+  }
+</script>
 
 </body>
 </html>  

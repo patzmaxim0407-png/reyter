@@ -109,8 +109,8 @@ section {
   font-weight: 650; 
   color: #111;
   letter-spacing: 0.5px;
+  margin-bottom: 20px;
   text-align: left; 
-  margin-bottom: 2rem;
 }
 
 
@@ -263,7 +263,7 @@ section {
 }
 
 #products {
-  padding: 0px 20px;
+  padding: 0px 0px;
    background-color: rgba(0, 74, 173, 0);
 
 }
@@ -273,7 +273,6 @@ section {
   font-size: 2rem;
   font-weight: 650;
   color: #111;
-  margin-bottom: 2rem;
   text-align: center;
 }
 
@@ -299,13 +298,13 @@ section {
   grid-template-columns: repeat(4, 1fr);
 }
 .section-category {
-  border-left: 0.001px solid #eae9e9; 
-  border-right: 0.001px solid #eae9e9; 
-  border-top: 0.001px solid #eae9e9;  
-    border-bottom: 0.001px solid #eae9e9; 
-    border-radius: 20px;
-    margin: 50px 0;
-    background-color: #ffffff;
+  /* border-left: 0.001px solid #eae9e9; */
+  /* border-right: 0.001px solid #eae9e9; */
+  /* border-top: 0.001px solid #eae9e9; */
+  /* border-bottom: 0.001px solid #eae9e9; */
+  /* border-radius: 20px; */
+  margin: 30px 0;
+  /* background-color: #ffffff; */
 }
 
 @media (max-width: 768px) {
@@ -325,8 +324,8 @@ section {
 
 .product-card .sale-badge {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 5px;
+  right: 60px;
   width: 60px;
   height: 60px;
   z-index: 10;
@@ -404,7 +403,7 @@ section {
   letter-spacing: 1px;
   text-transform: uppercase;
   font-family: 'Inter', sans-serif;
-  margin: 30px 0 30px;
+  margin: 30px 0 10px;
   color: #111;
 }
 
@@ -448,10 +447,10 @@ section {
   align-items: stretch;
   padding: 40px;
   border-radius: 1px;
-  border-left: 0.001px solid #eae9e9;  
-  border-right: 0.001px solid #eae9e9;  
-  border-top: 0.001px solid #eae9e9;  
-    border-bottom: 0.001px solid #eae9e9; 
+  /* border-left: 0.001px solid #eae9e9; */
+  /* border-right: 0.001px solid #eae9e9; */
+  /* border-top: 0.001px solid #eae9e9; */
+  /* border-bottom: 0.001px solid #eae9e9; */
 }
 
 .size-table table {
@@ -459,7 +458,7 @@ section {
   border-collapse: collapse;
   font-size: 1rem;
   background: #fff;
-  border-radius: 10px;
+  border-radius: 0px;
   overflow: hidden;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.03);
 }
@@ -493,7 +492,7 @@ section {
 
 .size-visual img {
   max-width: 100%;
-  border-radius: 10px;
+  border-radius: 0px;
   transition: transform 0.3s ease;
 }
 
@@ -584,7 +583,7 @@ section {
 
 .delivery-item {
   background: #ffffff;
-  border-radius: 10px;
+  border-radius: 0px;
   padding: 20px 25px;
   width: 40%;
   box-shadow: 0 8px 20px rgba(0,0,0,0.08);
@@ -736,7 +735,7 @@ section {
   text-decoration: none;
   border-bottom: 1px solid transparent;
   padding: 10px 24px;
-  border-radius: 10px;
+  border-radius: 0px;
   background: #fafafa;
   box-shadow: 0 2px 12px 0 rgba(0,0,0,0.03);
   transition: 
@@ -849,7 +848,7 @@ footer {
   color: #ffffff;
   text-decoration: none;
   border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 999px;
+  border-radius: 2px;
   padding: 0.55rem 1rem;
   font-size: 0.95rem;
   letter-spacing: 0.4px;
