@@ -68,7 +68,7 @@
 @media (max-width: 600px) {
   #about {
     padding: 0;
-    margin: 18px auto;
+    margin: 0px auto;
     gap: 12px;
   }
   .about-text h2 {
