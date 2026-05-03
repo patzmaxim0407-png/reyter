@@ -580,27 +580,17 @@ section {
 }
 
 .delivery-item {
-  background: #ffffff;
-  border-radius: 0px;
-  padding: 20px 25px;
   width: 40%;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   cursor: default;
   position: relative;
-  overflow: visible;
-   background: #fafafa;
-    border-left: 0.001px solid #eae9e9;  
-  border-right: 0.001px solid #eae9e9;  
-  border-top: 0.001px solid #eae9e9;  
-    border-bottom: 0.001px solid #eae9e9; 
 }
 
 
 
 .delivery-item p {
   font-weight: 600;
-  font-size: 1.15rem;
+  font-size: 1rem;
   color: #111;
   margin-top: 15px;
   line-height: 1.4;
@@ -614,8 +604,8 @@ section {
 }
 
 .icon {
-  width: 60px;
-  height: 60px;
+  width: 40px;
+  height: 40px;
   margin: 0 auto;
   position: relative;
   filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1));
@@ -638,29 +628,29 @@ section {
 
 .icon.payment {
   background: url('/assets/images/money.png') no-repeat center/contain;
-  width: 60px;
-  height: 60px;
+  width: 40px;
+  height: 40px;
   animation: pulse 3s ease-in-out infinite;
 }
 .icon.international {
   background: url('/assets/images/international.png') no-repeat center/contain;
-  width: 60px;
-  height: 60px;
+  width: 40px;
+  height: 40px;
   animation: pulse 3s ease-in-out infinite;
 }
 
 .icon.visa {
   background: url('/assets/images/visa.svg') no-repeat center/contain;
-  width: 60px;
-  height: 60px;
+  width: 40px;
+  height: 40px;
   animation: pulse 3s ease-in-out infinite;
   margin: 0px 40px;
 }
 
 .icon.master {
   background: url('/assets/images/master-card.svg') no-repeat center/contain;
-  width: 60px;
-  height: 60px;
+  width: 40px;
+  height: 40px;
   animation: pulse 3s ease-in-out infinite;
   margin: 0px 40px;
 }
