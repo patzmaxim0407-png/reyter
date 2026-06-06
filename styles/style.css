@@ -202,45 +202,46 @@ section {
   border-color: #000;
 }
 
-.support-project {
+.home-collection-wrap {
   max-width: 1400px;
   margin: 0 auto;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
 }
 
-.support-button {
-  background-color: #000;
-  color: #fff;
-  border: 1px solid #fff;
+.home-collection-btn {
+  background-color: #fcf8f0;
+  color: #000;
+  border: 1px solid #e6dcc6;
   padding: 12px 30px;
   font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1.5px;
   cursor: pointer;
-  transition: background-color 0.3s ease, color 0.3s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+  transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
   text-align: center;
   font-family: 'Arial', sans-serif;
   min-width: 200px;
   margin-top: 0px;
   border-radius: 15px;
-  text-decoration: none;
 }
 
-.support-button img {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
+.home-collection-btn:hover {
+  background-color: #f3e8d2;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
 }
 
-.support-button:hover {
-  background-color: #0a0025;
-  color: #ffffff;
-  border-color: #000;
+.home-collection-content {
+  width: 100%;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.5s ease;
+}
+
+.home-collection-content.show {
+  max-height: 2000px;
 }
 
 

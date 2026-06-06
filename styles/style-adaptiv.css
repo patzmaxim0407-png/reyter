@@ -82,14 +82,10 @@
     font-size: 0.95rem;
     padding: 10px 12px;
   }
-  .support-button {
+  .home-collection-btn {
     min-width: 120px;
     font-size: 0.95rem;
     padding: 10px 12px;
-  }
-  .support-button img {
-    width: 20px;
-    height: 20px;
   }
   .full-text {
     font-size: 0.97rem;
