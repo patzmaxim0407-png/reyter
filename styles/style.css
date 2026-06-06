@@ -213,7 +213,7 @@ section {
 .home-collection-btn {
   background-color: #fcf8f0;
   color: #000;
-  border: 1px solid #e6dcc6;
+  border: 1px solid #d8c9a8;
   padding: 22px 60px;
   font-size: 14px;
   font-weight: 600;
@@ -226,11 +226,12 @@ section {
   min-width: 200px;
   margin-top: 0px;
   border-radius: 15px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
 }
 
 .home-collection-btn:hover {
   background-color: #f3e8d2;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
 }
 
 .home-collection-content {
