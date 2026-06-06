@@ -214,7 +214,7 @@ section {
   background-color: #fcf8f0;
   color: #000;
   border: 1px solid #e6dcc6;
-  padding: 12px 30px;
+  padding: 22px 60px;
   font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
@@ -242,6 +242,16 @@ section {
 
 .home-collection-content.show {
   max-height: 2000px;
+}
+
+.home-collection-content .product-grid {
+  display: flex;
+  justify-content: center;
+}
+
+.home-collection-content .product-card {
+  width: 100%;
+  max-width: 360px;
 }
 
 
