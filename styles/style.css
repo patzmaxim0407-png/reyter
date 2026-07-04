@@ -60,7 +60,7 @@ nav {
 nav a {
   margin-left: 1.5rem;
   text-decoration: none;
-  color: #ccc;
+  color: #ffffff;
   font-weight: 600;
   position: relative;
 }
@@ -72,7 +72,7 @@ nav a::after {
   left: 0;
   width: 0;
   height: 2px;
-  background-color: #ccc;
+  background-color: #ffffff;
   transition: width 0.3s;
 }
 
