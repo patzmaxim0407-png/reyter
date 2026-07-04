@@ -376,6 +376,7 @@ body {
   background: none;
   border: none;
   cursor: pointer;
+  color: #ffffff;
   z-index: 1200;
   margin-left: auto;
   margin-right: 10px;

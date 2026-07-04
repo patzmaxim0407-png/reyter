@@ -35,8 +35,7 @@ header {
   height: 80px;
   position: sticky;
   top: 0;
-  background: rgba(255, 255, 255, 0.7);
-  
+  background: #014AAD;
   z-index: 1000;
   border-bottom: 1px solid var(--gray);
 }
@@ -60,7 +59,7 @@ nav {
 nav a {
   margin-left: 1.5rem;
   text-decoration: none;
-  color: var(--text-color);
+  color: #ccc;
   font-weight: 600;
   position: relative;
 }
@@ -72,7 +71,7 @@ nav a::after {
   left: 0;
   width: 0;
   height: 2px;
-  background-color: var(--text-color);
+  background-color: #ccc;
   transition: width 0.3s;
 }
 
