@@ -406,7 +406,7 @@ body {
     width: 100%;
     z-index: 1000;
     background: #014AAD;
-    border-bottom: 1px solid #eaeaea;
+    border-bottom: 1px solid #014AAD;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     box-sizing: border-box;

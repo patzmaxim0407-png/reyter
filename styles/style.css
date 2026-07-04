@@ -37,7 +37,7 @@ header {
   top: 0;
   background: #014AAD;
   z-index: 1000;
-  border-bottom: 1px solid var(--gray);
+  border-bottom: 1px solid #014AAD;
 }
 
 .logo {
