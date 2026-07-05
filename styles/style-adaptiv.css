@@ -385,10 +385,14 @@ body {
   display: block;
   height: 3px;
   width: 100%;
-  background: #01d7ff;
+  background: #ffffff;
   margin: 6px 0;
   border-radius: 2px;
   transition: 0.3s;
+}
+/* Коли меню відкрите — робимо смужки бургера чорними */
+header:has(nav.open) .burger span {
+  background: #000000;
 }
 
 /* --- Адаптивний хедер --- */
@@ -420,7 +424,7 @@ body {
   }
   .logo img {
     height: 40px;
-    width: 150px;
+    width: 90px;
     margin: 0;
     display: block;
   }
