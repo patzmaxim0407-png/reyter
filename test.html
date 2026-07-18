@@ -67,13 +67,15 @@
 </div>
 <header>
   <div class="logo">
-    <img src="/assets/images/logo_3.webp" alt="REYTER">
+    <a href="/" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+      <img src="/assets/images/Logo1.png" alt="REYTER">
+    </a>
     <!-- <div class="holiday-branch" id="holidayBranch">
       <img src="/assets/images/2026HN.webp" alt="Новорічна гілка" class="branch-image swing">
     </div> -->
   </div>
   <div class="new-year-banner">
-    <p class="banner-text">summer vibe</p>
+    <p class="banner-text" style="color: white;">new drop 19 Jul</p>
   </div>
   <button class="burger" id="burgerBtn" aria-label="Відкрити меню">
     <span></span><span></span><span></span>
@@ -84,13 +86,27 @@
     <a href="#size-guide">Розмірна сітка</a>
     <a href="#info">Умови доставки</a>
     <a href="#contacts">Контакти</a>
+    <div class="nav-socials">
+      <a href="https://www.tiktok.com/@reyter.ua5" target="_blank" rel="noopener" aria-label="TikTok">
+        <i class="fab fa-tiktok"></i>
+      </a>
+      <a href="https://www.instagram.com/reyter.ua/" target="_blank" rel="noopener" aria-label="Instagram">
+        <i class="fab fa-instagram"></i>
+      </a>
+      <a href="https://www.threads.com/@reyter.ua" target="_blank" rel="noopener" aria-label="Threads">
+        <img src="/assets/images/threads.webp" alt="Threads">
+      </a>
+      <a href="https://twitter.com/reyter_ua" target="_blank" rel="noopener" aria-label="X">
+        <img src="/assets/images/X.webp" alt="X">
+      </a>
+    </div>
   </nav>
 </header>
 
 <section id="about" class="about">
   <div class="about-image-wrapper">
     <div class="image-bg"></div>
-    <img src="/assets/images/spring2026/11.webp" alt="Про REYTER — український бренд чоловічої білизни" />
+    <img src="/assets/images/Jule2026/Head.webp" alt="Про REYTER — український бренд чоловічої білизни" />
   </div>
 
   <div class="about-text">
@@ -110,58 +126,106 @@
 </section>
 
 
-<div class="support-project">
-  <a class="support-button" href="https://send.monobank.ua/jar/Rh5zUVWxb" target="_blank" rel="noopener">
-    <img src="assets/images/jar_0.png" alt="Підтримай проєкт">
-    <span>Підтримай проєкт</span>
-  </a>
+<div class="home-collection-wrap">
+  <button class="home-collection-btn" id="homeCollectionBtn" type="button" aria-expanded="false" aria-controls="homeCollection">
+    Home collection
+  </button>
+
+  <div class="home-collection-content" id="homeCollection">
+    <div class="section-category">
+      <div class="product-grid">
+
+        <div class="product-card" onclick="openModal(this)"
+         data-name="Candle Reyter"
+         data-price="465 UAH/ 11$"
+         data-in-stock="В наявності"
+         data-article="CRH-001"
+         data-description="Аромат: бренді & груша&#10;Склад: деревʼяний гніт, соєвий віск, натуральні аромаолії.&#10;❗️Рекомендації: Після кожного використання свічки з дерев’яним гнітом акуратно приберіть обгорілу частину гніту.❗️&#10;Обʼєм: 250 мл&#10;"
+         data-characteristics="Склад: деревʼяний гніт, соєвий віск, натуральні аромаолії."
+         data-images="assets/images/home/Home04.webp,assets/images/home/Home05.webp">
+          <img src="assets/images/home/Home04.webp" alt="Candle Reyter">
+          <h3 class="product-title">
+            <span>Candle Reyter</span>
+          </h3>
+           <p>465 UAH/ 11$</p>
+        </div>
+
+       <!-- <div class="product-card" onclick="openModal(this)"
+         data-name="Duffuser"
+         data-price="750 UAH/ 18$"
+         data-in-stock="В наявності"
+         data-article="DUF-001"
+         data-description="Аромат: бренді-груша&#10;Склад: натуральна(косметична) аромаолія, база для аромадифузорів&#10;Обʼєм: 50 мл&#10;"
+         data-characteristics="Склад: деревʼяний гніт, соєвий віск, натуральні аромаолії."
+         data-images="assets/images/home/Duffuser.webp">
+          <img src="assets/images/home/Duffuser.webp" alt="Duffuser">
+          <h3 class="product-title">
+            <span>Duffuser</span>
+          </h3>
+           <p>750 UAH/ 18$</p>
+        </div> -->
+
+      </div>
+    </div>
+  </div>
 </div>
 
 
  <section id="products">
 
-  <video autoplay loop muted playsinline style="width:100%;display:block;margin-top: 30px;margin-bottom: 30px;">
+   <!-- <video autoplay loop muted playsinline style="width:100%;display:block;margin-top: 30px;margin-bottom: 30px;">
     <source src="assets/videos/video-page.MP4" type="video/mp4">
-  </video>
+  </video> -->
 
-<!-- <div class="section-category">
-  <h3 class="category-animated">Home Collection</h3>
-  <div class="product-grid">
+  <img src="/assets/images/IMG_5665.JPG" alt="Reyter" style="width:100%;display:block;margin-top: 30px;margin-bottom: 30px;">
 
-    <div class="product-card" onclick="openModal(this)"
-     data-name="Candle Reyter"
-     data-price="750 UAH/ 18$"
-     data-in-stock="В наявності"
-     data-article="CRH-001"
-     data-description="Аромат: бренді & груша&#10;Склад: деревʼяний гніт, соєвий віск, натуральні аромаолії.&#10;❗️Рекомендації: Після кожного використання свічки з дерев’яним гнітом акуратно приберіть обгорілу частину гніту.❗️&#10;Обʼєм: 250 мл&#10;"
-     data-characteristics="Склад: деревʼяний гніт, соєвий віск, натуральні аромаолії."
-     data-images="assets/images/home/Home01.webp,assets/images/home/Home02.webp,assets/images/home/Home03.webp">
-      <img src="assets/images/home/Home02.webp" alt="Candle Reyter">
-      <h3 class="product-title">
-        <span>Candle Reyter</span>
-      </h3>
-       <p>750 UAH/ 18$</p>
-    </div>
-
-    <div class="product-card" onclick="openModal(this)"
-     data-name="Duffuser"
-     data-price="750 UAH/ 18$"
-     data-in-stock="В наявності"
-     data-article="DUF-001"
-     data-description="Аромат: бренді-груша&#10;Склад: натуральна(косметична) аромаолія, база для аромадифузорів&#10;Обʼєм: 50 мл&#10;"
-     data-characteristics="Склад: деревʼяний гніт, соєвий віск, натуральні аромаолії."
-     data-images="assets/images/home/Duffuser.webp">
-      <img src="assets/images/home/Duffuser.webp" alt="Duffuser">
-      <h3 class="product-title">
-        <span>Duffuser</span>
-      </h3>
-       <p>750 UAH/ 18$</p>
-    </div>
-
-    </div>
-  </div> -->
+  
 
   <h2 class="section-title">Наші позиції</h2>
+
+
+  <div class="section-category">
+    <h3 class="category-animated">Сорочки</h3>
+    <div class="product-grid">
+  
+  
+      <div class="product-card" onclick="openModal(this)"
+      data-name="Сорочка Electric Oversized"
+      data-price="2 190 UAH/ 49$"
+      data-article="EO-001"
+      data-in-stock="В наявності"
+      data-in-stock1=" "
+      data-material="100% бавовна"
+      data-description="Склад: 100% бавовна&#10;Розміри: M, L&#10;"
+      data-images="/assets/images/Jule2026/1.webp,/assets/images/Jule2026/2.webp">
+       <img src="/assets/images/Jule2026/1.webp" alt="Сорочка Electric Oversized">
+       <h3 class="product-title">
+         <span>Сорочка Electric Oversized</span>
+         <span class="color-dot" style="background-color: #014AAD;"></span>
+       </h3>
+        <p>2 190/ 49$</p>
+     </div>
+  
+     <div class="product-card" onclick="openModal(this)"
+     data-name="Сорочка Basmin Oversized"
+     data-price="2 190 UAH/ 49$"
+     data-article="BO-001"
+     data-in-stock="В наявності"
+     data-in-stock1=" "
+     data-material="Бавовна 100% бавовна"
+     data-description="Склад: 100% бавовна&#10;Розміри: M, L&#10;"
+     data-images="/assets/images/Jule2026/3.webp,/assets/images/Jule2026/4.webp">
+      <img src="/assets/images/Jule2026/3.webp" alt="Сорочка Basmin Oversized">
+      <h3 class="product-title">
+        <span>Сорочка Basmin Oversized</span>
+        <span class="color-dot" style="background-color: #014AAD;"></span>
+      </h3>
+       <p>2 190/ 49$</p>
+    </div>
+  
+       </div>
+  </div>
+
 
 
 
@@ -192,7 +256,7 @@
    data-price="750 UAH/ 18$"
    data-in-stock="В наявності"
    data-in-stock1=" "
-   data-description="Склад: віскоза 95%, еластан 5%&#10;Розміри: S, L"
+   data-description="Склад: віскоза 95%, еластан 5%&#10;Розміри: S&#10;Параметри моделі: 181 см, груди 102 см, сідниці 99 см, талія 83 см"
    data-images="assets\images\spring2026\17.webp,assets\images\spring2026\18.webp"
    data-article="WW-001"
    data-characteristics="Еластичний матеріал|Комфортна посадка|Міцна фурнітура"
@@ -203,7 +267,7 @@
       <span>Wave white</span>
       <span class="color-dot" style="background-color: #ffffff;"></span>
     </h3>
-     <p>750 UAH/ 18$  (5 шт)</p>
+     <p>750 UAH/ 18$</p>
   </div>
 
       <div class="product-card" onclick="openModal(this)"
@@ -262,8 +326,8 @@
     <div class="product-card" onclick="openModal(this)"
      data-name="Swimwear - rich"
      data-price="880 UAH/ 21$"
-     data-in-stock="В наявності"
-     data-description="Склад: еконіл 78%, спандекс 22%&#10;Розміри: S, M, L&#10;Білизна для басейну, пляжу та активного відпочинку"
+     data-in-stock="Продано"
+     data-description="Склад: еконіл 78%, спандекс 22%&#10;Розміри: &#10;Білизна для басейну, пляжу та активного відпочинку"
      data-images="assets/images/boxers/sr1.webp,assets/images/boxers/sr2.webp,assets/images/boxers/sr3.webp"
      data-article="SW-003"
      data-characteristics="Стійкість до хлору і солі|Швидке висихання|Еластичний матеріал"
@@ -282,6 +346,64 @@
 
 
 
+
+<div class="section-category">
+  <h3 class="category-animated">Майки</h3>
+  <div class="product-grid">
+    <div class="product-card" onclick="openModal(this)"
+     data-name="Майка milk"
+     data-price="560 UAH/ 14$"
+     data-article="MM-001"
+     data-in-stock="В наявності"
+     data-material="бавовна 95%, еластан 5%"
+     data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
+     data-images="assets/images/tank_top/m4.webp,assets/images/tank_top/m5.webp,assets/images/tank_top/m6.webp,assets/images/tank_top/m7.webp,assets/images/tank_top/m8.webp,assets/images/tank_top/m9.webp,assets/images/tank_top/m10.webp">
+      <img src="assets/images/tank_top/m4.webp" alt="Товар 6">
+      <h3 class="product-title">
+      <span>Майка milk</span>
+      <span class="color-dot" style="background-color: #f6f7f8f8;"></span>
+     </h3>
+      <p>560 UAH/ 14$</p>
+    </div>
+
+    <div class="product-card" onclick="openModal(this)"
+     data-name="Майка black"
+     data-price="560 UAH/ 14$"
+     data-in-stock="В наявності"
+     data-article="MBL-001"
+     data-material="бавовна 95%, еластан 5%"
+     data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
+     data-images="assets/images/sets/sb7.webp,assets/images/sets/sb8.webp,assets/images/sets/sb9.webp">
+      <img src="assets/images/sets/sb7.webp" alt="Товар 6">
+      <h3 class="product-title">
+      <span>Майка black</span>
+      <span class="color-dot" style="background-color: #0c0c0cf8;"></span>
+      </h3>
+      <p>560 UAH/ 14$</p>
+    </div>
+
+    <div class="product-card" onclick="openModal(this)"
+     data-name="Майка menthol"
+     data-price="560 UAH/ 14$"
+     data-in-stock="В наявності"
+     data-article="MME-002"
+     data-material="бавовна 95%, еластан 5%"
+     data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
+          data-images="assets/images/sets/sbi5.webp,assets/images/sets/sbi6.webp">
+      <img src="assets/images/sets/sbi5.webp" alt="Товар 6">
+      <h3 class="product-title">
+      <span>Майка menthol</span>
+      <span class="color-dot" style="background-color: #4bc5e7f8;"></span>
+     </h3>
+      <p>560 UAH/ 14$</p>
+    </div>
+
+     </div>
+    </div>
+
+    
+
+
 <div class="section-category">
   <h3 class="category-animated">Джоки</h3>
   <div class="product-grid">
@@ -291,9 +413,9 @@
      data-price="960 UAH/ 23$"
      data-article="RDJOCK-002"
      data-in-stock="Закінчується"
-     data-in-stock1="Закінчується S, M, L"
+     data-in-stock1="Закінчується L"
      data-material="Бавовна 95%, еластан 5%"
-     data-description="Склад: 95% бавовна, 5% еластан&#10;Розміри: S, M, L&#10;Параметри моделі: 181 см, 96 кг, талія 86 см"
+     data-description="Склад: 95% бавовна, 5% еластан&#10;Розміри: L&#10;Параметри моделі: 181 см, 96 кг, талія 86 см"
      data-images="assets/images/jocks/01.02.2026-1.webp,assets/images/jocks/01.02.2026-2.webp,assets/images/jocks/01.02.2026-3.webp">
       <img src="assets/images/jocks/01.02.2026-1.webp" alt="Red Jockstrap">
       <h3 class="product-title">
@@ -332,7 +454,7 @@
      data-price="700 UAH/ 17$"
      data-in-stock="В наявності"
      data-in-stock1="Закінчується XS"
-     data-description="Склад: віскоза 95%, еластан 5%&#10;Розміри: XS"
+     data-description="Склад: віскоза 95%, еластан 5%&#10;Розміри: XS, M, L, XL"
      data-images="assets/images/boxers/Oc1.webp,assets/images/boxers/Oc2.webp,assets/images/boxers/Oc3.webp"
      data-article="BG-001"
      data-characteristics="Еластичний матеріал|Комфортна посадка|Міцна фурнітура"
@@ -553,59 +675,6 @@
     </div>
 
 
-  <div class="section-category">
-  <h3 class="category-animated">Майки</h3>
-  <div class="product-grid">
-    <div class="product-card" onclick="openModal(this)"
-     data-name="Майка milk"
-     data-price="560 UAH/ 14$"
-     data-article="MM-001"
-     data-in-stock="В наявності"
-     data-material="бавовна 95%, еластан 5%"
-     data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
-     data-images="assets/images/tank_top/m4.webp,assets/images/tank_top/m5.webp,assets/images/tank_top/m6.webp,assets/images/tank_top/m7.webp,assets/images/tank_top/m8.webp,assets/images/tank_top/m9.webp,assets/images/tank_top/m10.webp">
-      <img src="assets/images/tank_top/m4.webp" alt="Товар 6">
-      <h3 class="product-title">
-      <span>Майка milk</span>
-      <span class="color-dot" style="background-color: #f6f7f8f8;"></span>
-     </h3>
-      <p>560 UAH/ 14$</p>
-    </div>
-
-    <div class="product-card" onclick="openModal(this)"
-     data-name="Майка black"
-     data-price="560 UAH/ 14$"
-     data-in-stock="В наявності"
-     data-article="MBL-001"
-     data-material="бавовна 95%, еластан 5%"
-     data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
-     data-images="assets/images/sets/sb7.webp,assets/images/sets/sb8.webp,assets/images/sets/sb9.webp">
-      <img src="assets/images/sets/sb7.webp" alt="Товар 6">
-      <h3 class="product-title">
-      <span>Майка black</span>
-      <span class="color-dot" style="background-color: #0c0c0cf8;"></span>
-      </h3>
-      <p>560 UAH/ 14$</p>
-    </div>
-
-    <div class="product-card" onclick="openModal(this)"
-     data-name="Майка menthol"
-     data-price="560 UAH/ 14$"
-     data-in-stock="В наявності"
-     data-article="MME-002"
-     data-material="бавовна 95%, еластан 5%"
-     data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
-          data-images="assets/images/sets/sbi5.webp,assets/images/sets/sbi6.webp,assets/images/sets/sbi7.webp">
-      <img src="assets/images/sets/sbi5.webp" alt="Товар 6">
-      <h3 class="product-title">
-      <span>Майка menthol</span>
-      <span class="color-dot" style="background-color: #4bc5e7f8;"></span>
-     </h3>
-      <p>560 UAH/ 14$</p>
-    </div>
-
-     </div>
-    </div>
 
  <div class="section-category">
   <h3 class="category-animated">Комплекти</h3>
@@ -664,6 +733,23 @@
       <p><del>1480 UAH</del> <strong style="color: #cc0000;">1280 UAH</strong> / 31$</p>
       <p class="discount-label">Економія 5% <h10>при покупці комплектом</h10></p>
     </div>
+
+
+   <!-- <div class="product-card" onclick="openModal(this)"
+    data-name="Комплект classic"
+    data-price="1 165 UAH/ 27$"
+    data-in-stock="В наявності"
+    data-article="CCL-001"
+    data-material="бавовна 95%, еластан 5%"
+    data-description="Тканина: кулір&#10;Склад: бавовна 95%, еластан 5%&#10;Розміри: S, M, L"
+    data-images="assets\images\spring2026\9.webp,assets\images\spring2026\8.webp,">
+     <img src="assets\images\spring2026\9.webp" alt="Комплект classic>
+     <h3 class="product-title">
+       <span>Комплект classic</span>
+       <span class="color-dot" style="background-color: #0c0c0cf8;"></span>
+     </h3>
+     <p>1 165 UAH / 27$</p>
+   </div> -->
 
   </div>
 </div>
@@ -756,7 +842,7 @@
 
 <section>
   <h2 class="section-title">Спосіб оплати</h2>
-    <div class="delivery-item" style="width: 100%;max-width: 100%;height: 150px;">
+    <div class="delivery-item" style="width: 100%;max-width: 100%;">
     <div style="width: 100%;display: flex;justify-content: center;align-items: center;flex-wrap: wrap;flex-direction: row;">
        <div class="icon visa"></div><div class="icon master"></div>
     </div>
@@ -988,6 +1074,7 @@
   <script src="../scripts/contacts.js"></script>
   <script src="../scripts/observer.js"></script>
   <script src="../scripts/size-guide.js"></script>
+  <script src="../scripts/home-collection.js"></script>
 
 
   <!-- Snow Animation Script -->
