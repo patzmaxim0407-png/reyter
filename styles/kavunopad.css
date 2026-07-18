@@ -1,0 +1,282 @@
+/* ============================================
+   КАВУНОПАД — літній easter egg REYTER
+   Сховані іконки + дощ + секретна пропозиція
+   ============================================ */
+
+/* --- Схована іконка --- */
+.kvp-icon {
+  position: absolute;
+  z-index: 6;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+  -webkit-tap-highlight-color: transparent;
+  transform: rotate(var(--kvp-rot, 0deg));
+  transition: transform .4s cubic-bezier(.34, 1.56, .64, 1), filter .4s ease;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .16));
+}
+
+.kvp-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+  animation: kvp-sway 7s ease-in-out infinite;
+}
+
+.kvp-icon:hover,
+.kvp-icon:focus-visible {
+  transform: rotate(0deg) scale(1.15);
+  filter: drop-shadow(0 14px 22px rgba(0, 0, 0, .24));
+}
+
+.kvp-icon:focus-visible {
+  outline: 2px dashed #d62839;
+  outline-offset: 8px;
+  border-radius: 50%;
+}
+
+.kvp-icon:active {
+  transform: rotate(0deg) scale(.92);
+}
+
+@keyframes kvp-sway {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-9px) rotate(6deg); }
+}
+
+/* --- Кавунопад (дощ) --- */
+.kvp-rain {
+  position: fixed;
+  inset: 0;
+  z-index: 11500;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.kvp-drop {
+  position: absolute;
+  top: -170px;
+  will-change: transform;
+  animation-name: kvp-fall;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes kvp-fall {
+  to { transform: translateY(calc(100vh + 340px)) rotate(var(--kvp-end-rot, 360deg)); }
+}
+
+/* --- Модальне вікно --- */
+.kvp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(12, 12, 12, .55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .3s ease, visibility .3s ease;
+}
+
+.kvp-overlay.kvp-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.kvp-card {
+  position: relative;
+  width: 100%;
+  max-width: 430px;
+  background: #fff;
+  border-radius: 24px;
+  padding: 46px 34px 38px;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .35);
+  transform: translateY(36px) scale(.92);
+  transition: transform .45s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.kvp-overlay.kvp-open .kvp-card {
+  transform: translateY(0) scale(1);
+}
+
+/* кавунова смужка зверху картки */
+.kvp-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 7px;
+  background: linear-gradient(90deg, #d62839, #e63946, #ff8fa3, #ffd93d, #6bcb77, #2d6a4f);
+}
+
+.kvp-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  font-size: 30px;
+  line-height: 1;
+  color: #999;
+  cursor: pointer;
+  transition: color .2s ease, transform .2s ease;
+}
+
+.kvp-close:hover {
+  color: #000;
+  transform: rotate(90deg);
+}
+
+.kvp-hero {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 150px;
+  margin-bottom: 8px;
+}
+
+.kvp-hero img {
+  width: 175px;
+  margin: 0 -40px;
+  transform: rotate(var(--r, 0deg));
+  animation: kvp-float 3.2s ease-in-out infinite;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, .14));
+}
+
+.kvp-hero .kvp-hero-kavun { --r: -10deg; }
+
+.kvp-hero .kvp-hero-kukurudza {
+  --r: 12deg;
+  animation-delay: 1.6s;
+}
+
+@keyframes kvp-float {
+  0%, 100% { transform: rotate(var(--r, 0deg)) translateY(0); }
+  50%      { transform: rotate(var(--r, 0deg)) translateY(-9px); }
+}
+
+.kvp-badge {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: #fcf8f0;
+  border: 1px solid #f0e6d2;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #2d6a4f;
+  margin-bottom: 12px;
+}
+
+.kvp-title {
+  margin: 0 0 16px;
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  background: linear-gradient(90deg, #d62839 20%, #e63946 45%, #2d8a4e 85%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: #d62839;
+}
+
+.kvp-text {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.65;
+  color: #333;
+}
+
+.kvp-text .kvp-accent {
+  font-weight: 700;
+  color: #d62839;
+}
+
+.kvp-text a {
+  color: #d62839;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.kvp-text strong {
+  color: #000;
+}
+
+.kvp-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+  padding: 14px 30px;
+  background: #000;
+  color: #fff;
+  border-radius: 15px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.kvp-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .28);
+}
+
+.kvp-cta i {
+  font-size: 19px;
+}
+
+/* --- Мобільна адаптація --- */
+@media (max-width: 600px) {
+  .kvp-card {
+    padding: 38px 22px 30px;
+    border-radius: 20px;
+  }
+
+  .kvp-hero {
+    height: 120px;
+  }
+
+  .kvp-hero img {
+    width: 140px;
+    margin: 0 -32px;
+  }
+
+  .kvp-title {
+    font-size: 28px;
+  }
+
+  .kvp-text {
+    font-size: 15px;
+  }
+}
+
+/* --- Зменшення анімацій --- */
+@media (prefers-reduced-motion: reduce) {
+  .kvp-icon img,
+  .kvp-hero img,
+  .kvp-drop {
+    animation: none;
+  }
+}
