@@ -136,6 +136,7 @@
         '<h3 class="kvp-title">КАВУНОПАД</h3>' +
         '<p class="kvp-text">Опублікуй селфі в нашій білизні з написом <span class="kvp-accent">«кавунопад»</span> познач нас <a href="' + INSTAGRAM_URL + '" target="_blank" rel="noopener">@reyter.ua</a> та отримай <strong>знижку на товари</strong></p>' +
         '<a class="kvp-cta" href="' + INSTAGRAM_URL + '" target="_blank" rel="noopener"><i class="fab fa-instagram"></i>Позначити @reyter.ua</a>' +
+        '<p class="kvp-note">Акція діє до 30.07.2026</p>' +
       '</div>';
 
     overlay.addEventListener('click', function (e) {
