@@ -150,23 +150,16 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 150px;
+  height: 160px;
   margin-bottom: 8px;
 }
 
 .kvp-hero img {
-  width: 175px;
-  margin: 0 -40px;
-  transform: rotate(var(--r, 0deg));
+  width: 210px;
+  --r: -6deg;
+  transform: rotate(var(--r));
   animation: kvp-float 3.2s ease-in-out infinite;
   filter: drop-shadow(0 10px 16px rgba(0, 0, 0, .14));
-}
-
-.kvp-hero .kvp-hero-kavun { --r: -10deg; }
-
-.kvp-hero .kvp-hero-kukurudza {
-  --r: 12deg;
-  animation-delay: 1.6s;
 }
 
 @keyframes kvp-float {
@@ -255,12 +248,11 @@
   }
 
   .kvp-hero {
-    height: 120px;
+    height: 125px;
   }
 
   .kvp-hero img {
-    width: 140px;
-    margin: 0 -32px;
+    width: 165px;
   }
 
   .kvp-title {

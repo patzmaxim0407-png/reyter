@@ -7,10 +7,11 @@
   'use strict';
 
   var ICONS = [
-    '/assets/images/Jule2026/kavun.webp',
-    '/assets/images/Jule2026/kukurudza.webp'
+    { src: '/assets/images/Jule2026/kavun.webp', alt: 'Кавун' },
+    { src: '/assets/images/Jule2026/kukurudza.webp', alt: 'Кукурудза' }
   ];
-  var HOST_SELECTORS = ['#about', '#products', '#size-guide', '#info', '#contacts', 'footer'];
+  /* зона схованок — від верху сайту до категорії Royal shorts */
+  var LAST_CATEGORY = 'royal shorts';
   var INSTAGRAM_URL = 'https://www.instagram.com/reyter.ua/';
   var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var overlay = null;
@@ -22,12 +23,9 @@
   }
 
   function init() {
-    var hosts = HOST_SELECTORS
-      .map(function (sel) { return document.querySelector(sel); })
-      .filter(Boolean);
-    if (!hosts.length) return;
+    var hosts = collectHosts();
 
-    // тасуємо секції, щоб кожна іконка сховалась в іншому місці
+    // тасуємо, щоб кожна іконка сховалась у випадковій секції
     for (var i = hosts.length - 1; i > 0; i--) {
       var j = Math.floor(Math.random() * (i + 1));
       var tmp = hosts[i];
@@ -35,12 +33,31 @@
       hosts[j] = tmp;
     }
 
-    ICONS.forEach(function (src, idx) {
-      hideIcon(src, hosts[idx % hosts.length]);
+    // іконки по різні боки, щоб не накладались одна на одну
+    var sides = Math.random() < 0.5 ? ['left', 'right'] : ['right', 'left'];
+    ICONS.forEach(function (icon, idx) {
+      hideIcon(icon, hosts[idx % hosts.length], sides[idx]);
     });
   }
 
-  function hideIcon(src, host) {
+  /* секції від верху сайту до категорії Royal shorts (не включно) */
+  function collectHosts() {
+    var hosts = [];
+    var about = document.querySelector('#about');
+    if (about) hosts.push(about);
+
+    var cats = document.querySelectorAll('#products .section-category');
+    for (var i = 0; i < cats.length; i++) {
+      var heading = cats[i].querySelector('.category-animated');
+      var name = heading ? heading.textContent.toLowerCase() : '';
+      if (name.indexOf(LAST_CATEGORY) !== -1) break;
+      hosts.push(cats[i]);
+    }
+
+    return hosts.length ? hosts : [document.body];
+  }
+
+  function hideIcon(icon, host, side) {
     if (window.getComputedStyle(host).position === 'static') {
       host.style.position = 'relative';
     }
@@ -57,22 +74,22 @@
     btn.style.width = size + 'px';
     btn.style.height = size + 'px';
     btn.style.setProperty('--kvp-rot', (Math.random() * 44 - 22).toFixed(1) + 'deg');
-    btn.style.top = (8 + Math.random() * 74).toFixed(1) + '%';
-    btn.style[Math.random() < 0.5 ? 'left' : 'right'] = (1.5 + Math.random() * 7).toFixed(1) + '%';
+    btn.style.top = (6 + Math.random() * 74).toFixed(1) + '%';
+    btn.style[side] = (1.5 + Math.random() * 7).toFixed(1) + '%';
 
     var img = document.createElement('img');
-    img.src = src;
+    img.src = icon.src;
     img.alt = '';
     img.style.animationDelay = (-Math.random() * 7).toFixed(2) + 's';
     btn.appendChild(img);
 
-    btn.addEventListener('click', onFound);
+    btn.addEventListener('click', function () { onFound(icon); });
     host.appendChild(btn);
   }
 
-  function onFound() {
+  function onFound(icon) {
     startRain();
-    openModal();
+    openModal(icon);
   }
 
   /* --- Кавунопад --- */
@@ -86,7 +103,7 @@
     for (var i = 0; i < count; i++) {
       var drop = document.createElement('img');
       drop.className = 'kvp-drop';
-      drop.src = ICONS[i % ICONS.length];
+      drop.src = ICONS[i % ICONS.length].src;
       drop.alt = '';
       drop.style.width = Math.round(36 + Math.random() * 58) + 'px';
       drop.style.left = (Math.random() * 100).toFixed(1) + '%';
@@ -113,8 +130,7 @@
       '<div class="kvp-card">' +
         '<button type="button" class="kvp-close" aria-label="Закрити">&times;</button>' +
         '<div class="kvp-hero">' +
-          '<img class="kvp-hero-kavun" src="' + ICONS[0] + '" alt="Кавун">' +
-          '<img class="kvp-hero-kukurudza" src="' + ICONS[1] + '" alt="Кукурудза">' +
+          '<img class="kvp-hero-img" src="" alt="">' +
         '</div>' +
         '<span class="kvp-badge">Літній секрет знайдено</span>' +
         '<h3 class="kvp-title">КАВУНОПАД</h3>' +
@@ -133,8 +149,14 @@
     document.body.appendChild(overlay);
   }
 
-  function openModal() {
+  function openModal(icon) {
     if (!overlay) buildModal();
+
+    // показуємо лише той фрукт, який знайшли
+    var heroImg = overlay.querySelector('.kvp-hero-img');
+    heroImg.src = icon.src;
+    heroImg.alt = icon.alt;
+
     document.body.style.overflow = 'hidden';
     // невелика затримка, щоб перехід спрацював після вставки в DOM
     requestAnimationFrame(function () {
