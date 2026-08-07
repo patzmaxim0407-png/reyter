@@ -34,14 +34,14 @@
     const isLogin = authMode === 'login';
 
     body().innerHTML =
-      '<p class="account-note">Увійдіть, щоб профіль та історія замовлень зберігалися в акаунті й були доступні з будь-якого пристрою. Замовляти можна й без входу 😊</p>' +
+      '<p class="account-note">' + R.t('acc.authNote') + '</p>' +
 
       '<button class="btn btn--ghost auth-google" data-google type="button">' +
         '<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.7 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.5 13.2l7.9 6.2C12.3 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.4 28.6c-.5-1.5-.8-3-.8-4.6s.3-3.1.8-4.6l-7.9-6.2C.9 16.5 0 20.1 0 24s.9 7.5 2.5 10.8l7.9-6.2z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.6l-7.7-6c-2.1 1.4-4.7 2.3-7.5 2.3-6.3 0-11.7-4.1-13.6-9.9l-7.9 6.2C6.5 42.6 14.6 48 24 48z"/></svg>' +
-        ' Увійти через Google' +
+        ' ' + R.t('acc.google') +
       '</button>' +
 
-      '<div class="auth-divider"><span>або з email</span></div>' +
+      '<div class="auth-divider"><span>' + R.t('acc.orEmail') + '</span></div>' +
 
       '<form class="form-grid" id="authForm" novalidate>' +
         '<div class="field">' +
@@ -49,19 +49,19 @@
           '<input id="auEmail" type="email" autocomplete="email" placeholder="you@example.com">' +
         '</div>' +
         '<div class="field">' +
-          '<label for="auPass">Пароль</label>' +
-          '<input id="auPass" type="password" autocomplete="' + (isLogin ? 'current-password' : 'new-password') + '" placeholder="мінімум 6 символів">' +
+          '<label for="auPass">' + R.t('acc.password') + '</label>' +
+          '<input id="auPass" type="password" autocomplete="' + (isLogin ? 'current-password' : 'new-password') + '" placeholder="' + R.t('acc.passwordPh') + '">' +
         '</div>' +
         '<button class="btn btn--primary" data-submit-auth type="submit">' +
-          (isLogin ? 'Увійти' : 'Зареєструватися') +
+          (isLogin ? R.t('acc.login') : R.t('acc.register')) +
         '</button>' +
       '</form>' +
 
       '<div class="auth-links">' +
         (isLogin
-          ? '<button data-switch="register" type="button">Немає акаунта? <b>Зареєструватися</b></button>' +
-            '<button data-reset type="button">Забули пароль?</button>'
-          : '<button data-switch="login" type="button">Вже є акаунт? <b>Увійти</b></button>') +
+          ? '<button data-switch="register" type="button">' + R.t('acc.noAccount') + ' <b>' + R.t('acc.register') + '</b></button>' +
+            '<button data-reset type="button">' + R.t('acc.forgot') + '</button>'
+          : '<button data-switch="login" type="button">' + R.t('acc.hasAccount') + ' <b>' + R.t('acc.login') + '</b></button>') +
       '</div>';
   }
 
@@ -69,7 +69,7 @@
     const email = document.getElementById('auEmail').value.trim();
     const pass = document.getElementById('auPass').value;
     if (!email || !pass) {
-      R.toast('Введіть email і пароль');
+      R.toast(R.t('acc.enterEmailPass'));
       return;
     }
     try {
@@ -78,7 +78,7 @@
       } else {
         await R.fb.auth.createUserWithEmailAndPassword(email, pass);
       }
-      R.toast(authMode === 'login' ? 'З поверненням! 💙' : 'Акаунт створено ✓', 'success');
+      R.toast(authMode === 'login' ? R.t('acc.welcome') : R.t('acc.created'), 'success');
     } catch (err) {
       R.toast(R.fb.errorText(err));
     }
@@ -88,7 +88,7 @@
     const provider = new firebase.auth.GoogleAuthProvider();
     try {
       await R.fb.auth.signInWithPopup(provider);
-      R.toast('З поверненням! 💙', 'success');
+      R.toast(R.t('acc.welcome'), 'success');
     } catch (err) {
       const code = (err && err.code) || '';
       // Попап заблоковано (типово для мобільних) — повне перенаправлення
@@ -107,12 +107,12 @@
   async function doReset() {
     const email = document.getElementById('auEmail').value.trim();
     if (!email) {
-      R.toast('Спершу впишіть email у поле вище');
+      R.toast(R.t('acc.enterEmailFirst'));
       return;
     }
     try {
       await R.fb.auth.sendPasswordResetEmail(email);
-      R.toast('Лист для зміни пароля надіслано ✓', 'success');
+      R.toast(R.t('acc.resetSent'), 'success');
     } catch (err) {
       R.toast(R.fb.errorText(err));
     }
@@ -132,21 +132,21 @@
   function profileFormHTML(p) {
     return (
       '<form class="form-grid" id="profileForm" novalidate>' +
-        fieldHTML('prName', 'Імʼя та прізвище', p.name, 'autocomplete="name"') +
-        fieldHTML('prPhone', 'Телефон', p.phone, 'type="tel" autocomplete="tel" placeholder="+380..."') +
+        fieldHTML('prName', R.t('acc.name'), p.name, 'autocomplete="name"') +
+        fieldHTML('prPhone', R.t('acc.phone'), p.phone, 'type="tel" autocomplete="tel" placeholder="+380..."') +
         '<div class="form-row">' +
           '<div class="field">' +
-            '<label for="prCarrier">Доставка</label>' +
+            '<label for="prCarrier">' + R.t('cart.delivery') + '</label>' +
             '<select id="prCarrier">' +
               CARRIERS.map((c) =>
                 '<option' + (p.carrier === c ? ' selected' : '') + '>' + c + '</option>'
               ).join('') +
             '</select>' +
           '</div>' +
-          fieldHTML('prCity', 'Місто', p.city, 'autocomplete="address-level2"') +
+          fieldHTML('prCity', R.t('cart.city'), p.city, 'autocomplete="address-level2"') +
         '</div>' +
-        fieldHTML('prBranch', 'Відділення / адреса', p.branch, '') +
-        '<button class="btn btn--primary" data-save type="button">Зберегти</button>' +
+        fieldHTML('prBranch', R.t('cart.branch'), p.branch, '') +
+        '<button class="btn btn--primary" data-save type="button">' + R.t('acc.save') + '</button>' +
       '</form>'
     );
   }
@@ -165,12 +165,12 @@
         '<div class="auth-user">' +
           '<div class="auth-user__avatar">' + R.esc((u.email || 'R')[0].toUpperCase()) + '</div>' +
           '<div class="auth-user__info">' +
-            '<b>' + R.esc(u.displayName || 'Ваш акаунт') + '</b>' +
+            '<b>' + R.esc(u.displayName || R.t('acc.yourAccount')) + '</b>' +
             '<span>' + R.esc(u.email || '') + '</span>' +
           '</div>' +
-          '<button class="btn btn--ghost btn--sm" data-logout type="button">Вийти</button>' +
+          '<button class="btn btn--ghost btn--sm" data-logout type="button">' + R.t('acc.logout') + '</button>' +
         '</div>' +
-        '<p class="account-note">Профіль зберігається в акаунті та підставляється під час оформлення замовлення.</p>' +
+        '<p class="account-note">' + R.t('acc.profileNote') + '</p>' +
         profileFormHTML(local);
 
       // Підтягуємо хмарний профіль і оновлюємо форму, якщо він свіжіший
@@ -193,7 +193,7 @@
     } else {
       // Firebase недоступний — локальний режим
       body().innerHTML =
-        '<p class="account-note">Дані зберігаються лише у вашому браузері та автоматично підставляються під час оформлення замовлення.</p>' +
+        '<p class="account-note">' + R.t('acc.profileNoteLocal') + '</p>' +
         profileFormHTML(local);
     }
   }
@@ -208,7 +208,7 @@
     };
     R.saveProfile(profile);
     if (signedIn()) R.fb.saveCloudProfile(profile);
-    R.toast('Профіль збережено ✓', 'success');
+    R.toast(R.t('acc.saved'), 'success');
   }
 
   /* ---------- Історія замовлень ---------- */
@@ -216,10 +216,11 @@
   /* ---------- Трекер статусу замовлення ---------- */
 
   function statusList() {
-    return R.config.orderStatuses || [
-      { id: 'new', title: 'Нове', hint: '' },
-      { id: 'done', title: 'Виконано', hint: '' }
-    ];
+    return (R.config.orderStatuses || []).map((s) => ({
+      id: s.id,
+      title: R.t('st.' + s.id),
+      hint: R.t('st.' + s.id + 'Hint')
+    }));
   }
 
   function statusInfo(id) {
@@ -228,7 +229,7 @@
 
   function trackerHTML(status) {
     if (status === 'cancelled') {
-      return '<div class="tracker tracker--cancelled">Замовлення скасовано</div>';
+      return '<div class="tracker tracker--cancelled">' + R.t('st.cancelledFull') + '</div>';
     }
     const steps = statusList().filter((s) => s.id !== 'cancelled');
     let idx = steps.findIndex((s) => s.id === status);
@@ -248,12 +249,12 @@
   }
 
   function orderCardHTML(o, idx, cloud) {
-    const date = new Date(o.date).toLocaleDateString('uk-UA', {
+    const date = new Date(o.date).toLocaleDateString(R.lang() === 'en' ? 'en-GB' : 'uk-UA', {
       day: 'numeric', month: 'long', year: 'numeric'
     });
     const items = (o.items || [])
       .map((i) =>
-        '<div>' + R.esc(i.name) + (i.size ? ' · ' + R.esc(i.size) : '') + ' × ' + i.qty + '</div>'
+        '<div>' + R.esc(R.tx(i.name)) + (i.size ? ' · ' + R.esc(R.tx(i.size)) : '') + ' × ' + i.qty + '</div>'
       )
       .join('');
     const st = o.status || 'new';
@@ -270,14 +271,14 @@
         '</div>' +
         (cloud ? trackerHTML(st) : '') +
         (cloud && o.ttn
-          ? '<div class="order-card__ttn">📦 ТТН: <b>' + R.esc(o.ttn) + '</b>' +
-            '<button data-copyttn type="button" title="Скопіювати номер">Скопіювати</button></div>'
+          ? '<div class="order-card__ttn">📦 ' + R.t('acc.ttn') + ': <b>' + R.esc(o.ttn) + '</b>' +
+            '<button data-copyttn type="button">' + R.t('acc.copy') + '</button></div>'
           : '') +
         '<div class="order-card__items">' + items + '</div>' +
-        '<div class="order-card__total">Разом: ' + R.fmt(o.total) + ' грн</div>' +
+        '<div class="order-card__total">' + R.t('cart.total') + ': ' + R.uah(o.total) + '</div>' +
         '<div class="order-card__actions">' +
-          '<button class="btn btn--primary btn--sm" data-repeat type="button">Повторити</button>' +
-          (o.message ? '<button class="btn btn--ghost btn--sm" data-recopy type="button">Скопіювати</button>' : '') +
+          '<button class="btn btn--primary btn--sm" data-repeat type="button">' + R.t('acc.repeat') + '</button>' +
+          (o.message ? '<button class="btn btn--ghost btn--sm" data-recopy type="button">' + R.t('acc.copy') + '</button>' : '') +
         '</div>' +
       '</article>'
     );
@@ -294,26 +295,26 @@
     const emptyHTML =
       '<div class="empty-state">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l3 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8l3-5Z"/><path d="M5 8h14"/><path d="M9.5 12a2.5 2.5 0 0 0 5 0"/></svg>' +
-        '<strong>Замовлень поки немає</strong>' +
-        'Ваші замовлення зʼявляться тут.' +
+        '<strong>' + R.t('acc.noOrders') + '</strong>' +
+        R.t('acc.noOrdersNote') +
       '</div>';
 
     if (signedIn()) {
-      body().innerHTML = '<p class="account-note">Завантажуємо замовлення…</p>';
+      body().innerHTML = '<p class="account-note">' + R.t('acc.loading') + '</p>';
       const cloud = await R.fb.loadCloudOrders();
 
       if (cloud === null) {
         // Хмара не відповіла — показуємо локальні
         shownOrders = R.getOrders();
         body().innerHTML =
-          '<p class="account-note">Хмарна база поки недоступна — показуємо замовлення з цього браузера.</p>' +
+          '<p class="account-note">' + R.t('acc.cloudDown') + '</p>' +
           (shownOrders.length ? shownOrders.map((o, i) => orderCardHTML(o, i, false)).join('') : emptyHTML);
         return;
       }
 
       shownOrders = cloud;
       body().innerHTML =
-        '<p class="account-note">Замовлення з вашого акаунта. Статус уточнюйте в Instagram Direct.</p>' +
+        '<p class="account-note">' + R.t('acc.ordersNote') + '</p>' +
         (cloud.length ? cloud.map((o, i) => orderCardHTML(o, i, true)).join('') : emptyHTML);
       return;
     }
@@ -325,9 +326,9 @@
       return;
     }
     body().innerHTML =
-      '<p class="account-note">Історія зберігається у вашому браузері. Статус замовлення уточнюйте в Instagram Direct.</p>' +
+      '<p class="account-note">' + R.t('acc.ordersLocalNote') + '</p>' +
       shownOrders.map((o, i) => orderCardHTML(o, i, false)).join('') +
-      '<button class="btn btn--ghost btn--sm" data-clear type="button" style="width:100%;margin-top:.4rem">Очистити історію</button>';
+      '<button class="btn btn--ghost btn--sm" data-clear type="button" style="width:100%;margin-top:.4rem">' + R.t('acc.clear') + '</button>';
   }
 
   function repeatOrder(order) {
@@ -339,7 +340,7 @@
       }
     });
     if (!added) {
-      R.toast('Цих товарів уже немає в каталозі');
+      R.toast(R.t('acc.gone'));
       return;
     }
     R.overlay.close(drawer());
@@ -379,6 +380,11 @@
     const btn = document.getElementById('accountBtn');
     if (btn) btn.addEventListener('click', () => openAccount());
 
+    document.addEventListener('lang:changed', () => {
+      const d = drawer();
+      if (d && !d.hidden) render();
+    });
+
     document.addEventListener('auth:changed', () => {
       updateHeaderBadge();
       const d = drawer();
@@ -409,7 +415,7 @@
 
       if (e.target.closest('[data-logout]')) {
         R.fb.auth.signOut().then(() => {
-          R.toast('Ви вийшли з акаунта');
+          R.toast(R.t('acc.loggedOut'));
           render();
         });
         return;
@@ -425,7 +431,7 @@
       } else if (e.target.closest('[data-recopy]') && card) {
         R.copyText(shownOrders[Number(card.dataset.idx)].message || '');
       } else if (e.target.closest('[data-clear]')) {
-        if (confirm('Видалити всю історію замовлень із цього браузера?')) {
+        if (confirm(R.t('acc.clearConfirm'))) {
           R.saveOrders([]);
           render();
         }

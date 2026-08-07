@@ -53,11 +53,11 @@
 
   function refreshStatus() {
     if (currentAv.soldOut) {
-      setStatus('no', 'Продано');
+      setStatus('no', R.t('p.soldOut'));
     } else if (selectedSize && currentAv.low.includes(selectedSize)) {
-      setStatus('low', 'Закінчується');
+      setStatus('low', R.t('p.lowStock'));
     } else {
-      setStatus('ok', 'В наявності');
+      setStatus('ok', R.t('p.inStock'));
     }
   }
 
@@ -67,7 +67,7 @@
     if (!images.length) return;
     index = (i + images.length) % images.length;
     el.image.src = images[index];
-    el.image.alt = current ? current.name : '';
+    el.image.alt = current ? R.tf(current, 'name') : '';
     el.counter.textContent = index + 1 + ' / ' + images.length;
     el.counter.hidden = images.length < 2;
     el.prev.hidden = el.next.hidden = images.length < 2;
@@ -83,7 +83,7 @@
     el.thumbs.innerHTML = images
       .map(
         (src, i) =>
-          '<button type="button" class="gthumb' + (i === 0 ? ' is-active' : '') + '" data-i="' + i + '" role="tab" aria-label="Фото ' + (i + 1) + '">' +
+          '<button type="button" class="gthumb' + (i === 0 ? ' is-active' : '') + '" data-i="' + i + '" role="tab" aria-label="' + (i + 1) + '">' +
             '<img src="' + R.esc(src) + '" alt="" loading="lazy">' +
           '</button>'
       )
@@ -110,7 +110,7 @@
     selectedSize = null;
 
     if (p.volume) {
-      el.sizesTitle.textContent = 'Обʼєм';
+      el.sizesTitle.textContent = R.t('p.volume');
       el.sizes.innerHTML = sizePillHTML(p.volume, {
         checked: !av.soldOut,
         disabled: av.soldOut
@@ -126,7 +126,7 @@
       return;
     }
 
-    el.sizesTitle.textContent = 'Розмір';
+    el.sizesTitle.textContent = R.t('p.size');
     el.sizeLink.hidden = false;
     el.sizesBlock.hidden = false;
 
@@ -154,12 +154,12 @@
   function renderDesc() {
     const p = current;
     const rows = [];
-    if (p.fabric) rows.push('<div><b>Тканина:</b> ' + R.esc(p.fabric) + '</div>');
-    if (p.material) rows.push('<div><b>Склад:</b> ' + R.esc(p.material) + '</div>');
-    if (p.aroma) rows.push('<div><b>Аромат:</b> ' + R.esc(p.aroma) + '</div>');
-    if (p.volume) rows.push('<div><b>Обʼєм:</b> ' + R.esc(p.volume) + '</div>');
-    if (p.model) rows.push('<div><b>Параметри моделі:</b> ' + R.esc(p.model) + '</div>');
-    (p.notes || []).forEach((n) => rows.push('<div class="note">' + R.esc(n) + '</div>'));
+    if (p.fabric) rows.push('<div><b>' + R.t('p.fabric') + ':</b> ' + R.esc(R.tf(p, 'fabric')) + '</div>');
+    if (p.material) rows.push('<div><b>' + R.t('p.material') + ':</b> ' + R.esc(R.tf(p, 'material')) + '</div>');
+    if (p.aroma) rows.push('<div><b>' + R.t('p.aroma') + ':</b> ' + R.esc(R.tf(p, 'aroma')) + '</div>');
+    if (p.volume) rows.push('<div><b>' + R.t('p.volume') + ':</b> ' + R.esc(R.tx(p.volume)) + '</div>');
+    if (p.model) rows.push('<div><b>' + R.t('p.model') + ':</b> ' + R.esc(R.tx(p.model)) + '</div>');
+    (p.notes || []).forEach((n) => rows.push('<div class="note">' + R.esc(R.tx(n)) + '</div>'));
     el.desc.innerHTML = rows.join('');
   }
 
@@ -167,7 +167,7 @@
     return (
       '<details class="acc"' + (open ? ' open' : '') + '>' +
         '<summary>' + R.esc(title) + '</summary>' +
-        '<ul>' + items.map((i) => '<li>' + R.esc(i) + '</li>').join('') + '</ul>' +
+        '<ul>' + items.map((i) => '<li>' + R.esc(R.tx(i)) + '</li>').join('') + '</ul>' +
       '</details>'
     );
   }
@@ -176,11 +176,11 @@
     const p = current;
     let html = '';
     if (p.characteristics && p.characteristics.length) {
-      html += accHTML('Особливості', p.characteristics, false);
+      html += accHTML(R.t('p.features'), p.characteristics, false);
     }
     if (!p.volume) {
-      const care = p.care && p.care.length ? p.care : ['Прання навиворіт при температурі до 30 °C'];
-      html += accHTML('Рекомендації щодо догляду', care, false);
+      const care = p.care && p.care.length ? p.care : [R.t('p.careDefault')];
+      html += accHTML(R.t('p.care'), care, false);
     }
     el.extras.innerHTML = html;
   }
@@ -191,7 +191,7 @@
     const soldOut = currentAv.soldOut;
     el.addCart.disabled = soldOut;
     el.addCart.classList.toggle('is-disabled', soldOut);
-    el.addCartLabel.textContent = soldOut ? 'Продано' : 'Додати в кошик';
+    el.addCartLabel.textContent = soldOut ? R.t('p.soldOut') : R.t('p.addToCart');
   }
 
   /* ---------- Відкриття / закриття ---------- */
@@ -206,11 +206,11 @@
     if (!images.length) images = ['../assets/images/logo_4.webp'];
 
     el.category.textContent = R.categoryTitle(p.category);
-    el.name.textContent = p.name;
-    el.article.textContent = 'Артикул: ' + p.id;
+    el.name.textContent = R.tf(p, 'name');
+    el.article.textContent = R.t('p.article') + ': ' + p.id;
     el.price.innerHTML = R.priceHTML(p, true);
     el.saleNote.hidden = !p.saleNote;
-    el.saleNote.textContent = p.saleNote || '';
+    el.saleNote.textContent = p.saleNote ? R.tf(p, 'saleNote') : '';
     el.order.href = R.config.orderUrl;
 
     renderSizes();
@@ -295,11 +295,11 @@
     el.addCart.addEventListener('click', () => {
       if (!current || currentAv.soldOut) return;
       if (!current.volume && !selectedSize) {
-        R.toast('Оберіть розмір');
+        R.toast(R.t('p.chooseSize'));
         return;
       }
       R.cart.add(current.id, selectedSize);
-      R.toast('Додано в кошик ✓', 'success');
+      R.toast(R.t('p.added'), 'success');
     });
 
     // Свайпи по галереї

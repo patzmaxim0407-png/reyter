@@ -27,17 +27,23 @@
 
   R.categoryTitle = function (id) {
     const c = R.categories.find((c) => c.id === id);
-    return c ? c.title : '';
+    return c ? R.tf(c, 'title') : '';
   };
 
   R.visibleProducts = function () {
     return R.products.filter((p) => !p.hidden);
   };
 
+  R.uah = function (n) {
+    return R.lang && R.lang() === 'en'
+      ? 'UAH ' + R.fmt(n)
+      : R.fmt(n) + ' грн';
+  };
+
   R.priceHTML = function (p, big) {
-    let html = '<span class="price__now">' + R.fmt(p.price) + ' грн</span>';
+    let html = '<span class="price__now">' + R.uah(p.price) + '</span>';
     if (p.oldPrice) {
-      html += '<del class="price__old">' + R.fmt(p.oldPrice) + ' грн</del>';
+      html += '<del class="price__old">' + R.uah(p.oldPrice) + '</del>';
     }
     if (p.priceUsd) {
       html += '<span class="price__usd">≈ ' + p.priceUsd + ' $</span>';
@@ -81,12 +87,12 @@
   function badgesHTML(p, av) {
     const badges = [];
     if (av.soldOut) {
-      badges.push('<span class="badge badge--sold">Продано</span>');
+      badges.push('<span class="badge badge--sold">' + R.t('badge.sold') + '</span>');
     } else if (p.sale) {
-      badges.push('<span class="badge badge--sale">Sale</span>');
+      badges.push('<span class="badge badge--sale">' + R.t('badge.sale') + '</span>');
     }
     if (!av.soldOut && av.low.length) {
-      badges.push('<span class="badge badge--low">Закінчується ' + R.esc(av.low.join(', ')) + '</span>');
+      badges.push('<span class="badge badge--low">' + R.t('badge.low') + ' ' + R.esc(av.low.join(', ')) + '</span>');
     }
     return badges.length ? '<span class="pcard__badges">' + badges.join('') + '</span>' : '';
   }
@@ -106,18 +112,18 @@
       : '';
 
     const saleNote = p.saleNote
-      ? '<span class="pcard__salenote">' + R.esc(p.saleNote) + '</span>'
+      ? '<span class="pcard__salenote">' + R.esc(R.tf(p, 'saleNote')) + '</span>'
       : '';
 
     return (
       '<button type="button" class="' + cls.join(' ') + '" data-id="' + R.esc(p.id) + '" aria-haspopup="dialog">' +
         '<span class="pcard__media">' +
-          '<img src="' + R.esc(p.images[0]) + '" alt="' + R.esc(p.name) + '" loading="lazy">' +
+          '<img src="' + R.esc(p.images[0]) + '" alt="' + R.esc(R.tf(p, 'name')) + '" loading="lazy">' +
           altImg +
           badgesHTML(p, av) +
         '</span>' +
         '<span class="pcard__body">' +
-          '<span class="pcard__title">' + R.esc(p.name) + dots + '</span>' +
+          '<span class="pcard__title">' + R.esc(R.tf(p, 'name')) + dots + '</span>' +
           '<span class="pcard__price">' + R.priceHTML(p) + '</span>' +
           saleNote +
         '</span>' +
@@ -143,12 +149,12 @@
 
       chipsHTML +=
         '<a class="chip" href="#cat-' + R.esc(cat.id) + '" data-cat="' + R.esc(cat.id) + '">' +
-        R.esc(cat.title) + '</a>';
+        R.esc(R.tf(cat, 'title')) + '</a>';
 
       catsHTML +=
         '<section class="category" id="cat-' + R.esc(cat.id) + '">' +
           '<div class="category__head reveal">' +
-            '<h3 class="category__title">' + R.esc(cat.title) + '</h3>' +
+            '<h3 class="category__title">' + R.esc(R.tf(cat, 'title')) + '</h3>' +
             '<span class="category__count">' + items.length + '</span>' +
             '<span class="category__rule"></span>' +
           '</div>' +
@@ -234,7 +240,7 @@
         position: i + 1,
         item: {
           '@type': 'Product',
-          name: p.name,
+          name: R.tf(p, 'name'),
           sku: p.id,
           image: p.images.map(absUrl),
           brand: { '@type': 'Brand', name: 'REYTER' },

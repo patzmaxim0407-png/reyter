@@ -8,6 +8,7 @@
 
   const R = window.REYTER;
 
+  R.initI18n();          // мова (UA/EN) — до першого рендеру
   R.renderCatalog();     // каталог із data.js
   R.initProductModal();  // модалка товару + лайтбокс
   R.initCart();          // кошик

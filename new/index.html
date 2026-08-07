@@ -7,12 +7,15 @@
 
   <!-- SEO -->
   <meta name="description" content="Купити чоловічу білизну онлайн від українського бренду REYTER. Стильна та комфортна білизна. Доставка по Україні та за кордон.">
-  <meta name="keywords" content="чоловіча білизна, український бренд, комфортна білизна, стильна білизна, доставка по Україні, купити онлайн, чоловічі труси, чоловічі боксери, чоловічі плавки, чоловічі сліпи, якісна білизна, білизна Україна, REYTER, рейтер">
+  <meta name="keywords" content="чоловіча білизна, український бренд, комфортна білизна, стильна білизна, доставка по Україні, купити онлайн, чоловічі труси, чоловічі боксери, чоловічі плавки, чоловічі сліпи, якісна білизна, білизна Україна, REYTER, рейтер, mens underwear ukraine">
   <meta name="author" content="REYTER">
   <meta name="robots" content="index, follow">
   <meta name="geo.region" content="UA">
   <meta name="geo.placename" content="Ukraine">
   <link rel="canonical" href="https://reyter.men/new/">
+  <link rel="alternate" hreflang="uk" href="https://reyter.men/new/">
+  <link rel="alternate" hreflang="en" href="https://reyter.men/new/?lang=en">
+  <link rel="alternate" hreflang="x-default" href="https://reyter.men/new/">
   <meta name="theme-color" content="#014AAD">
 
   <!-- Open Graph / Twitter -->
@@ -56,31 +59,31 @@
 </head>
 <body>
 
-<a class="skip-link" href="#catalog">Перейти до каталогу</a>
+<a class="skip-link" href="#catalog" data-i18n="nav.skip">Перейти до каталогу</a>
 
 <!-- Рухомий рядок -->
 <div class="marquee" aria-hidden="true">
   <div class="marquee__track">
-    <span>Міжнародна доставка&ensp;✦&ensp;International delivery&ensp;✦&ensp;Безкоштовна доставка на білизну по Україні від 1500 грн&ensp;✦&ensp;</span>
-    <span>Міжнародна доставка&ensp;✦&ensp;International delivery&ensp;✦&ensp;Безкоштовна доставка на білизну по Україні від 1500 грн&ensp;✦&ensp;</span>
+    <span data-i18n="marquee"></span>
+    <span data-i18n="marquee"></span>
   </div>
 </div>
 
 <!-- Шапка -->
 <header class="site-header" id="siteHeader">
   <div class="site-header__inner">
-    <a class="brand" href="#top" aria-label="REYTER — на початок сторінки">
+    <a class="brand" href="#top" data-i18n-attr="aria-label:nav.top">
       <img src="../assets/images/Logo1.png" alt="REYTER" width="1431" height="369">
     </a>
 
-    <p class="drop-pill" aria-label="Новий дроп 15 серпня">New drop&ensp;·&ensp;15.08</p>
+    <p class="drop-pill" data-i18n="nav.drop"></p>
 
-    <nav class="site-nav" id="siteNav" aria-label="Основна навігація">
-      <a href="#about">Про нас</a>
-      <a href="#catalog">Позиції</a>
-      <a href="#size-guide">Розмірна сітка</a>
-      <a href="#delivery">Доставка</a>
-      <a href="#contacts">Контакти</a>
+    <nav class="site-nav" id="siteNav" aria-label="REYTER">
+      <a href="#about" data-i18n="nav.about">Про нас</a>
+      <a href="#catalog" data-i18n="nav.catalog">Позиції</a>
+      <a href="#size-guide" data-i18n="nav.size">Розмірна сітка</a>
+      <a href="#delivery" data-i18n="nav.delivery">Доставка</a>
+      <a href="#contacts" data-i18n="nav.contacts">Контакти</a>
       <div class="site-nav__socials">
         <a href="https://www.tiktok.com/@reyter.ua5" target="_blank" rel="noopener" aria-label="TikTok"><i class="fab fa-tiktok"></i></a>
         <a href="https://www.instagram.com/reyter.ua/" target="_blank" rel="noopener" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
@@ -90,14 +93,18 @@
     </nav>
 
     <div class="header-actions">
-      <button class="hbtn" id="accountBtn" aria-label="Кабінет користувача" aria-haspopup="dialog">
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button class="lang-btn is-active" data-lang="uk" type="button">UA</button>
+        <button class="lang-btn" data-lang="en" type="button">EN</button>
+      </div>
+      <button class="hbtn" id="accountBtn" data-i18n-attr="aria-label:nav.account" aria-haspopup="dialog">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>
       </button>
-      <button class="hbtn" id="cartBtn" aria-label="Кошик" aria-haspopup="dialog">
+      <button class="hbtn" id="cartBtn" data-i18n-attr="aria-label:nav.cart" aria-haspopup="dialog">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 13H7L6 8Z"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/></svg>
         <span class="cart-count" id="cartCount" hidden>0</span>
       </button>
-      <button class="burger" id="burgerBtn" aria-label="Відкрити меню" aria-expanded="false" aria-controls="siteNav">
+      <button class="burger" id="burgerBtn" data-i18n-attr="aria-label:nav.menu" aria-expanded="false" aria-controls="siteNav">
         <span></span><span></span><span></span>
       </button>
     </div>
@@ -110,32 +117,32 @@
   <section class="hero" id="about">
     <div class="container hero__grid">
       <div class="hero__content reveal">
-        <p class="hero__eyebrow"><span class="pill pill--drop">Новий дроп — 15.08</span></p>
-        <h1 class="hero__title">Характер — це <span class="hero__brand">REYTER</span></h1>
-        <p class="hero__subtitle"><strong>REYTER</strong> — чоловіча білизна українського виробництва. Комфорт, впевненість і власний стиль — з першого дотику тканини.</p>
+        <p class="hero__eyebrow"><span class="pill pill--drop" data-i18n="hero.badge"></span></p>
+        <h1 class="hero__title" data-i18n="hero.title"></h1>
+        <p class="hero__subtitle" data-i18n="hero.subtitle"></p>
 
         <div class="hero__actions">
-          <a class="btn btn--primary" href="#catalog">Дивитися позиції</a>
-          <a class="btn btn--ghost" href="#size-guide">Підібрати розмір</a>
+          <a class="btn btn--primary" href="#catalog" data-i18n="hero.cta1"></a>
+          <a class="btn btn--ghost" href="#size-guide" data-i18n="hero.cta2"></a>
         </div>
 
-        <button class="hero__more" id="readMoreBtn" aria-expanded="false" aria-controls="aboutFull">Читати більше про бренд</button>
+        <button class="hero__more" id="readMoreBtn" aria-expanded="false" aria-controls="aboutFull" data-i18n="hero.more"></button>
         <div class="hero__full" id="aboutFull" hidden>
-          <p>Ідея створити <strong>REYTER</strong> народилася з простої, але важливої думки: білизна має бути зручною для всіх. Ми шукали щось, що дарує комфорт, виглядає стильно і водночас відчувається природно на тілі. Але не знайшли. Тож вирішили створити власне.</p>
-          <p><strong>REYTER</strong> — це не лише про тканини та лекала. Це про характер. Про внутрішню силу, що відчувається у кожному русі. Ми віримо: справжня сила починається зсередини — з комфорту, впевненості та власного стилю.</p>
-          <p>Кожен чоловік має свій характер і силу. І ми тут, аби підтримати вас в цьому — з першого дотику тканини до тіла.</p>
+          <p data-i18n="hero.p1"></p>
+          <p data-i18n="hero.p2"></p>
+          <p data-i18n="hero.p3"></p>
         </div>
 
         <ul class="hero__trust">
-          <li>Безкоштовна доставка від 1500 грн</li>
-          <li>Відправка за 1–2 дні</li>
-          <li>Міжнародна доставка</li>
+          <li data-i18n="hero.trust1"></li>
+          <li data-i18n="hero.trust2"></li>
+          <li data-i18n="hero.trust3"></li>
         </ul>
       </div>
 
       <div class="hero__media reveal">
         <div class="hero__frame">
-          <img src="../assets/images/Jule2026/Head.webp" alt="REYTER — український бренд чоловічої білизни" fetchpriority="high">
+          <img src="../assets/images/Jule2026/Head.webp" data-i18n-attr="alt:hero.alt" alt="REYTER" fetchpriority="high">
         </div>
       </div>
     </div>
@@ -145,11 +152,11 @@
   <section class="fclub-section">
     <div class="container">
       <article class="fclub reveal">
-        <img class="fclub__photo" src="../assets/images/Serpen2026/IMG_2325.webp" alt="Friendly Club — комʼюніті Reyter" loading="lazy">
+        <img class="fclub__photo" src="../assets/images/Serpen2026/IMG_2325.webp" alt="Friendly Club — Reyter" loading="lazy">
         <div class="fclub__overlay">
-          <h2 class="fclub__title">Friendly Club ✨</h2>
-          <p class="fclub__lead">Комʼюніті людей, які є частиною Reyter</p>
-          <button class="btn btn--light" id="fcOpenBtn" type="button" aria-haspopup="dialog">Тут</button>
+          <h2 class="fclub__title" data-i18n="fclub.title"></h2>
+          <p class="fclub__lead" data-i18n="fclub.lead"></p>
+          <button class="btn btn--light" id="fcOpenBtn" type="button" aria-haspopup="dialog" data-i18n="fclub.btn"></button>
         </div>
       </article>
     </div>
@@ -159,18 +166,19 @@
   <section class="catalog" id="catalog">
     <div class="container">
       <header class="section-head reveal">
-        <h2 class="section-title">Наші позиції</h2>
-        <p class="section-sub">Кожна модель — про комфорт і характер. Обирайте свою.</p>
+        <h2 class="section-title" data-i18n="catalog.title"></h2>
+        <p class="section-sub" data-i18n="catalog.sub"></p>
       </header>
     </div>
 
-    <nav class="cat-chips" id="catChips" aria-label="Категорії товарів"></nav>
+    <nav class="cat-chips" id="catChips" aria-label="REYTER"></nav>
 
     <div class="container" id="catalogRoot"></div>
 
     <noscript>
       <div class="container">
-        <p class="noscript-note">Каталог працює з увімкненим JavaScript. Подивитися всі позиції можна також у нашому <a href="https://www.instagram.com/reyter.ua/" target="_blank" rel="noopener">Instagram</a>.</p>
+        <p class="noscript-note">Каталог працює з увімкненим JavaScript. Подивіться всі позиції в нашому
+          <a href="https://www.instagram.com/reyter.ua/" target="_blank" rel="noopener">Instagram</a>.</p>
       </div>
     </noscript>
   </section>
@@ -179,15 +187,19 @@
   <section class="size-guide" id="size-guide">
     <div class="container">
       <header class="section-head reveal">
-        <h2 class="section-title">Розмірна сітка</h2>
-        <p class="section-sub">Заміряйте талію та стегна — і знайдіть свій ідеальний розмір.</p>
+        <h2 class="section-title" data-i18n="size.title"></h2>
+        <p class="section-sub" data-i18n="size.sub"></p>
       </header>
 
       <div class="size-guide__grid reveal">
-        <div class="size-guide__table" role="region" aria-label="Таблиця розмірів" tabindex="0">
+        <div class="size-guide__table" role="region" aria-label="REYTER" tabindex="0">
           <table>
             <thead>
-              <tr><th>Розмір</th><th>Талія (см)</th><th>Стегна (см)</th></tr>
+              <tr>
+                <th data-i18n="size.col1"></th>
+                <th data-i18n="size.col2"></th>
+                <th data-i18n="size.col3"></th>
+              </tr>
             </thead>
             <tbody>
               <tr><td>XS</td><td>80–84</td><td>95–99</td></tr>
@@ -198,8 +210,8 @@
           </table>
         </div>
         <figure class="size-guide__visual">
-          <img src="../assets/images/size_2.webp" alt="Як виміряти талію та стегна" class="zoomable" loading="lazy">
-          <figcaption>Натисніть на зображення, щоб збільшити</figcaption>
+          <img src="../assets/images/size_2.webp" data-i18n-attr="alt:size.alt" alt="" class="zoomable" loading="lazy">
+          <figcaption data-i18n="size.caption"></figcaption>
         </figure>
       </div>
     </div>
@@ -209,7 +221,7 @@
   <section class="delivery" id="delivery">
     <div class="container">
       <header class="section-head reveal">
-        <h2 class="section-title">Оплата й доставка</h2>
+        <h2 class="section-title" data-i18n="dlv.title"></h2>
       </header>
 
       <div class="delivery__grid">
@@ -217,8 +229,8 @@
           <div class="dlv-card__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
           </div>
-          <h3>Оплата</h3>
-          <p>На рахунок або картку ФОП, чи PayPal</p>
+          <h3 data-i18n="dlv.pay"></h3>
+          <p data-i18n="dlv.payText"></p>
           <div class="dlv-card__pay">
             <img src="../assets/images/visa.svg" alt="Visa" loading="lazy">
             <img src="../assets/images/master-card.svg" alt="Mastercard" loading="lazy">
@@ -229,40 +241,40 @@
           <div class="dlv-card__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 18H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h11v12"/><path d="M14 9h4l4 4v4a1 1 0 0 1-1 1h-2"/><circle cx="7.5" cy="18" r="2"/><circle cx="17.5" cy="18" r="2"/></svg>
           </div>
-          <h3>Швидка відправка</h3>
-          <p>Відправляємо замовлення протягом 1–2 днів</p>
+          <h3 data-i18n="dlv.fast"></h3>
+          <p data-i18n="dlv.fastText"></p>
         </article>
 
         <article class="dlv-card reveal">
           <div class="dlv-card__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8.5 12 3 3 8.5v7L12 21l9-5.5v-7Z"/><path d="M3 8.5 12 14l9-5.5"/><line x1="12" y1="14" x2="12" y2="21"/></svg>
           </div>
-          <h3>Перевізники</h3>
-          <p>Нова Пошта, Укрпошта та Meest</p>
+          <h3 data-i18n="dlv.carriers"></h3>
+          <p data-i18n="dlv.carriersText"></p>
         </article>
 
         <article class="dlv-card reveal">
           <div class="dlv-card__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3Z"/></svg>
           </div>
-          <h3>Міжнародна доставка</h3>
-          <p>Надсилаємо замовлення по всьому світу — за повної оплати</p>
+          <h3 data-i18n="dlv.intl"></h3>
+          <p data-i18n="dlv.intlText"></p>
         </article>
 
         <article class="dlv-card reveal">
           <div class="dlv-card__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 4.5 3.2 7.6 8 9 4.8-1.4 8-4.5 8-9V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
           </div>
-          <h3>Повна передоплата</h3>
-          <p>Відправка лише за повної оплати замовлення</p>
+          <h3 data-i18n="dlv.prepay"></h3>
+          <p data-i18n="dlv.prepayText"></p>
         </article>
 
         <article class="dlv-card dlv-card--note reveal">
           <div class="dlv-card__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16.5" r="0.5" fill="currentColor"/></svg>
           </div>
-          <h3>Обмін і повернення</h3>
-          <p>Нижня білизна не підлягає поверненню чи обміну — згідно з постановою КМУ №172 від 19 березня 1994 року</p>
+          <h3 data-i18n="dlv.return"></h3>
+          <p data-i18n="dlv.returnText"></p>
         </article>
       </div>
     </div>
@@ -272,8 +284,8 @@
   <section class="contacts" id="contacts">
     <div class="container">
       <header class="section-head reveal">
-        <h2 class="section-title">Контакти</h2>
-        <p class="section-sub">Ми завжди на звʼязку. Обирайте зручний спосіб — відповімо швидко та допоможемо з будь-яким питанням.</p>
+        <h2 class="section-title" data-i18n="contacts.title"></h2>
+        <p class="section-sub" data-i18n="contacts.sub"></p>
       </header>
 
       <div class="contacts__grid reveal">
@@ -298,22 +310,22 @@
 <!-- Підвал -->
 <footer class="site-footer">
   <div class="container">
-    <p class="site-footer__slogan">Характер — це REYTER!</p>
+    <p class="site-footer__slogan" data-i18n="footer.slogan"></p>
 
     <div class="site-footer__grid">
       <div class="site-footer__col">
         <img class="site-footer__logo" src="../assets/images/Logo1.png" alt="REYTER" loading="lazy">
-        <p>Чоловіча білизна українського виробництва.</p>
+        <p data-i18n="footer.about"></p>
       </div>
-      <nav class="site-footer__col" aria-label="Навігація в підвалі">
-        <a href="#about">Про нас</a>
-        <a href="#catalog">Позиції</a>
-        <a href="#size-guide">Розмірна сітка</a>
-        <a href="#delivery">Доставка</a>
+      <nav class="site-footer__col" aria-label="REYTER">
+        <a href="#about" data-i18n="nav.about"></a>
+        <a href="#catalog" data-i18n="nav.catalog"></a>
+        <a href="#size-guide" data-i18n="nav.size"></a>
+        <a href="#delivery" data-i18n="nav.delivery"></a>
       </nav>
       <div class="site-footer__col">
-        <a href="../public-offer.pdf" target="_blank" rel="noopener">Публічна оферта</a>
-        <a href="../political.pdf" target="_blank" rel="noopener">Політика конфіденційності</a>
+        <a href="../public-offer.pdf" target="_blank" rel="noopener" data-i18n="footer.offer"></a>
+        <a href="../political.pdf" target="_blank" rel="noopener" data-i18n="footer.policy"></a>
       </div>
       <div class="site-footer__col site-footer__socials">
         <a href="https://www.tiktok.com/@reyter.ua5" target="_blank" rel="noopener" aria-label="TikTok"><i class="fab fa-tiktok"></i></a>
@@ -324,14 +336,14 @@
     </div>
 
     <div class="site-footer__bottom">
-      <p>© 2026 REYTER. Зроблено з ❤️ в Україні.</p>
-      <p>Працюємо офіційно — ФОП Пац М.</p>
+      <p data-i18n="footer.copy"></p>
+      <p data-i18n="footer.fop"></p>
     </div>
   </div>
 </footer>
 
 <!-- Кнопка «догори» -->
-<button class="to-top" id="toTopBtn" aria-label="Прокрутити догори">
+<button class="to-top" id="toTopBtn" data-i18n-attr="aria-label:nav.scrollTop">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
 </button>
 
@@ -339,22 +351,22 @@
 <div class="pmodal" id="productModal" role="dialog" aria-modal="true" aria-labelledby="pmName" hidden>
   <div class="pmodal__backdrop" data-close></div>
   <div class="pmodal__panel">
-    <button class="pmodal__close" data-close aria-label="Закрити">
+    <button class="pmodal__close" data-close data-i18n-attr="aria-label:p.close">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
     </button>
 
     <div class="pmodal__gallery">
       <div class="gal__main" id="galMain">
         <img id="galImage" src="" alt="">
-        <button class="gal__nav gal__nav--prev" id="galPrev" aria-label="Попереднє фото">
+        <button class="gal__nav gal__nav--prev" id="galPrev" data-i18n-attr="aria-label:p.prev">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>
         </button>
-        <button class="gal__nav gal__nav--next" id="galNext" aria-label="Наступне фото">
+        <button class="gal__nav gal__nav--next" id="galNext" data-i18n-attr="aria-label:p.next">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
         </button>
         <span class="gal__counter" id="galCounter"></span>
       </div>
-      <div class="gal__thumbs" id="galThumbs" role="tablist" aria-label="Фото товару"></div>
+      <div class="gal__thumbs" id="galThumbs" role="tablist" data-i18n-attr="aria-label:p.photos"></div>
     </div>
 
     <div class="pmodal__info">
@@ -371,8 +383,8 @@
 
       <div class="pinfo__sizes" id="pmSizesBlock">
         <div class="pinfo__sizes-head">
-          <span id="pmSizesTitle">Розмір</span>
-          <a href="#size-guide" id="pmSizeLink">Як обрати розмір?</a>
+          <span id="pmSizesTitle"></span>
+          <a href="#size-guide" id="pmSizeLink" data-i18n="p.sizeHelp"></a>
         </div>
         <div class="sizes" id="pmSizes"></div>
       </div>
@@ -380,42 +392,36 @@
       <div class="pinfo__cta">
         <button class="btn btn--primary btn--order" id="pmAddCart" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M6 8h12l-1 13H7L6 8Z"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/></svg>
-          <span id="pmAddCartLabel">Додати в кошик</span>
+          <span id="pmAddCartLabel"></span>
         </button>
         <a class="btn btn--ghost" id="pmOrder" href="#" target="_blank" rel="noopener">
           <i class="fab fa-instagram" aria-hidden="true"></i>
-          <span>Написати менеджеру</span>
+          <span data-i18n="p.writeManager"></span>
         </a>
       </div>
-      <p class="pinfo__order-note">Замовлення приймаємо в Instagram Direct — відповімо швидко 💙</p>
+      <p class="pinfo__order-note" data-i18n="p.orderNote"></p>
 
       <div class="pinfo__desc" id="pmDesc"></div>
       <div class="pinfo__extras" id="pmExtras"></div>
 
       <div class="pinfo__notes">
-        <div class="note-card">
-          <strong>Нова Пошта</strong> — відправимо замовлення <em>вже сьогодні</em> при оформленні до 16:00
-        </div>
-        <div class="note-card">
-          Доставка білизни по Україні <em>безкоштовна</em> від 1500 грн при оплаті 100%
-        </div>
-        <div class="note-card">
-          Здійснюємо міжнародну доставку при оплаті 100%
-        </div>
+        <div class="note-card" data-i18n="p.note1"></div>
+        <div class="note-card" data-i18n="p.note2"></div>
+        <div class="note-card" data-i18n="p.note3"></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Лайтбокс (перегляд фото на весь екран) -->
+<!-- Лайтбокс -->
 <div class="lightbox" id="lightbox" hidden>
-  <button class="lightbox__close" id="lbClose" aria-label="Закрити">
+  <button class="lightbox__close" id="lbClose" data-i18n-attr="aria-label:p.close">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
   </button>
-  <button class="lightbox__nav lightbox__nav--prev" id="lbPrev" aria-label="Попереднє фото">
+  <button class="lightbox__nav lightbox__nav--prev" id="lbPrev" data-i18n-attr="aria-label:p.prev">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>
   </button>
-  <button class="lightbox__nav lightbox__nav--next" id="lbNext" aria-label="Наступне фото">
+  <button class="lightbox__nav lightbox__nav--next" id="lbNext" data-i18n-attr="aria-label:p.next">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
   </button>
   <div class="lightbox__stage" id="lbStage">
@@ -428,22 +434,22 @@
 <div class="fc-dialog" id="fcDialog" role="dialog" aria-modal="true" aria-labelledby="fcTitle" hidden>
   <div class="fc-dialog__backdrop" data-close></div>
   <div class="fc-dialog__panel">
-    <button class="fc-dialog__close" data-close aria-label="Закрити">
+    <button class="fc-dialog__close" data-close data-i18n-attr="aria-label:p.close">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
     </button>
-    <h3 class="fc-dialog__title" id="fcTitle">Friendly Club ✨</h3>
-    <p><strong>Friendly Club</strong> — це комʼюніті людей, які є частиною Reyter.</p>
-    <p>Тут ми ділимося: раннім доступом до нових дропів, емоціями, закуліссям бренду, спеціальними пропозиціями та іншими приємними бонусами 😊</p>
-    <p>Потрапити до Friendly Club можна не за заявкою, а природно — якщо ти регулярно обираєш Reyter, взаємодієш із брендом і залишаєшся частиною нашої спільноти 💙</p>
-    <h4>Як формується Friendly Club 🙃</h4>
-    <p>Ми запрошуємо людей, які:</p>
+    <h3 class="fc-dialog__title" id="fcTitle" data-i18n="fclub.title"></h3>
+    <p data-i18n="fclub.p1"></p>
+    <p data-i18n="fclub.p2"></p>
+    <p data-i18n="fclub.p3"></p>
+    <h4 data-i18n="fclub.h2"></h4>
+    <p data-i18n="fclub.p4"></p>
     <ul>
-      <li>регулярно обирають Reyter;</li>
-      <li>взаємодіють із брендом у соцмережах;</li>
-      <li>відмічають нас у своїх публікаціях або сторіс;</li>
-      <li>залишаються на звʼязку з нами та підтримують наше комʼюніті.</li>
+      <li data-i18n="fclub.li1"></li>
+      <li data-i18n="fclub.li2"></li>
+      <li data-i18n="fclub.li3"></li>
+      <li data-i18n="fclub.li4"></li>
     </ul>
-    <p class="fc-dialog__note">*Ми дивимося не лише на покупки, а й на справжній інтерес до бренду 🫂</p>
+    <p class="fc-dialog__note" data-i18n="fclub.note"></p>
   </div>
 </div>
 
@@ -452,8 +458,8 @@
   <div class="drawer__backdrop" data-close></div>
   <aside class="drawer__panel">
     <header class="drawer__head">
-      <h3 class="drawer__title" id="cartTitle">Кошик</h3>
-      <button class="drawer__close" data-close aria-label="Закрити">
+      <h3 class="drawer__title" id="cartTitle" data-i18n="cart.title"></h3>
+      <button class="drawer__close" data-close data-i18n-attr="aria-label:p.close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </header>
@@ -467,14 +473,14 @@
   <div class="drawer__backdrop" data-close></div>
   <aside class="drawer__panel">
     <header class="drawer__head">
-      <h3 class="drawer__title" id="accountTitle">Мій кабінет</h3>
-      <button class="drawer__close" data-close aria-label="Закрити">
+      <h3 class="drawer__title" id="accountTitle" data-i18n="acc.title"></h3>
+      <button class="drawer__close" data-close data-i18n-attr="aria-label:p.close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </header>
-    <div class="drawer__tabs" role="tablist" aria-label="Розділи кабінету">
-      <button class="drawer__tab is-active" id="tabProfile" role="tab" aria-selected="true" data-tab="profile">Профіль</button>
-      <button class="drawer__tab" id="tabOrders" role="tab" aria-selected="false" data-tab="orders">Мої замовлення</button>
+    <div class="drawer__tabs" role="tablist" aria-label="REYTER">
+      <button class="drawer__tab is-active" id="tabProfile" role="tab" aria-selected="true" data-tab="profile" data-i18n="acc.profile"></button>
+      <button class="drawer__tab" id="tabOrders" role="tab" aria-selected="false" data-tab="orders" data-i18n="acc.orders"></button>
     </div>
     <div class="drawer__body" id="accountBody"></div>
   </aside>
@@ -490,6 +496,7 @@
 
 <!-- Скрипти -->
 <script src="js/data.js" defer></script>
+<script src="js/i18n.js" defer></script>
 <script src="js/firebase.js" defer></script>
 <script src="js/notify.js" defer></script>
 <script src="js/catalog.js" defer></script>

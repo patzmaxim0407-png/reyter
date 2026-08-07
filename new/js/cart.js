@@ -130,11 +130,11 @@
       body().innerHTML =
         '<div class="empty-state">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 13H7L6 8Z"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/></svg>' +
-          '<strong>Кошик порожній</strong>' +
-          'Оберіть щось із наших позицій — вони чекають 💙' +
+          '<strong>' + R.t('cart.empty') + '</strong>' +
+          R.t('cart.emptyNote') +
         '</div>';
       foot().innerHTML =
-        '<button class="btn btn--primary" data-close type="button">Перейти до позицій</button>';
+        '<button class="btn btn--primary" data-close type="button">' + R.t('cart.goCatalog') + '</button>';
       return;
     }
 
@@ -143,23 +143,23 @@
         const p = R.getProduct(item.id);
         return (
           '<div class="cart-item" data-idx="' + idx + '">' +
-            '<img class="cart-item__img" src="' + R.esc(p.images[0]) + '" alt="' + R.esc(p.name) + '">' +
+            '<img class="cart-item__img" src="' + R.esc(p.images[0]) + '" alt="' + R.esc(R.tf(p, 'name')) + '">' +
             '<div>' +
-              '<div class="cart-item__name">' + R.esc(p.name) + '</div>' +
+              '<div class="cart-item__name">' + R.esc(R.tf(p, 'name')) + '</div>' +
               '<div class="cart-item__meta">' +
-                (item.size ? (p.volume ? 'Обʼєм: ' : 'Розмір: ') + R.esc(item.size) + ' · ' : '') +
-                'Артикул: ' + R.esc(p.id) +
+                (item.size ? (p.volume ? R.t('p.volume') : R.t('p.size')) + ': ' + R.esc(R.tx(item.size)) + ' · ' : '') +
+                R.t('p.article') + ': ' + R.esc(p.id) +
               '</div>' +
-              '<div class="cart-item__price">' + R.fmt(p.price * item.qty) + ' грн</div>' +
+              '<div class="cart-item__price">' + R.uah(p.price * item.qty) + '</div>' +
             '</div>' +
             '<div class="cart-item__col">' +
-              '<button class="cart-item__remove" data-remove aria-label="Видалити">' +
+              '<button class="cart-item__remove" data-remove aria-label="' + R.t('cart.remove') + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>' +
               '</button>' +
               '<span class="qty">' +
-                '<button data-minus aria-label="Менше">−</button>' +
+                '<button data-minus aria-label="' + R.t('cart.less') + '">−</button>' +
                 '<span>' + item.qty + '</span>' +
-                '<button data-plus aria-label="Більше">+</button>' +
+                '<button data-plus aria-label="' + R.t('cart.more') + '">+</button>' +
               '</span>' +
             '</div>' +
           '</div>'
@@ -175,12 +175,12 @@
     foot().innerHTML =
       '<div class="free-ship">' +
         (left > 0
-          ? 'До <strong>безкоштовної доставки</strong> білизни по Україні ще ' + R.fmt(left) + ' грн'
-          : '<strong>🎉 Безкоштовна доставка</strong> білизни по Україні (при оплаті 100%)') +
+          ? R.t('cart.freeLeft') + ' ' + R.uah(left)
+          : R.t('cart.freeDone')) +
         '<div class="free-ship__bar"><div class="free-ship__fill' + (left === 0 ? ' is-done' : '') + '" style="width:' + pct + '%"></div></div>' +
       '</div>' +
-      '<div class="cart-total"><span>Разом</span><span class="cart-total__sum">' + R.fmt(total) + ' грн</span></div>' +
-      '<button class="btn btn--primary" data-checkout type="button">Оформити замовлення</button>';
+      '<div class="cart-total"><span>' + R.t('cart.total') + '</span><span class="cart-total__sum">' + R.uah(total) + '</span></div>' +
+      '<button class="btn btn--primary" data-checkout type="button">' + R.t('cart.checkout') + '</button>';
   }
 
   /* ---------- Оформлення ---------- */
@@ -202,45 +202,45 @@
     const summary = items
       .map((i) => {
         const p = R.getProduct(i.id);
-        return '<div><span>' + R.esc(p.name) + (i.size ? ' (' + R.esc(i.size) + ')' : '') + ' × ' + i.qty +
-               '</span><span>' + R.fmt(p.price * i.qty) + ' грн</span></div>';
+        return '<div><span>' + R.esc(R.tf(p, 'name')) + (i.size ? ' (' + R.esc(R.tx(i.size)) + ')' : '') + ' × ' + i.qty +
+               '</span><span>' + R.uah(p.price * i.qty) + '</span></div>';
       })
       .join('');
 
     const defaultEmail = profile.email || (R.fb && R.fb.user && R.fb.user.email) || '';
 
     body().innerHTML =
-      '<button class="checkout-back" data-back type="button">← Назад до кошика</button>' +
+      '<button class="checkout-back" data-back type="button">' + R.t('cart.back') + '</button>' +
       '<div class="checkout-summary">' + summary +
-        '<div class="sum"><span>Разом</span><span>' + R.fmt(total) + ' грн</span></div>' +
+        '<div class="sum"><span>' + R.t('cart.total') + '</span><span>' + R.uah(total) + '</span></div>' +
       '</div>' +
       '<form class="form-grid" id="checkoutForm" novalidate>' +
-        fieldHTML('coName', 'Імʼя та прізвище *', profile.name, 'autocomplete="name" required') +
-        fieldHTML('coPhone', 'Телефон *', profile.phone, 'type="tel" autocomplete="tel" placeholder="+380..." required') +
-        fieldHTML('coEmail', 'Email — надішлемо підтвердження замовлення', defaultEmail, 'type="email" autocomplete="email" placeholder="you@example.com"') +
+        fieldHTML('coName', R.t('cart.name'), profile.name, 'autocomplete="name" required') +
+        fieldHTML('coPhone', R.t('cart.phone'), profile.phone, 'type="tel" autocomplete="tel" placeholder="+380..." required') +
+        fieldHTML('coEmail', R.t('cart.email'), defaultEmail, 'type="email" autocomplete="email" placeholder="you@example.com"') +
         '<div class="form-row">' +
           '<div class="field">' +
-            '<label for="coCarrier">Доставка</label>' +
+            '<label for="coCarrier">' + R.t('cart.delivery') + '</label>' +
             '<select id="coCarrier">' +
               CARRIERS.map((c) =>
                 '<option' + (profile.carrier === c ? ' selected' : '') + '>' + c + '</option>'
               ).join('') +
             '</select>' +
           '</div>' +
-          fieldHTML('coCity', 'Місто', profile.city, 'autocomplete="address-level2"') +
+          fieldHTML('coCity', R.t('cart.city'), profile.city, 'autocomplete="address-level2"') +
         '</div>' +
-        fieldHTML('coBranch', 'Відділення / адреса', profile.branch, '') +
+        fieldHTML('coBranch', R.t('cart.branch'), profile.branch, '') +
         '<div class="field">' +
-          '<label for="coComment">Коментар</label>' +
-          '<textarea id="coComment" placeholder="Побажання до замовлення (необовʼязково)"></textarea>' +
+          '<label for="coComment">' + R.t('cart.comment') + '</label>' +
+          '<textarea id="coComment" placeholder="' + R.t('cart.commentPh') + '"></textarea>' +
         '</div>' +
       '</form>';
 
     foot().innerHTML =
       '<button class="btn btn--primary" data-submit type="button">' +
-        '<i class="fab fa-instagram" aria-hidden="true"></i> Сформувати замовлення' +
+        '<i class="fab fa-instagram" aria-hidden="true"></i> ' + R.t('cart.submit') +
       '</button>' +
-      '<p class="pinfo__order-note" style="text-align:center;margin-top:.55rem">Замовлення надсилається нам в Instagram Direct</p>';
+      '<p class="pinfo__order-note" style="text-align:center;margin-top:.55rem">' + R.t('cart.submitNote') + '</p>';
   }
 
   function buildMessage(order) {
@@ -277,11 +277,11 @@
     email.classList.toggle('is-invalid', !emailOk);
 
     if (!nameOk || !phoneOk) {
-      R.toast('Заповніть імʼя та телефон');
+      R.toast(R.t('cart.fillNamePhone'));
       return;
     }
     if (!emailOk) {
-      R.toast('Перевірте email');
+      R.toast(R.t('cart.checkEmail'));
       return;
     }
 
@@ -373,15 +373,15 @@
         '<div class="order-done__icon">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 12.5 5 5 10-11"/></svg>' +
         '</div>' +
-        '<h4>Замовлення №' + order.num + ' сформовано!</h4>' +
-        '<p>Залишився один крок: надішліть його нам в Instagram Direct — текст уже скопійовано, просто вставте його в повідомлення.</p>' +
+        '<h4>' + R.t('cart.order') + ' №' + order.num + ' ' + R.t('cart.doneTitle') + '</h4>' +
+        '<p>' + R.t('cart.doneText') + '</p>' +
         (order.customer.email
-          ? '<p>Підтвердження з номером замовлення надіслано на <b>' + R.esc(order.customer.email) + '</b> 📩</p>'
+          ? '<p>' + R.t('cart.doneMail') + ' <b>' + R.esc(order.customer.email) + '</b> 📩</p>'
           : '') +
         '<div class="order-msg">' + R.esc(order.message) + '</div>' +
         '<a class="btn btn--primary" href="' + R.esc(R.config.orderUrl) + '" target="_blank" rel="noopener">' +
-          '<i class="fab fa-instagram" aria-hidden="true"></i> Відкрити Instagram</a>' +
-        '<button class="btn btn--ghost" data-copy type="button">Скопіювати ще раз</button>' +
+          '<i class="fab fa-instagram" aria-hidden="true"></i> ' + R.t('cart.openIg') + '</a>' +
+        '<button class="btn btn--ghost" data-copy type="button">' + R.t('cart.copyAgain') + '</button>' +
       '</div>';
 
     foot().innerHTML = '';
@@ -392,7 +392,7 @@
 
   R.copyText = function (text, silent) {
     function done() {
-      if (!silent) R.toast('Скопійовано ✓', 'success');
+      if (!silent) R.toast(R.t('cart.copied'), 'success');
     }
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(text).then(done, () => fallback());

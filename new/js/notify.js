@@ -111,7 +111,23 @@
      Лист покупцю надсилається як автовідповідь (_autoresponse),
      а на пошту магазину приходить копія замовлення. */
 
+  /* Лист покупцю — мовою, якою він користувався на сайті */
   function customerLetter(params) {
+    const en = R.lang && R.lang() === 'en';
+
+    if (en) {
+      return (
+        'Hello' + (params.to_name ? ', ' + params.to_name : '') + '!\n\n' +
+        'We have received your order No. ' + params.order_num + ' at reyter.men — thank you 💙\n\n' +
+        params.order_items + '\n\n' +
+        'Total: ' + params.order_total + '\n' +
+        (params.order_delivery ? 'Delivery: ' + params.order_delivery + '\n' : '') +
+        '\nOur manager will contact you to confirm the order. ' +
+        'You can track its status in your account at https://reyter.men/new/?lang=en\n\n' +
+        '— The REYTER team. Character is REYTER!'
+      );
+    }
+
     return (
       'Вітаємо' + (params.to_name ? ', ' + params.to_name : '') + '!\n\n' +
       'Ми отримали ваше замовлення №' + params.order_num + ' на reyter.men — дякуємо 💙\n\n' +
