@@ -1,0 +1,289 @@
+/* ============================================================
+   REYTER — base.css
+   Дизайн-токени, скидання, типографіка, кнопки, утиліти
+   ============================================================ */
+
+:root {
+  /* Кольори бренду */
+  --c-blue:        #014AAD;
+  --c-blue-deep:   #003C8F;
+  --c-blue-ink:    #062B5C;
+  --c-cream:       #FCF8F0;
+  --c-cream-dark:  #F3ECDD;
+  --c-paper:       #FFFFFF;
+  --c-ink:         #171B26;
+  --c-muted:       #6E6A5E;
+  --c-line:        rgba(23, 27, 38, 0.10);
+
+  /* Статуси */
+  --c-red:         #C81E1E;
+  --c-red-soft:    #FCE8E8;
+  --c-green:       #15803D;
+  --c-green-soft:  #E4F5EA;
+  --c-amber:       #B45309;
+  --c-amber-soft:  #FCF0DE;
+
+  /* Шрифти */
+  --font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Unbounded', 'Inter', sans-serif;
+
+  /* Геометрія */
+  --radius-lg: 22px;
+  --radius:    16px;
+  --radius-sm: 10px;
+
+  /* Тіні */
+  --shadow-card:  0 1px 2px rgba(6, 43, 92, 0.05), 0 10px 30px rgba(6, 43, 92, 0.07);
+  --shadow-hover: 0 2px 6px rgba(6, 43, 92, 0.08), 0 18px 44px rgba(6, 43, 92, 0.14);
+  --shadow-pop:   0 24px 80px rgba(6, 27, 60, 0.30);
+
+  /* Розміри макета */
+  --container: 1200px;
+  --header-h: 72px;
+
+  /* Анімації */
+  --ease-out:   cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast:     0.22s var(--ease-out);
+  --t-slow:     0.6s var(--ease-out);
+}
+
+/* ---------- Скидання ---------- */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Атрибут hidden завжди перемагає display у класах */
+[hidden] {
+  display: none !important;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--c-ink);
+  background-color: var(--c-cream);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+svg,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+::selection {
+  background: var(--c-blue);
+  color: #fff;
+}
+
+/* ---------- Типографіка ---------- */
+h1, h2, h3 {
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.6rem, 3.4vw, 2.4rem);
+  color: var(--c-blue-ink);
+  letter-spacing: -0.01em;
+}
+
+.section-sub {
+  margin-top: 0.75rem;
+  color: var(--c-muted);
+  font-size: 1.02rem;
+  max-width: 46rem;
+}
+
+.section-head {
+  margin-bottom: clamp(1.8rem, 4vw, 3rem);
+}
+
+/* ---------- Контейнер / секції ---------- */
+.container {
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 4vw, 2rem);
+}
+
+section {
+  padding-block: clamp(3.5rem, 8vw, 6.5rem);
+}
+
+/* Якір не ховається під шапкою */
+section[id],
+.category[id] {
+  scroll-margin-top: calc(var(--header-h) + 16px);
+}
+
+/* ---------- Кнопки ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0.85rem 1.7rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.98rem;
+  text-decoration: none;
+  border: 1.5px solid transparent;
+  transition: transform var(--t-fast), box-shadow var(--t-fast),
+              background-color var(--t-fast), color var(--t-fast),
+              border-color var(--t-fast);
+  will-change: transform;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn--primary {
+  background: var(--c-blue);
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(1, 74, 173, 0.28);
+}
+
+.btn--primary:hover {
+  background: var(--c-blue-deep);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(1, 74, 173, 0.36);
+}
+
+.btn--ghost {
+  border-color: rgba(6, 43, 92, 0.25);
+  color: var(--c-blue-ink);
+  background: transparent;
+}
+
+.btn--ghost:hover {
+  border-color: var(--c-blue);
+  color: var(--c-blue);
+  background: rgba(1, 74, 173, 0.05);
+}
+
+.btn--light {
+  background: #fff;
+  color: var(--c-blue-ink);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+
+.btn--light:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3);
+}
+
+.btn[disabled],
+.btn.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* ---------- Пігулки / бейджі ---------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.pill--drop {
+  background: rgba(1, 74, 173, 0.09);
+  border: 1px solid rgba(1, 74, 173, 0.22);
+  color: var(--c-blue);
+  text-transform: uppercase;
+}
+
+/* ---------- Утиліти ---------- */
+.skip-link {
+  position: absolute;
+  top: -60px;
+  left: 16px;
+  z-index: 3000;
+  background: var(--c-blue);
+  color: #fff;
+  padding: 0.6rem 1.2rem;
+  border-radius: 0 0 12px 12px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: top var(--t-fast);
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+.noscript-note {
+  padding: 2rem;
+  background: var(--c-paper);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+/* ---------- Поява при прокручуванні ---------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity var(--t-slow), transform var(--t-slow);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- Доступність: менше руху ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}

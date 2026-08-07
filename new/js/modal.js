@@ -1,0 +1,352 @@
+/* ============================================================
+   REYTER — modal.js
+   Модальне вікно товару: галерея з мініатюрами, розміри,
+   статуси наявності, лайтбокс на весь екран
+   ============================================================ */
+
+(function () {
+  'use strict';
+
+  const R = window.REYTER;
+
+  let current = null;      // поточний товар
+  let images = [];
+  let index = 0;
+  let selectedSize = null;
+
+  const el = {};
+
+  function cache() {
+    el.modal = document.getElementById('productModal');
+    el.image = document.getElementById('galImage');
+    el.counter = document.getElementById('galCounter');
+    el.thumbs = document.getElementById('galThumbs');
+    el.prev = document.getElementById('galPrev');
+    el.next = document.getElementById('galNext');
+    el.category = document.getElementById('pmCategory');
+    el.name = document.getElementById('pmName');
+    el.status = document.getElementById('pmStatus');
+    el.article = document.getElementById('pmArticle');
+    el.price = document.getElementById('pmPrice');
+    el.saleNote = document.getElementById('pmSaleNote');
+    el.sizesBlock = document.getElementById('pmSizesBlock');
+    el.sizesTitle = document.getElementById('pmSizesTitle');
+    el.sizes = document.getElementById('pmSizes');
+    el.sizeLink = document.getElementById('pmSizeLink');
+    el.addCart = document.getElementById('pmAddCart');
+    el.addCartLabel = document.getElementById('pmAddCartLabel');
+    el.order = document.getElementById('pmOrder');
+    el.desc = document.getElementById('pmDesc');
+    el.extras = document.getElementById('pmExtras');
+    el.lightbox = document.getElementById('lightbox');
+    el.lbImage = document.getElementById('lbImage');
+    el.lbCounter = document.getElementById('lbCounter');
+  }
+
+  /* ---------- Статус наявності ---------- */
+
+  function setStatus(type, text) {
+    el.status.className = 'status-chip status-chip--' + type;
+    el.status.textContent = text;
+  }
+
+  function refreshStatus() {
+    if (current.status === 'sold-out') {
+      setStatus('no', 'Продано');
+    } else if (selectedSize && (current.lowStock || []).includes(selectedSize)) {
+      setStatus('low', 'Закінчується');
+    } else {
+      setStatus('ok', 'В наявності');
+    }
+  }
+
+  /* ---------- Галерея ---------- */
+
+  function setImage(i) {
+    if (!images.length) return;
+    index = (i + images.length) % images.length;
+    el.image.src = images[index];
+    el.image.alt = current ? current.name : '';
+    el.counter.textContent = index + 1 + ' / ' + images.length;
+    el.counter.hidden = images.length < 2;
+    el.prev.hidden = el.next.hidden = images.length < 2;
+
+    Array.prototype.forEach.call(el.thumbs.children, (t, ti) => {
+      t.classList.toggle('is-active', ti === index);
+    });
+
+    if (!el.lightbox.hidden) syncLightbox();
+  }
+
+  function renderThumbs() {
+    el.thumbs.innerHTML = images
+      .map(
+        (src, i) =>
+          '<button type="button" class="gthumb' + (i === 0 ? ' is-active' : '') + '" data-i="' + i + '" role="tab" aria-label="Фото ' + (i + 1) + '">' +
+            '<img src="' + R.esc(src) + '" alt="" loading="lazy">' +
+          '</button>'
+      )
+      .join('');
+    el.thumbs.hidden = images.length < 2;
+  }
+
+  /* ---------- Розміри ---------- */
+
+  function sizePillHTML(size, opts) {
+    const id = 'size-' + String(size).toLowerCase().replace(/[^a-zа-яіїє0-9]/gi, '');
+    return (
+      '<span class="size-pill' + (opts.low ? ' size-pill--low' : '') + '">' +
+        '<input type="radio" name="pm-size" value="' + R.esc(size) + '" id="' + id + '"' +
+        (opts.disabled ? ' disabled' : '') + (opts.checked ? ' checked' : '') + '>' +
+        '<label for="' + id + '">' + R.esc(size) + '</label>' +
+      '</span>'
+    );
+  }
+
+  function renderSizes() {
+    const p = current;
+    selectedSize = null;
+
+    if (p.volume) {
+      el.sizesTitle.textContent = 'Обʼєм';
+      el.sizes.innerHTML = sizePillHTML(p.volume, {
+        checked: p.status !== 'sold-out',
+        disabled: p.status === 'sold-out'
+      });
+      selectedSize = p.status !== 'sold-out' ? p.volume : null;
+      el.sizesBlock.hidden = false;
+      el.sizeLink.hidden = true;
+      return;
+    }
+
+    if (!p.sizes || (!p.sizes.length && p.status !== 'sold-out')) {
+      el.sizesBlock.hidden = true;
+      return;
+    }
+
+    el.sizesTitle.textContent = 'Розмір';
+    el.sizeLink.hidden = false;
+    el.sizesBlock.hidden = false;
+
+    const soldOut = p.status === 'sold-out';
+    const available = p.sizes || [];
+    let first = true;
+
+    el.sizes.innerHTML = R.config.allSizes
+      .map((size) => {
+        const has = available.includes(size);
+        const checked = !soldOut && has && first;
+        if (checked) {
+          first = false;
+          selectedSize = size;
+        }
+        return sizePillHTML(size, {
+          disabled: soldOut || !has,
+          checked: checked,
+          low: has && (p.lowStock || []).includes(size)
+        });
+      })
+      .join('');
+  }
+
+  /* ---------- Опис і додаткові блоки ---------- */
+
+  function renderDesc() {
+    const p = current;
+    const rows = [];
+    if (p.fabric) rows.push('<div><b>Тканина:</b> ' + R.esc(p.fabric) + '</div>');
+    if (p.material) rows.push('<div><b>Склад:</b> ' + R.esc(p.material) + '</div>');
+    if (p.aroma) rows.push('<div><b>Аромат:</b> ' + R.esc(p.aroma) + '</div>');
+    if (p.volume) rows.push('<div><b>Обʼєм:</b> ' + R.esc(p.volume) + '</div>');
+    if (p.model) rows.push('<div><b>Параметри моделі:</b> ' + R.esc(p.model) + '</div>');
+    (p.notes || []).forEach((n) => rows.push('<div class="note">' + R.esc(n) + '</div>'));
+    el.desc.innerHTML = rows.join('');
+  }
+
+  function accHTML(title, items, open) {
+    return (
+      '<details class="acc"' + (open ? ' open' : '') + '>' +
+        '<summary>' + R.esc(title) + '</summary>' +
+        '<ul>' + items.map((i) => '<li>' + R.esc(i) + '</li>').join('') + '</ul>' +
+      '</details>'
+    );
+  }
+
+  function renderExtras() {
+    const p = current;
+    let html = '';
+    if (p.characteristics && p.characteristics.length) {
+      html += accHTML('Особливості', p.characteristics, false);
+    }
+    if (!p.volume) {
+      const care = p.care && p.care.length ? p.care : ['Прання навиворіт при температурі до 30 °C'];
+      html += accHTML('Рекомендації щодо догляду', care, false);
+    }
+    el.extras.innerHTML = html;
+  }
+
+  /* ---------- Кнопки ---------- */
+
+  function refreshCta() {
+    const soldOut = current.status === 'sold-out';
+    el.addCart.disabled = soldOut;
+    el.addCart.classList.toggle('is-disabled', soldOut);
+    el.addCartLabel.textContent = soldOut ? 'Продано' : 'Додати в кошик';
+  }
+
+  /* ---------- Відкриття / закриття ---------- */
+
+  function openProduct(id) {
+    const p = R.getProduct(id);
+    if (!p || !el.modal) return;
+
+    current = p;
+    images = (p.images || []).slice();
+    if (!images.length) images = ['../assets/images/logo_4.webp'];
+
+    el.category.textContent = R.categoryTitle(p.category);
+    el.name.textContent = p.name;
+    el.article.textContent = 'Артикул: ' + p.id;
+    el.price.innerHTML = R.priceHTML(p, true);
+    el.saleNote.hidden = !p.saleNote;
+    el.saleNote.textContent = p.saleNote || '';
+    el.order.href = R.config.orderUrl;
+
+    renderSizes();
+    renderDesc();
+    renderExtras();
+    refreshStatus();
+    refreshCta();
+    renderThumbs();
+    setImage(0);
+
+    R.overlay.open(el.modal, { focus: el.modal.querySelector('.pmodal__close') });
+    requestAnimationFrame(() => {
+      el.modal.querySelector('.pmodal__panel').scrollTop = 0;
+    });
+
+    if (history.replaceState) {
+      history.replaceState(null, '', '#p/' + encodeURIComponent(p.id));
+    }
+  }
+
+  function onModalClosed() {
+    if (history.replaceState && location.hash.indexOf('#p/') === 0) {
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  }
+
+  /* ---------- Лайтбокс ---------- */
+
+  let lbImages = [];
+  let lbIndex = 0;
+  let lbStandalone = false; // відкритий не з модалки товару
+
+  function syncLightbox() {
+    el.lbImage.src = lbImages[lbIndex];
+    el.lbCounter.textContent = lbIndex + 1 + ' / ' + lbImages.length;
+    el.lbCounter.hidden = lbImages.length < 2;
+    document.getElementById('lbPrev').hidden = lbImages.length < 2;
+    document.getElementById('lbNext').hidden = lbImages.length < 2;
+    el.lbImage.classList.remove('is-zoomed');
+  }
+
+  function openLightbox(imgs, i, standalone) {
+    lbImages = imgs;
+    lbIndex = i || 0;
+    lbStandalone = !!standalone;
+    syncLightbox();
+    R.overlay.open(el.lightbox, { focus: document.getElementById('lbClose') });
+  }
+
+  function lbGo(delta) {
+    lbIndex = (lbIndex + delta + lbImages.length) % lbImages.length;
+    syncLightbox();
+    // синхронізуємо галерею модалки
+    if (!lbStandalone && current) setImage(lbIndex);
+  }
+
+  /* ---------- Ініціалізація ---------- */
+
+  function init() {
+    cache();
+    if (!el.modal) return;
+
+    el.prev.addEventListener('click', () => setImage(index - 1));
+    el.next.addEventListener('click', () => setImage(index + 1));
+
+    el.thumbs.addEventListener('click', (e) => {
+      const t = e.target.closest('.gthumb');
+      if (t) setImage(Number(t.dataset.i));
+    });
+
+    el.image.addEventListener('click', () => openLightbox(images, index, false));
+
+    el.sizes.addEventListener('change', (e) => {
+      if (e.target.name === 'pm-size') {
+        selectedSize = e.target.value;
+        refreshStatus();
+      }
+    });
+
+    el.sizeLink.addEventListener('click', () => R.overlay.close(el.modal));
+
+    el.addCart.addEventListener('click', () => {
+      if (!current || current.status === 'sold-out') return;
+      if (!current.volume && current.sizes && current.sizes.length && !selectedSize) {
+        R.toast('Оберіть розмір');
+        return;
+      }
+      R.cart.add(current.id, selectedSize);
+      R.toast('Додано в кошик ✓', 'success');
+    });
+
+    // Свайпи по галереї
+    let sx = null, sy = null;
+    el.modal.querySelector('.pmodal__gallery').addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        sx = e.touches[0].screenX;
+        sy = e.touches[0].screenY;
+      }
+    }, { passive: true });
+    el.modal.querySelector('.pmodal__gallery').addEventListener('touchend', (e) => {
+      if (sx === null) return;
+      const dx = e.changedTouches[0].screenX - sx;
+      const dy = e.changedTouches[0].screenY - sy;
+      if (Math.abs(dx) > 50 && Math.abs(dy) < 60) setImage(index + (dx > 0 ? -1 : 1));
+      sx = sy = null;
+    }, { passive: true });
+
+    // Лайтбокс
+    document.getElementById('lbPrev').addEventListener('click', () => lbGo(-1));
+    document.getElementById('lbNext').addEventListener('click', () => lbGo(1));
+    document.getElementById('lbClose').addEventListener('click', () => R.overlay.close(el.lightbox));
+    el.lightbox.addEventListener('click', (e) => {
+      if (e.target === el.lightbox || e.target.id === 'lbStage') R.overlay.close(el.lightbox);
+    });
+    el.lbImage.addEventListener('click', () => el.lbImage.classList.toggle('is-zoomed'));
+
+    // Стрілки клавіатури
+    document.addEventListener('keydown', (e) => {
+      if (!el.lightbox.hidden) {
+        if (e.key === 'ArrowLeft') lbGo(-1);
+        if (e.key === 'ArrowRight') lbGo(1);
+      } else if (!el.modal.hidden) {
+        if (e.key === 'ArrowLeft') setImage(index - 1);
+        if (e.key === 'ArrowRight') setImage(index + 1);
+      }
+    });
+
+    el.modal.addEventListener('overlay:closed', onModalClosed);
+
+    // Глибоке посилання #p/АРТИКУЛ
+    if (location.hash.indexOf('#p/') === 0) {
+      const id = decodeURIComponent(location.hash.slice(3));
+      if (R.getProduct(id)) setTimeout(() => openProduct(id), 150);
+    }
+  }
+
+  R.openProduct = openProduct;
+  R.openLightbox = openLightbox;
+  R.initProductModal = init;
+})();

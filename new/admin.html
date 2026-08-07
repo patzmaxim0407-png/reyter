@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>REYTER — Адмінка каталогу</title>
+  <meta name="robots" content="noindex, nofollow">
+
+  <link rel="icon" href="../assets/images/logo_4.webp" type="image/webp">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="admin-body">
+
+<header class="abar">
+  <div class="abar__brand">
+    <img src="../assets/images/logo_4.webp" alt="">
+    <span>REYTER <b>· Адмінка</b></span>
+  </div>
+  <span class="abar__dirty" id="dirtyBadge" hidden>Є неопубліковані зміни</span>
+  <div class="abar__actions">
+    <a class="btn btn--ghost btn--sm" href="index.html" target="_blank" rel="noopener">Відкрити сайт</a>
+    <button class="btn btn--ghost btn--sm" id="downloadBtn" type="button">Завантажити data.js</button>
+    <button class="btn btn--primary btn--sm" id="publishBtn" type="button">Опублікувати</button>
+  </div>
+</header>
+
+<div class="admin-wrap">
+
+  <!-- Категорії -->
+  <aside class="a-side">
+    <h2>Категорії</h2>
+    <ul class="a-cats" id="catList"></ul>
+
+    <form class="a-addcat" id="addCatForm">
+      <input id="newCatName" placeholder="Нова категорія" autocomplete="off">
+      <button class="btn btn--primary btn--sm" type="submit">Додати</button>
+    </form>
+
+    <div class="a-side__note">
+      Зміни зберігаються як чернетка у вашому браузері.
+      Щоб вони зʼявилися на сайті — натисніть «Опублікувати»
+      (або завантажте <code>data.js</code> і замініть файл
+      <code>new/js/data.js</code> у репозиторії).
+    </div>
+
+    <button class="a-reset" id="resetDraftBtn" type="button">Скинути чернетку до опублікованої версії</button>
+  </aside>
+
+  <!-- Товари -->
+  <main class="a-main">
+    <div class="a-toolbar">
+      <h2 id="curCatTitle">Всі товари</h2>
+      <button class="btn btn--primary" id="addProductBtn" type="button">+ Новий товар</button>
+    </div>
+    <div class="a-list" id="productList"></div>
+  </main>
+</div>
+
+<!-- Редактор товару -->
+<div class="a-modal" id="editorModal" role="dialog" aria-modal="true" aria-labelledby="editorTitle" hidden>
+  <div class="a-modal__backdrop" data-close></div>
+  <div class="a-modal__panel">
+    <header class="a-modal__head">
+      <h3 id="editorTitle">Товар</h3>
+      <button class="a-modal__close" data-close aria-label="Закрити">✕</button>
+    </header>
+
+    <div class="a-editor">
+      <form class="a-form" id="productForm" novalidate>
+
+        <div class="a-grid-2">
+          <div class="field">
+            <label for="fId">Артикул *</label>
+            <input id="fId" placeholder="ABC-001" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="fCategory">Категорія *</label>
+            <select id="fCategory"></select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="fName">Назва *</label>
+          <input id="fName" placeholder="Назва товару" autocomplete="off">
+        </div>
+
+        <div class="a-grid-3">
+          <div class="field">
+            <label for="fPrice">Ціна, грн *</label>
+            <input id="fPrice" type="number" min="0">
+          </div>
+          <div class="field">
+            <label for="fOldPrice">Стара ціна, грн</label>
+            <input id="fOldPrice" type="number" min="0" placeholder="—">
+          </div>
+          <div class="field">
+            <label for="fPriceUsd">Ціна, $</label>
+            <input id="fPriceUsd" type="number" min="0" placeholder="—">
+          </div>
+        </div>
+
+        <div class="a-grid-2">
+          <div class="field">
+            <label for="fStatus">Наявність</label>
+            <select id="fStatus">
+              <option value="in-stock">В наявності</option>
+              <option value="sold-out">Продано</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="fLowStock">Закінчується (розміри через кому)</label>
+            <input id="fLowStock" placeholder="напр.: L або S, M" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="field__label">Розміри в наявності</span>
+          <div class="a-sizes" id="fSizes"></div>
+        </div>
+
+        <div class="a-grid-2">
+          <label class="a-check"><input type="checkbox" id="fSale"> Бейдж SALE</label>
+          <label class="a-check"><input type="checkbox" id="fHidden"> Сховати з сайту</label>
+        </div>
+
+        <div class="field">
+          <label for="fSaleNote">Примітка до знижки</label>
+          <input id="fSaleNote" placeholder="напр.: Економія 5% при покупці комплектом" autocomplete="off">
+        </div>
+
+        <div class="a-grid-2">
+          <div class="field">
+            <label for="fFabric">Тканина</label>
+            <input id="fFabric" placeholder="напр.: Кулір" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="fMaterial">Склад</label>
+            <input id="fMaterial" placeholder="напр.: Бавовна 95%, еластан 5%" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="a-grid-2">
+          <div class="field">
+            <label for="fVolume">Обʼєм (для свічок)</label>
+            <input id="fVolume" placeholder="напр.: 250 мл" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="fAroma">Аромат</label>
+            <input id="fAroma" placeholder="напр.: Бренді & груша" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="fModel">Параметри моделі</label>
+          <input id="fModel" placeholder="напр.: 181 см, 96 кг, талія 86 см" autocomplete="off">
+        </div>
+
+        <div class="field">
+          <span class="field__label">Кольори</span>
+          <div class="a-colors" id="fColors"></div>
+          <button class="btn btn--ghost btn--sm" id="addColorBtn" type="button">+ Колір</button>
+        </div>
+
+        <div class="field">
+          <label for="fImages">Фото (по одному шляху в рядку) *</label>
+          <textarea id="fImages" rows="4" placeholder="../assets/images/boxers/bl5.webp"></textarea>
+          <p class="field__hint">Спершу додайте фото в папку <code>assets/images/…</code> репозиторію, потім впишіть шляхи сюди. Перше фото — обкладинка, друге — показується при наведенні.</p>
+        </div>
+
+        <div class="field">
+          <label for="fNotes">Додаткові рядки опису (по одному в рядку)</label>
+          <textarea id="fNotes" rows="2"></textarea>
+        </div>
+
+        <div class="a-grid-2">
+          <div class="field">
+            <label for="fCharacteristics">Особливості (по одній в рядку)</label>
+            <textarea id="fCharacteristics" rows="3"></textarea>
+          </div>
+          <div class="field">
+            <label for="fCare">Догляд (по одному в рядку)</label>
+            <textarea id="fCare" rows="3"></textarea>
+          </div>
+        </div>
+      </form>
+
+      <aside class="a-preview">
+        <h4>Попередній перегляд</h4>
+        <div id="previewCard"></div>
+      </aside>
+    </div>
+
+    <footer class="a-modal__foot">
+      <button class="btn btn--ghost" data-close type="button">Скасувати</button>
+      <button class="btn btn--primary" id="saveProductBtn" type="button">Зберегти товар</button>
+    </footer>
+  </div>
+</div>
+
+<!-- Публікація -->
+<div class="a-modal" id="publishModal" role="dialog" aria-modal="true" aria-labelledby="publishTitle" hidden>
+  <div class="a-modal__backdrop" data-close></div>
+  <div class="a-modal__panel a-modal__panel--sm">
+    <header class="a-modal__head">
+      <h3 id="publishTitle">Опублікувати каталог</h3>
+      <button class="a-modal__close" data-close aria-label="Закрити">✕</button>
+    </header>
+
+    <div class="a-publish">
+      <p>Зміни буде закомічено у файл <code>new/js/data.js</code> репозиторію
+        <b>patzmaxim0407-png/reyter</b> — сайт оновиться за 1–2 хвилини.</p>
+
+      <div class="field">
+        <label for="ghToken">GitHub-токен</label>
+        <input id="ghToken" type="password" placeholder="github_pat_… або ghp_…" autocomplete="off">
+        <p class="field__hint">
+          Створіть токен: GitHub → Settings → Developer settings →
+          Fine-grained tokens → доступ лише до репозиторію <b>reyter</b>,
+          дозвіл <b>Contents: Read and write</b>.
+          Токен зберігається тільки у вашому браузері.
+        </p>
+      </div>
+
+      <label class="a-check"><input type="checkbox" id="ghRemember" checked> Запамʼятати токен у цьому браузері</label>
+
+      <div class="a-publish__status" id="publishStatus" hidden></div>
+    </div>
+
+    <footer class="a-modal__foot">
+      <button class="btn btn--ghost" data-close type="button">Скасувати</button>
+      <button class="btn btn--primary" id="doPublishBtn" type="button">Опублікувати зміни</button>
+    </footer>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="js/data.js"></script>
+<script src="js/admin.js"></script>
+
+</body>
+</html>
