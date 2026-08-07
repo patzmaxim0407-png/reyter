@@ -803,10 +803,27 @@
   }
 
   async function signInGoogle() {
+    const provider = new firebase.auth.GoogleAuthProvider();
     try {
-      await R.fb.auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+      await R.fb.auth.signInWithPopup(provider);
     } catch (err) {
-      toast(R.fb.errorText(err));
+      const code = (err && err.code) || '';
+      // Попап заблоковано (часто на мобільних) — входимо через
+      // повне перенаправлення на сторінку Google
+      if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
+        const status = $id('gateStatus');
+        if (status) status.textContent = 'Переходимо на сторінку входу Google…';
+        try {
+          await R.fb.auth.signInWithRedirect(provider);
+          return;
+        } catch (e2) {
+          err = e2;
+        }
+      }
+      const msg = R.fb.errorText(err);
+      toast(msg);
+      const status = $id('gateStatus');
+      if (status && !$id('adminGate').hidden) status.textContent = msg;
     }
   }
 
@@ -1828,6 +1845,14 @@
     });
     updateUserChip();
     refreshGate();
+
+    // Якщо вхід відбувався через перенаправлення — показуємо його помилки
+    if (fbReady()) {
+      R.fb.auth.getRedirectResult().catch((err) => {
+        const status = $id('gateStatus');
+        if (status) status.textContent = R.fb.errorText(err);
+      });
+    }
 
     /* ---- замовлення ---- */
 

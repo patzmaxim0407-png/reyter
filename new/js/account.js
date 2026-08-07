@@ -85,11 +85,21 @@
   }
 
   async function doGoogle() {
+    const provider = new firebase.auth.GoogleAuthProvider();
     try {
-      const provider = new firebase.auth.GoogleAuthProvider();
       await R.fb.auth.signInWithPopup(provider);
       R.toast('З поверненням! 💙', 'success');
     } catch (err) {
+      const code = (err && err.code) || '';
+      // Попап заблоковано (типово для мобільних) — повне перенаправлення
+      if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
+        try {
+          await R.fb.auth.signInWithRedirect(provider);
+          return;
+        } catch (e2) {
+          err = e2;
+        }
+      }
       R.toast(R.fb.errorText(err));
     }
   }

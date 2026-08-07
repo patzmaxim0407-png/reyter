@@ -62,7 +62,8 @@
       'auth/popup-closed-by-user': 'Вікно входу було закрито',
       'auth/cancelled-popup-request': 'Вікно входу було закрито',
       'auth/popup-blocked': 'Браузер заблокував спливаюче вікно — дозвольте його',
-      'auth/unauthorized-domain': 'Цей домен не додано в Authorized domains у Firebase',
+      'auth/operation-not-supported-in-this-environment': 'Цей браузер не підтримує спливаючі вікна — спробуйте ще раз',
+      'auth/unauthorized-domain': 'Домен не додано у Firebase: Authentication → Settings → Authorized domains → додайте reyter.men',
       'auth/network-request-failed': 'Немає звʼязку — перевірте інтернет'
     };
     return map[code] || 'Не вдалося виконати дію (' + (code || 'невідома помилка') + ')';
