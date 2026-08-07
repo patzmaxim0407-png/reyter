@@ -221,6 +221,109 @@
   </div>
 </div>
 
+<!-- Ручне створення замовлення -->
+<div class="a-modal" id="newOrderModal" role="dialog" aria-modal="true" aria-labelledby="newOrderTitle" hidden>
+  <div class="a-modal__backdrop" data-close></div>
+  <div class="a-modal__panel">
+    <header class="a-modal__head">
+      <h3 id="newOrderTitle">Нове замовлення</h3>
+      <button class="a-modal__close" data-close aria-label="Закрити">✕</button>
+    </header>
+
+    <div class="a-neworder">
+      <p class="ao-note">Замовлення з дзвінка, Direct або особистого спілкування. Обовʼязкові лише імʼя, телефон і хоча б один товар.</p>
+
+      <h5 class="ao-sub">Клієнт</h5>
+      <div class="a-grid-3">
+        <div class="field">
+          <label for="noName">Імʼя та прізвище *</label>
+          <input id="noName" autocomplete="off" placeholder="Олег Петренко">
+        </div>
+        <div class="field">
+          <label for="noPhone">Телефон *</label>
+          <input id="noPhone" type="tel" autocomplete="off" placeholder="+380...">
+        </div>
+        <div class="field">
+          <label for="noEmail">Email (для листа-підтвердження)</label>
+          <input id="noEmail" type="email" autocomplete="off" placeholder="необовʼязково">
+        </div>
+      </div>
+
+      <h5 class="ao-sub">Доставка</h5>
+      <div class="a-grid-3">
+        <div class="field">
+          <label for="noCarrier">Перевізник</label>
+          <select id="noCarrier">
+            <option>Нова Пошта</option>
+            <option>Укрпошта</option>
+            <option>Meest</option>
+            <option>Міжнародна доставка</option>
+            <option>Самовивіз</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="noCity">Місто</label>
+          <input id="noCity" autocomplete="off" placeholder="Київ">
+        </div>
+        <div class="field">
+          <label for="noBranch">Відділення / адреса</label>
+          <input id="noBranch" autocomplete="off" placeholder="Відділення №12">
+        </div>
+      </div>
+
+      <h5 class="ao-sub">Товари</h5>
+      <div id="noItems"></div>
+      <button class="btn btn--ghost btn--sm" id="noAddItem" type="button">+ Додати позицію</button>
+
+      <div class="a-grid-3">
+        <div class="field">
+          <label for="noDiscount">Знижка, грн</label>
+          <input id="noDiscount" type="number" min="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label for="noShipping">Доставка, грн</label>
+          <input id="noShipping" type="number" min="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label for="noSource">Звідки замовлення</label>
+          <select id="noSource">
+            <option>Instagram Direct</option>
+            <option>Телефон</option>
+            <option>Threads</option>
+            <option>TikTok</option>
+            <option>Особисто</option>
+            <option>Інше</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="noComment">Коментар до замовлення</label>
+        <input id="noComment" autocomplete="off" placeholder="напр.: передзвонити після 18:00, потрібна подарункова упаковка">
+      </div>
+
+      <div class="a-grid-2">
+        <div class="field">
+          <label for="noStatus">Початковий статус</label>
+          <select id="noStatus">
+            <option value="new">Нове — склад не чіпаємо</option>
+            <option value="confirmed">Підтверджено — одразу списати зі складу</option>
+          </select>
+        </div>
+        <label class="a-check a-check--pad"><input type="checkbox" id="noNotify"> Надіслати клієнту лист-підтвердження</label>
+      </div>
+
+      <div class="a-neworder__total" id="noTotal"></div>
+      <div class="a-publish__status" id="noStatusMsg" hidden></div>
+    </div>
+
+    <footer class="a-modal__foot">
+      <button class="btn btn--ghost" data-close type="button">Скасувати</button>
+      <button class="btn btn--primary" id="noCreateBtn" type="button">Створити замовлення</button>
+    </footer>
+  </div>
+</div>
+
 <!-- Налаштування сповіщень -->
 <div class="a-modal" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
   <div class="a-modal__backdrop" data-close></div>
@@ -324,9 +427,12 @@
 
 <!-- Сторінка «Замовлення» -->
 <div class="a-page" id="viewOrders" hidden>
-  <div class="a-page__head">
-    <h2>Замовлення</h2>
-    <p>Оформлені замовлення надходять сюди автоматично. Змінюйте статус — покупець бачить його у своєму кабінеті.</p>
+  <div class="a-page__head a-page__head--row">
+    <div>
+      <h2>Замовлення</h2>
+      <p>Оформлені замовлення надходять сюди автоматично. Змінюйте статус — покупець бачить його у своєму кабінеті.</p>
+    </div>
+    <button class="btn btn--primary" id="newOrderBtn" type="button">+ Нове замовлення</button>
   </div>
   <div class="a-orders a-orders--page" id="ordersBody"></div>
 </div>

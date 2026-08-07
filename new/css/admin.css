@@ -1189,6 +1189,144 @@
   width: 100%;
 }
 
+/* ---------- Ручне створення замовлення ---------- */
+
+.a-page__head--row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.a-neworder {
+  padding: 1.1rem 1.4rem 1.4rem;
+  overflow-y: auto;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.ao-sub {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--c-blue-ink);
+  border-top: 1px solid var(--c-line);
+  padding-top: 0.9rem;
+  margin-top: 0.2rem;
+}
+
+.a-check--pad {
+  align-self: end;
+  padding-bottom: 0.6rem;
+}
+
+/* Рядок товару */
+.a-norow {
+  display: grid;
+  grid-template-columns: minmax(160px, 2.4fr) minmax(110px, 1fr) 78px 118px 96px 34px;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.a-norow:last-of-type {
+  border-bottom: none;
+}
+
+.a-norow select,
+.a-norow input {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  font-size: 0.86rem;
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  background: var(--c-paper);
+}
+
+.a-norow select:focus,
+.a-norow input:focus {
+  outline: none;
+  border-color: var(--c-blue);
+}
+
+.a-norow__price {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--c-muted);
+}
+
+.a-norow__sum {
+  font-weight: 800;
+  font-size: 0.88rem;
+  text-align: right;
+}
+
+.a-norow__del {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--c-muted);
+  justify-self: center;
+}
+
+.a-norow__del:hover {
+  background: var(--c-red-soft);
+  color: var(--c-red);
+}
+
+.a-norow.is-short {
+  background: var(--c-amber-soft);
+  border-radius: var(--radius-sm);
+  padding-inline: 0.5rem;
+}
+
+.a-norow__warn {
+  grid-column: 1 / -1;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--c-amber);
+}
+
+@media (max-width: 780px) {
+  .a-norow {
+    grid-template-columns: 1fr 1fr;
+  }
+  .a-norow__product {
+    grid-column: 1 / -1;
+  }
+  .a-norow__sum {
+    text-align: left;
+  }
+}
+
+/* Підсумок */
+.a-neworder__total {
+  border-top: 1px solid var(--c-line);
+  padding-top: 0.8rem;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.a-neworder__total div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.a-neworder__total .is-sum {
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--c-blue-ink);
+  border-top: 1px solid var(--c-line);
+  margin-top: 0.3rem;
+  padding-top: 0.5rem;
+}
+
 .ao-count {
   text-align: center;
 }

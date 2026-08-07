@@ -1672,6 +1672,267 @@
   }
 
   /* ============================================================
+     РУЧНЕ СТВОРЕННЯ ЗАМОВЛЕННЯ
+     (дзвінок, Direct, особисте спілкування)
+     ============================================================ */
+
+  let noRows = [];      // рядки товарів: {pid, size, qty, price}
+  let noSeq = 0;
+
+  function noModal() {
+    return $id('newOrderModal');
+  }
+
+  function availableSizes(p) {
+    if (!isSized(p)) return [];
+    const s = invOf(p.id).sizes || {};
+    const tracked = Object.keys(s);
+    // якщо облік ще не ведеться — показуємо розміри з картки товару
+    return tracked.length ? R.config.allSizes.filter((x) => tracked.includes(x)) : (p.sizes || []);
+  }
+
+  function noRowHTML(row) {
+    const p = productById(row.pid);
+    const all = products();
+
+    const productSelect =
+      '<select data-no-pid>' +
+        '<option value="">— оберіть товар —</option>' +
+        categories().map((cat) => {
+          const items = all.filter((x) => x.category === cat.id);
+          if (!items.length) return '';
+          return '<optgroup label="' + esc(cat.title) + '">' +
+            items.map((x) =>
+              '<option value="' + esc(x.id) + '"' + (x.id === row.pid ? ' selected' : '') + '>' +
+                esc(x.name) + ' — ' + fmt(x.price) + ' грн' +
+              '</option>'
+            ).join('') +
+          '</optgroup>';
+        }).join('') +
+      '</select>';
+
+    let sizeSelect;
+    if (!p) {
+      sizeSelect = '<select data-no-size disabled><option>—</option></select>';
+    } else if (!isSized(p)) {
+      sizeSelect = '<select data-no-size><option value="' + esc(p.volume) + '">' + esc(p.volume) + '</option></select>';
+    } else {
+      const sizes = availableSizes(p);
+      sizeSelect =
+        '<select data-no-size>' +
+          (sizes.length
+            ? sizes.map((s) => {
+                const have = hasInvDoc(p.id) ? sizeQty(p.id, s) : null;
+                const label = s + (have === null ? '' : ' (' + have + ' шт)');
+                return '<option value="' + s + '"' + (s === row.size ? ' selected' : '') + '>' + label + '</option>';
+              }).join('')
+            : '<option value="">немає розмірів</option>') +
+        '</select>';
+    }
+
+    const short = p && isSized(p) && hasInvDoc(p.id) && row.size && sizeQty(p.id, row.size) < row.qty;
+
+    return (
+      '<div class="a-norow' + (short ? ' is-short' : '') + '" data-row="' + row.uid + '">' +
+        '<span class="a-norow__product">' + productSelect + '</span>' +
+        '<span class="a-norow__size">' + sizeSelect + '</span>' +
+        '<span class="a-norow__qty"><input type="number" min="1" value="' + row.qty + '" data-no-qty></span>' +
+        '<span class="a-norow__price"><input type="number" min="0" value="' + (row.price || 0) + '" data-no-price> грн</span>' +
+        '<span class="a-norow__sum">' + fmt((row.price || 0) * row.qty) + ' грн</span>' +
+        '<button class="a-norow__del" data-no-del type="button" title="Прибрати">✕</button>' +
+        (short ? '<span class="a-norow__warn">На складі лише ' + sizeQty(p.id, row.size) + ' шт — залишок піде в мінус</span>' : '') +
+      '</div>'
+    );
+  }
+
+  /* Рахуємо лише заповнені рядки — порожні не впливають на підсумок */
+  function noFilledRows() {
+    return noRows.filter((r) => !!productById(r.pid));
+  }
+
+  function noItemsTotal() {
+    return noFilledRows().reduce((s, r) => s + (Number(r.price) || 0) * (Number(r.qty) || 0), 0);
+  }
+
+  function noTotal() {
+    const discount = Number($id('noDiscount').value) || 0;
+    const shipping = Number($id('noShipping').value) || 0;
+    return Math.max(0, noItemsTotal() - discount + shipping);
+  }
+
+  function renderNoItems() {
+    $id('noItems').innerHTML = noRows.length
+      ? noRows.map(noRowHTML).join('')
+      : '<div class="a-empty">Додайте хоча б одну позицію.</div>';
+    renderNoTotal();
+  }
+
+  function renderNoTotal() {
+    const items = noItemsTotal();
+    const discount = Number($id('noDiscount').value) || 0;
+    const shipping = Number($id('noShipping').value) || 0;
+    const units = noFilledRows().reduce((s, r) => s + (Number(r.qty) || 0), 0);
+
+    $id('noTotal').innerHTML =
+      '<div><span>Товарів: ' + units + ' шт</span><span>' + fmt(items) + ' грн</span></div>' +
+      (discount ? '<div><span>Знижка</span><span>− ' + fmt(discount) + ' грн</span></div>' : '') +
+      (shipping ? '<div><span>Доставка</span><span>+ ' + fmt(shipping) + ' грн</span></div>' : '') +
+      '<div class="is-sum"><span>До сплати</span><span>' + fmt(noTotal()) + ' грн</span></div>';
+  }
+
+  function addNoRow() {
+    noRows.push({ uid: 'r' + (++noSeq), pid: '', size: '', qty: 1, price: 0 });
+    renderNoItems();
+  }
+
+  function openNewOrder() {
+    noRows = [];
+    noSeq = 0;
+    ['noName', 'noPhone', 'noEmail', 'noCity', 'noBranch', 'noComment'].forEach((id) => { $id(id).value = ''; });
+    $id('noDiscount').value = '';
+    $id('noShipping').value = '';
+    $id('noStatus').value = 'new';
+    $id('noNotify').checked = false;
+    $id('noStatusMsg').hidden = true;
+    addNoRow();
+    noModal().hidden = false;
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => $id('noName').focus(), 60);
+  }
+
+  function buildOrderMessage(order) {
+    const lines = [];
+    lines.push('🛍 Замовлення №' + order.num + ' — reyter.men');
+    lines.push('');
+    order.items.forEach((i, n) => {
+      lines.push(n + 1 + '. ' + i.name + ' (' + i.id + ')');
+      lines.push('   ' + (i.size ? (i.volume ? 'обʼєм ' : 'розмір ') + i.size + ' · ' : '') +
+        i.qty + ' шт · ' + fmt(i.price * i.qty) + ' грн');
+    });
+    lines.push('');
+    if (order.discount) lines.push('Знижка: −' + fmt(order.discount) + ' грн');
+    if (order.shipping) lines.push('Доставка: +' + fmt(order.shipping) + ' грн');
+    lines.push('Разом: ' + fmt(order.total) + ' грн');
+    lines.push('');
+    lines.push('👤 ' + order.customer.name);
+    lines.push('📞 ' + order.customer.phone);
+    const delivery = [order.customer.carrier, order.customer.city, order.customer.branch]
+      .filter(Boolean).join(', ');
+    if (delivery) lines.push('🚚 ' + delivery);
+    if (order.customer.comment) lines.push('💬 ' + order.customer.comment);
+    return lines.join('\n');
+  }
+
+  function orderNumber() {
+    const now = new Date();
+    return 'R-' + String(now.getFullYear()).slice(2) +
+      pad2(now.getMonth() + 1) + pad2(now.getDate()) +
+      '-' + String(Math.floor(100 + Math.random() * 900));
+  }
+
+  async function createManualOrder() {
+    const name = $id('noName').value.trim();
+    const phone = $id('noPhone').value.trim();
+
+    if (!name) return setNoStatus('err', 'Вкажіть імʼя клієнта');
+    if (!phone) return setNoStatus('err', 'Вкажіть телефон клієнта');
+
+    const items = [];
+    for (const row of noRows) {
+      const p = productById(row.pid);
+      if (!p) continue;
+      if (isSized(p) && !row.size) {
+        return setNoStatus('err', 'Оберіть розмір для «' + p.name + '»');
+      }
+      const qty = Math.max(1, Math.trunc(Number(row.qty) || 1));
+      items.push({
+        id: p.id,
+        name: p.name,
+        size: row.size || null,
+        qty: qty,
+        price: Math.max(0, Math.trunc(Number(row.price) || 0)),
+        volume: !!p.volume
+      });
+    }
+
+    if (!items.length) return setNoStatus('err', 'Додайте хоча б один товар');
+
+    const discount = Number($id('noDiscount').value) || 0;
+    const shipping = Number($id('noShipping').value) || 0;
+    const status = $id('noStatus').value;
+
+    const customer = {
+      name: name,
+      phone: phone,
+      email: $id('noEmail').value.trim(),
+      carrier: $id('noCarrier').value,
+      city: $id('noCity').value.trim(),
+      branch: $id('noBranch').value.trim(),
+      comment: $id('noComment').value.trim()
+    };
+
+    const order = {
+      num: orderNumber(),
+      date: new Date().toISOString(),
+      items: items,
+      discount: discount,
+      shipping: shipping,
+      total: Math.max(0, items.reduce((s, i) => s + i.price * i.qty, 0) - discount + shipping),
+      customer: customer,
+      email: customer.email,
+      status: status,
+      uid: null,
+      source: $id('noSource').value,
+      createdBy: (R.fb.user && R.fb.user.email) || '',
+      created: firebase.firestore.FieldValue.serverTimestamp(),
+      statusLog: [statusLogEntry(status)]
+    };
+    order.message = buildOrderMessage(order);
+
+    // Попередження про нестачу, якщо одразу підтверджуємо
+    if (CONSUMING.includes(status)) {
+      const short = stockShortage(order);
+      if (short.length) {
+        const ok = confirm('На складі не вистачає товару:\n\n' + short.join('\n') +
+          '\n\nСтворити замовлення? Залишки підуть у мінус.');
+        if (!ok) return;
+      }
+    }
+
+    setNoStatus('wait', 'Створюємо замовлення…');
+
+    try {
+      const batch = R.fb.db.batch();
+      const ref = R.fb.db.collection('orders').doc();
+
+      if (CONSUMING.includes(status)) {
+        order.stockApplied = true;
+        adjustOrderStock(batch, order, -1);
+      }
+
+      batch.set(ref, order);
+      await batch.commit();
+
+      if ($id('noNotify').checked && customer.email) {
+        R.notify.orderPlaced(order);
+      }
+
+      noModal().hidden = true;
+      document.body.style.overflow = '';
+      toast('Замовлення №' + order.num + ' створено ✓', 'success');
+    } catch (err) {
+      setNoStatus('err', 'Не вдалося створити замовлення. Перевірте правила Firestore (потрібен дозвіл create для адміна).');
+    }
+  }
+
+  function setNoStatus(cls, text) {
+    const el = $id('noStatusMsg');
+    el.hidden = false;
+    el.className = 'a-publish__status ' + cls;
+    el.textContent = text;
+  }
+
+  /* ============================================================
      ПАНЕЛЬ «СКЛАД»
      ============================================================ */
 
@@ -2274,6 +2535,52 @@
     $id('saveSettingsBtn').addEventListener('click', saveSettings);
     $id('gateLoginBtn').addEventListener('click', signInGoogle);
     $id('gateLogoutBtn').addEventListener('click', () => R.fb.auth.signOut());
+
+    /* ---- ручне замовлення ---- */
+
+    $id('newOrderBtn').addEventListener('click', openNewOrder);
+    $id('noAddItem').addEventListener('click', addNoRow);
+    $id('noCreateBtn').addEventListener('click', createManualOrder);
+
+    noModal().addEventListener('click', (e) => {
+      const del = e.target.closest('[data-no-del]');
+      if (del) {
+        const rowEl = del.closest('[data-row]');
+        noRows = noRows.filter((r) => r.uid !== rowEl.dataset.row);
+        if (!noRows.length) addNoRow();
+        else renderNoItems();
+      }
+    });
+
+    noModal().addEventListener('change', (e) => {
+      const rowEl = e.target.closest('[data-row]');
+
+      if (rowEl) {
+        const row = noRows.find((r) => r.uid === rowEl.dataset.row);
+        if (!row) return;
+
+        if (e.target.matches('[data-no-pid]')) {
+          row.pid = e.target.value;
+          const p = productById(row.pid);
+          row.price = p ? p.price : 0;
+          const sizes = p ? availableSizes(p) : [];
+          row.size = p && !isSized(p) ? p.volume : (sizes[0] || '');
+          renderNoItems();
+          return;
+        }
+        if (e.target.matches('[data-no-size]')) row.size = e.target.value;
+        if (e.target.matches('[data-no-qty]')) row.qty = Math.max(1, Math.trunc(Number(e.target.value) || 1));
+        if (e.target.matches('[data-no-price]')) row.price = Math.max(0, Math.trunc(Number(e.target.value) || 0));
+        renderNoItems();
+        return;
+      }
+
+      if (['noDiscount', 'noShipping'].includes(e.target.id)) renderNoTotal();
+    });
+
+    noModal().addEventListener('input', (e) => {
+      if (['noDiscount', 'noShipping'].includes(e.target.id)) renderNoTotal();
+    });
 
     /* ---- налаштування ---- */
 
