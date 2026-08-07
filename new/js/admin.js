@@ -2306,22 +2306,41 @@
     });
 
     $id('tgDetectBtn').addEventListener('click', async () => {
-      setSettingsStatus('wait', 'Шукаємо ваш Chat ID…');
-      const res = await R.notify.detectChatId($id('stTgToken').value.trim());
-      if (res.ok) {
-        $id('stTgChat').value = res.chatId;
-        setSettingsStatus('ok', 'Знайдено' + (res.name ? ' (' + res.name + ')' : '') + ': ' + res.chatId + ' ✓ Не забудьте зберегти');
-      } else {
+      setSettingsStatus('wait', 'Шукаємо чати…');
+      const res = await R.notify.detectChats($id('stTgToken').value.trim());
+      if (!res.ok) {
         setSettingsStatus('err', res.description);
+        return;
       }
+
+      // Додаємо знайдені чати до вже вписаних, без дублікатів
+      const field = $id('stTgChat');
+      const existing = field.value.split(/[,;\s]+/).map((s) => s.trim()).filter(Boolean);
+      const added = [];
+      res.chats.forEach((c) => {
+        if (!existing.includes(c.id)) {
+          existing.push(c.id);
+          added.push((c.isGroup ? 'група ' : '') + (c.name || c.id));
+        }
+      });
+      field.value = existing.join(', ');
+
+      setSettingsStatus('ok', added.length
+        ? 'Додано: ' + added.join(', ') + ' ✓ Не забудьте зберегти'
+        : 'Нових чатів не знайдено — усі вже у списку');
     });
 
     $id('tgTestBtn').addEventListener('click', async () => {
       setSettingsStatus('wait', 'Надсилаємо тест у Telegram…');
       const res = await R.notify.testTelegram(settingsFromForm());
-      setSettingsStatus(res.ok ? 'ok' : 'err', res.ok
-        ? 'Тестове повідомлення надіслано ✓ Перевірте Telegram'
-        : tgErrorHint(res.description));
+      if (res.sent === res.total && res.sent > 0) {
+        setSettingsStatus('ok', 'Надіслано отримувачам: ' + res.sent + ' ✓ Перевірте Telegram');
+      } else if (res.sent > 0) {
+        setSettingsStatus('err', 'Надіслано ' + res.sent + ' із ' + res.total +
+          '. Не вдалося: ' + tgErrorHint(res.description));
+      } else {
+        setSettingsStatus('err', tgErrorHint(res.description));
+      }
     });
 
     $id('fsTestBtn').addEventListener('click', async () => {
@@ -2332,9 +2351,15 @@
       }
       setSettingsStatus('wait', 'Надсилаємо тестовий лист…');
       const res = await R.notify.testEmail(settingsFromForm(), to);
-      setSettingsStatus(res.ok ? 'ok' : 'err', res.ok
-        ? 'Лист надіслано ✓ Якщо це перший раз — відкрийте пошту магазину і натисніть Activate у листі від FormSubmit'
-        : (res.description || 'Не вдалося надіслати'));
+      if (res.ok) {
+        setSettingsStatus('ok', 'Лист надіслано ✓ Перевірте пошту (і папку Спам)');
+      } else if (res.needsActivation) {
+        setSettingsStatus('wait',
+          'Потрібна разова активація: відкрийте пошту ' + ($id('stFsEmail').value.trim() || 'магазину') +
+          ', знайдіть лист від FormSubmit і натисніть «Activate Form». Після цього натисніть «Тест» ще раз.');
+      } else {
+        setSettingsStatus('err', res.description || 'Не вдалося надіслати');
+      }
     });
 
     document.addEventListener('auth:changed', () => {

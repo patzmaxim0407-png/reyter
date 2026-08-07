@@ -247,12 +247,16 @@
         <p class="field__hint">Напишіть у Telegram боту <b>@BotFather</b> → /newbot → скопіюйте токен. Потім відкрийте свого нового бота і натисніть <b>Start</b>.</p>
       </div>
       <div class="field">
-        <label for="stTgChat">Chat ID (ваш особистий, не бота)</label>
+        <label for="stTgChat">Кому надсилати (Chat ID, можна кілька через кому)</label>
         <div class="ao-addadmin">
-          <input id="stTgChat" autocomplete="off" placeholder="123456789">
+          <input id="stTgChat" autocomplete="off" placeholder="229167654, -1001234567890">
           <button class="btn btn--ghost btn--sm" id="tgDetectBtn" type="button">Визначити</button>
         </div>
-        <p class="field__hint">Напишіть своєму боту будь-яке повідомлення і натисніть «Визначити» — Chat ID підставиться сам.</p>
+        <p class="field__hint">
+          <b>Одному менеджеру:</b> напишіть боту будь-що і натисніть «Визначити».<br>
+          <b>Кільком людям:</b> нехай кожен напише боту — потім натисніть «Визначити», усі ID додадуться через кому.<br>
+          <b>Спільна група:</b> створіть групу, додайте туди бота, напишіть у ній будь-що і натисніть «Визначити» — ID групи (з мінусом) підставиться сам. Тоді сповіщення бачить уся команда.
+        </p>
       </div>
       <button class="btn btn--ghost btn--sm" id="tgTestBtn" type="button">Надіслати тестове повідомлення</button>
 

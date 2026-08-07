@@ -28,44 +28,80 @@
     }
   }
 
-  /* ---------- Telegram власнику ---------- */
+  /* ---------- Telegram ----------
+     Отримувачів може бути кілька: особисті чати менеджерів
+     або спільна група — Chat ID перелічуються через кому. */
 
-  async function sendTelegram(settings, text) {
-    if (!settings || !settings.tgToken || !settings.tgChatId) {
-      return { ok: false, description: 'Не заповнено токен або Chat ID' };
-    }
+  function chatIds(settings) {
+    return String((settings && settings.tgChatId) || '')
+      .split(/[,;\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  async function sendToChat(token, chatId, text) {
     try {
-      const res = await fetch('https://api.telegram.org/bot' + settings.tgToken + '/sendMessage', {
+      const res = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: settings.tgChatId,
+          chat_id: chatId,
           text: text,
           disable_web_page_preview: true
         })
       });
       const data = await res.json().catch(() => ({}));
-      return { ok: !!data.ok, description: data.description || '' };
+      return { ok: !!data.ok, chatId: chatId, description: data.description || '' };
     } catch (e) {
-      return { ok: false, description: 'Немає звʼязку з Telegram' };
+      return { ok: false, chatId: chatId, description: 'Немає звʼязку з Telegram' };
     }
   }
 
-  /* Визначає Chat ID з останнього повідомлення, надісланого боту */
-  async function detectChatId(token) {
+  async function sendTelegram(settings, text) {
+    const ids = chatIds(settings);
+    if (!settings || !settings.tgToken || !ids.length) {
+      return { ok: false, sent: 0, total: 0, description: 'Не заповнено токен або Chat ID' };
+    }
+
+    const results = await Promise.all(ids.map((id) => sendToChat(settings.tgToken, id, text)));
+    const failed = results.filter((r) => !r.ok);
+
+    return {
+      ok: failed.length < results.length,   // хоч комусь дійшло
+      sent: results.length - failed.length,
+      total: results.length,
+      description: failed.map((f) => f.chatId + ' — ' + f.description).join('; ')
+    };
+  }
+
+  /* Знаходить усі чати, які писали боту (особисті та групи) */
+  async function detectChats(token) {
     if (!token) return { ok: false, description: 'Спершу вставте токен бота' };
     try {
       const res = await fetch('https://api.telegram.org/bot' + token + '/getUpdates');
       const data = await res.json().catch(() => ({}));
       if (!data.ok) return { ok: false, description: data.description || 'Невірний токен' };
-      const updates = data.result || [];
-      for (let i = updates.length - 1; i >= 0; i--) {
-        const msg = updates[i].message || updates[i].edited_message;
-        if (msg && msg.chat && msg.chat.id) {
-          return { ok: true, chatId: String(msg.chat.id), name: msg.chat.first_name || msg.chat.title || '' };
-        }
+
+      const seen = {};
+      (data.result || []).forEach((u) => {
+        const msg = u.message || u.edited_message || u.my_chat_member;
+        const chat = msg && msg.chat;
+        if (!chat || !chat.id) return;
+        seen[String(chat.id)] = {
+          id: String(chat.id),
+          name: chat.title || [chat.first_name, chat.last_name].filter(Boolean).join(' ') || chat.username || '',
+          isGroup: chat.type === 'group' || chat.type === 'supergroup'
+        };
+      });
+
+      const chats = Object.keys(seen).map((k) => seen[k]);
+      if (!chats.length) {
+        return {
+          ok: false,
+          description: 'Повідомлень не знайдено. Напишіть боту будь-що (або додайте його в групу і напишіть там) і спробуйте ще раз'
+        };
       }
-      return { ok: false, description: 'Повідомлень не знайдено. Напишіть будь-що своєму боту і спробуйте ще раз' };
+      return { ok: true, chats: chats };
     } catch (e) {
       return { ok: false, description: 'Немає звʼязку з Telegram' };
     }
@@ -114,7 +150,12 @@
       });
       const data = await res.json().catch(() => ({}));
       const ok = res.ok && (data.success === true || data.success === 'true');
-      return { ok: ok, description: ok ? '' : (data.message || 'FormSubmit відхилив запит') };
+      const msg = String(data.message || '');
+      return {
+        ok: ok,
+        needsActivation: /activat/i.test(msg),
+        description: ok ? '' : (msg || 'FormSubmit відхилив запит')
+      };
     } catch (e) {
       return { ok: false, description: 'Немає звʼязку з FormSubmit' };
     }
@@ -124,7 +165,7 @@
 
   R.notify = {
     load: loadSettings,
-    detectChatId: detectChatId,
+    detectChats: detectChats,
 
     /* Викликається після оформлення замовлення; помилки не блокують покупку */
     async orderPlaced(order) {
