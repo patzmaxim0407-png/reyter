@@ -1,0 +1,185 @@
+/* ============================================
+   FRIENDLY CLUB — банер із кнопкою «Тут»
+   та оверлеєм-описом поверх фото
+   ============================================ */
+@import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@600;700&display=swap');
+
+.friendly-club {
+  position: relative;
+  margin: 30px 0;
+  scroll-margin-top: 95px; /* висота фіксованої шапки */
+}
+
+.friendly-club .fc-photo {
+  width: 100%;
+  display: block;
+}
+
+/* --- Кнопка «Тут» --- */
+.fc-btn {
+  position: absolute;
+  left: 50%;
+  top: 88%;
+  transform: translate(-50%, -50%);
+  padding: .5em 1.7em;
+  border: none;
+  border-radius: .5em;
+  background: #fff;
+  color: #101010;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: clamp(14px, 2vw, 28px);
+  line-height: 1.35;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 8px 22px rgba(23, 62, 78, .25);
+  transition: transform .25s ease, box-shadow .25s ease;
+  animation: fc-pulse 2.8s ease-in-out infinite;
+}
+
+.fc-btn:hover,
+.fc-btn:focus-visible {
+  transform: translate(-50%, -50%) scale(1.09);
+  box-shadow: 0 12px 30px rgba(23, 62, 78, .35);
+}
+
+.fc-btn:active {
+  transform: translate(-50%, -50%) scale(.96);
+}
+
+@keyframes fc-pulse {
+  0%   { box-shadow: 0 8px 22px rgba(23, 62, 78, .25), 0 0 0 0 rgba(255, 255, 255, .55); }
+  70%  { box-shadow: 0 8px 22px rgba(23, 62, 78, .25), 0 0 0 18px rgba(255, 255, 255, 0); }
+  100% { box-shadow: 0 8px 22px rgba(23, 62, 78, .25), 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+
+/* --- Оверлей поверх фото --- */
+.fc-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  background: #9ac9d9; /* точний колір фону банера */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  opacity: 0;
+  transition: opacity .35s ease;
+}
+
+.fc-overlay.fc-open {
+  opacity: 1;
+}
+
+.fc-overlay[hidden] {
+  display: none;
+}
+
+.fc-close {
+  position: sticky;
+  top: 14px;
+  float: right;
+  margin: 14px 16px 0 0;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .92);
+  color: #16404f;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 2;
+  box-shadow: 0 4px 14px rgba(23, 62, 78, .2);
+  transition: transform .25s ease, background .25s ease;
+}
+
+.fc-close:hover {
+  background: #fff;
+  transform: rotate(90deg);
+}
+
+/* --- Текст --- */
+.fc-content {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: clamp(30px, 6vh, 70px) clamp(20px, 5vw, 50px) clamp(30px, 6vh, 60px);
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  text-align: center;
+  transform: translateY(24px);
+  transition: transform .45s cubic-bezier(.22, .9, .35, 1);
+}
+
+.fc-overlay.fc-open .fc-content {
+  transform: translateY(0);
+}
+
+.fc-title {
+  font-family: 'Comfortaa', 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: clamp(30px, 4.6vw, 58px);
+  letter-spacing: .01em;
+  margin: 0 0 .7em;
+}
+
+.fc-content p {
+  margin: 0 0 1.05em;
+  font-size: clamp(14.5px, 1.4vw, 18.5px);
+  line-height: 1.7;
+}
+
+.fc-subtitle {
+  font-family: 'Comfortaa', 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: clamp(20px, 2.4vw, 30px);
+  margin: 1.3em 0 .8em;
+}
+
+.fc-list {
+  list-style: none;
+  display: inline-block;
+  text-align: left;
+  margin: 0 0 1.1em;
+  padding: 0;
+}
+
+.fc-list li {
+  position: relative;
+  padding-left: 28px;
+  margin-bottom: .55em;
+  font-size: clamp(14.5px, 1.4vw, 18.5px);
+  line-height: 1.55;
+}
+
+.fc-list li::before {
+  content: '✦';
+  position: absolute;
+  left: 4px;
+  top: 0;
+}
+
+.fc-content .fc-note {
+  font-size: clamp(13px, 1.2vw, 15.5px);
+  font-style: italic;
+  opacity: .92;
+  margin: .5em 0 0;
+}
+
+/* --- Мобільна версія: оверлей на весь екран, щоб текст читався --- */
+@media (max-width: 640px) {
+  .fc-overlay {
+    position: fixed;
+    z-index: 12000;
+  }
+}
+
+/* --- Зменшення анімацій --- */
+@media (prefers-reduced-motion: reduce) {
+  .fc-btn {
+    animation: none;
+  }
+
+  .fc-overlay,
+  .fc-content {
+    transition: none;
+  }
+}

@@ -59,6 +59,9 @@
   <!-- Кавунопад easter egg -->
   <link rel="stylesheet" href="../styles/kavunopad.css?v=1.3">
 
+  <!-- Friendly Club -->
+  <link rel="stylesheet" href="../styles/friendly-club.css?v=1.0">
+
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <!-- Падаючий сніг -->
@@ -180,7 +183,30 @@
     <source src="assets/videos/video-page.MP4" type="video/mp4">
   </video> -->
 
-  <img src="/assets/images/IMG_5665.JPG" alt="Reyter" style="width:100%;display:block;margin-top: 30px;margin-bottom: 30px;">
+  <!-- Friendly Club: банер із кнопкою «Тут» -->
+  <div class="friendly-club" id="friendlyClub">
+    <img src="/assets/images/Serpen2026/IMG_2325.webp" alt="Стань частиною Friendly Club — Reyter" class="fc-photo">
+    <button type="button" class="fc-btn" aria-haspopup="dialog">Тут</button>
+
+    <div class="fc-overlay" role="dialog" aria-modal="true" aria-label="Friendly Club" hidden>
+      <button type="button" class="fc-close" aria-label="Закрити">&times;</button>
+      <div class="fc-content">
+        <h3 class="fc-title">Friendly Club✨</h3>
+        <p><strong>Friendly Club</strong> — це ком’юніті людей, які є частиною Reyter.</p>
+        <p>Тут ми ділимося: раннім доступом до нових дропів, емоціями, закуліссям бренду, спеціальними пропозиціями та іншими приємними бонусами😊</p>
+        <p>Потрапити до Friendly Club можна не за заявкою, а природно — якщо ти регулярно обираєш Reyter, взаємодієш із брендом і залишаєшся частиною нашої спільноти💙</p>
+        <h4 class="fc-subtitle">Як формується Friendly Club🙃</h4>
+        <p>Ми запрошуємо людей, які:</p>
+        <ul class="fc-list">
+          <li>регулярно обирають Reyter;</li>
+          <li>взаємодіють із брендом у соцмережах;</li>
+          <li>відмічають нас у своїх публікаціях або сторіс;</li>
+          <li>залишаються на зв’язку з нами та підтримують наше ком’юніті.</li>
+        </ul>
+        <p class="fc-note">*ми дивимося не лише на покупки, а й на справжній інтерес до бренду🫂</p>
+      </div>
+    </div>
+  </div>
 
   
 
@@ -1079,6 +1105,7 @@
   <script src="../scripts/size-guide.js"></script>
   <script src="../scripts/home-collection.js"></script>
   <script src="../scripts/kavunopad.js?v=1.3" defer></script>
+  <script src="../scripts/friendly-club.js?v=1.0" defer></script>
 
 
   <!-- Snow Animation Script -->
