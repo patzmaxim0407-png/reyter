@@ -275,11 +275,119 @@
   font-weight: 700;
 }
 
-.pinfo__sizes-head a {
+.pinfo__sizes-head button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   font-size: 0.83rem;
+  font-weight: 600;
   color: var(--c-blue);
-  text-decoration: none;
   border-bottom: 1px dashed rgba(1, 74, 173, 0.45);
+  padding-bottom: 1px;
+}
+
+.pinfo__sizes-head button::after {
+  content: '▾';
+  font-size: 0.7rem;
+  transition: transform var(--t-fast);
+}
+
+.pinfo__sizes-head button.is-open::after {
+  transform: rotate(180deg);
+}
+
+/* ---------- Розмірна сітка всередині картки ---------- */
+.pinfo__sizechart {
+  margin-top: 0.8rem;
+  background: var(--c-paper);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem 1rem;
+  animation: chartIn 0.28s var(--ease-out);
+}
+
+@keyframes chartIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.pinfo__sizechart-hint {
+  font-size: 0.82rem;
+  color: var(--c-muted);
+  margin-bottom: 0.7rem;
+}
+
+.pinfo__sizechart table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.pinfo__sizechart th {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.pinfo__sizechart td {
+  padding: 0.45rem 0;
+  border-bottom: 1px solid rgba(23, 27, 38, 0.06);
+}
+
+.pinfo__sizechart td:first-child {
+  font-weight: 800;
+  color: var(--c-blue);
+}
+
+/* Рядок обраного розміру підсвічено */
+.pinfo__sizechart tr.is-current td {
+  background: rgba(1, 74, 173, 0.07);
+}
+
+.pinfo__sizechart tr.is-current td:first-child {
+  border-radius: 6px 0 0 6px;
+  padding-left: 0.4rem;
+}
+
+.pinfo__sizechart tr.is-current td:last-child {
+  border-radius: 0 6px 6px 0;
+  padding-right: 0.4rem;
+}
+
+.pinfo__sizechart-img {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  margin-top: 0.8rem;
+  padding: 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--c-cream);
+  text-align: left;
+  transition: background-color var(--t-fast);
+}
+
+.pinfo__sizechart-img:hover {
+  background: var(--c-cream-dark);
+}
+
+.pinfo__sizechart-img img {
+  width: 68px;
+  height: 68px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.pinfo__sizechart-img span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--c-blue);
 }
 
 .sizes {
@@ -352,6 +460,63 @@
 /* Ціна в липкій панелі — лише на телефоні */
 .pinfo__cta-price {
   display: none;
+}
+
+/* ---------- Підтвердження «Додано» ---------- */
+.btn--order {
+  position: relative;
+  overflow: hidden;
+  transition: background-color 0.25s var(--ease-out),
+              transform var(--t-fast), box-shadow var(--t-fast);
+}
+
+.btn--order.is-added {
+  background: var(--c-green);
+  box-shadow: 0 8px 22px rgba(21, 128, 61, 0.32);
+  animation: addedPop 0.4s var(--ease-out);
+}
+
+.btn--order.is-added:hover {
+  background: var(--c-green);
+}
+
+/* Кошик змінюється на галочку */
+.btn--order .ico-check {
+  display: none;
+}
+
+.btn--order.is-added .ico-cart {
+  display: none;
+}
+
+.btn--order.is-added .ico-check {
+  display: block;
+  animation: checkPop 0.4s var(--ease-out);
+}
+
+@keyframes addedPop {
+  0%   { transform: scale(1); }
+  38%  { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+
+@keyframes checkPop {
+  0%   { transform: scale(0.3) rotate(-20deg); opacity: 0; }
+  55%  { transform: scale(1.2) rotate(4deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+/* Розміри «підстрибують», якщо не обрано жодного */
+.sizes.shake {
+  animation: sizesShake 0.4s ease;
+}
+
+@keyframes sizesShake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-5px); }
+  40%      { transform: translateX(5px); }
+  60%      { transform: translateX(-3px); }
+  80%      { transform: translateX(3px); }
 }
 
 .pinfo__order-note {
@@ -485,7 +650,7 @@
     padding-bottom: calc(84px + env(safe-area-inset-bottom));
   }
 
-  /* Смужка-«ручка», як у нативних нижніх панелей */
+  /* Смужка-«ручка»: за неї панель тягнеться вниз і закривається */
   .pmodal__panel::before {
     content: '';
     position: sticky;
@@ -493,10 +658,10 @@
     z-index: 4;
     display: block;
     width: 44px;
-    height: 4px;
-    margin: -4px auto 4px;
+    height: 5px;
+    margin: -4px auto 6px;
     border-radius: 999px;
-    background: rgba(23, 27, 38, 0.2);
+    background: rgba(23, 27, 38, 0.24);
   }
 
   .gal__main {

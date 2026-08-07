@@ -126,6 +126,7 @@
       'p.photos': 'Фото товару',
       'p.chooseSize': 'Оберіть розмір',
       'p.added': 'Додано в кошик ✓',
+      'p.addedShort': 'Додано',
 
       'cart.title': 'Кошик',
       'cart.empty': 'Кошик порожній',
@@ -324,6 +325,7 @@
       'p.photos': 'Product photos',
       'p.chooseSize': 'Choose a size',
       'p.added': 'Added to cart ✓',
+      'p.addedShort': 'Added',
 
       'cart.title': 'Cart',
       'cart.empty': 'Your cart is empty',

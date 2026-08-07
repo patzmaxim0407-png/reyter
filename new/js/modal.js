@@ -34,6 +34,7 @@
     el.sizesTitle = document.getElementById('pmSizesTitle');
     el.sizes = document.getElementById('pmSizes');
     el.sizeLink = document.getElementById('pmSizeLink');
+    el.sizeChart = document.getElementById('pmSizeChart');
     el.addCart = document.getElementById('pmAddCart');
     el.addCartLabel = document.getElementById('pmAddCartLabel');
     el.ctaPrice = document.getElementById('pmCtaPrice');
@@ -118,6 +119,7 @@
       selectedSize = !av.soldOut ? p.volume : null;
       el.sizesBlock.hidden = false;
       el.sizeLink.hidden = true;
+      toggleSizeChart(false);
       return;
     }
 
@@ -129,6 +131,7 @@
     el.sizesTitle.textContent = R.t('p.size');
     el.sizeLink.hidden = false;
     el.sizesBlock.hidden = false;
+    toggleSizeChart(false); // при відкритті іншого товару підказка згорнута
 
     let first = true;
 
@@ -147,6 +150,44 @@
         });
       })
       .join('');
+  }
+
+  /* ---------- Розмірна сітка прямо в картці ----------
+     Раніше посилання закривало товар і кидало користувача
+     в іншу секцію — повернутися було нічим. */
+
+  function renderSizeChart() {
+    const rows = (R.config.sizeChart || [])
+      .map((r) =>
+        '<tr' + (r.size === selectedSize ? ' class="is-current"' : '') + '>' +
+          '<td>' + R.esc(r.size) + '</td>' +
+          '<td>' + R.esc(r.waist) + '</td>' +
+          '<td>' + R.esc(r.hips) + '</td>' +
+        '</tr>'
+      ).join('');
+
+    el.sizeChart.innerHTML =
+      '<p class="pinfo__sizechart-hint">' + R.t('size.sub') + '</p>' +
+      '<table>' +
+        '<thead><tr>' +
+          '<th>' + R.t('size.col1') + '</th>' +
+          '<th>' + R.t('size.col2') + '</th>' +
+          '<th>' + R.t('size.col3') + '</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+      '<button type="button" class="pinfo__sizechart-img" data-size-photo>' +
+        '<img src="../assets/images/size_2.webp" alt="' + R.esc(R.t('size.alt')) + '" loading="lazy">' +
+        '<span>' + R.t('size.caption') + '</span>' +
+      '</button>';
+  }
+
+  function toggleSizeChart(force) {
+    const open = force !== undefined ? force : el.sizeChart.hidden;
+    if (open) renderSizeChart();
+    el.sizeChart.hidden = !open;
+    el.sizeLink.setAttribute('aria-expanded', open ? 'true' : 'false');
+    el.sizeLink.classList.toggle('is-open', open);
   }
 
   /* ---------- Опис і додаткові блоки ---------- */
@@ -191,7 +232,23 @@
     const soldOut = currentAv.soldOut;
     el.addCart.disabled = soldOut;
     el.addCart.classList.toggle('is-disabled', soldOut);
+    el.addCart.classList.remove('is-added');
+    clearTimeout(addedTimer);
     el.addCartLabel.textContent = soldOut ? R.t('p.soldOut') : R.t('p.addToCart');
+  }
+
+  /* Кнопка на дві секунди перетворюється на підтвердження */
+  let addedTimer = null;
+
+  function confirmAdded() {
+    clearTimeout(addedTimer);
+    el.addCart.classList.add('is-added');
+    el.addCartLabel.textContent = R.t('p.addedShort');
+
+    addedTimer = setTimeout(() => {
+      el.addCart.classList.remove('is-added');
+      el.addCartLabel.textContent = R.t('p.addToCart');
+    }, 2000);
   }
 
   /* ---------- Відкриття / закриття ---------- */
@@ -268,6 +325,62 @@
     if (!lbStandalone && current) setImage(lbIndex);
   }
 
+  /* ---------- Свайп униз закриває картку (телефон) ----------
+     Смужка-«ручка» вгорі — не просто прикраса: тягнеш униз,
+     і панель закривається, як у нативних застосунках. */
+
+  function initSheetDrag() {
+    const panel = el.modal.querySelector('.pmodal__panel');
+    const backdrop = el.modal.querySelector('.pmodal__backdrop');
+    if (!panel) return;
+
+    let startY = 0;
+    let shift = 0;
+    let dragging = false;
+
+    const isSheet = () => window.matchMedia('(max-width: 820px)').matches;
+
+    panel.addEventListener('touchstart', (e) => {
+      // тягнемо лише коли вміст догорнуто до самого верху
+      if (!isSheet() || e.touches.length !== 1 || panel.scrollTop > 0) return;
+      startY = e.touches[0].clientY;
+      shift = 0;
+      dragging = true;
+      panel.style.transition = 'none';
+    }, { passive: true });
+
+    panel.addEventListener('touchmove', (e) => {
+      if (!dragging) return;
+      const dy = e.touches[0].clientY - startY;
+
+      if (dy <= 0) {           // потягнули вгору — віддаємо прокрутку вмісту
+        shift = 0;
+        panel.style.transform = '';
+        dragging = false;
+        panel.style.transition = '';
+        return;
+      }
+
+      e.preventDefault();      // забираємо жест собі
+      shift = dy;
+      panel.style.transform = 'translateY(' + dy + 'px)';
+      if (backdrop) backdrop.style.opacity = String(Math.max(0.15, 1 - dy / 450));
+    }, { passive: false });
+
+    function endDrag() {
+      if (!dragging) return;
+      dragging = false;
+      panel.style.transition = '';
+      panel.style.transform = '';
+      if (backdrop) backdrop.style.opacity = '';
+      if (shift > 110) R.overlay.close(el.modal);
+      shift = 0;
+    }
+
+    panel.addEventListener('touchend', endDrag);
+    panel.addEventListener('touchcancel', endDrag);
+  }
+
   /* ---------- Ініціалізація ---------- */
 
   function init() {
@@ -291,17 +404,29 @@
       }
     });
 
-    el.sizeLink.addEventListener('click', () => R.overlay.close(el.modal));
+    el.sizeLink.addEventListener('click', () => toggleSizeChart());
+
+    // Фото заміру відкривається на весь екран
+    el.sizeChart.addEventListener('click', (e) => {
+      if (e.target.closest('[data-size-photo]')) {
+        R.openLightbox(['../assets/images/size_2.webp'], 0, true);
+      }
+    });
 
     el.addCart.addEventListener('click', () => {
       if (!current || currentAv.soldOut) return;
       if (!current.volume && !selectedSize) {
         R.toast(R.t('p.chooseSize'));
+        el.sizes.classList.remove('shake');
+        void el.sizes.offsetWidth; // перезапуск анімації
+        el.sizes.classList.add('shake');
         return;
       }
       R.cart.add(current.id, selectedSize);
-      R.toast(R.t('p.added'), 'success');
+      confirmAdded();
     });
+
+    initSheetDrag();
 
     // Свайпи по галереї
     let sx = null, sy = null;

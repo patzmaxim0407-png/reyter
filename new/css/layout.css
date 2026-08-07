@@ -126,12 +126,13 @@
   transform: scaleX(1);
 }
 
+/* У шапці соцмереж немає: вони не вміщалися в контейнер і зсували
+   праву групу за його межі. Показуємо їх лише в мобільному меню,
+   а на десктопі вони є в секції «Контакти» та в підвалі. */
 .site-nav__socials {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 0.9rem;
-  padding-left: 1.2rem;
-  border-left: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 .site-nav__socials a {
@@ -468,22 +469,10 @@
   .site-nav > a {
     font-size: 0.9rem;
   }
-
-  .site-nav__socials {
-    padding-left: 0.9rem;
-    gap: 0.7rem;
-  }
 }
 
-@media (max-width: 1180px) {
-  .drop-pill {
-    display: none;
-  }
-}
-
-/* Соцмережі є у підвалі — у вузькій шапці вони зайві */
 @media (max-width: 1080px) {
-  .site-nav__socials {
+  .drop-pill {
     display: none;
   }
 }
@@ -530,8 +519,9 @@
     display: none;
   }
 
+  /* У мобільному меню соцмережі доречні — підвал далеко */
   .site-nav__socials {
-    border-left: none;
+    display: flex;
     padding-left: 0.2rem;
     padding-top: 1.1rem;
     gap: 1.4rem;

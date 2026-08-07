@@ -201,8 +201,34 @@
     const chips = Array.prototype.slice.call(document.querySelectorAll('.chip'));
     if (!chips.length || !('IntersectionObserver' in window)) return;
 
+    const strip = document.getElementById('catChips');
+    let userScrolling = 0;
+
+    /* Активний чип під'їжджає в центр стрічки, щоб було видно,
+       у якій категорії ти зараз */
+    function centerChip(chip) {
+      if (!strip || Date.now() < userScrolling) return;
+      const target = chip.offsetLeft - (strip.clientWidth - chip.offsetWidth) / 2;
+      const max = strip.scrollWidth - strip.clientWidth;
+      const left = Math.max(0, Math.min(target, max));
+      if (Math.abs(strip.scrollLeft - left) < 4) return;
+      strip.scrollTo({ left: left, behavior: 'smooth' });
+    }
+
+    /* Поки користувач сам гортає стрічку — не заважаємо йому */
+    if (strip) {
+      strip.addEventListener('touchstart', () => { userScrolling = Date.now() + 2500; }, { passive: true });
+      strip.addEventListener('wheel', () => { userScrolling = Date.now() + 2500; }, { passive: true });
+    }
+
     function setActive(id) {
-      chips.forEach((ch) => ch.classList.toggle('is-active', ch.dataset.cat === id));
+      let activeChip = null;
+      chips.forEach((ch) => {
+        const on = ch.dataset.cat === id;
+        ch.classList.toggle('is-active', on);
+        if (on) activeChip = ch;
+      });
+      if (activeChip) centerChip(activeChip);
     }
 
     const observer = new IntersectionObserver(
