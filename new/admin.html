@@ -18,19 +18,31 @@
 </head>
 <body class="admin-body">
 
+<!-- Гейт: адмінка відкривається лише після входу адміністратора -->
+<div class="a-gate-screen" id="adminGate">
+  <div class="a-gate-screen__box">
+    <img src="../assets/images/logo_4.webp" alt="REYTER">
+    <h2>REYTER · Адмінка</h2>
+    <p id="gateStatus">Доступ лише для адміністраторів магазину.</p>
+    <button class="btn btn--primary" id="gateLoginBtn" type="button">Увійти через Google</button>
+    <button class="btn btn--ghost btn--sm" id="gateLogoutBtn" type="button" hidden>Вийти та увійти іншим акаунтом</button>
+    <a class="a-gate-screen__back" href="index.html">← Повернутися на сайт</a>
+  </div>
+</div>
+
 <header class="abar">
   <div class="abar__brand">
     <img src="../assets/images/logo_4.webp" alt="">
     <span>REYTER <b>· Адмінка</b></span>
   </div>
-  <span class="abar__dirty" id="dirtyBadge" hidden>Є неопубліковані зміни</span>
   <div class="abar__actions">
     <span class="abar__user" id="adminUserChip" hidden></span>
     <a class="btn btn--ghost btn--sm" href="index.html" target="_blank" rel="noopener">Відкрити сайт</a>
     <button class="btn btn--ghost btn--sm" id="ordersBtn" type="button">Замовлення <span class="abar__count" id="newOrdersBadge" hidden></span></button>
     <button class="btn btn--ghost btn--sm" id="stockBtn" type="button">Склад</button>
-    <button class="btn btn--ghost btn--sm" id="downloadBtn" type="button">Завантажити data.js</button>
-    <button class="btn btn--primary btn--sm" id="publishBtn" type="button">Опублікувати</button>
+    <button class="btn btn--ghost btn--sm" id="settingsBtn" type="button">Налаштування</button>
+    <button class="btn btn--ghost btn--sm" id="downloadBtn" type="button">data.js</button>
+    <button class="btn btn--primary btn--sm" id="publishBtn" type="button">Резервна копія</button>
   </div>
 </header>
 
@@ -47,13 +59,12 @@
     </form>
 
     <div class="a-side__note">
-      Зміни зберігаються як чернетка у вашому браузері.
-      Щоб вони зʼявилися на сайті — натисніть «Опублікувати»
-      (або завантажте <code>data.js</code> і замініть файл
-      <code>new/js/data.js</code> у репозиторії).
+      Каталог зберігається в базі даних: усі зміни
+      зʼявляються на сайті одразу після збереження.
+      Кнопка «Резервна копія» оновлює файл
+      <code>new/js/data.js</code> у репозиторії — його сайт
+      показує, поки база завантажується.
     </div>
-
-    <button class="a-reset" id="resetDraftBtn" type="button">Скинути чернетку до опублікованої версії</button>
   </aside>
 
   <!-- Товари -->
@@ -207,18 +218,76 @@
   </div>
 </div>
 
-<!-- Публікація -->
-<div class="a-modal" id="publishModal" role="dialog" aria-modal="true" aria-labelledby="publishTitle" hidden>
+<!-- Налаштування сповіщень -->
+<div class="a-modal" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
   <div class="a-modal__backdrop" data-close></div>
   <div class="a-modal__panel a-modal__panel--sm">
     <header class="a-modal__head">
-      <h3 id="publishTitle">Опублікувати каталог</h3>
+      <h3 id="settingsTitle">Налаштування сповіщень</h3>
       <button class="a-modal__close" data-close aria-label="Закрити">✕</button>
     </header>
 
     <div class="a-publish">
-      <p>Зміни буде закомічено у файл <code>new/js/data.js</code> репозиторію
-        <b>patzmaxim0407-png/reyter</b> — сайт оновиться за 1–2 хвилини.</p>
+      <h4 class="a-settings__sub">Telegram — сповіщення вам про нові замовлення</h4>
+      <div class="field">
+        <label for="stTgToken">Токен бота</label>
+        <input id="stTgToken" autocomplete="off" placeholder="1234567890:AA...">
+        <p class="field__hint">Напишіть у Telegram боту <b>@BotFather</b> → /newbot → скопіюйте токен. Потім відкрийте свого бота і натисніть Start.</p>
+      </div>
+      <div class="field">
+        <label for="stTgChat">Chat ID</label>
+        <input id="stTgChat" autocomplete="off" placeholder="123456789">
+        <p class="field__hint">Напишіть боту <b>@userinfobot</b> — він відповість вашим Id. Сповіщення прийдуть у ваш чат із вашим ботом.</p>
+      </div>
+      <button class="btn btn--ghost btn--sm" id="tgTestBtn" type="button">Надіслати тестове повідомлення</button>
+
+      <h4 class="a-settings__sub">Email покупцю — підтвердження замовлення (EmailJS)</h4>
+      <div class="field">
+        <label for="stEjService">Service ID</label>
+        <input id="stEjService" autocomplete="off" placeholder="service_...">
+      </div>
+      <div class="field">
+        <label for="stEjTemplate">Template ID</label>
+        <input id="stEjTemplate" autocomplete="off" placeholder="template_...">
+      </div>
+      <div class="field">
+        <label for="stEjKey">Public Key</label>
+        <input id="stEjKey" autocomplete="off" placeholder="AbC123...">
+        <p class="field__hint">
+          Зареєструйтесь на <b>emailjs.com</b> (безкоштовно до 200 листів/міс) →
+          Add Service (Gmail) → Create Template. У шаблоні поле «To Email» = <code>{{to_email}}</code>,
+          а в тексті можна використовувати: <code>{{to_name}}</code>, <code>{{order_num}}</code>,
+          <code>{{order_items}}</code>, <code>{{order_total}}</code>, <code>{{order_delivery}}</code>.
+        </p>
+      </div>
+      <div class="ao-addadmin">
+        <input id="ejTestEmail" type="email" placeholder="email для тестового листа">
+        <button class="btn btn--ghost btn--sm" id="ejTestBtn" type="button">Тест</button>
+      </div>
+
+      <div class="a-publish__status" id="settingsStatus" hidden></div>
+    </div>
+
+    <footer class="a-modal__foot">
+      <button class="btn btn--ghost" data-close type="button">Закрити</button>
+      <button class="btn btn--primary" id="saveSettingsBtn" type="button">Зберегти налаштування</button>
+    </footer>
+  </div>
+</div>
+
+<!-- Резервна копія data.js -->
+<div class="a-modal" id="publishModal" role="dialog" aria-modal="true" aria-labelledby="publishTitle" hidden>
+  <div class="a-modal__backdrop" data-close></div>
+  <div class="a-modal__panel a-modal__panel--sm">
+    <header class="a-modal__head">
+      <h3 id="publishTitle">Резервна копія каталогу</h3>
+      <button class="a-modal__close" data-close aria-label="Закрити">✕</button>
+    </header>
+
+    <div class="a-publish">
+      <p>Поточний каталог із бази буде записано у файл <code>new/js/data.js</code> репозиторію
+        <b>patzmaxim0407-png/reyter</b>. Сайт показує цей файл першим, поки завантажується база —
+        оновлюйте копію після великих змін каталогу.</p>
 
       <div class="field">
         <label for="ghToken">GitHub-токен</label>
@@ -275,6 +344,7 @@
 
 <script src="js/data.js"></script>
 <script src="js/firebase.js"></script>
+<script src="js/notify.js"></script>
 <script src="js/admin.js"></script>
 
 </body>

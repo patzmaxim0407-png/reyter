@@ -207,6 +207,8 @@
       })
       .join('');
 
+    const defaultEmail = profile.email || (R.fb && R.fb.user && R.fb.user.email) || '';
+
     body().innerHTML =
       '<button class="checkout-back" data-back type="button">← Назад до кошика</button>' +
       '<div class="checkout-summary">' + summary +
@@ -215,6 +217,7 @@
       '<form class="form-grid" id="checkoutForm" novalidate>' +
         fieldHTML('coName', 'Імʼя та прізвище *', profile.name, 'autocomplete="name" required') +
         fieldHTML('coPhone', 'Телефон *', profile.phone, 'type="tel" autocomplete="tel" placeholder="+380..." required') +
+        fieldHTML('coEmail', 'Email — надішлемо підтвердження замовлення', defaultEmail, 'type="email" autocomplete="email" placeholder="you@example.com"') +
         '<div class="form-row">' +
           '<div class="field">' +
             '<label for="coCarrier">Доставка</label>' +
@@ -263,20 +266,29 @@
   function submitOrder() {
     const name = document.getElementById('coName');
     const phone = document.getElementById('coPhone');
+    const email = document.getElementById('coEmail');
 
     const nameOk = !!name.value.trim();
     const phoneOk = /^[+\d][\d\s()-]{8,}$/.test(phone.value.trim());
+    const emailVal = email.value.trim();
+    const emailOk = !emailVal || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal);
     name.classList.toggle('is-invalid', !nameOk);
     phone.classList.toggle('is-invalid', !phoneOk);
+    email.classList.toggle('is-invalid', !emailOk);
 
     if (!nameOk || !phoneOk) {
       R.toast('Заповніть імʼя та телефон');
+      return;
+    }
+    if (!emailOk) {
+      R.toast('Перевірте email');
       return;
     }
 
     const customer = {
       name: name.value.trim(),
       phone: phone.value.trim(),
+      email: emailVal,
       carrier: document.getElementById('coCarrier').value,
       city: document.getElementById('coCity').value.trim(),
       branch: document.getElementById('coBranch').value.trim(),
@@ -287,6 +299,7 @@
     R.saveProfile({
       name: customer.name,
       phone: customer.phone,
+      email: customer.email,
       carrier: customer.carrier,
       city: customer.city,
       branch: customer.branch
@@ -331,11 +344,15 @@
       R.fb.saveCloudProfile({
         name: customer.name,
         phone: customer.phone,
+        email: customer.email,
         carrier: customer.carrier,
         city: customer.city,
         branch: customer.branch
       });
     }
+
+    // Сповіщення: Telegram власнику + email-підтвердження покупцю
+    if (R.notify) R.notify.orderPlaced(order);
 
     lastOrder = order;
     cart.clear();
@@ -358,6 +375,9 @@
         '</div>' +
         '<h4>Замовлення №' + order.num + ' сформовано!</h4>' +
         '<p>Залишився один крок: надішліть його нам в Instagram Direct — текст уже скопійовано, просто вставте його в повідомлення.</p>' +
+        (order.customer.email
+          ? '<p>Підтвердження з номером замовлення надіслано на <b>' + R.esc(order.customer.email) + '</b> 📩</p>'
+          : '') +
         '<div class="order-msg">' + R.esc(order.message) + '</div>' +
         '<a class="btn btn--primary" href="' + R.esc(R.config.orderUrl) + '" target="_blank" rel="noopener">' +
           '<i class="fab fa-instagram" aria-hidden="true"></i> Відкрити Instagram</a>' +

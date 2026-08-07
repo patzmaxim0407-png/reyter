@@ -1,16 +1,20 @@
 /* ============================================================
    REYTER — admin.js
-   Адмінка каталогу: категорії, товари, чернетка в браузері,
-   експорт data.js та публікація через GitHub API
+   Адмінка магазину. Дві частини:
+   1) Каталог: категорії та товари в Firestore (зміни зʼявляються
+      на сайті одразу), імпорт із data.js, резервна копія
+   2) Хмарні панелі: гейт для адміністраторів, замовлення (live),
+      склад із приходами та журналом руху, адміни, сповіщення
+   ============================================================ */
+
+/* ============================================================
+   МОДУЛЬ 1 — КАТАЛОГ (Firestore)
    ============================================================ */
 
 (function () {
   'use strict';
 
   const R = window.REYTER;
-
-  const KEY_DRAFT = 'reyter:admin:draft';
-  const KEY_TOKEN = 'reyter:admin:token';
 
   const GH = {
     owner: 'patzmaxim0407-png',
@@ -19,44 +23,20 @@
     path: 'new/js/data.js'
   };
 
+  const KEY_TOKEN = 'reyter:admin:token';
   const ALL_SIZES = R.config.allSizes;
 
-  /* ---------- Стан ---------- */
-
-  function published() {
-    return JSON.parse(JSON.stringify({
-      categories: R.categories,
-      products: R.products
-    }));
-  }
-
-  function loadDraft() {
-    try {
-      const d = JSON.parse(localStorage.getItem(KEY_DRAFT));
-      if (d && Array.isArray(d.categories) && Array.isArray(d.products)) return d;
-    } catch (e) { /* пошкоджена чернетка */ }
-    return null;
-  }
-
-  let state = loadDraft() || published();
-  let baseline = JSON.stringify(published());
+  /* Стан каталогу: дзеркало бази (або data.js, поки база порожня) */
+  let state = { categories: [], products: [] };
+  let seeded = false;      // каталог уже в базі?
   let currentCat = 'all';
-  let editingId = null; // артикул товару, що редагується (null — новий)
+  let editingId = null;
 
-  // Доступ до чернетки для панелі складу (другий модуль цього файлу)
   R.adminGetState = function () { return state; };
 
-  function persist() {
-    localStorage.setItem(KEY_DRAFT, JSON.stringify(state));
-    updateDirty();
-  }
-
-  function updateDirty() {
-    const dirty = JSON.stringify(state) !== baseline;
-    document.getElementById('dirtyBadge').hidden = !dirty;
-  }
-
   /* ---------- Хелпери ---------- */
+
+  const $ = (id) => document.getElementById(id);
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -69,7 +49,7 @@
   }
 
   function toast(msg, type) {
-    const wrap = document.getElementById('toasts');
+    const wrap = $('toasts');
     const t = document.createElement('div');
     t.className = 'toast' + (type === 'success' ? ' toast--success' : '');
     t.textContent = msg;
@@ -78,6 +58,28 @@
       t.classList.add('is-leaving');
       setTimeout(() => t.remove(), 320);
     }, 2600);
+  }
+
+  function fbOk() {
+    return R.fb && R.fb.enabled;
+  }
+
+  function catCol() {
+    return R.fb.db.collection('catalog_categories');
+  }
+
+  function prodCol() {
+    return R.fb.db.collection('catalog_products');
+  }
+
+  function prodDocData(p) {
+    const data = Object.assign({}, p);
+    delete data.id; // артикул — це id документа
+    return data;
+  }
+
+  function maxOrder(list) {
+    return list.reduce((m, x) => Math.max(m, Number(x.order) || 0), 0);
   }
 
   function slugify(name) {
@@ -97,14 +99,61 @@
     return value.split('\n').map((s) => s.trim()).filter(Boolean);
   }
 
-  /* ---------- Рендер категорій ---------- */
+  /* ---------- Завантаження каталогу ---------- */
+
+  async function loadCatalog() {
+    if (fbOk()) {
+      const db = await R.fb.loadCatalog();
+      if (db && db.products.length) {
+        state = db;
+        seeded = true;
+        render();
+        return;
+      }
+    }
+    // База порожня — показуємо data.js і пропонуємо імпорт
+    state = {
+      categories: JSON.parse(JSON.stringify(R.categories)),
+      products: JSON.parse(JSON.stringify(R.products))
+    };
+    seeded = false;
+    render();
+  }
+
+  /* Первинний імпорт каталогу data.js → Firestore */
+  async function seedCatalog() {
+    try {
+      const batch = R.fb.db.batch();
+      state.categories.forEach((c, i) => {
+        c.order = i * 10;
+        batch.set(catCol().doc(c.id), { title: c.title, order: c.order });
+      });
+      state.products.forEach((p, i) => {
+        p.order = i * 10;
+        batch.set(prodCol().doc(p.id), prodDocData(p));
+      });
+      await batch.commit();
+      seeded = true;
+      render();
+      toast('Каталог імпортовано в базу ✓ Тепер усі зміни зберігаються одразу', 'success');
+    } catch (err) {
+      toast('Не вдалося імпортувати. Увійдіть акаунтом адміністратора і перевірте правила Firestore');
+    }
+  }
+
+  /* ---------- Рендер ---------- */
 
   function countIn(catId) {
     return state.products.filter((p) => p.category === catId).length;
   }
 
+  function catTitle(id) {
+    const c = state.categories.find((c) => c.id === id);
+    return c ? c.title : id;
+  }
+
   function renderCats() {
-    const list = document.getElementById('catList');
+    const list = $('catList');
 
     let html =
       '<li class="a-cat' + (currentCat === 'all' ? ' is-active' : '') + '" data-id="all">' +
@@ -129,28 +178,29 @@
     list.innerHTML = html;
   }
 
-  /* ---------- Рендер списку товарів ---------- */
-
-  function catTitle(id) {
-    const c = state.categories.find((c) => c.id === id);
-    return c ? c.title : id;
-  }
-
   function renderList() {
-    const root = document.getElementById('productList');
-    const title = document.getElementById('curCatTitle');
+    const root = $('productList');
+    const title = $('curCatTitle');
     title.textContent = currentCat === 'all' ? 'Всі товари' : catTitle(currentCat);
+
+    const seedBanner = !seeded
+      ? '<div class="a-seed">' +
+          '<b>Каталог ще не в базі даних.</b> Зараз показано вміст резервного файлу data.js. ' +
+          'Натисніть, щоб імпортувати його в базу — після цього всі зміни зберігатимуться миттєво.' +
+          '<button class="btn btn--primary btn--sm" id="seedBtn" type="button">Імпортувати каталог у базу</button>' +
+        '</div>'
+      : '';
 
     const items = state.products.filter(
       (p) => currentCat === 'all' || p.category === currentCat
     );
 
     if (!items.length) {
-      root.innerHTML = '<div class="a-empty">Тут поки немає товарів.<br>Натисніть «+ Новий товар», щоб додати перший.</div>';
+      root.innerHTML = seedBanner + '<div class="a-empty">Тут поки немає товарів.<br>Натисніть «+ Новий товар», щоб додати перший.</div>';
       return;
     }
 
-    root.innerHTML = items
+    root.innerHTML = seedBanner + items
       .map((p) => {
         const tags = [];
         if (p.status === 'sold-out') tags.push('<span class="a-item__tag a-item__tag--sold">Продано</span>');
@@ -180,12 +230,65 @@
   function render() {
     renderCats();
     renderList();
-    updateDirty();
+  }
+
+  /* ---------- Операції з категоріями ---------- */
+
+  async function addCategory(name) {
+    const cat = { id: slugify(name), title: name, order: maxOrder(state.categories) + 10 };
+    try {
+      await catCol().doc(cat.id).set({ title: cat.title, order: cat.order });
+      state.categories.push(cat);
+      render();
+      toast('Категорію додано ✓', 'success');
+    } catch (e) {
+      toast('Немає прав. Увійдіть акаунтом адміністратора');
+    }
+  }
+
+  async function renameCategory(cat, name) {
+    try {
+      await catCol().doc(cat.id).update({ title: name });
+      cat.title = name;
+      render();
+    } catch (e) {
+      toast('Не вдалося перейменувати');
+    }
+  }
+
+  async function deleteCategory(idx) {
+    const cat = state.categories[idx];
+    try {
+      await catCol().doc(cat.id).delete();
+      state.categories.splice(idx, 1);
+      if (currentCat === cat.id) currentCat = 'all';
+      render();
+    } catch (e) {
+      toast('Не вдалося видалити');
+    }
+  }
+
+  async function swapCategories(i, j) {
+    const a = state.categories[i];
+    const b = state.categories[j];
+    const orderA = Number(a.order) || 0;
+    const orderB = Number(b.order) || 0;
+    try {
+      const batch = R.fb.db.batch();
+      batch.update(catCol().doc(a.id), { order: orderB });
+      batch.update(catCol().doc(b.id), { order: orderA });
+      await batch.commit();
+      a.order = orderB;
+      b.order = orderA;
+      state.categories[i] = b;
+      state.categories[j] = a;
+      render();
+    } catch (e) {
+      toast('Не вдалося перемістити');
+    }
   }
 
   /* ---------- Редактор товару ---------- */
-
-  const $ = (id) => document.getElementById(id);
 
   function openModal(el) {
     el.hidden = false;
@@ -278,11 +381,10 @@
     if ($('fHidden').checked) p.hidden = true;
     if ($('fSaleNote').value.trim()) p.saleNote = $('fSaleNote').value.trim();
 
-    const sizes = Array.prototype.map.call(
+    p.sizes = Array.prototype.map.call(
       document.querySelectorAll('#fSizes input:checked'),
       (i) => i.value
     );
-    p.sizes = sizes;
 
     if ($('fFabric').value.trim()) p.fabric = $('fFabric').value.trim();
     if ($('fMaterial').value.trim()) p.material = $('fMaterial').value.trim();
@@ -333,7 +435,7 @@
       '</div>';
   }
 
-  function saveProduct() {
+  async function saveProduct() {
     const p = collectForm();
 
     if (!p.id) return toast('Вкажіть артикул');
@@ -345,33 +447,49 @@
     const clash = state.products.find((x) => x.id === p.id && x.id !== editingId);
     if (clash) return toast('Артикул ' + p.id + ' вже використовується');
 
-    if (editingId) {
-      const idx = state.products.findIndex((x) => x.id === editingId);
-      state.products[idx] = p;
-    } else {
-      state.products.push(p);
-    }
+    const existing = editingId ? state.products.find((x) => x.id === editingId) : null;
+    p.order = existing ? (Number(existing.order) || 0) : maxOrder(state.products) + 10;
 
-    persist();
-    render();
-    closeModal($('editorModal'));
-    toast(editingId ? 'Товар оновлено ✓' : 'Товар додано ✓', 'success');
-    editingId = null;
+    try {
+      if (existing && editingId !== p.id) {
+        // артикул змінено — переносимо документ
+        const batch = R.fb.db.batch();
+        batch.delete(prodCol().doc(editingId));
+        batch.set(prodCol().doc(p.id), prodDocData(p));
+        await batch.commit();
+      } else {
+        await prodCol().doc(p.id).set(prodDocData(p));
+      }
+
+      if (existing) {
+        state.products[state.products.indexOf(existing)] = p;
+      } else {
+        state.products.push(p);
+      }
+
+      render();
+      closeModal($('editorModal'));
+      toast(existing ? 'Товар оновлено — вже на сайті ✓' : 'Товар додано — вже на сайті ✓', 'success');
+      editingId = null;
+    } catch (e) {
+      toast('Не вдалося зберегти. Увійдіть акаунтом адміністратора');
+    }
   }
 
-  /* ---------- Генерація data.js ---------- */
+  /* ---------- data.js: завантаження та резервна копія ---------- */
 
   function buildDataJs() {
     const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    const cats = state.categories.map((c) => ({ id: c.id, title: c.title, order: c.order }));
     return (
       '/* ============================================================\n' +
-      '   REYTER — дані сайту\n' +
+      '   REYTER — резервна копія каталогу\n' +
       '   Згенеровано адмінкою ' + stamp + '\n' +
-      '   Єдине джерело правди для каталогу: категорії та товари.\n' +
+      '   Сайт показує ці дані, поки завантажується база (Firestore).\n' +
       '   ============================================================ */\n\n' +
       'window.REYTER = window.REYTER || {};\n\n' +
       'REYTER.config = ' + JSON.stringify(R.config, null, 2) + ';\n\n' +
-      'REYTER.categories = ' + JSON.stringify(state.categories, null, 2) + ';\n\n' +
+      'REYTER.categories = ' + JSON.stringify(cats, null, 2) + ';\n\n' +
       'REYTER.products = ' + JSON.stringify(state.products, null, 2) + ';\n'
     );
   }
@@ -383,10 +501,8 @@
     a.download = 'data.js';
     a.click();
     URL.revokeObjectURL(a.href);
-    toast('Файл data.js завантажено — замініть ним new/js/data.js', 'success');
+    toast('Файл data.js завантажено', 'success');
   }
-
-  /* ---------- Публікація через GitHub ---------- */
 
   function setPublishStatus(cls, text) {
     const el = $('publishStatus');
@@ -413,11 +529,11 @@
     };
 
     try {
-      setPublishStatus('wait', 'Публікуємо…');
+      setPublishStatus('wait', 'Оновлюємо резервну копію…');
 
       const getRes = await fetch(api + '?ref=' + GH.branch, { headers: headers });
       if (getRes.status === 401 || getRes.status === 403) {
-        return setPublishStatus('err', 'Токен не має доступу до репозиторію. Перевірте дозвіл Contents: Read and write.');
+        return setPublishStatus('err', 'Токен не має доступу до репозиторію. Потрібен дозвіл Contents: Read and write.');
       }
       if (!getRes.ok) {
         return setPublishStatus('err', 'Не вдалося прочитати файл із GitHub (код ' + getRes.status + ')');
@@ -428,7 +544,7 @@
         method: 'PUT',
         headers: headers,
         body: JSON.stringify({
-          message: 'Оновлення каталогу з адмінки',
+          message: 'Резервна копія каталогу з адмінки',
           content: b64(buildDataJs()),
           sha: info.sha,
           branch: GH.branch
@@ -437,13 +553,11 @@
 
       if (!putRes.ok) {
         const err = await putRes.json().catch(() => ({}));
-        return setPublishStatus('err', 'Помилка публікації: ' + (err.message || putRes.status));
+        return setPublishStatus('err', 'Помилка: ' + (err.message || putRes.status));
       }
 
-      baseline = JSON.stringify(state);
-      updateDirty();
-      setPublishStatus('ok', 'Опубліковано ✓ Сайт оновиться за 1–2 хвилини.');
-      toast('Каталог опубліковано ✓', 'success');
+      setPublishStatus('ok', 'Резервну копію оновлено ✓');
+      toast('Резервну копію оновлено ✓', 'success');
     } catch (e) {
       setPublishStatus('err', 'Немає звʼязку з GitHub. Перевірте інтернет.');
     }
@@ -452,10 +566,10 @@
   /* ---------- Події ---------- */
 
   function init() {
-    render();
+    loadCatalog();
 
     // Категорії
-    document.getElementById('catList').addEventListener('click', (e) => {
+    $('catList').addEventListener('click', (e) => {
       const li = e.target.closest('.a-cat');
       if (!li) return;
       const id = li.dataset.id;
@@ -472,47 +586,36 @@
 
       if (act === 'rename') {
         const name = prompt('Нова назва категорії:', cat.title);
-        if (name && name.trim()) {
-          cat.title = name.trim();
-          persist();
-          render();
-        }
+        if (name && name.trim()) renameCategory(cat, name.trim());
       } else if (act === 'del') {
         if (countIn(id)) {
           toast('Спершу перенесіть або видаліть товари з цієї категорії');
           return;
         }
-        if (confirm('Видалити категорію «' + cat.title + '»?')) {
-          state.categories.splice(idx, 1);
-          if (currentCat === id) currentCat = 'all';
-          persist();
-          render();
-        }
+        if (confirm('Видалити категорію «' + cat.title + '»?')) deleteCategory(idx);
       } else if (act === 'up' && idx > 0) {
-        state.categories.splice(idx - 1, 0, state.categories.splice(idx, 1)[0]);
-        persist();
-        render();
+        swapCategories(idx, idx - 1);
       } else if (act === 'down' && idx < state.categories.length - 1) {
-        state.categories.splice(idx + 1, 0, state.categories.splice(idx, 1)[0]);
-        persist();
-        render();
+        swapCategories(idx, idx + 1);
       }
     });
 
-    document.getElementById('addCatForm').addEventListener('submit', (e) => {
+    $('addCatForm').addEventListener('submit', (e) => {
       e.preventDefault();
       const input = $('newCatName');
       const name = input.value.trim();
       if (!name) return;
-      state.categories.push({ id: slugify(name), title: name });
       input.value = '';
-      persist();
-      render();
-      toast('Категорію додано ✓', 'success');
+      addCategory(name);
     });
 
     // Товари
-    document.getElementById('productList').addEventListener('click', (e) => {
+    $('productList').addEventListener('click', async (e) => {
+      if (e.target.id === 'seedBtn') {
+        seedCatalog();
+        return;
+      }
+
       const item = e.target.closest('.a-item');
       const btn = e.target.closest('button');
       if (!item || !btn) return;
@@ -529,63 +632,70 @@
         while (state.products.some((x) => x.id === copy.id + '-' + n)) n++;
         copy.id = copy.id + '-' + n;
         copy.name = copy.name + ' (копія)';
-        state.products.splice(idx + 1, 0, copy);
-        persist();
-        render();
+        copy.order = (Number(p.order) || 0) + 1;
+        try {
+          await prodCol().doc(copy.id).set(prodDocData(copy));
+          state.products.splice(idx + 1, 0, copy);
+          render();
+        } catch (err) {
+          toast('Немає прав');
+        }
       } else if (btn.dataset.act === 'toggle') {
-        p.hidden = !p.hidden;
-        if (!p.hidden) delete p.hidden;
-        persist();
-        render();
+        const hidden = !p.hidden;
+        try {
+          await prodCol().doc(p.id).update({ hidden: hidden });
+          if (hidden) p.hidden = true;
+          else delete p.hidden;
+          render();
+        } catch (err) {
+          toast('Немає прав');
+        }
       } else if (btn.dataset.act === 'del') {
         if (confirm('Видалити товар «' + p.name + '» (' + p.id + ')?')) {
-          state.products.splice(idx, 1);
-          persist();
-          render();
+          try {
+            await prodCol().doc(p.id).delete();
+            state.products.splice(idx, 1);
+            render();
+          } catch (err) {
+            toast('Немає прав');
+          }
         }
       }
     });
 
-    document.getElementById('addProductBtn').addEventListener('click', () => {
+    $('addProductBtn').addEventListener('click', () => {
       if (!state.categories.length) {
         toast('Спершу створіть категорію');
+        return;
+      }
+      if (!seeded) {
+        toast('Спершу імпортуйте каталог у базу (кнопка вгорі списку)');
         return;
       }
       openEditor(null);
     });
 
     // Редактор
-    document.getElementById('saveProductBtn').addEventListener('click', saveProduct);
-    document.getElementById('addColorBtn').addEventListener('click', () => {
+    $('saveProductBtn').addEventListener('click', saveProduct);
+    $('addColorBtn').addEventListener('click', () => {
       addColorRow();
       updatePreview();
     });
-    document.getElementById('productForm').addEventListener('input', updatePreview);
-    document.getElementById('productForm').addEventListener('change', updatePreview);
-    document.getElementById('productForm').addEventListener('submit', (e) => {
+    $('productForm').addEventListener('input', updatePreview);
+    $('productForm').addEventListener('change', updatePreview);
+    $('productForm').addEventListener('submit', (e) => {
       e.preventDefault();
       saveProduct();
     });
 
-    // Експорт і публікація
-    document.getElementById('downloadBtn').addEventListener('click', downloadDataJs);
-    document.getElementById('publishBtn').addEventListener('click', () => {
+    // Експорт і резервна копія
+    $('downloadBtn').addEventListener('click', downloadDataJs);
+    $('publishBtn').addEventListener('click', () => {
       $('ghToken').value = localStorage.getItem(KEY_TOKEN) || '';
       $('publishStatus').hidden = true;
       openModal($('publishModal'));
     });
-    document.getElementById('doPublishBtn').addEventListener('click', doPublish);
-
-    document.getElementById('resetDraftBtn').addEventListener('click', () => {
-      if (confirm('Скинути всі незбережені зміни й повернутися до опублікованої версії каталогу?')) {
-        localStorage.removeItem(KEY_DRAFT);
-        state = published();
-        persist();
-        localStorage.removeItem(KEY_DRAFT);
-        render();
-        toast('Чернетку скинуто');
-      }
-    });
+    $('doPublishBtn').addEventListener('click', doPublish);
 
     // Закриття модалок
     document.addEventListener('click', (e) => {
@@ -605,17 +715,10 @@
   init();
 })();
 
-
 /* ============================================================
-   ХМАРНА ЧАСТИНА АДМІНКИ (Firestore)
-   ------------------------------------------------------------
-   • Замовлення: live-надходження, статистика, фільтри, пошук,
-     статуси (Нове → Підтверджено → Відправлено → Виконано /
-     Скасовано), ТТН, автосписання складу при підтвердженні
-     та повернення при скасуванні
-   • Склад: залишки по розмірах, вартість залишків, прихід
-     товару з датами та оприбуткуванням, журнал руху
-   • Адміністратори: постійні + додавання нових
+   МОДУЛЬ 2 — ХМАРНІ ПАНЕЛІ
+   Гейт для адміністраторів, замовлення (live), склад,
+   адміністратори, налаштування сповіщень
    ============================================================ */
 
 (function () {
@@ -637,7 +740,7 @@
     { id: 'cancelled', title: 'Скасовано' }
   ];
 
-  const LOW_AT = 2; // поріг «закінчується»
+  const LOW_AT = 2;
 
   const MOVE_REASONS = {
     manual: 'Ручне коригування',
@@ -645,8 +748,6 @@
     'order-cancel': 'Повернення (скасування)',
     restock: 'Прихід товару'
   };
-
-  /* ---------- Дрібні хелпери ---------- */
 
   const $id = (id) => document.getElementById(id);
 
@@ -701,45 +802,6 @@
     return R.fb && R.fb.enabled;
   }
 
-  /* ---------- Вхід / права ---------- */
-
-  function updateUserChip() {
-    const chip = $id('adminUserChip');
-    if (!chip) return;
-    const user = R.fb && R.fb.user;
-    chip.hidden = !user;
-    if (user) chip.textContent = user.email || '';
-  }
-
-  function gateHTML(what) {
-    if (!fbReady()) {
-      return '<p class="ao-note">Firebase недоступний — перевірте інтернет або вимкніть блокувальник реклами.</p>';
-    }
-    return (
-      '<div class="ao-gate">' +
-        '<p class="ao-note">Увійдіть акаунтом адміністратора, щоб відкрити ' + what + '.</p>' +
-        '<button class="btn btn--primary" data-ao-google type="button">Увійти через Google</button>' +
-      '</div>'
-    );
-  }
-
-  function deniedHTML() {
-    return (
-      '<div class="ao-gate">' +
-        '<p class="ao-note">У акаунта <b>' + esc(R.fb.user.email || '') + '</b> немає прав адміністратора.<br>' +
-        'Доступ мають: ' + FOUNDERS.map((e) => '<b>' + esc(e) + '</b>').join(', ') + ' та додані ними адміни.</p>' +
-        '<button class="btn btn--ghost btn--sm" data-ao-logout type="button">Вийти та увійти іншим акаунтом</button>' +
-      '</div>'
-    );
-  }
-
-  function errorHTML(extra) {
-    return (
-      '<p class="ao-note">Не вдалося зʼєднатися з базою. Перевірте, що у Firebase створено Firestore Database ' +
-      'і вставлено правила з файлу <code>new/firestore.rules</code>.' + (extra ? '<br>' + esc(extra) : '') + '</p>'
-    );
-  }
-
   async function signInGoogle() {
     try {
       await R.fb.auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
@@ -749,10 +811,64 @@
   }
 
   /* ============================================================
+     ГЕЙТ: адмінка лише для адміністраторів
+     ============================================================ */
+
+  async function isAdminUser() {
+    const user = R.fb && R.fb.user;
+    if (!user || !user.email) return false;
+    const email = user.email.toLowerCase();
+    if (FOUNDERS.includes(email)) return true;
+    try {
+      const doc = await R.fb.db.collection('admins').doc(email).get();
+      return doc.exists;
+    } catch (e) {
+      return false; // permission-denied → не адмін
+    }
+  }
+
+  async function refreshGate() {
+    const gate = $id('adminGate');
+    const status = $id('gateStatus');
+    const loginBtn = $id('gateLoginBtn');
+    const logoutBtn = $id('gateLogoutBtn');
+    if (!gate) return;
+
+    if (!fbReady()) {
+      gate.hidden = false;
+      status.textContent = 'Firebase недоступний — перевірте інтернет або блокувальник реклами.';
+      loginBtn.hidden = true;
+      logoutBtn.hidden = true;
+      return;
+    }
+
+    if (!R.fb.user) {
+      gate.hidden = false;
+      status.textContent = 'Доступ лише для адміністраторів магазину.';
+      loginBtn.hidden = false;
+      logoutBtn.hidden = true;
+      return;
+    }
+
+    status.textContent = 'Перевіряємо доступ…';
+    loginBtn.hidden = true;
+    logoutBtn.hidden = true;
+
+    const ok = await isAdminUser();
+    if (ok) {
+      gate.hidden = true;
+    } else {
+      gate.hidden = false;
+      status.textContent = 'У акаунта ' + (R.fb.user.email || '') + ' немає прав адміністратора.';
+      logoutBtn.hidden = false;
+    }
+  }
+
+  /* ============================================================
      СКЛАД: кеш живих залишків
      ============================================================ */
 
-  let inv = {};             // productId -> {sizes:{S:n}} | {qty:n}
+  let inv = {};
   let invUnsub = null;
 
   function invOf(pid) {
@@ -778,7 +894,6 @@
     return !!inv[pid];
   }
 
-  /* Журнал руху — записується в той самий batch, що і зміна складу */
   function logMove(batch, entry) {
     const ref = R.fb.db.collection('stock_moves').doc();
     batch.set(ref, Object.assign({
@@ -787,9 +902,8 @@
     }, entry));
   }
 
-  /* Списання/повернення складу під замовлення (direction: -1 або +1) */
   function adjustOrderStock(batch, order, direction) {
-    const grouped = {}; // pid -> {sizes:{S:delta}} | {qty:delta}
+    const grouped = {};
     (order.items || []).forEach((item) => {
       const p = productById(item.id);
       const delta = direction * (Number(item.qty) || 0);
@@ -850,7 +964,7 @@
   function renderOrdersRoot() {
     if (!fbReady() || !R.fb.user) {
       stopOrders();
-      ordersBody().innerHTML = gateHTML('панель замовлень');
+      ordersBody().innerHTML = '<p class="ao-note">Спершу увійдіть акаунтом адміністратора.</p>';
       return;
     }
     if (!ordersUnsub) {
@@ -870,7 +984,6 @@
         (snap) => {
           ordersCache = snap.docs.map((d) => Object.assign({ _id: d.id }, d.data()));
 
-          // сповіщення про нові замовлення, що надійшли наживо
           const ids = new Set(ordersCache.map((o) => o._id));
           if (knownOrderIds) {
             ordersCache.forEach((o) => {
@@ -888,7 +1001,9 @@
         (err) => {
           stopOrders();
           ordersBody().innerHTML =
-            err && err.code === 'permission-denied' ? deniedHTML() : errorHTML(err && err.code);
+            '<p class="ao-note">Не вдалося завантажити замовлення' +
+            (err && err.code === 'permission-denied' ? ': немає прав.' : '. Перевірте правила Firestore (файл new/firestore.rules).') +
+            '</p>';
         }
       );
   }
@@ -908,7 +1023,7 @@
         .map((d) => Object.assign({ email: d.id }, d.data()))
         .filter((a) => !FOUNDERS.includes(a.email));
       renderOrdersUI();
-    } catch (e) { /* без списку адмінів панель все одно працює */ }
+    } catch (e) { /* панель працює і без списку */ }
   }
 
   function updateOrdersBadge() {
@@ -924,7 +1039,7 @@
     if (orderSearch) {
       const q = orderSearch.toLowerCase();
       const c = o.customer || {};
-      const hay = [o.num, c.name, c.phone, o.email, o.ttn].filter(Boolean).join(' ').toLowerCase();
+      const hay = [o.num, c.name, c.phone, o.email, c.email, o.ttn].filter(Boolean).join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -994,7 +1109,7 @@
         '<div class="ao-card__customer">' +
           '👤 ' + esc(c.name || '—') +
           ' · 📞 <a href="tel:' + esc(c.phone || '') + '">' + esc(c.phone || '—') + '</a>' +
-          (o.email ? ' · ✉️ ' + esc(o.email) : '') +
+          ((c.email || o.email) ? ' · ✉️ ' + esc(c.email || o.email) : '') +
           (delivery ? '<br>🚚 ' + esc(delivery) : '') +
           (c.comment ? '<br>💬 ' + esc(c.comment) : '') +
         '</div>' +
@@ -1016,7 +1131,7 @@
     return (
       '<div class="ao-admins">' +
         '<h4>Адміністратори</h4>' +
-        '<p class="ao-note">Адміни бачать замовлення і склад та можуть додавати інших адмінів. Вхід — через Google цим email.</p>' +
+        '<p class="ao-note">Адміни мають повний доступ до адмінки. Вхід — через Google цим email.</p>' +
         FOUNDERS.map((e) =>
           '<div class="ao-admin"><span>' + esc(e) + '</span><i>постійний</i></div>'
         ).join('') +
@@ -1039,7 +1154,6 @@
       '<div class="ao-toolbar">' +
         '<span class="ao-live">● live</span>' +
         '<span>Замовлення надходять сюди автоматично</span>' +
-        '<button class="btn btn--ghost btn--sm" data-ao-logout type="button" style="margin-left:auto">Вийти</button>' +
       '</div>' +
       orderStatsHTML() +
       orderFiltersHTML() +
@@ -1065,7 +1179,6 @@
     }
   }
 
-  /* Зміна статусу з обліком складу */
   async function applyStatus(order, next) {
     const prev = order.status || 'new';
     if (prev === next) return;
@@ -1094,7 +1207,7 @@
       else toast('Статус: ' + statusInfo(next).title + ' ✓', 'success');
     } catch (err) {
       toast('Не вдалося оновити статус');
-      renderOrdersUI(); // повертаємо селект у актуальний стан
+      renderOrdersUI();
     }
   }
 
@@ -1102,9 +1215,9 @@
      ПАНЕЛЬ «СКЛАД»
      ============================================================ */
 
-  let stockTab = 'stock'; // stock | restock | moves
+  let stockTab = 'stock';
   let stockSearch = '';
-  let stockFilter = 'all'; // all | low | out
+  let stockFilter = 'all';
   let restocksCache = [];
   let movesCache = [];
   let restockProductId = '';
@@ -1122,7 +1235,7 @@
   function renderStockRoot() {
     if (!fbReady() || !R.fb.user) {
       stopStock();
-      stockBody().innerHTML = gateHTML('склад');
+      stockBody().innerHTML = '<p class="ao-note">Спершу увійдіть акаунтом адміністратора.</p>';
       return;
     }
     if (!invUnsub) {
@@ -1144,7 +1257,9 @@
       (err) => {
         stopStock();
         stockBody().innerHTML =
-          err && err.code === 'permission-denied' ? deniedHTML() : errorHTML(err && err.code);
+          '<p class="ao-note">Не вдалося завантажити склад' +
+          (err && err.code === 'permission-denied' ? ': немає прав.' : '. Перевірте правила Firestore.') +
+          '</p>';
       }
     );
   }
@@ -1161,7 +1276,7 @@
       const snap = await R.fb.db.collection('restocks').orderBy('expected').limit(100).get();
       restocksCache = snap.docs.map((d) => Object.assign({ _id: d.id }, d.data()));
       if (stockTab === 'restock') renderStockUI();
-    } catch (e) { /* покажемо порожній список */ }
+    } catch (e) { /* порожній список */ }
   }
 
   async function loadMoves() {
@@ -1169,10 +1284,8 @@
       const snap = await R.fb.db.collection('stock_moves').orderBy('ts', 'desc').limit(60).get();
       movesCache = snap.docs.map((d) => d.data());
       if (stockTab === 'moves') renderStockUI();
-    } catch (e) { /* покажемо порожній список */ }
+    } catch (e) { /* порожній список */ }
   }
-
-  /* ----- вкладка «Залишки» ----- */
 
   function productRowState(p) {
     const total = totalQty(p);
@@ -1241,9 +1354,7 @@
       );
     }).join('');
 
-    return shown
-      ? sections
-      : '<div class="a-empty">Нічого не знайдено.</div>';
+    return shown ? sections : '<div class="a-empty">Нічого не знайдено.</div>';
   }
 
   function stockStatsHTML() {
@@ -1271,8 +1382,6 @@
       '</div>'
     );
   }
-
-  /* ----- вкладка «Прихід» ----- */
 
   function restockFormHTML() {
     const all = products();
@@ -1350,8 +1459,6 @@
     );
   }
 
-  /* ----- вкладка «Рух» ----- */
-
   function movesHTML() {
     if (!movesCache.length) {
       return '<div class="a-empty">Журнал руху порожній. Тут фіксується кожна зміна залишків: списання під замовлення, приходи та ручні коригування.</div>';
@@ -1378,8 +1485,6 @@
     );
   }
 
-  /* ----- рендер панелі складу ----- */
-
   function renderStockUI() {
     const tab = (id, title) =>
       '<button class="ao-chip' + (stockTab === id ? ' is-active' : '') + '" data-stk-tab="' + id + '" type="button">' + title + '</button>';
@@ -1396,7 +1501,7 @@
           '</div>' +
           '<input class="ao-search" id="aoStockSearch" placeholder="Пошук: назва або артикул" value="' + esc(stockSearch) + '">' +
         '</div>' +
-        '<p class="ao-note">Змініть число — воно збережеться автоматично. Кожна зміна фіксується в журналі «Рух». «Закінчується» — коли лишилося ' + LOW_AT + ' шт або менше; сайт показує це покупцям автоматично.</p>' +
+        '<p class="ao-note">Змініть число — воно збережеться автоматично, а сайт одразу покаже «Продано» чи «Закінчується» (поріг — ' + LOW_AT + ' шт). Кожна зміна фіксується в журналі «Рух».</p>' +
         '<div class="ao-stocklist">' + stockListHTML() + '</div>';
     } else if (stockTab === 'restock') {
       content = restockFormHTML() + restockListHTML();
@@ -1408,7 +1513,6 @@
       '<div class="ao-toolbar">' +
         '<span class="ao-live">● live</span>' +
         '<div class="ao-chips">' + tab('stock', 'Залишки') + tab('restock', 'Прихід') + tab('moves', 'Рух') + '</div>' +
-        '<button class="btn btn--ghost btn--sm" data-ao-logout type="button" style="margin-left:auto">Вийти</button>' +
       '</div>' +
       content;
 
@@ -1420,8 +1524,6 @@
       });
     }
   }
-
-  /* ----- дії складу ----- */
 
   async function setStockValue(pid, size, value) {
     const p = productById(pid);
@@ -1554,7 +1656,7 @@
   }
 
   /* ============================================================
-     АДМІНІСТРАТОРИ
+     АДМІНІСТРАТОРИ ТА НАЛАШТУВАННЯ
      ============================================================ */
 
   async function addAdmin() {
@@ -1580,6 +1682,48 @@
     }
   }
 
+  /* ---- налаштування сповіщень ---- */
+
+  function settingsFromForm() {
+    return {
+      tgToken: $id('stTgToken').value.trim(),
+      tgChatId: $id('stTgChat').value.trim(),
+      ejService: $id('stEjService').value.trim(),
+      ejTemplate: $id('stEjTemplate').value.trim(),
+      ejPublicKey: $id('stEjKey').value.trim()
+    };
+  }
+
+  function setSettingsStatus(cls, text) {
+    const el = $id('settingsStatus');
+    el.hidden = false;
+    el.className = 'a-publish__status ' + cls;
+    el.textContent = text;
+  }
+
+  async function openSettings() {
+    $id('settingsModal').hidden = false;
+    document.body.style.overflow = 'hidden';
+    $id('settingsStatus').hidden = true;
+    const s = (await R.notify.load(true)) || {};
+    $id('stTgToken').value = s.tgToken || '';
+    $id('stTgChat').value = s.tgChatId || '';
+    $id('stEjService').value = s.ejService || '';
+    $id('stEjTemplate').value = s.ejTemplate || '';
+    $id('stEjKey').value = s.ejPublicKey || '';
+  }
+
+  async function saveSettings() {
+    try {
+      await R.fb.db.collection('settings').doc('notify').set(settingsFromForm(), { merge: true });
+      R.notify.clearCache();
+      setSettingsStatus('ok', 'Налаштування збережено ✓');
+      toast('Налаштування збережено ✓', 'success');
+    } catch (e) {
+      setSettingsStatus('err', 'Немає прав зберігати налаштування');
+    }
+  }
+
   /* ============================================================
      ПОДІЇ
      ============================================================ */
@@ -1590,6 +1734,14 @@
     }).observe(modalEl, { attributes: true, attributeFilter: ['hidden'] });
   }
 
+  function updateUserChip() {
+    const chip = $id('adminUserChip');
+    if (!chip) return;
+    const user = R.fb && R.fb.user;
+    chip.hidden = !user;
+    if (user) chip.textContent = user.email || '';
+  }
+
   function init() {
     const ordersBtn = $id('ordersBtn');
     const stockBtn = $id('stockBtn');
@@ -1597,23 +1749,48 @@
 
     ordersBtn.addEventListener('click', openOrders);
     stockBtn.addEventListener('click', openStock);
+    $id('settingsBtn').addEventListener('click', openSettings);
+    $id('saveSettingsBtn').addEventListener('click', saveSettings);
+
+    $id('gateLoginBtn').addEventListener('click', signInGoogle);
+    $id('gateLogoutBtn').addEventListener('click', () => R.fb.auth.signOut());
+
+    $id('tgTestBtn').addEventListener('click', async () => {
+      setSettingsStatus('wait', 'Надсилаємо тест у Telegram…');
+      const ok = await R.notify.testTelegram(settingsFromForm());
+      setSettingsStatus(ok ? 'ok' : 'err', ok
+        ? 'Тестове повідомлення надіслано ✓ Перевірте Telegram'
+        : 'Не вдалося. Перевірте токен, Chat ID і що ви натиснули Start у бота');
+    });
+
+    $id('ejTestBtn').addEventListener('click', async () => {
+      const to = $id('ejTestEmail').value.trim();
+      if (!to) {
+        setSettingsStatus('err', 'Вкажіть email для тесту');
+        return;
+      }
+      setSettingsStatus('wait', 'Надсилаємо тестовий лист…');
+      const ok = await R.notify.testEmail(settingsFromForm(), to);
+      setSettingsStatus(ok ? 'ok' : 'err', ok
+        ? 'Лист надіслано ✓ Перевірте пошту (і папку Спам)'
+        : 'Не вдалося. Перевірте Service ID, Template ID і Public Key');
+    });
 
     watchModalClose($id('ordersModal'), stopOrders);
     watchModalClose($id('stockModal'), stopStock);
 
     document.addEventListener('auth:changed', () => {
       updateUserChip();
+      refreshGate();
       if (!$id('ordersModal').hidden) renderOrdersRoot();
       if (!$id('stockModal').hidden) renderStockRoot();
     });
     updateUserChip();
+    refreshGate();
 
     /* ---- замовлення ---- */
 
     ordersBody().addEventListener('click', async (e) => {
-      if (e.target.closest('[data-ao-google]')) return signInGoogle();
-      if (e.target.closest('[data-ao-logout]')) return R.fb.auth.signOut();
-
       const filterBtn = e.target.closest('[data-ao-filter]');
       if (filterBtn) {
         orderFilter = filterBtn.dataset.aoFilter;
@@ -1666,7 +1843,7 @@
       } else if (e.target.matches('[data-ao-ttn]')) {
         R.fb.db.collection('orders').doc(order._id)
           .update({ ttn: e.target.value.trim() })
-          .then(() => toast('ТТН збережено ✓', 'success'))
+          .then(() => toast('ТТН збережено — покупець бачить його в кабінеті ✓', 'success'))
           .catch(() => toast('Не вдалося зберегти ТТН'));
       }
     });
@@ -1681,9 +1858,6 @@
     /* ---- склад ---- */
 
     stockBody().addEventListener('click', (e) => {
-      if (e.target.closest('[data-ao-google]')) return signInGoogle();
-      if (e.target.closest('[data-ao-logout]')) return R.fb.auth.signOut();
-
       const tabBtn = e.target.closest('[data-stk-tab]');
       if (tabBtn) {
         stockTab = tabBtn.dataset.stkTab;

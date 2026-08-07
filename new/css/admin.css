@@ -588,6 +588,101 @@
 }
 
 /* ============================================================
+   Гейт: вхід лише для адміністраторів
+   ============================================================ */
+
+.a-gate-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--c-cream);
+  padding: 1.5rem;
+}
+
+.a-gate-screen[hidden] {
+  display: none;
+}
+
+.a-gate-screen__box {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  text-align: center;
+  background: var(--c-paper);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-hover);
+  padding: 2.5rem 2.2rem;
+  width: min(420px, 100%);
+}
+
+.a-gate-screen__box img {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+}
+
+.a-gate-screen__box h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.3rem;
+  color: var(--c-blue-ink);
+}
+
+.a-gate-screen__box p {
+  font-size: 0.92rem;
+  color: var(--c-muted);
+  line-height: 1.5;
+}
+
+.a-gate-screen__back {
+  font-size: 0.82rem;
+  color: var(--c-muted);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--c-line);
+}
+
+.a-gate-screen__back:hover {
+  color: var(--c-blue);
+}
+
+/* Банер «імпортуйте каталог у базу» */
+.a-seed {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  background: var(--c-amber-soft);
+  border: 1px solid rgba(180, 83, 9, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1.1rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin-bottom: 0.4rem;
+}
+
+.a-seed .btn {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.a-settings__sub {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--c-blue-ink);
+  border-top: 1px solid var(--c-line);
+  padding-top: 0.9rem;
+}
+
+.a-settings__sub:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+/* ============================================================
    Хмарні панелі: замовлення, склад, адміни
    ============================================================ */
 

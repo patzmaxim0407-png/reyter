@@ -14,14 +14,25 @@
   R.initAccount();       // кабінет користувача
   R.initUI();            // шапка, оверлеї, анімації
 
-  // Живі складські залишки з Firestore: коли завантажаться —
-  // перераховуємо «Продано» / «Закінчується» на вітрині
+  // Каталог і складські залишки з бази: data.js рендериться миттєво
+  // як резервна копія, а щойно відповість Firestore — вітрина
+  // оновлюється актуальними товарами та наявністю
   if (R.fb && R.fb.enabled) {
-    R.fb.loadInventory().then((inv) => {
+    Promise.all([R.fb.loadCatalog(), R.fb.loadInventory()]).then((res) => {
+      const catalog = res[0];
+      const inv = res[1];
+      let changed = false;
+
+      if (catalog && catalog.products.length) {
+        R.categories = catalog.categories;
+        R.products = catalog.products;
+        changed = true;
+      }
       if (inv && Object.keys(inv).length) {
         R.stock = inv;
-        R.refreshCatalog();
+        changed = true;
       }
+      if (changed) R.refreshCatalog();
     });
   }
 })();

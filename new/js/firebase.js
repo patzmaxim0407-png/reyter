@@ -113,6 +113,26 @@
     } catch (e) { /* замовлення все одно збережено локально і надіслано в Direct */ }
   };
 
+  /* ---------- Каталог із бази (публічне читання) ---------- */
+
+  R.fb.loadCatalog = async function () {
+    try {
+      const results = await Promise.all([
+        R.fb.db.collection('catalog_categories').orderBy('order').get(),
+        R.fb.db.collection('catalog_products').orderBy('order').get()
+      ]);
+      const cats = results[0];
+      const prods = results[1];
+      if (cats.empty || prods.empty) return null;
+      return {
+        categories: cats.docs.map((d) => Object.assign({ id: d.id }, d.data())),
+        products: prods.docs.map((d) => Object.assign({ id: d.id }, d.data()))
+      };
+    } catch (e) {
+      return null;
+    }
+  };
+
   /* ---------- Складські залишки (публічне читання) ---------- */
 
   R.fb.loadInventory = async function () {

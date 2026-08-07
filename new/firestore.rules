@@ -81,5 +81,25 @@ service cloud.firestore {
     match /stock_moves/{moveId} {
       allow read, write: if isAdmin();
     }
+
+    // Каталог: категорії та товари — сайт читає публічно,
+    // редагує лише адмін (через адмінку)
+    match /catalog_categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /catalog_products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Налаштування сповіщень (Telegram / Email).
+    // Читання публічне — сповіщення надсилає браузер покупця
+    // під час оформлення замовлення.
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }
