@@ -25,7 +25,10 @@
   </div>
   <span class="abar__dirty" id="dirtyBadge" hidden>Є неопубліковані зміни</span>
   <div class="abar__actions">
+    <span class="abar__user" id="adminUserChip" hidden></span>
     <a class="btn btn--ghost btn--sm" href="index.html" target="_blank" rel="noopener">Відкрити сайт</a>
+    <button class="btn btn--ghost btn--sm" id="ordersBtn" type="button">Замовлення <span class="abar__count" id="newOrdersBadge" hidden></span></button>
+    <button class="btn btn--ghost btn--sm" id="stockBtn" type="button">Склад</button>
     <button class="btn btn--ghost btn--sm" id="downloadBtn" type="button">Завантажити data.js</button>
     <button class="btn btn--primary btn--sm" id="publishBtn" type="button">Опублікувати</button>
   </div>
@@ -240,9 +243,38 @@
   </div>
 </div>
 
+<!-- Замовлення з хмари та адміністратори -->
+<div class="a-modal" id="ordersModal" role="dialog" aria-modal="true" aria-labelledby="ordersTitle" hidden>
+  <div class="a-modal__backdrop" data-close></div>
+  <div class="a-modal__panel">
+    <header class="a-modal__head">
+      <h3 id="ordersTitle">Замовлення</h3>
+      <button class="a-modal__close" data-close aria-label="Закрити">✕</button>
+    </header>
+    <div class="a-orders" id="ordersBody"></div>
+  </div>
+</div>
+
+<!-- Склад: залишки та прихід товару -->
+<div class="a-modal" id="stockModal" role="dialog" aria-modal="true" aria-labelledby="stockTitle" hidden>
+  <div class="a-modal__backdrop" data-close></div>
+  <div class="a-modal__panel">
+    <header class="a-modal__head">
+      <h3 id="stockTitle">Склад</h3>
+      <button class="a-modal__close" data-close aria-label="Закрити">✕</button>
+    </header>
+    <div class="a-orders" id="stockBody"></div>
+  </div>
+</div>
+
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
+<script src="https://www.gstatic.com/firebasejs/12.9.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.9.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore-compat.js"></script>
+
 <script src="js/data.js"></script>
+<script src="js/firebase.js"></script>
 <script src="js/admin.js"></script>
 
 </body>

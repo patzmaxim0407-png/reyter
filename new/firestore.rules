@@ -1,0 +1,85 @@
+// ============================================================
+// REYTER — правила безпеки Firestore
+// ------------------------------------------------------------
+// Куди вставити: Firebase Console → Build → Firestore Database
+// → вкладка «Rules» → замінити все на цей текст → Publish.
+//
+// Постійні адміністратори (можна змінити тут):
+//   kostia.movchanovskyi@gmail.com
+//   reyter.store1@gmail.com
+// Додаткових адмінів вони додають прямо з адмінки сайту
+// (створюється документ у колекції admins/{email}).
+// ============================================================
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userEmail() {
+      return request.auth.token.email;
+    }
+
+    // email підтверджено (Google-вхід — завжди підтверджений).
+    // Захищає від реєстрації чужого email через Email/Password.
+    function verified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function isFounder() {
+      return signedIn() && verified() && (
+        userEmail() == 'kostia.movchanovskyi@gmail.com' ||
+        userEmail() == 'reyter.store1@gmail.com'
+      );
+    }
+
+    function isAdmin() {
+      return isFounder() || (
+        signedIn() && verified() &&
+        exists(/databases/$(database)/documents/admins/$(userEmail()))
+      );
+    }
+
+    // Профілі покупців: власник читає і пише, адмін може читати
+    match /users/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Замовлення: покупець створює своє (тільки зі статусом new)
+    // і бачить свої; адмін бачить і керує всіма
+    match /orders/{orderId} {
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'new';
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // Список додаткових адмінів
+    match /admins/{adminEmail} {
+      allow read, write: if isAdmin();
+    }
+
+    // Складські залишки: сайт читає публічно (щоб показувати
+    // «Продано» / «Закінчується»), змінює лише адмін
+    match /inventory/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Приходи товару
+    match /restocks/{restockId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Журнал руху складу
+    match /stock_moves/{moveId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

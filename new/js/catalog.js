@@ -45,25 +45,57 @@
     return html;
   };
 
+  /* ---------- Доступність товару ----------
+     Якщо з Firestore завантажено складські залишки (R.stock) —
+     статус, розміри та «закінчується» рахуються з них.
+     Інакше — зі статичних полів data.js (status / sizes / lowStock). */
+
+  R.stock = null;
+  R.LOW_STOCK_AT = 2; // «закінчується», коли лишилось стільки або менше
+
+  R.availability = function (p) {
+    const s = R.stock && R.stock[p.id];
+
+    if (s) {
+      if (p.volume || !(p.sizes && p.sizes.length)) {
+        const qty = Number(s.qty) || 0;
+        return { live: true, soldOut: qty <= 0, sizes: [], low: [], total: qty };
+      }
+      const sz = s.sizes || {};
+      const avail = Object.keys(sz).filter((k) => Number(sz[k]) > 0);
+      const low = avail.filter((k) => Number(sz[k]) <= R.LOW_STOCK_AT);
+      const total = Object.keys(sz).reduce((sum, k) => sum + (Number(sz[k]) || 0), 0);
+      return { live: true, soldOut: total <= 0, sizes: avail, low: low, total: total };
+    }
+
+    return {
+      live: false,
+      soldOut: p.status === 'sold-out',
+      sizes: p.sizes || [],
+      low: p.lowStock || []
+    };
+  };
+
   /* ---------- Картка товару ---------- */
 
-  function badgesHTML(p) {
+  function badgesHTML(p, av) {
     const badges = [];
-    if (p.status === 'sold-out') {
+    if (av.soldOut) {
       badges.push('<span class="badge badge--sold">Продано</span>');
     } else if (p.sale) {
       badges.push('<span class="badge badge--sale">Sale</span>');
     }
-    if (p.status !== 'sold-out' && p.lowStock && p.lowStock.length) {
-      badges.push('<span class="badge badge--low">Закінчується ' + R.esc(p.lowStock.join(', ')) + '</span>');
+    if (!av.soldOut && av.low.length) {
+      badges.push('<span class="badge badge--low">Закінчується ' + R.esc(av.low.join(', ')) + '</span>');
     }
     return badges.length ? '<span class="pcard__badges">' + badges.join('') + '</span>' : '';
   }
 
   function cardHTML(p) {
+    const av = R.availability(p);
     const cls = ['pcard'];
     if (p.sale) cls.push('pcard--sale');
-    if (p.status === 'sold-out') cls.push('pcard--sold');
+    if (av.soldOut) cls.push('pcard--sold');
 
     const dots = (p.colors || [])
       .map((c) => '<span class="dot" style="background-color:' + R.esc(c) + '"></span>')
@@ -82,7 +114,7 @@
         '<span class="pcard__media">' +
           '<img src="' + R.esc(p.images[0]) + '" alt="' + R.esc(p.name) + '" loading="lazy">' +
           altImg +
-          badgesHTML(p) +
+          badgesHTML(p, av) +
         '</span>' +
         '<span class="pcard__body">' +
           '<span class="pcard__title">' + R.esc(p.name) + dots + '</span>' +
@@ -135,14 +167,26 @@
       });
     });
 
-    // Відкриття товару
-    root.addEventListener('click', (e) => {
-      const card = e.target.closest('.pcard');
-      if (card && R.openProduct) R.openProduct(card.dataset.id);
-    });
+    // Відкриття товару (обробник — один раз)
+    if (!root.dataset.bound) {
+      root.dataset.bound = '1';
+      root.addEventListener('click', (e) => {
+        const card = e.target.closest('.pcard');
+        if (card && R.openProduct) R.openProduct(card.dataset.id);
+      });
+    }
 
     initScrollSpy();
     injectJsonLd(products);
+  }
+
+  /* Перерендер після завантаження живих залишків */
+  function refresh() {
+    render();
+    // одразу показуємо картки, без повторної reveal-анімації
+    document.querySelectorAll('#catalogRoot .reveal').forEach((el) => {
+      el.classList.add('is-visible');
+    });
   }
 
   /* ---------- Підсвічування активної категорії ---------- */
@@ -178,6 +222,9 @@
   }
 
   function injectJsonLd(products) {
+    const prev = document.getElementById('jsonld-catalog');
+    if (prev) prev.remove();
+
     const data = {
       '@context': 'https://schema.org',
       '@type': 'ItemList',
@@ -205,10 +252,12 @@
     };
 
     const script = document.createElement('script');
+    script.id = 'jsonld-catalog';
     script.type = 'application/ld+json';
     script.textContent = JSON.stringify(data);
     document.head.appendChild(script);
   }
 
   R.renderCatalog = render;
+  R.refreshCatalog = refresh;
 })();

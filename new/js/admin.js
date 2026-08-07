@@ -43,6 +43,9 @@
   let currentCat = 'all';
   let editingId = null; // артикул товару, що редагується (null — новий)
 
+  // Доступ до чернетки для панелі складу (другий модуль цього файлу)
+  R.adminGetState = function () { return state; };
+
   function persist() {
     localStorage.setItem(KEY_DRAFT, JSON.stringify(state));
     updateDirty();
@@ -595,6 +598,1139 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         document.querySelectorAll('.a-modal:not([hidden])').forEach(closeModal);
+      }
+    });
+  }
+
+  init();
+})();
+
+
+/* ============================================================
+   ХМАРНА ЧАСТИНА АДМІНКИ (Firestore)
+   ------------------------------------------------------------
+   • Замовлення: live-надходження, статистика, фільтри, пошук,
+     статуси (Нове → Підтверджено → Відправлено → Виконано /
+     Скасовано), ТТН, автосписання складу при підтвердженні
+     та повернення при скасуванні
+   • Склад: залишки по розмірах, вартість залишків, прихід
+     товару з датами та оприбуткуванням, журнал руху
+   • Адміністратори: постійні + додавання нових
+   ============================================================ */
+
+(function () {
+  'use strict';
+
+  const R = window.REYTER;
+
+  /* Постійні адміністратори (продубльовано в правилах Firestore) */
+  const FOUNDERS = [
+    'kostia.movchanovskyi@gmail.com',
+    'reyter.store1@gmail.com'
+  ];
+
+  const STATUSES = (R.config && R.config.orderStatuses) || [
+    { id: 'new', title: 'Нове' },
+    { id: 'confirmed', title: 'Підтверджено' },
+    { id: 'shipped', title: 'Відправлено' },
+    { id: 'done', title: 'Виконано' },
+    { id: 'cancelled', title: 'Скасовано' }
+  ];
+
+  const LOW_AT = 2; // поріг «закінчується»
+
+  const MOVE_REASONS = {
+    manual: 'Ручне коригування',
+    order: 'Списання під замовлення',
+    'order-cancel': 'Повернення (скасування)',
+    restock: 'Прихід товару'
+  };
+
+  /* ---------- Дрібні хелпери ---------- */
+
+  const $id = (id) => document.getElementById(id);
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function fmt(n) {
+    return Number(n || 0).toLocaleString('uk-UA');
+  }
+
+  function toast(msg, type) {
+    const wrap = $id('toasts');
+    if (!wrap) return;
+    const t = document.createElement('div');
+    t.className = 'toast' + (type === 'success' ? ' toast--success' : '');
+    t.textContent = msg;
+    wrap.appendChild(t);
+    setTimeout(() => {
+      t.classList.add('is-leaving');
+      setTimeout(() => t.remove(), 320);
+    }, 2600);
+  }
+
+  function statusInfo(id) {
+    return STATUSES.find((s) => s.id === id) || STATUSES[0];
+  }
+
+  function products() {
+    return (R.adminGetState ? R.adminGetState() : { products: R.products }).products;
+  }
+
+  function categories() {
+    return (R.adminGetState ? R.adminGetState() : { categories: R.categories }).categories;
+  }
+
+  function productById(id) {
+    return products().find((p) => p.id === id) || null;
+  }
+
+  function isSized(p) {
+    return !p.volume;
+  }
+
+  function todayISO() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function fbReady() {
+    return R.fb && R.fb.enabled;
+  }
+
+  /* ---------- Вхід / права ---------- */
+
+  function updateUserChip() {
+    const chip = $id('adminUserChip');
+    if (!chip) return;
+    const user = R.fb && R.fb.user;
+    chip.hidden = !user;
+    if (user) chip.textContent = user.email || '';
+  }
+
+  function gateHTML(what) {
+    if (!fbReady()) {
+      return '<p class="ao-note">Firebase недоступний — перевірте інтернет або вимкніть блокувальник реклами.</p>';
+    }
+    return (
+      '<div class="ao-gate">' +
+        '<p class="ao-note">Увійдіть акаунтом адміністратора, щоб відкрити ' + what + '.</p>' +
+        '<button class="btn btn--primary" data-ao-google type="button">Увійти через Google</button>' +
+      '</div>'
+    );
+  }
+
+  function deniedHTML() {
+    return (
+      '<div class="ao-gate">' +
+        '<p class="ao-note">У акаунта <b>' + esc(R.fb.user.email || '') + '</b> немає прав адміністратора.<br>' +
+        'Доступ мають: ' + FOUNDERS.map((e) => '<b>' + esc(e) + '</b>').join(', ') + ' та додані ними адміни.</p>' +
+        '<button class="btn btn--ghost btn--sm" data-ao-logout type="button">Вийти та увійти іншим акаунтом</button>' +
+      '</div>'
+    );
+  }
+
+  function errorHTML(extra) {
+    return (
+      '<p class="ao-note">Не вдалося зʼєднатися з базою. Перевірте, що у Firebase створено Firestore Database ' +
+      'і вставлено правила з файлу <code>new/firestore.rules</code>.' + (extra ? '<br>' + esc(extra) : '') + '</p>'
+    );
+  }
+
+  async function signInGoogle() {
+    try {
+      await R.fb.auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    } catch (err) {
+      toast(R.fb.errorText(err));
+    }
+  }
+
+  /* ============================================================
+     СКЛАД: кеш живих залишків
+     ============================================================ */
+
+  let inv = {};             // productId -> {sizes:{S:n}} | {qty:n}
+  let invUnsub = null;
+
+  function invOf(pid) {
+    return inv[pid] || {};
+  }
+
+  function sizeQty(pid, size) {
+    const s = invOf(pid).sizes || {};
+    return Number(s[size]) || 0;
+  }
+
+  function unitQty(pid) {
+    return Number(invOf(pid).qty) || 0;
+  }
+
+  function totalQty(p) {
+    if (!isSized(p)) return unitQty(p.id);
+    const s = invOf(p.id).sizes || {};
+    return Object.keys(s).reduce((sum, k) => sum + (Number(s[k]) || 0), 0);
+  }
+
+  function hasInvDoc(pid) {
+    return !!inv[pid];
+  }
+
+  /* Журнал руху — записується в той самий batch, що і зміна складу */
+  function logMove(batch, entry) {
+    const ref = R.fb.db.collection('stock_moves').doc();
+    batch.set(ref, Object.assign({
+      ts: firebase.firestore.FieldValue.serverTimestamp(),
+      by: (R.fb.user && R.fb.user.email) || ''
+    }, entry));
+  }
+
+  /* Списання/повернення складу під замовлення (direction: -1 або +1) */
+  function adjustOrderStock(batch, order, direction) {
+    const grouped = {}; // pid -> {sizes:{S:delta}} | {qty:delta}
+    (order.items || []).forEach((item) => {
+      const p = productById(item.id);
+      const delta = direction * (Number(item.qty) || 0);
+      if (!delta) return;
+      if (!grouped[item.id]) grouped[item.id] = { sizes: {}, qty: 0 };
+      if (p && !isSized(p)) {
+        grouped[item.id].qty += delta;
+      } else if (item.size) {
+        grouped[item.id].sizes[item.size] = (grouped[item.id].sizes[item.size] || 0) + delta;
+      }
+      logMove(batch, {
+        productId: item.id,
+        productName: item.name || item.id,
+        size: item.size || null,
+        delta: delta,
+        reason: direction < 0 ? 'order' : 'order-cancel',
+        ref: order.num || ''
+      });
+    });
+
+    Object.keys(grouped).forEach((pid) => {
+      const ref = R.fb.db.collection('inventory').doc(pid);
+      const upd = { updated: firebase.firestore.FieldValue.serverTimestamp() };
+      const g = grouped[pid];
+      if (g.qty) upd.qty = firebase.firestore.FieldValue.increment(g.qty);
+      const sizeKeys = Object.keys(g.sizes);
+      if (sizeKeys.length) {
+        upd.sizes = {};
+        sizeKeys.forEach((s) => {
+          upd.sizes[s] = firebase.firestore.FieldValue.increment(g.sizes[s]);
+        });
+      }
+      batch.set(ref, upd, { merge: true });
+    });
+  }
+
+  /* ============================================================
+     ПАНЕЛЬ «ЗАМОВЛЕННЯ»
+     ============================================================ */
+
+  let ordersCache = [];
+  let ordersUnsub = null;
+  let orderFilter = 'all';
+  let orderSearch = '';
+  let knownOrderIds = null;
+  let adminsCache = null;
+
+  function ordersBody() {
+    return $id('ordersBody');
+  }
+
+  function openOrders() {
+    $id('ordersModal').hidden = false;
+    document.body.style.overflow = 'hidden';
+    renderOrdersRoot();
+  }
+
+  function renderOrdersRoot() {
+    if (!fbReady() || !R.fb.user) {
+      stopOrders();
+      ordersBody().innerHTML = gateHTML('панель замовлень');
+      return;
+    }
+    if (!ordersUnsub) {
+      ordersBody().innerHTML = '<p class="ao-note">Завантажуємо замовлення…</p>';
+      subscribeOrders();
+    } else {
+      renderOrdersUI();
+    }
+  }
+
+  function subscribeOrders() {
+    ordersUnsub = R.fb.db
+      .collection('orders')
+      .orderBy('created', 'desc')
+      .limit(300)
+      .onSnapshot(
+        (snap) => {
+          ordersCache = snap.docs.map((d) => Object.assign({ _id: d.id }, d.data()));
+
+          // сповіщення про нові замовлення, що надійшли наживо
+          const ids = new Set(ordersCache.map((o) => o._id));
+          if (knownOrderIds) {
+            ordersCache.forEach((o) => {
+              if (!knownOrderIds.has(o._id)) {
+                toast('🛍 Нове замовлення №' + o.num, 'success');
+              }
+            });
+          }
+          knownOrderIds = ids;
+
+          updateOrdersBadge();
+          if (adminsCache === null) loadAdmins();
+          renderOrdersUI();
+        },
+        (err) => {
+          stopOrders();
+          ordersBody().innerHTML =
+            err && err.code === 'permission-denied' ? deniedHTML() : errorHTML(err && err.code);
+        }
+      );
+  }
+
+  function stopOrders() {
+    if (ordersUnsub) {
+      ordersUnsub();
+      ordersUnsub = null;
+    }
+  }
+
+  async function loadAdmins() {
+    adminsCache = [];
+    try {
+      const snap = await R.fb.db.collection('admins').get();
+      adminsCache = snap.docs
+        .map((d) => Object.assign({ email: d.id }, d.data()))
+        .filter((a) => !FOUNDERS.includes(a.email));
+      renderOrdersUI();
+    } catch (e) { /* без списку адмінів панель все одно працює */ }
+  }
+
+  function updateOrdersBadge() {
+    const badge = $id('newOrdersBadge');
+    if (!badge) return;
+    const n = ordersCache.filter((o) => (o.status || 'new') === 'new').length;
+    badge.hidden = n === 0;
+    badge.textContent = n;
+  }
+
+  function orderMatches(o) {
+    if (orderFilter !== 'all' && (o.status || 'new') !== orderFilter) return false;
+    if (orderSearch) {
+      const q = orderSearch.toLowerCase();
+      const c = o.customer || {};
+      const hay = [o.num, c.name, c.phone, o.email, o.ttn].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }
+
+  function orderStatsHTML() {
+    const today = todayISO();
+    const active = ordersCache.filter((o) => o.status !== 'cancelled');
+    const revenue = active.reduce((s, o) => s + (Number(o.total) || 0), 0);
+    const todayCount = ordersCache.filter((o) => String(o.date || '').slice(0, 10) === today).length;
+    const newCount = ordersCache.filter((o) => (o.status || 'new') === 'new').length;
+    return (
+      '<div class="ao-stats">' +
+        '<div class="ao-stat"><b>' + fmt(ordersCache.length) + '</b><span>всього</span></div>' +
+        '<div class="ao-stat"><b>' + fmt(newCount) + '</b><span>нових</span></div>' +
+        '<div class="ao-stat"><b>' + fmt(todayCount) + '</b><span>сьогодні</span></div>' +
+        '<div class="ao-stat"><b>' + fmt(revenue) + ' грн</b><span>сума (без скасованих)</span></div>' +
+      '</div>'
+    );
+  }
+
+  function orderFiltersHTML() {
+    const counts = { all: ordersCache.length };
+    STATUSES.forEach((s) => {
+      counts[s.id] = ordersCache.filter((o) => (o.status || 'new') === s.id).length;
+    });
+    const chip = (id, title) =>
+      '<button class="ao-chip' + (orderFilter === id ? ' is-active' : '') + '" data-ao-filter="' + id + '" type="button">' +
+        title + ' <i>' + counts[id] + '</i>' +
+      '</button>';
+    return (
+      '<div class="ao-filterbar">' +
+        '<div class="ao-chips">' +
+          chip('all', 'Всі') +
+          STATUSES.map((s) => chip(s.id, s.title)).join('') +
+        '</div>' +
+        '<input class="ao-search" id="aoOrderSearch" placeholder="Пошук: №, імʼя, телефон, ТТН" value="' + esc(orderSearch) + '">' +
+      '</div>'
+    );
+  }
+
+  function orderCardHTML(o) {
+    const st = o.status || 'new';
+    const date = o.date
+      ? new Date(o.date).toLocaleString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+      : '';
+    const c = o.customer || {};
+    const delivery = [c.carrier, c.city, c.branch].filter(Boolean).join(', ');
+    const items = (o.items || [])
+      .map((i) => '<div>' + esc(i.name) + (i.size ? ' · <b>' + esc(i.size) + '</b>' : '') + ' × ' + i.qty + ' — ' + fmt(i.price * i.qty) + ' грн</div>')
+      .join('');
+    const statusSelect =
+      '<select class="ao-status-select st-' + st + '" data-ao-status>' +
+        STATUSES.map((s) =>
+          '<option value="' + s.id + '"' + (s.id === st ? ' selected' : '') + '>' + s.title + '</option>'
+        ).join('') +
+      '</select>';
+
+    return (
+      '<article class="ao-card st-' + st + '" data-id="' + esc(o._id) + '">' +
+        '<div class="ao-card__head">' +
+          '<b>№' + esc(o.num) + '</b>' +
+          statusSelect +
+          (o.stockApplied ? '<span class="ao-tag" title="Товар списано зі складу">склад ✓</span>' : '') +
+          '<span class="ao-card__date">' + esc(date) + '</span>' +
+        '</div>' +
+        '<div class="ao-card__customer">' +
+          '👤 ' + esc(c.name || '—') +
+          ' · 📞 <a href="tel:' + esc(c.phone || '') + '">' + esc(c.phone || '—') + '</a>' +
+          (o.email ? ' · ✉️ ' + esc(o.email) : '') +
+          (delivery ? '<br>🚚 ' + esc(delivery) : '') +
+          (c.comment ? '<br>💬 ' + esc(c.comment) : '') +
+        '</div>' +
+        '<div class="ao-card__items">' + items + '</div>' +
+        '<div class="ao-card__foot">' +
+          '<span class="ao-card__total">Разом: ' + fmt(o.total) + ' грн</span>' +
+          '<span class="ao-ttn">ТТН: <input data-ao-ttn value="' + esc(o.ttn || '') + '" placeholder="номер накладної"></span>' +
+        '</div>' +
+        '<div class="ao-card__actions">' +
+          '<button class="btn btn--ghost btn--sm" data-ao-copy type="button">Скопіювати</button>' +
+          '<button class="btn btn--ghost btn--sm ao-danger" data-ao-del type="button">Видалити</button>' +
+        '</div>' +
+      '</article>'
+    );
+  }
+
+  function adminsHTML() {
+    const admins = adminsCache || [];
+    return (
+      '<div class="ao-admins">' +
+        '<h4>Адміністратори</h4>' +
+        '<p class="ao-note">Адміни бачать замовлення і склад та можуть додавати інших адмінів. Вхід — через Google цим email.</p>' +
+        FOUNDERS.map((e) =>
+          '<div class="ao-admin"><span>' + esc(e) + '</span><i>постійний</i></div>'
+        ).join('') +
+        admins.map((a) =>
+          '<div class="ao-admin"><span>' + esc(a.email) + '</span>' +
+          (a.by ? '<i>додав ' + esc(a.by) + '</i>' : '') +
+          '<button data-ao-rmadmin="' + esc(a.email) + '" type="button" title="Прибрати">✕</button></div>'
+        ).join('') +
+        '<form class="ao-addadmin" id="addAdminForm">' +
+          '<input id="newAdminEmail" type="email" placeholder="email нового адміна" autocomplete="off">' +
+          '<button class="btn btn--primary btn--sm" type="submit">Додати</button>' +
+        '</form>' +
+      '</div>'
+    );
+  }
+
+  function renderOrdersUI() {
+    const list = ordersCache.filter(orderMatches);
+    ordersBody().innerHTML =
+      '<div class="ao-toolbar">' +
+        '<span class="ao-live">● live</span>' +
+        '<span>Замовлення надходять сюди автоматично</span>' +
+        '<button class="btn btn--ghost btn--sm" data-ao-logout type="button" style="margin-left:auto">Вийти</button>' +
+      '</div>' +
+      orderStatsHTML() +
+      orderFiltersHTML() +
+      '<div class="ao-list">' +
+        (list.length
+          ? list.map(orderCardHTML).join('')
+          : '<div class="a-empty">' +
+              (ordersCache.length ? 'Нічого не знайдено за цим фільтром.' : 'Замовлень поки немає. Щойно покупець оформить кошик — воно зʼявиться тут.') +
+            '</div>') +
+      '</div>' +
+      adminsHTML();
+
+    const search = $id('aoOrderSearch');
+    if (search) {
+      search.addEventListener('input', () => {
+        orderSearch = search.value;
+        const listEl = ordersBody().querySelector('.ao-list');
+        const filtered = ordersCache.filter(orderMatches);
+        listEl.innerHTML = filtered.length
+          ? filtered.map(orderCardHTML).join('')
+          : '<div class="a-empty">Нічого не знайдено.</div>';
+      });
+    }
+  }
+
+  /* Зміна статусу з обліком складу */
+  async function applyStatus(order, next) {
+    const prev = order.status || 'new';
+    if (prev === next) return;
+
+    try {
+      const batch = R.fb.db.batch();
+      const upd = { status: next };
+
+      const forward = ['confirmed', 'shipped', 'done'].includes(next);
+      const backward = ['new', 'cancelled'].includes(next);
+
+      if (forward && !order.stockApplied) {
+        adjustOrderStock(batch, order, -1);
+        upd.stockApplied = true;
+      }
+      if (backward && order.stockApplied) {
+        adjustOrderStock(batch, order, +1);
+        upd.stockApplied = false;
+      }
+
+      batch.update(R.fb.db.collection('orders').doc(order._id), upd);
+      await batch.commit();
+
+      if (upd.stockApplied === true) toast('Статус оновлено, товар списано зі складу ✓', 'success');
+      else if (upd.stockApplied === false) toast('Статус оновлено, товар повернено на склад ✓', 'success');
+      else toast('Статус: ' + statusInfo(next).title + ' ✓', 'success');
+    } catch (err) {
+      toast('Не вдалося оновити статус');
+      renderOrdersUI(); // повертаємо селект у актуальний стан
+    }
+  }
+
+  /* ============================================================
+     ПАНЕЛЬ «СКЛАД»
+     ============================================================ */
+
+  let stockTab = 'stock'; // stock | restock | moves
+  let stockSearch = '';
+  let stockFilter = 'all'; // all | low | out
+  let restocksCache = [];
+  let movesCache = [];
+  let restockProductId = '';
+
+  function stockBody() {
+    return $id('stockBody');
+  }
+
+  function openStock() {
+    $id('stockModal').hidden = false;
+    document.body.style.overflow = 'hidden';
+    renderStockRoot();
+  }
+
+  function renderStockRoot() {
+    if (!fbReady() || !R.fb.user) {
+      stopStock();
+      stockBody().innerHTML = gateHTML('склад');
+      return;
+    }
+    if (!invUnsub) {
+      stockBody().innerHTML = '<p class="ao-note">Завантажуємо залишки…</p>';
+      subscribeInventory();
+      loadRestocks();
+    } else {
+      renderStockUI();
+    }
+  }
+
+  function subscribeInventory() {
+    invUnsub = R.fb.db.collection('inventory').onSnapshot(
+      (snap) => {
+        inv = {};
+        snap.forEach((d) => { inv[d.id] = d.data(); });
+        renderStockUI();
+      },
+      (err) => {
+        stopStock();
+        stockBody().innerHTML =
+          err && err.code === 'permission-denied' ? deniedHTML() : errorHTML(err && err.code);
+      }
+    );
+  }
+
+  function stopStock() {
+    if (invUnsub) {
+      invUnsub();
+      invUnsub = null;
+    }
+  }
+
+  async function loadRestocks() {
+    try {
+      const snap = await R.fb.db.collection('restocks').orderBy('expected').limit(100).get();
+      restocksCache = snap.docs.map((d) => Object.assign({ _id: d.id }, d.data()));
+      if (stockTab === 'restock') renderStockUI();
+    } catch (e) { /* покажемо порожній список */ }
+  }
+
+  async function loadMoves() {
+    try {
+      const snap = await R.fb.db.collection('stock_moves').orderBy('ts', 'desc').limit(60).get();
+      movesCache = snap.docs.map((d) => d.data());
+      if (stockTab === 'moves') renderStockUI();
+    } catch (e) { /* покажемо порожній список */ }
+  }
+
+  /* ----- вкладка «Залишки» ----- */
+
+  function productRowState(p) {
+    const total = totalQty(p);
+    if (!hasInvDoc(p.id)) return { cls: '', label: 'не ведеться' };
+    if (total <= 0) return { cls: 'is-out', label: 'немає' };
+    if (isSized(p)) {
+      const s = invOf(p.id).sizes || {};
+      const lows = Object.keys(s).filter((k) => Number(s[k]) > 0 && Number(s[k]) <= LOW_AT);
+      if (lows.length) return { cls: 'is-low', label: 'закінчується ' + lows.join(', ') };
+    } else if (total <= LOW_AT) {
+      return { cls: 'is-low', label: 'закінчується' };
+    }
+    return { cls: 'is-ok', label: 'в наявності' };
+  }
+
+  function stockRowHTML(p) {
+    const state = productRowState(p);
+    const total = totalQty(p);
+    const inputs = isSized(p)
+      ? R.config.allSizes.map((s) => {
+          const v = sizeQty(p.id, s);
+          return (
+            '<label class="ao-qty' + (v < 0 ? ' is-neg' : '') + '">' +
+              '<span>' + s + '</span>' +
+              '<input type="number" data-stk-pid="' + esc(p.id) + '" data-stk-size="' + s + '" value="' + v + '">' +
+            '</label>'
+          );
+        }).join('')
+      : '<label class="ao-qty' + (unitQty(p.id) < 0 ? ' is-neg' : '') + '">' +
+          '<span>шт</span>' +
+          '<input type="number" data-stk-pid="' + esc(p.id) + '" value="' + unitQty(p.id) + '">' +
+        '</label>';
+
+    return (
+      '<div class="ao-stockrow ' + state.cls + '">' +
+        '<img src="' + esc((p.images && p.images[0]) || '') + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
+        '<div class="ao-stockrow__info">' +
+          '<b>' + esc(p.name) + (p.hidden ? ' <i class="ao-tag">сховано з сайту</i>' : '') + '</b>' +
+          '<span>' + esc(p.id) + ' · ' + fmt(p.price) + ' грн · <em class="ao-state">' + state.label + '</em></span>' +
+        '</div>' +
+        '<div class="ao-stockrow__qty">' + inputs + '</div>' +
+        '<div class="ao-stockrow__total"><b>' + fmt(total) + '</b><span>шт</span></div>' +
+      '</div>'
+    );
+  }
+
+  function stockListHTML() {
+    const all = products();
+    const q = stockSearch.toLowerCase();
+
+    let shown = 0;
+    const sections = categories().map((cat) => {
+      const items = all.filter((p) => {
+        if (p.category !== cat.id) return false;
+        if (q && !(p.name + ' ' + p.id).toLowerCase().includes(q)) return false;
+        const st = productRowState(p);
+        if (stockFilter === 'low' && st.cls !== 'is-low') return false;
+        if (stockFilter === 'out' && st.cls !== 'is-out') return false;
+        return true;
+      });
+      if (!items.length) return '';
+      shown += items.length;
+      return (
+        '<h5 class="ao-cat-title">' + esc(cat.title) + '</h5>' +
+        items.map(stockRowHTML).join('')
+      );
+    }).join('');
+
+    return shown
+      ? sections
+      : '<div class="a-empty">Нічого не знайдено.</div>';
+  }
+
+  function stockStatsHTML() {
+    const all = products();
+    let units = 0;
+    let value = 0;
+    let low = 0;
+    let out = 0;
+    all.forEach((p) => {
+      const t = totalQty(p);
+      units += t;
+      value += t * (Number(p.price) || 0);
+      const st = productRowState(p);
+      if (st.cls === 'is-low') low++;
+      if (st.cls === 'is-out') out++;
+    });
+    const pendingArrivals = restocksCache.filter((r) => r.status === 'pending').length;
+    return (
+      '<div class="ao-stats">' +
+        '<div class="ao-stat"><b>' + fmt(units) + '</b><span>одиниць на складі</span></div>' +
+        '<div class="ao-stat"><b>' + fmt(value) + ' грн</b><span>вартість залишків</span></div>' +
+        '<div class="ao-stat' + (low ? ' is-warn' : '') + '"><b>' + fmt(low) + '</b><span>закінчується</span></div>' +
+        '<div class="ao-stat' + (out ? ' is-bad' : '') + '"><b>' + fmt(out) + '</b><span>немає в наявності</span></div>' +
+        '<div class="ao-stat"><b>' + fmt(pendingArrivals) + '</b><span>очікується приходів</span></div>' +
+      '</div>'
+    );
+  }
+
+  /* ----- вкладка «Прихід» ----- */
+
+  function restockFormHTML() {
+    const all = products();
+    const selected = productById(restockProductId) || null;
+    const qtyInputs = !selected
+      ? '<p class="ao-note">Оберіть товар, щоб вказати кількість.</p>'
+      : (isSized(selected)
+          ? R.config.allSizes.map((s) =>
+              '<label class="ao-qty"><span>' + s + '</span><input type="number" min="0" value="0" data-rst-size="' + s + '"></label>'
+            ).join('')
+          : '<label class="ao-qty"><span>шт</span><input type="number" min="0" value="0" data-rst-qty></label>');
+
+    return (
+      '<form class="ao-restock-form" id="restockForm">' +
+        '<h5>Новий прихід</h5>' +
+        '<div class="ao-restock-form__row">' +
+          '<select id="rstProduct">' +
+            '<option value="">— товар —</option>' +
+            categories().map((cat) => {
+              const items = all.filter((p) => p.category === cat.id);
+              if (!items.length) return '';
+              return '<optgroup label="' + esc(cat.title) + '">' +
+                items.map((p) =>
+                  '<option value="' + esc(p.id) + '"' + (p.id === restockProductId ? ' selected' : '') + '>' +
+                    esc(p.name) + ' (' + esc(p.id) + ')' +
+                  '</option>'
+                ).join('') +
+              '</optgroup>';
+            }).join('') +
+          '</select>' +
+          '<input type="date" id="rstDate" value="' + todayISO() + '" title="Очікувана дата приходу">' +
+        '</div>' +
+        '<div class="ao-restock-form__qty" id="rstQtyBox">' + qtyInputs + '</div>' +
+        '<input id="rstNote" placeholder="Нотатка: постачальник, партія тощо (необовʼязково)">' +
+        '<button class="btn btn--primary btn--sm" type="submit">Додати прихід</button>' +
+      '</form>'
+    );
+  }
+
+  function restockCardHTML(r) {
+    const p = productById(r.productId);
+    const overdue = r.status === 'pending' && r.expected && r.expected < todayISO();
+    const qtyText = r.items
+      ? Object.keys(r.items).filter((k) => r.items[k] > 0).map((k) => k + ': ' + r.items[k]).join(', ')
+      : (r.qty ? r.qty + ' шт' : '');
+    const dateText = r.expected
+      ? new Date(r.expected + 'T00:00:00').toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '';
+    return (
+      '<div class="ao-restock' + (overdue ? ' is-overdue' : '') + (r.status === 'received' ? ' is-received' : '') + '" data-id="' + esc(r._id) + '">' +
+        '<div class="ao-restock__info">' +
+          '<b>' + esc(r.productName || (p && p.name) || r.productId) + '</b>' +
+          '<span>' + esc(qtyText) + (r.note ? ' · ' + esc(r.note) : '') + '</span>' +
+          '<span class="ao-restock__date">' +
+            (r.status === 'received' ? 'оприбутковано' : (overdue ? '⚠ очікувався ' : 'очікується ')) + esc(dateText) +
+          '</span>' +
+        '</div>' +
+        (r.status === 'pending'
+          ? '<div class="ao-restock__actions">' +
+              '<button class="btn btn--primary btn--sm" data-rst-receive type="button">Оприбуткувати</button>' +
+              '<button class="btn btn--ghost btn--sm ao-danger" data-rst-del type="button">✕</button>' +
+            '</div>'
+          : '') +
+      '</div>'
+    );
+  }
+
+  function restockListHTML() {
+    const pending = restocksCache.filter((r) => r.status === 'pending');
+    const received = restocksCache.filter((r) => r.status === 'received').slice(-10).reverse();
+    return (
+      '<h5>Очікуються</h5>' +
+      (pending.length ? pending.map(restockCardHTML).join('') : '<div class="a-empty">Запланованих приходів немає.</div>') +
+      (received.length ? '<h5>Останні оприбутковані</h5>' + received.map(restockCardHTML).join('') : '')
+    );
+  }
+
+  /* ----- вкладка «Рух» ----- */
+
+  function movesHTML() {
+    if (!movesCache.length) {
+      return '<div class="a-empty">Журнал руху порожній. Тут фіксується кожна зміна залишків: списання під замовлення, приходи та ручні коригування.</div>';
+    }
+    return (
+      '<div class="ao-moves">' +
+        movesCache.map((m) => {
+          const d = m.ts && m.ts.toDate
+            ? m.ts.toDate().toLocaleString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+            : '';
+          const delta = Number(m.delta) || 0;
+          return (
+            '<div class="ao-move">' +
+              '<span class="ao-move__delta ' + (delta >= 0 ? 'is-plus' : 'is-minus') + '">' + (delta > 0 ? '+' : '') + delta + '</span>' +
+              '<div class="ao-move__info">' +
+                '<b>' + esc(m.productName || m.productId) + (m.size ? ' · ' + esc(m.size) : '') + '</b>' +
+                '<span>' + esc(MOVE_REASONS[m.reason] || m.reason) + (m.ref ? ' · ' + esc(m.ref) : '') + (m.by ? ' · ' + esc(m.by) : '') + '</span>' +
+              '</div>' +
+              '<span class="ao-move__date">' + esc(d) + '</span>' +
+            '</div>'
+          );
+        }).join('') +
+      '</div>'
+    );
+  }
+
+  /* ----- рендер панелі складу ----- */
+
+  function renderStockUI() {
+    const tab = (id, title) =>
+      '<button class="ao-chip' + (stockTab === id ? ' is-active' : '') + '" data-stk-tab="' + id + '" type="button">' + title + '</button>';
+
+    let content = '';
+    if (stockTab === 'stock') {
+      content =
+        stockStatsHTML() +
+        '<div class="ao-filterbar">' +
+          '<div class="ao-chips">' +
+            '<button class="ao-chip' + (stockFilter === 'all' ? ' is-active' : '') + '" data-stk-filter="all" type="button">Всі</button>' +
+            '<button class="ao-chip' + (stockFilter === 'low' ? ' is-active' : '') + '" data-stk-filter="low" type="button">Закінчуються</button>' +
+            '<button class="ao-chip' + (stockFilter === 'out' ? ' is-active' : '') + '" data-stk-filter="out" type="button">Немає</button>' +
+          '</div>' +
+          '<input class="ao-search" id="aoStockSearch" placeholder="Пошук: назва або артикул" value="' + esc(stockSearch) + '">' +
+        '</div>' +
+        '<p class="ao-note">Змініть число — воно збережеться автоматично. Кожна зміна фіксується в журналі «Рух». «Закінчується» — коли лишилося ' + LOW_AT + ' шт або менше; сайт показує це покупцям автоматично.</p>' +
+        '<div class="ao-stocklist">' + stockListHTML() + '</div>';
+    } else if (stockTab === 'restock') {
+      content = restockFormHTML() + restockListHTML();
+    } else {
+      content = movesHTML();
+    }
+
+    stockBody().innerHTML =
+      '<div class="ao-toolbar">' +
+        '<span class="ao-live">● live</span>' +
+        '<div class="ao-chips">' + tab('stock', 'Залишки') + tab('restock', 'Прихід') + tab('moves', 'Рух') + '</div>' +
+        '<button class="btn btn--ghost btn--sm" data-ao-logout type="button" style="margin-left:auto">Вийти</button>' +
+      '</div>' +
+      content;
+
+    const search = $id('aoStockSearch');
+    if (search) {
+      search.addEventListener('input', () => {
+        stockSearch = search.value;
+        stockBody().querySelector('.ao-stocklist').innerHTML = stockListHTML();
+      });
+    }
+  }
+
+  /* ----- дії складу ----- */
+
+  async function setStockValue(pid, size, value) {
+    const p = productById(pid);
+    const oldVal = size ? sizeQty(pid, size) : unitQty(pid);
+    const newVal = Math.trunc(Number(value) || 0);
+    if (newVal === oldVal) return;
+
+    try {
+      const batch = R.fb.db.batch();
+      const ref = R.fb.db.collection('inventory').doc(pid);
+      const upd = { updated: firebase.firestore.FieldValue.serverTimestamp() };
+      if (size) upd.sizes = { [size]: newVal };
+      else upd.qty = newVal;
+      batch.set(ref, upd, { merge: true });
+      logMove(batch, {
+        productId: pid,
+        productName: (p && p.name) || pid,
+        size: size || null,
+        delta: newVal - oldVal,
+        reason: 'manual',
+        ref: ''
+      });
+      await batch.commit();
+    } catch (err) {
+      toast('Не вдалося зберегти залишок');
+      renderStockUI();
+    }
+  }
+
+  async function createRestock() {
+    const pid = $id('rstProduct').value;
+    const p = productById(pid);
+    if (!p) {
+      toast('Оберіть товар');
+      return;
+    }
+    const expected = $id('rstDate').value || todayISO();
+    const note = $id('rstNote').value.trim();
+
+    const doc = {
+      productId: pid,
+      productName: p.name,
+      expected: expected,
+      note: note,
+      status: 'pending',
+      created: firebase.firestore.FieldValue.serverTimestamp(),
+      by: (R.fb.user && R.fb.user.email) || ''
+    };
+
+    if (isSized(p)) {
+      const items = {};
+      let total = 0;
+      document.querySelectorAll('#rstQtyBox [data-rst-size]').forEach((inp) => {
+        const v = Math.max(0, Math.trunc(Number(inp.value) || 0));
+        if (v > 0) {
+          items[inp.dataset.rstSize] = v;
+          total += v;
+        }
+      });
+      if (!total) {
+        toast('Вкажіть кількість хоча б для одного розміру');
+        return;
+      }
+      doc.items = items;
+    } else {
+      const v = Math.max(0, Math.trunc(Number((document.querySelector('#rstQtyBox [data-rst-qty]') || {}).value) || 0));
+      if (!v) {
+        toast('Вкажіть кількість');
+        return;
+      }
+      doc.qty = v;
+    }
+
+    try {
+      await R.fb.db.collection('restocks').add(doc);
+      toast('Прихід заплановано ✓', 'success');
+      restockProductId = '';
+      loadRestocks().then(renderStockUI);
+    } catch (err) {
+      toast('Не вдалося зберегти прихід');
+    }
+  }
+
+  async function receiveRestock(r) {
+    const p = productById(r.productId);
+    try {
+      const batch = R.fb.db.batch();
+      const invRef = R.fb.db.collection('inventory').doc(r.productId);
+      const upd = { updated: firebase.firestore.FieldValue.serverTimestamp() };
+
+      if (r.items) {
+        upd.sizes = {};
+        Object.keys(r.items).forEach((s) => {
+          const v = Number(r.items[s]) || 0;
+          if (!v) return;
+          upd.sizes[s] = firebase.firestore.FieldValue.increment(v);
+          logMove(batch, {
+            productId: r.productId,
+            productName: r.productName || (p && p.name) || r.productId,
+            size: s,
+            delta: v,
+            reason: 'restock',
+            ref: r.note || ''
+          });
+        });
+      } else if (r.qty) {
+        upd.qty = firebase.firestore.FieldValue.increment(Number(r.qty) || 0);
+        logMove(batch, {
+          productId: r.productId,
+          productName: r.productName || (p && p.name) || r.productId,
+          size: null,
+          delta: Number(r.qty) || 0,
+          reason: 'restock',
+          ref: r.note || ''
+        });
+      }
+
+      batch.set(invRef, upd, { merge: true });
+      batch.update(R.fb.db.collection('restocks').doc(r._id), {
+        status: 'received',
+        receivedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      await batch.commit();
+
+      toast('Оприбутковано ✓ Залишки оновлено', 'success');
+      loadRestocks().then(renderStockUI);
+    } catch (err) {
+      toast('Не вдалося оприбуткувати');
+    }
+  }
+
+  /* ============================================================
+     АДМІНІСТРАТОРИ
+     ============================================================ */
+
+  async function addAdmin() {
+    const input = $id('newAdminEmail');
+    const email = (input.value || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast('Введіть коректний email');
+      return;
+    }
+    if (FOUNDERS.includes(email)) {
+      toast('Цей email вже постійний адмін');
+      return;
+    }
+    try {
+      await R.fb.db.collection('admins').doc(email).set({
+        added: firebase.firestore.FieldValue.serverTimestamp(),
+        by: (R.fb.user && R.fb.user.email) || ''
+      });
+      toast('Адміна додано ✓', 'success');
+      loadAdmins();
+    } catch (e) {
+      toast('Немає прав додавати адмінів');
+    }
+  }
+
+  /* ============================================================
+     ПОДІЇ
+     ============================================================ */
+
+  function watchModalClose(modalEl, onClose) {
+    new MutationObserver(() => {
+      if (modalEl.hidden) onClose();
+    }).observe(modalEl, { attributes: true, attributeFilter: ['hidden'] });
+  }
+
+  function init() {
+    const ordersBtn = $id('ordersBtn');
+    const stockBtn = $id('stockBtn');
+    if (!ordersBtn || !stockBtn) return;
+
+    ordersBtn.addEventListener('click', openOrders);
+    stockBtn.addEventListener('click', openStock);
+
+    watchModalClose($id('ordersModal'), stopOrders);
+    watchModalClose($id('stockModal'), stopStock);
+
+    document.addEventListener('auth:changed', () => {
+      updateUserChip();
+      if (!$id('ordersModal').hidden) renderOrdersRoot();
+      if (!$id('stockModal').hidden) renderStockRoot();
+    });
+    updateUserChip();
+
+    /* ---- замовлення ---- */
+
+    ordersBody().addEventListener('click', async (e) => {
+      if (e.target.closest('[data-ao-google]')) return signInGoogle();
+      if (e.target.closest('[data-ao-logout]')) return R.fb.auth.signOut();
+
+      const filterBtn = e.target.closest('[data-ao-filter]');
+      if (filterBtn) {
+        orderFilter = filterBtn.dataset.aoFilter;
+        renderOrdersUI();
+        return;
+      }
+
+      const rm = e.target.closest('[data-ao-rmadmin]');
+      if (rm) {
+        const email = rm.dataset.aoRmadmin;
+        if (confirm('Прибрати адміна ' + email + '?')) {
+          try {
+            await R.fb.db.collection('admins').doc(email).delete();
+            toast('Адміна прибрано');
+            loadAdmins();
+          } catch (err) {
+            toast('Немає прав');
+          }
+        }
+        return;
+      }
+
+      const card = e.target.closest('.ao-card');
+      if (!card) return;
+      const order = ordersCache.find((o) => o._id === card.dataset.id);
+      if (!order) return;
+
+      if (e.target.closest('[data-ao-copy]')) {
+        R.copyText(order.message || '');
+        toast('Скопійовано ✓', 'success');
+      } else if (e.target.closest('[data-ao-del]')) {
+        if (confirm('Видалити замовлення №' + order.num + '? Списаний товар автоматично НЕ повернеться на склад.')) {
+          try {
+            await R.fb.db.collection('orders').doc(order._id).delete();
+          } catch (err) {
+            toast('Немає прав видаляти');
+          }
+        }
+      }
+    });
+
+    ordersBody().addEventListener('change', (e) => {
+      const card = e.target.closest('.ao-card');
+      if (!card) return;
+      const order = ordersCache.find((o) => o._id === card.dataset.id);
+      if (!order) return;
+
+      if (e.target.matches('[data-ao-status]')) {
+        applyStatus(order, e.target.value);
+      } else if (e.target.matches('[data-ao-ttn]')) {
+        R.fb.db.collection('orders').doc(order._id)
+          .update({ ttn: e.target.value.trim() })
+          .then(() => toast('ТТН збережено ✓', 'success'))
+          .catch(() => toast('Не вдалося зберегти ТТН'));
+      }
+    });
+
+    ordersBody().addEventListener('submit', (e) => {
+      if (e.target.id === 'addAdminForm') {
+        e.preventDefault();
+        addAdmin();
+      }
+    });
+
+    /* ---- склад ---- */
+
+    stockBody().addEventListener('click', (e) => {
+      if (e.target.closest('[data-ao-google]')) return signInGoogle();
+      if (e.target.closest('[data-ao-logout]')) return R.fb.auth.signOut();
+
+      const tabBtn = e.target.closest('[data-stk-tab]');
+      if (tabBtn) {
+        stockTab = tabBtn.dataset.stkTab;
+        if (stockTab === 'moves') loadMoves();
+        if (stockTab === 'restock') loadRestocks();
+        renderStockUI();
+        return;
+      }
+
+      const filterBtn = e.target.closest('[data-stk-filter]');
+      if (filterBtn) {
+        stockFilter = filterBtn.dataset.stkFilter;
+        renderStockUI();
+        return;
+      }
+
+      const restockEl = e.target.closest('.ao-restock');
+      if (restockEl) {
+        const r = restocksCache.find((x) => x._id === restockEl.dataset.id);
+        if (!r) return;
+        if (e.target.closest('[data-rst-receive]')) {
+          receiveRestock(r);
+        } else if (e.target.closest('[data-rst-del]')) {
+          if (confirm('Видалити запланований прихід?')) {
+            R.fb.db.collection('restocks').doc(r._id).delete()
+              .then(() => loadRestocks().then(renderStockUI))
+              .catch(() => toast('Немає прав'));
+          }
+        }
+      }
+    });
+
+    stockBody().addEventListener('change', (e) => {
+      if (e.target.matches('[data-stk-pid]')) {
+        setStockValue(e.target.dataset.stkPid, e.target.dataset.stkSize || null, e.target.value);
+        return;
+      }
+      if (e.target.id === 'rstProduct') {
+        restockProductId = e.target.value;
+        renderStockUI();
+      }
+    });
+
+    stockBody().addEventListener('submit', (e) => {
+      if (e.target.id === 'restockForm') {
+        e.preventDefault();
+        createRestock();
       }
     });
   }

@@ -325,6 +325,18 @@
     orders.unshift(order);
     R.saveOrders(orders.slice(0, 50));
 
+    // З акаунтом — дублюємо замовлення і профіль у хмару
+    if (R.fb && R.fb.enabled && R.fb.user) {
+      R.fb.saveCloudOrder(order);
+      R.fb.saveCloudProfile({
+        name: customer.name,
+        phone: customer.phone,
+        carrier: customer.carrier,
+        city: customer.city,
+        branch: customer.branch
+      });
+    }
+
     lastOrder = order;
     cart.clear();
     mode = 'done';

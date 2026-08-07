@@ -1051,3 +1051,236 @@
 @keyframes toastOut {
   to { opacity: 0; transform: translateY(10px) scale(0.95); }
 }
+
+/* ---------- Авторизація в кабінеті ---------- */
+.auth-google {
+  width: 100%;
+  gap: 0.7rem;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-block: 1.1rem;
+  color: var(--c-muted);
+  font-size: 0.8rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--c-line);
+}
+
+.auth-links {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.auth-links button {
+  font-size: 0.88rem;
+  color: var(--c-muted);
+  transition: color var(--t-fast);
+}
+
+.auth-links button:hover {
+  color: var(--c-blue);
+}
+
+.auth-links b {
+  color: var(--c-blue);
+}
+
+.auth-user {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background: var(--c-paper);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.auth-user__avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--c-blue);
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.auth-user__info {
+  min-width: 0;
+  display: grid;
+  line-height: 1.35;
+}
+
+.auth-user__info b {
+  font-size: 0.95rem;
+}
+
+.auth-user__info span {
+  font-size: 0.8rem;
+  color: var(--c-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-user .btn {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Індикатор входу на іконці кабінету */
+.hbtn--authed::after {
+  content: '';
+  position: absolute;
+  bottom: 5px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  border: 1.5px solid var(--c-blue);
+}
+
+/* Статус замовлення */
+.order-card__status {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  vertical-align: 2px;
+  background: rgba(1, 74, 173, 0.1);
+  color: var(--c-blue);
+}
+
+.order-card__status.is-done {
+  background: var(--c-green-soft);
+  color: var(--c-green);
+}
+
+.order-card__status.is-cancelled {
+  background: var(--c-red-soft);
+  color: var(--c-red);
+}
+
+/* ---------- Трекер статусу замовлення ---------- */
+.tracker {
+  display: flex;
+  margin: 0.7rem 0 0.4rem;
+}
+
+.tracker__step {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* лінія до наступного кроку */
+.tracker__step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: calc(50% + 10px);
+  width: calc(100% - 20px);
+  height: 2.5px;
+  border-radius: 2px;
+  background: rgba(23, 27, 38, 0.12);
+}
+
+.tracker__step.is-done:not(:last-child)::after {
+  background: var(--c-green);
+}
+
+.tracker__dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2.5px solid rgba(23, 27, 38, 0.2);
+  z-index: 1;
+}
+
+.tracker__step.is-done .tracker__dot {
+  background: var(--c-green);
+  border-color: var(--c-green);
+}
+
+.tracker__step.is-current .tracker__dot {
+  background: var(--c-blue);
+  border-color: var(--c-blue);
+  box-shadow: 0 0 0 4px rgba(1, 74, 173, 0.15);
+}
+
+.tracker__label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--c-muted);
+  text-align: center;
+}
+
+.tracker__step.is-current .tracker__label {
+  color: var(--c-blue);
+  font-weight: 800;
+}
+
+.tracker__step.is-done .tracker__label {
+  color: var(--c-green);
+}
+
+.tracker__hint {
+  font-size: 0.8rem;
+  color: var(--c-muted);
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.tracker--cancelled {
+  display: block;
+  text-align: center;
+  background: var(--c-red-soft);
+  color: var(--c-red);
+  font-weight: 700;
+  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+  padding: 0.5rem;
+  margin-block: 0.6rem;
+}
+
+.order-card__ttn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  background: rgba(1, 74, 173, 0.06);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.7rem;
+  margin-bottom: 0.6rem;
+}
+
+.order-card__ttn button {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--c-blue);
+  border-bottom: 1px dashed rgba(1, 74, 173, 0.4);
+}

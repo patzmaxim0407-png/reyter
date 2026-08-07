@@ -586,3 +586,657 @@
   background: rgba(1, 74, 173, 0.08);
   color: var(--c-blue);
 }
+
+/* ============================================================
+   Хмарні панелі: замовлення, склад, адміни
+   ============================================================ */
+
+.abar__user {
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.8;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.abar__count {
+  display: inline-block;
+  min-width: 18px;
+  padding-inline: 5px;
+  border-radius: 999px;
+  background: var(--c-red);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  margin-left: 4px;
+}
+
+.a-orders {
+  padding: 1.1rem 1.4rem 1.4rem;
+  overflow-y: auto;
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+}
+
+.ao-gate {
+  display: grid;
+  gap: 0.9rem;
+  justify-items: start;
+  padding: 1rem 0;
+}
+
+.ao-note {
+  font-size: 0.86rem;
+  color: var(--c-muted);
+  line-height: 1.5;
+}
+
+.ao-note code {
+  background: rgba(23, 27, 38, 0.07);
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.ao-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.ao-live {
+  color: var(--c-green);
+  font-size: 0.78rem;
+  font-weight: 800;
+  animation: aoPulse 2s ease-in-out infinite;
+}
+
+@keyframes aoPulse {
+  50% { opacity: 0.45; }
+}
+
+.ao-toolbar > span:not(.ao-live) {
+  font-size: 0.82rem;
+  color: var(--c-muted);
+}
+
+/* Статистика */
+.ao-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.6rem;
+}
+
+.ao-stat {
+  background: var(--c-paper);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.9rem;
+  display: grid;
+  line-height: 1.3;
+}
+
+.ao-stat b {
+  font-size: 1.15rem;
+  color: var(--c-blue-ink);
+}
+
+.ao-stat span {
+  font-size: 0.74rem;
+  color: var(--c-muted);
+}
+
+.ao-stat.is-warn b { color: var(--c-amber); }
+.ao-stat.is-bad b { color: var(--c-red); }
+
+/* Фільтри + пошук */
+.ao-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.ao-chips {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.ao-chip {
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--c-line);
+  background: var(--c-paper);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--c-muted);
+  transition: all var(--t-fast);
+}
+
+.ao-chip i {
+  font-style: normal;
+  opacity: 0.7;
+  font-weight: 600;
+}
+
+.ao-chip:hover {
+  border-color: var(--c-blue);
+  color: var(--c-blue);
+}
+
+.ao-chip.is-active {
+  background: var(--c-blue);
+  border-color: var(--c-blue);
+  color: #fff;
+}
+
+.ao-search {
+  flex: 1;
+  min-width: 180px;
+  padding: 0.5rem 0.85rem;
+  border: 1.5px solid var(--c-line);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.85rem;
+  background: var(--c-paper);
+}
+
+.ao-search:focus {
+  outline: none;
+  border-color: var(--c-blue);
+}
+
+.ao-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+/* Картка замовлення */
+.ao-card {
+  background: var(--c-paper);
+  border: 1px solid var(--c-line);
+  border-left: 4px solid var(--c-blue);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1.1rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.ao-card.st-confirmed { border-left-color: #7c3aed; }
+.ao-card.st-shipped   { border-left-color: var(--c-amber); }
+.ao-card.st-done      { border-left-color: var(--c-green); opacity: 0.85; }
+.ao-card.st-cancelled { border-left-color: var(--c-red); opacity: 0.7; }
+
+.ao-card__head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.ao-card__date {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--c-muted);
+}
+
+.ao-status-select {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--c-line);
+  background: var(--c-paper);
+  cursor: pointer;
+}
+
+.ao-status-select.st-new       { color: var(--c-blue); border-color: rgba(1, 74, 173, 0.4); }
+.ao-status-select.st-confirmed { color: #7c3aed; border-color: rgba(124, 58, 237, 0.4); }
+.ao-status-select.st-shipped   { color: var(--c-amber); border-color: rgba(180, 83, 9, 0.4); }
+.ao-status-select.st-done      { color: var(--c-green); border-color: rgba(21, 128, 61, 0.4); }
+.ao-status-select.st-cancelled { color: var(--c-red); border-color: rgba(200, 30, 30, 0.4); }
+
+.ao-tag {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: var(--c-green-soft);
+  color: var(--c-green);
+  border-radius: 999px;
+  padding: 0.12rem 0.55rem;
+  font-style: normal;
+}
+
+.ao-card__customer {
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.ao-card__customer a {
+  color: var(--c-blue);
+  text-decoration: none;
+}
+
+.ao-card__items {
+  font-size: 0.84rem;
+  color: var(--c-muted);
+  display: grid;
+  gap: 0.15rem;
+  border-top: 1px dashed var(--c-line);
+  padding-top: 0.5rem;
+}
+
+.ao-card__foot {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.ao-card__total {
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.ao-ttn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--c-muted);
+  margin-left: auto;
+}
+
+.ao-ttn input {
+  width: 160px;
+  padding: 0.3rem 0.6rem;
+  font: inherit;
+  font-size: 0.8rem;
+  border: 1.5px solid var(--c-line);
+  border-radius: 8px;
+}
+
+.ao-ttn input:focus {
+  outline: none;
+  border-color: var(--c-blue);
+}
+
+.ao-card__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.ao-danger:hover {
+  border-color: var(--c-red) !important;
+  color: var(--c-red) !important;
+}
+
+/* Адміни */
+.ao-admins {
+  border-top: 1px solid var(--c-line);
+  padding-top: 1rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ao-admins h4 {
+  font-size: 0.95rem;
+}
+
+.ao-admin {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--c-paper);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.8rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.ao-admin i {
+  font-style: normal;
+  font-size: 0.72rem;
+  color: var(--c-muted);
+  font-weight: 500;
+  margin-left: auto;
+}
+
+.ao-admin button {
+  color: var(--c-muted);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+}
+
+.ao-admin button:hover {
+  background: var(--c-red-soft);
+  color: var(--c-red);
+}
+
+.ao-admin i + button {
+  margin-left: 0.3rem;
+}
+
+.ao-admin span + button {
+  margin-left: auto;
+}
+
+.ao-addadmin {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ao-addadmin input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.85rem;
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.ao-addadmin input:focus {
+  outline: none;
+  border-color: var(--c-blue);
+}
+
+/* ---------- Склад ---------- */
+
+.ao-cat-title {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--c-blue-ink);
+  margin-top: 0.6rem;
+}
+
+.ao-stocklist {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ao-stockrow {
+  display: grid;
+  grid-template-columns: 46px minmax(160px, 1fr) auto auto;
+  align-items: center;
+  gap: 0.8rem;
+  background: var(--c-paper);
+  border: 1px solid var(--c-line);
+  border-left: 4px solid rgba(23, 27, 38, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.8rem;
+}
+
+.ao-stockrow.is-ok  { border-left-color: var(--c-green); }
+.ao-stockrow.is-low { border-left-color: var(--c-amber); background: var(--c-amber-soft); }
+.ao-stockrow.is-out { border-left-color: var(--c-red); }
+
+.ao-stockrow img {
+  width: 46px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--c-cream-dark);
+}
+
+.ao-stockrow__info {
+  display: grid;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.ao-stockrow__info b {
+  font-size: 0.9rem;
+}
+
+.ao-stockrow__info span {
+  font-size: 0.76rem;
+  color: var(--c-muted);
+}
+
+.ao-state {
+  font-style: normal;
+  font-weight: 700;
+}
+
+.is-ok .ao-state  { color: var(--c-green); }
+.is-low .ao-state { color: var(--c-amber); }
+.is-out .ao-state { color: var(--c-red); }
+
+.ao-stockrow__qty {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.ao-qty {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.ao-qty span {
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: var(--c-muted);
+}
+
+.ao-qty input {
+  width: 52px;
+  padding: 0.3rem 0.2rem;
+  text-align: center;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: 1.5px solid var(--c-line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ao-qty input:focus {
+  outline: none;
+  border-color: var(--c-blue);
+}
+
+.ao-qty.is-neg input {
+  border-color: var(--c-red);
+  color: var(--c-red);
+}
+
+.ao-stockrow__total {
+  display: grid;
+  justify-items: center;
+  min-width: 44px;
+  line-height: 1.2;
+}
+
+.ao-stockrow__total b {
+  font-size: 1.05rem;
+  color: var(--c-blue-ink);
+}
+
+.ao-stockrow__total span {
+  font-size: 0.68rem;
+  color: var(--c-muted);
+}
+
+@media (max-width: 720px) {
+  .ao-stockrow {
+    grid-template-columns: 46px 1fr;
+  }
+  .ao-stockrow__qty,
+  .ao-stockrow__total {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+/* Прихід */
+.ao-restock-form {
+  background: var(--c-paper);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  padding: 1rem 1.1rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.ao-restock-form h5,
+.a-orders > h5 {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--c-blue-ink);
+}
+
+.ao-restock-form__row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.ao-restock-form select,
+.ao-restock-form input {
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  font-size: 0.88rem;
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.ao-restock-form select {
+  flex: 1;
+  min-width: 200px;
+}
+
+.ao-restock-form select:focus,
+.ao-restock-form input:focus {
+  outline: none;
+  border-color: var(--c-blue);
+}
+
+.ao-restock-form__qty {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ao-restock-form button {
+  justify-self: start;
+}
+
+.ao-restock {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  background: var(--c-paper);
+  border: 1px solid var(--c-line);
+  border-left: 4px solid var(--c-blue);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 1rem;
+}
+
+.ao-restock.is-overdue {
+  border-left-color: var(--c-amber);
+  background: var(--c-amber-soft);
+}
+
+.ao-restock.is-received {
+  border-left-color: var(--c-green);
+  opacity: 0.75;
+}
+
+.ao-restock__info {
+  display: grid;
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.ao-restock__info b {
+  font-size: 0.9rem;
+}
+
+.ao-restock__info span {
+  font-size: 0.78rem;
+  color: var(--c-muted);
+}
+
+.ao-restock__date {
+  font-weight: 600;
+}
+
+.ao-restock__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* Журнал руху */
+.ao-moves {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.ao-move {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background: var(--c-paper);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.8rem;
+}
+
+.ao-move__delta {
+  min-width: 44px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 0.95rem;
+  border-radius: 8px;
+  padding: 0.25rem 0.3rem;
+}
+
+.ao-move__delta.is-plus {
+  background: var(--c-green-soft);
+  color: var(--c-green);
+}
+
+.ao-move__delta.is-minus {
+  background: var(--c-red-soft);
+  color: var(--c-red);
+}
+
+.ao-move__info {
+  display: grid;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.ao-move__info b {
+  font-size: 0.85rem;
+}
+
+.ao-move__info span {
+  font-size: 0.74rem;
+  color: var(--c-muted);
+}
+
+.ao-move__date {
+  margin-left: auto;
+  font-size: 0.74rem;
+  color: var(--c-muted);
+  flex-shrink: 0;
+}

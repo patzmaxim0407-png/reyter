@@ -18,7 +18,15 @@ REYTER.config = {
     x:         'https://twitter.com/reyter_ua'
   },
   allSizes: ['XS', 'S', 'M', 'L', 'XL'],
-  freeDeliveryFrom: 1500
+  freeDeliveryFrom: 1500,
+  /* Життєвий цикл замовлення (панель в адмінці + трекер у кабінеті) */
+  orderStatuses: [
+    { id: 'new',       title: 'Нове',         hint: 'Замовлення отримано — скоро підтвердимо' },
+    { id: 'confirmed', title: 'Підтверджено', hint: 'Менеджер підтвердив замовлення' },
+    { id: 'shipped',   title: 'Відправлено',  hint: 'Посилка вже в дорозі' },
+    { id: 'done',      title: 'Виконано',     hint: 'Замовлення доставлено' },
+    { id: 'cancelled', title: 'Скасовано',    hint: 'Замовлення скасовано' }
+  ]
 };
 
 /* Категорії показуються в цьому ж порядку */

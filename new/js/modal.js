@@ -10,6 +10,7 @@
   const R = window.REYTER;
 
   let current = null;      // поточний товар
+  let currentAv = null;    // його доступність (живі залишки або статичні поля)
   let images = [];
   let index = 0;
   let selectedSize = null;
@@ -51,9 +52,9 @@
   }
 
   function refreshStatus() {
-    if (current.status === 'sold-out') {
+    if (currentAv.soldOut) {
       setStatus('no', 'Продано');
-    } else if (selectedSize && (current.lowStock || []).includes(selectedSize)) {
+    } else if (selectedSize && currentAv.low.includes(selectedSize)) {
       setStatus('low', 'Закінчується');
     } else {
       setStatus('ok', 'В наявності');
@@ -105,21 +106,22 @@
 
   function renderSizes() {
     const p = current;
+    const av = currentAv;
     selectedSize = null;
 
     if (p.volume) {
       el.sizesTitle.textContent = 'Обʼєм';
       el.sizes.innerHTML = sizePillHTML(p.volume, {
-        checked: p.status !== 'sold-out',
-        disabled: p.status === 'sold-out'
+        checked: !av.soldOut,
+        disabled: av.soldOut
       });
-      selectedSize = p.status !== 'sold-out' ? p.volume : null;
+      selectedSize = !av.soldOut ? p.volume : null;
       el.sizesBlock.hidden = false;
       el.sizeLink.hidden = true;
       return;
     }
 
-    if (!p.sizes || (!p.sizes.length && p.status !== 'sold-out')) {
+    if (!p.sizes && !av.sizes.length) {
       el.sizesBlock.hidden = true;
       return;
     }
@@ -128,22 +130,20 @@
     el.sizeLink.hidden = false;
     el.sizesBlock.hidden = false;
 
-    const soldOut = p.status === 'sold-out';
-    const available = p.sizes || [];
     let first = true;
 
     el.sizes.innerHTML = R.config.allSizes
       .map((size) => {
-        const has = available.includes(size);
-        const checked = !soldOut && has && first;
+        const has = !av.soldOut && av.sizes.includes(size);
+        const checked = has && first;
         if (checked) {
           first = false;
           selectedSize = size;
         }
         return sizePillHTML(size, {
-          disabled: soldOut || !has,
+          disabled: !has,
           checked: checked,
-          low: has && (p.lowStock || []).includes(size)
+          low: has && av.low.includes(size)
         });
       })
       .join('');
@@ -188,7 +188,7 @@
   /* ---------- Кнопки ---------- */
 
   function refreshCta() {
-    const soldOut = current.status === 'sold-out';
+    const soldOut = currentAv.soldOut;
     el.addCart.disabled = soldOut;
     el.addCart.classList.toggle('is-disabled', soldOut);
     el.addCartLabel.textContent = soldOut ? 'Продано' : 'Додати в кошик';
@@ -201,6 +201,7 @@
     if (!p || !el.modal) return;
 
     current = p;
+    currentAv = R.availability(p);
     images = (p.images || []).slice();
     if (!images.length) images = ['../assets/images/logo_4.webp'];
 
@@ -292,8 +293,8 @@
     el.sizeLink.addEventListener('click', () => R.overlay.close(el.modal));
 
     el.addCart.addEventListener('click', () => {
-      if (!current || current.status === 'sold-out') return;
-      if (!current.volume && current.sizes && current.sizes.length && !selectedSize) {
+      if (!current || currentAv.soldOut) return;
+      if (!current.volume && !selectedSize) {
         R.toast('Оберіть розмір');
         return;
       }
