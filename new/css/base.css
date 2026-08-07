@@ -64,6 +64,7 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -74,6 +75,49 @@ body {
   background-color: var(--c-cream);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  /* Ніякого сірого спалаху при дотику — як у застосунку */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Прибирає подвійний тап-зум і затримку 300 мс на елементах керування */
+a,
+button,
+label,
+summary,
+input,
+select,
+textarea,
+.pcard,
+.chip,
+.gthumb {
+  touch-action: manipulation;
+}
+
+/* Інтерфейс не виділяється при довгому натисканні; текст — виділяється */
+.site-header,
+.cat-chips,
+.drawer__head,
+.drawer__tabs,
+.pmodal__panel .pinfo__sizes,
+button,
+.btn,
+.chip,
+.lang-btn,
+.gthumb,
+.qty,
+.size-pill {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Поля вводу: 16px на дотикових екранах — інакше iOS зумить сторінку
+   при фокусі. На десктопі лишається дрібніший розмір із компонентів. */
+@media (pointer: coarse), (max-width: 1024px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 img,
@@ -272,6 +316,36 @@ section[id],
 .reveal.is-visible {
   opacity: 1;
   transform: none;
+}
+
+/* ---------- Мобільна поведінка ----------
+   Блокування прокрутки фону робиться через position: fixed —
+   лише overflow: hidden на iOS не тримає сторінку на місці. */
+body.no-scroll {
+  position: fixed;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Мінімальна площа дотику 44px — рекомендація Apple */
+@media (pointer: coarse) {
+  .btn,
+  .hbtn,
+  .burger,
+  .drawer__close,
+  .pmodal__close,
+  .lightbox__close,
+  .lightbox__nav,
+  .gal__nav,
+  .cart-item__remove,
+  .qty button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .size-pill label {
+    min-height: 46px;
+  }
 }
 
 /* ---------- Доступність: менше руху ---------- */

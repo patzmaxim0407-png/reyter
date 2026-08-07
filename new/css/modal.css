@@ -349,6 +349,11 @@
   flex: 1 1 200px;
 }
 
+/* Ціна в липкій панелі — лише на телефоні */
+.pinfo__cta-price {
+  display: none;
+}
+
 .pinfo__order-note {
   font-size: 0.8rem;
   color: var(--c-muted);
@@ -474,10 +479,68 @@
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     width: 100%;
     transform: translateY(40px);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    /* місце під липку кнопку і «домашню смужку» */
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+
+  /* Смужка-«ручка», як у нативних нижніх панелей */
+  .pmodal__panel::before {
+    content: '';
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    display: block;
+    width: 44px;
+    height: 4px;
+    margin: -4px auto 4px;
+    border-radius: 999px;
+    background: rgba(23, 27, 38, 0.2);
   }
 
   .gal__main {
     aspect-ratio: 4 / 5;
+  }
+
+  /* «Додати в кошик» завжди під рукою */
+  .pinfo__cta {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 6;
+    margin: 0;
+    padding: 0.7rem clamp(1.1rem, 4vw, 2rem);
+    padding-bottom: max(0.7rem, env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--c-cream) 94%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--c-line);
+  }
+
+  .pinfo__cta {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: nowrap;
+  }
+
+  .pinfo__cta-price {
+    display: block;
+    flex: 0 0 auto;
+    font-weight: 800;
+    font-size: 1.05rem;
+    color: var(--c-blue-ink);
+    white-space: nowrap;
+  }
+
+  .pinfo__cta .btn {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-block: 1rem;
+    padding-inline: 1rem;
+    font-size: 1rem;
   }
 }
 
@@ -686,7 +749,4 @@
   height: 17px;
 }
 
-/* ---------- Блокування прокручування ---------- */
-body.no-scroll {
-  overflow: hidden;
-}
+/* Блокування прокручування описане в base.css */

@@ -14,12 +14,35 @@
 
   const stack = [];
 
+  /* ---------- Блокування прокрутки фону ----------
+     На iOS одного overflow: hidden замало — сторінка все одно
+     «протягується». Фіксуємо body і повертаємо позицію назад. */
+
+  let savedScroll = 0;
+
+  function lockScroll() {
+    savedScroll = window.scrollY || window.pageYOffset || 0;
+    document.body.style.top = -savedScroll + 'px';
+    document.body.classList.add('no-scroll');
+  }
+
+  function unlockScroll() {
+    document.body.classList.remove('no-scroll');
+    document.body.style.top = '';
+    // миттєво, без плавної прокрутки — інакше сторінка «їде»
+    const behavior = document.documentElement.style.scrollBehavior;
+    document.documentElement.style.scrollBehavior = 'auto';
+    window.scrollTo(0, savedScroll);
+    document.documentElement.style.scrollBehavior = behavior;
+  }
+
   R.overlay = {
     open(el, opts) {
       if (!el || stack.some((s) => s.el === el)) return;
       opts = opts || {};
 
       const entry = { el: el, opts: opts, lastFocus: document.activeElement };
+      if (!stack.length) lockScroll();
       stack.push(entry);
 
       el.hidden = false;
@@ -28,7 +51,6 @@
         requestAnimationFrame(() => el.classList.add('is-open'));
       });
 
-      document.body.classList.add('no-scroll');
       if (opts.focus && opts.focus.focus) {
         setTimeout(() => opts.focus.focus(), 60);
       }
@@ -45,9 +67,9 @@
         el.dispatchEvent(new CustomEvent('overlay:closed'));
       }, 400);
 
-      if (!stack.length) document.body.classList.remove('no-scroll');
+      if (!stack.length) unlockScroll();
       if (entry.lastFocus && entry.lastFocus.focus) {
-        entry.lastFocus.focus();
+        entry.lastFocus.focus({ preventScroll: true });
       }
     },
 

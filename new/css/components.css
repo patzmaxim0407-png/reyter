@@ -12,6 +12,9 @@
   display: flex;
   gap: 0.5rem;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
   padding: 0.7rem clamp(1rem, 4vw, 2rem);
   margin-bottom: clamp(1.4rem, 3vw, 2.4rem);
   background: color-mix(in srgb, var(--c-cream) 88%, transparent);
@@ -27,6 +30,7 @@
 
 .chip {
   flex-shrink: 0;
+  scroll-snap-align: start;
   padding: 0.45rem 1.1rem;
   border-radius: 999px;
   border: 1.5px solid rgba(6, 43, 92, 0.18);
@@ -88,6 +92,37 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(235px, 1fr));
   gap: clamp(1rem, 2.4vw, 1.6rem);
+}
+
+/* На телефоні — дві колонки, як у застосунках магазинів */
+@media (max-width: 560px) {
+  .pgrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.7rem;
+  }
+
+  .pcard__body {
+    padding: 0.7rem 0.75rem 0.9rem;
+    gap: 0.3rem;
+  }
+
+  .pcard__title {
+    font-size: 0.88rem;
+  }
+
+  .price__now {
+    font-size: 0.95rem;
+  }
+
+  .price__old,
+  .price__usd {
+    font-size: 0.78rem;
+  }
+
+  .badge {
+    font-size: 0.62rem;
+    padding: 0.22rem 0.5rem;
+  }
 }
 
 /* ---------- Картка товару ---------- */
@@ -479,7 +514,7 @@
 .to-top {
   position: fixed;
   right: 22px;
-  bottom: 22px;
+  bottom: max(22px, env(safe-area-inset-bottom));
   z-index: 900;
   width: 48px;
   height: 48px;
@@ -547,6 +582,7 @@
   box-shadow: var(--shadow-pop);
   transform: translateX(100%);
   transition: transform 0.38s var(--ease-out);
+  padding-top: env(safe-area-inset-top);
 }
 
 .drawer.is-open .drawer__panel {
@@ -619,11 +655,15 @@
 .drawer__body {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;   /* інерційна прокрутка на iOS */
+  overscroll-behavior: contain;        /* не тягне сторінку за собою */
   padding: 1.2rem 1.4rem;
 }
 
 .drawer__foot {
   padding: 1.1rem 1.4rem 1.3rem;
+  /* відступ під «домашню смужку» на iPhone */
+  padding-bottom: max(1.3rem, env(safe-area-inset-bottom));
   border-top: 1px solid var(--c-line);
   background: var(--c-paper);
 }

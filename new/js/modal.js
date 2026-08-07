@@ -36,6 +36,7 @@
     el.sizeLink = document.getElementById('pmSizeLink');
     el.addCart = document.getElementById('pmAddCart');
     el.addCartLabel = document.getElementById('pmAddCartLabel');
+    el.ctaPrice = document.getElementById('pmCtaPrice');
     el.desc = document.getElementById('pmDesc');
     el.extras = document.getElementById('pmExtras');
     el.lightbox = document.getElementById('lightbox');
@@ -208,6 +209,8 @@
     el.name.textContent = R.tf(p, 'name');
     el.article.textContent = R.t('p.article') + ': ' + p.id;
     el.price.innerHTML = R.priceHTML(p, true);
+    // дубль ціни в липкій панелі на телефоні
+    el.ctaPrice.textContent = R.uah(p.price);
     el.saleNote.hidden = !p.saleNote;
     el.saleNote.textContent = p.saleNote ? R.tf(p, 'saleNote') : '';
 

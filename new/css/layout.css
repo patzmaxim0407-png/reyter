@@ -50,11 +50,16 @@
   box-shadow: 0 10px 30px rgba(6, 27, 60, 0.28);
 }
 
+.site-header {
+  padding-top: env(safe-area-inset-top);
+}
+
 .site-header__inner {
   max-width: var(--container);
   margin-inline: auto;
   height: var(--header-h);
-  padding-inline: clamp(1rem, 3vw, 2rem);
+  padding-left: max(clamp(1rem, 3vw, 2rem), env(safe-area-inset-left));
+  padding-right: max(clamp(1rem, 3vw, 2rem), env(safe-area-inset-right));
   display: flex;
   align-items: center;
   gap: 1.25rem;
@@ -490,9 +495,12 @@
 
   .site-nav {
     position: absolute;
-    top: var(--header-h);
+    top: calc(var(--header-h) + env(safe-area-inset-top));
     left: 0;
     right: 0;
+    max-height: calc(100dvh - var(--header-h) - env(safe-area-inset-top));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     flex-direction: column;
     align-items: stretch;
     gap: 0;
