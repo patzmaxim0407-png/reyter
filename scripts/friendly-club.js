@@ -28,6 +28,7 @@
     function open() {
       overlay.hidden = false;
       overlay.scrollTop = 0;
+      document.body.classList.add('fc-overlay-open');
       if (isFullscreen()) {
         document.body.style.overflow = 'hidden';
       } else {
@@ -44,6 +45,7 @@
 
     function close() {
       overlay.classList.remove('fc-open');
+      document.body.classList.remove('fc-overlay-open');
       document.body.style.overflow = '';
       setTimeout(function () { overlay.hidden = true; }, 350);
     }

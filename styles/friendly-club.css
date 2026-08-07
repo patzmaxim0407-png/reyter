@@ -164,6 +164,13 @@
   margin: .5em 0 0;
 }
 
+/* поки відкритий оверлей — ховаємо кнопку прокрутки догори
+   (!important перебиває inline-стилі скрипта скролу) */
+body.fc-overlay-open #scrollTopBtn {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* --- Мобільна версія: оверлей на весь екран, щоб текст читався --- */
 @media (max-width: 640px) {
   .fc-overlay {
