@@ -717,8 +717,8 @@
 
 /* ============================================================
    МОДУЛЬ 2 — ХМАРНІ ПАНЕЛІ
-   Гейт для адміністраторів, замовлення (live), склад,
-   адміністратори, налаштування сповіщень
+   Гейт для адміністраторів, агрегатор замовлень, склад,
+   налаштування (сповіщення + адміністратори)
    ============================================================ */
 
 (function () {
@@ -740,13 +740,31 @@
     { id: 'cancelled', title: 'Скасовано' }
   ];
 
+  /* Статуси, за яких товар вважається списаним зі складу */
+  const CONSUMING = ['confirmed', 'shipped', 'done'];
+
+  /* Наступний крок у життєвому циклі — для кнопки швидкої дії */
+  const NEXT_STEP = {
+    new: { id: 'confirmed', label: 'Підтвердити' },
+    confirmed: { id: 'shipped', label: 'Відправлено' },
+    shipped: { id: 'done', label: 'Виконано' }
+  };
+
   const LOW_AT = 2;
+  const PAGE_SIZE = 25;          // скільки замовлень показуємо за раз
+  const BULK_CHUNK = 20;         // розмір порції для масових дій
 
   const MOVE_REASONS = {
     manual: 'Ручне коригування',
     order: 'Списання під замовлення',
     'order-cancel': 'Повернення (скасування)',
     restock: 'Прихід товару'
+  };
+
+  const TRACK_URLS = {
+    'Нова Пошта': 'https://novaposhta.ua/tracking/?cargo_number=',
+    'Укрпошта': 'https://track.ukrposhta.ua/tracking_UA.aspx?barcode=',
+    'Meest': 'https://meest.com/ua/tracking/?code='
   };
 
   const $id = (id) => document.getElementById(id);
@@ -794,8 +812,16 @@
     return !p.volume;
   }
 
+  function pad2(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  function localISO(d) {
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
+
   function todayISO() {
-    return new Date().toISOString().slice(0, 10);
+    return localISO(new Date());
   }
 
   function fbReady() {
@@ -808,8 +834,6 @@
       await R.fb.auth.signInWithPopup(provider);
     } catch (err) {
       const code = (err && err.code) || '';
-      // Попап заблоковано (часто на мобільних) — входимо через
-      // повне перенаправлення на сторінку Google
       if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
         const status = $id('gateStatus');
         if (status) status.textContent = 'Переходимо на сторінку входу Google…';
@@ -884,7 +908,7 @@
   }
 
   /* ============================================================
-     РОУТЕР: Каталог / Замовлення / Склад — повноцінні сторінки
+     РОУТЕР: Каталог / Замовлення / Склад
      ============================================================ */
 
   const VIEWS = ['catalog', 'orders', 'stock'];
@@ -907,8 +931,6 @@
     window.scrollTo(0, 0);
   }
 
-  /* Підписки живуть постійно, поки адмін у системі:
-     бейдж нових замовлень і сповіщення працюють у всіх розділах */
   function startCloud() {
     if (!ordersUnsub) subscribeOrders();
     if (!invUnsub) {
@@ -998,16 +1020,42 @@
     });
   }
 
+  /* Чи вистачає залишків на замовлення (попередження перед підтвердженням) */
+  function stockShortage(order) {
+    const short = [];
+    (order.items || []).forEach((item) => {
+      const p = productById(item.id);
+      if (!p || !hasInvDoc(item.id)) return; // облік не ведеться — не перевіряємо
+      const have = (p && !isSized(p)) ? unitQty(item.id) : sizeQty(item.id, item.size);
+      if (have < item.qty) {
+        short.push(item.name + (item.size ? ' (' + item.size + ')' : '') +
+          ': потрібно ' + item.qty + ', на складі ' + have);
+      }
+    });
+    return short;
+  }
+
   /* ============================================================
-     ПАНЕЛЬ «ЗАМОВЛЕННЯ»
+     АГРЕГАТОР ЗАМОВЛЕНЬ
      ============================================================ */
 
   let ordersCache = [];
   let ordersUnsub = null;
-  let orderFilter = 'all';
-  let orderSearch = '';
   let knownOrderIds = null;
-  let adminsCache = null;
+
+  /* Стан фільтрів */
+  const F = {
+    status: 'all',
+    period: '30d',      // today | yesterday | 7d | 30d | month | all | custom
+    from: '',
+    to: '',
+    search: '',
+    sort: 'new',        // new | old | sum | sumAsc
+    limit: PAGE_SIZE
+  };
+
+  let selection = new Set();
+  let expanded = new Set();
 
   function ordersBody() {
     return $id('ordersBody');
@@ -1022,7 +1070,7 @@
       ordersBody().innerHTML = '<p class="ao-note">Завантажуємо замовлення…</p>';
       subscribeOrders();
     } else {
-      renderOrdersUI();
+      renderOrders();
     }
   }
 
@@ -1030,7 +1078,7 @@
     ordersUnsub = R.fb.db
       .collection('orders')
       .orderBy('created', 'desc')
-      .limit(300)
+      .limit(500)
       .onSnapshot(
         (snap) => {
           ordersCache = snap.docs.map((d) => Object.assign({ _id: d.id }, d.data()));
@@ -1038,22 +1086,21 @@
           const ids = new Set(ordersCache.map((o) => o._id));
           if (knownOrderIds) {
             ordersCache.forEach((o) => {
-              if (!knownOrderIds.has(o._id)) {
-                toast('🛍 Нове замовлення №' + o.num, 'success');
-              }
+              if (!knownOrderIds.has(o._id)) toast('🛍 Нове замовлення №' + o.num, 'success');
             });
           }
           knownOrderIds = ids;
 
           updateOrdersBadge();
-          if (adminsCache === null) loadAdmins();
-          renderOrdersUI();
+          if (currentView() === 'orders') renderOrders();
         },
         (err) => {
           stopOrders();
           ordersBody().innerHTML =
             '<p class="ao-note">Не вдалося завантажити замовлення' +
-            (err && err.code === 'permission-denied' ? ': немає прав.' : '. Перевірте правила Firestore (файл new/firestore.rules).') +
+            (err && err.code === 'permission-denied'
+              ? ': немає прав.'
+              : '. Перевірте правила Firestore (файл new/firestore.rules).') +
             '</p>';
         }
       );
@@ -1066,17 +1113,6 @@
     }
   }
 
-  async function loadAdmins() {
-    adminsCache = [];
-    try {
-      const snap = await R.fb.db.collection('admins').get();
-      adminsCache = snap.docs
-        .map((d) => Object.assign({ email: d.id }, d.data()))
-        .filter((a) => !FOUNDERS.includes(a.email));
-      renderOrdersUI();
-    } catch (e) { /* панель працює і без списку */ }
-  }
-
   function updateOrdersBadge() {
     const badge = $id('newOrdersBadge');
     if (!badge) return;
@@ -1085,167 +1121,412 @@
     badge.textContent = n;
   }
 
-  function orderMatches(o) {
-    if (orderFilter !== 'all' && (o.status || 'new') !== orderFilter) return false;
-    if (orderSearch) {
-      const q = orderSearch.toLowerCase();
-      const c = o.customer || {};
-      const hay = [o.num, c.name, c.phone, o.email, c.email, o.ttn].filter(Boolean).join(' ').toLowerCase();
-      if (!hay.includes(q)) return false;
+  /* ---------- Дати та фільтрація ---------- */
+
+  function orderDate(o) {
+    if (o.date) return new Date(o.date);
+    if (o.created && o.created.toDate) return o.created.toDate();
+    return new Date(0);
+  }
+
+  function periodRange() {
+    const now = new Date();
+    const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const today = startOfDay(now);
+
+    switch (F.period) {
+      case 'today':
+        return { from: today, to: null };
+      case 'yesterday': {
+        const y = new Date(today);
+        y.setDate(y.getDate() - 1);
+        return { from: y, to: today };
+      }
+      case '7d': {
+        const d = new Date(today);
+        d.setDate(d.getDate() - 6);
+        return { from: d, to: null };
+      }
+      case '30d': {
+        const d = new Date(today);
+        d.setDate(d.getDate() - 29);
+        return { from: d, to: null };
+      }
+      case 'month':
+        return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: null };
+      case 'custom': {
+        const from = F.from ? new Date(F.from + 'T00:00:00') : null;
+        let to = null;
+        if (F.to) {
+          to = new Date(F.to + 'T00:00:00');
+          to.setDate(to.getDate() + 1); // включно з кінцевим днем
+        }
+        return { from: from, to: to };
+      }
+      default:
+        return { from: null, to: null };
     }
+  }
+
+  function inPeriod(o) {
+    const range = periodRange();
+    if (!range.from && !range.to) return true;
+    const d = orderDate(o);
+    if (range.from && d < range.from) return false;
+    if (range.to && d >= range.to) return false;
     return true;
   }
 
-  function orderStatsHTML() {
-    const today = todayISO();
-    const active = ordersCache.filter((o) => o.status !== 'cancelled');
+  function matchesSearch(o) {
+    if (!F.search) return true;
+    const q = F.search.toLowerCase();
+    const c = o.customer || {};
+    const items = (o.items || []).map((i) => i.name + ' ' + i.id).join(' ');
+    const hay = [o.num, c.name, c.phone, c.email, o.email, o.ttn, c.city, c.branch, items]
+      .filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  }
+
+  /* Замовлення в межах періоду — база для статистики і лічильників статусів */
+  function periodOrders() {
+    return ordersCache.filter(inPeriod);
+  }
+
+  /* Повністю відфільтровані та відсортовані */
+  function filteredOrders() {
+    let list = periodOrders().filter((o) => {
+      if (F.status !== 'all' && (o.status || 'new') !== F.status) return false;
+      return matchesSearch(o);
+    });
+
+    list = list.slice().sort((a, b) => {
+      if (F.sort === 'old') return orderDate(a) - orderDate(b);
+      if (F.sort === 'sum') return (b.total || 0) - (a.total || 0);
+      if (F.sort === 'sumAsc') return (a.total || 0) - (b.total || 0);
+      return orderDate(b) - orderDate(a);
+    });
+
+    return list;
+  }
+
+  /* ---------- Блоки інтерфейсу ---------- */
+
+  function statsHTML() {
+    const list = periodOrders();
+    const active = list.filter((o) => o.status !== 'cancelled');
     const revenue = active.reduce((s, o) => s + (Number(o.total) || 0), 0);
-    const todayCount = ordersCache.filter((o) => String(o.date || '').slice(0, 10) === today).length;
-    const newCount = ordersCache.filter((o) => (o.status || 'new') === 'new').length;
+    const avg = active.length ? Math.round(revenue / active.length) : 0;
+    const newCount = list.filter((o) => (o.status || 'new') === 'new').length;
+    const units = active.reduce(
+      (s, o) => s + (o.items || []).reduce((n, i) => n + (Number(i.qty) || 0), 0), 0
+    );
+
     return (
       '<div class="ao-stats">' +
-        '<div class="ao-stat"><b>' + fmt(ordersCache.length) + '</b><span>всього</span></div>' +
-        '<div class="ao-stat"><b>' + fmt(newCount) + '</b><span>нових</span></div>' +
-        '<div class="ao-stat"><b>' + fmt(todayCount) + '</b><span>сьогодні</span></div>' +
-        '<div class="ao-stat"><b>' + fmt(revenue) + ' грн</b><span>сума (без скасованих)</span></div>' +
+        '<div class="ao-stat"><b>' + fmt(list.length) + '</b><span>замовлень за період</span></div>' +
+        '<div class="ao-stat' + (newCount ? ' is-warn' : '') + '"><b>' + fmt(newCount) + '</b><span>потребують уваги</span></div>' +
+        '<div class="ao-stat"><b>' + fmt(revenue) + ' грн</b><span>виручка (без скасованих)</span></div>' +
+        '<div class="ao-stat"><b>' + fmt(avg) + ' грн</b><span>середній чек</span></div>' +
+        '<div class="ao-stat"><b>' + fmt(units) + '</b><span>одиниць товару</span></div>' +
       '</div>'
     );
   }
 
-  function orderFiltersHTML() {
-    const counts = { all: ordersCache.length };
-    STATUSES.forEach((s) => {
-      counts[s.id] = ordersCache.filter((o) => (o.status || 'new') === s.id).length;
-    });
-    const chip = (id, title) =>
-      '<button class="ao-chip' + (orderFilter === id ? ' is-active' : '') + '" data-ao-filter="' + id + '" type="button">' +
-        title + ' <i>' + counts[id] + '</i>' +
-      '</button>';
+  function periodBarHTML() {
+    const opts = [
+      ['today', 'Сьогодні'],
+      ['yesterday', 'Вчора'],
+      ['7d', '7 днів'],
+      ['30d', '30 днів'],
+      ['month', 'Цей місяць'],
+      ['all', 'Весь час'],
+      ['custom', 'Свій період']
+    ];
     return (
       '<div class="ao-filterbar">' +
         '<div class="ao-chips">' +
-          chip('all', 'Всі') +
-          STATUSES.map((s) => chip(s.id, s.title)).join('') +
+          opts.map(([id, title]) =>
+            '<button class="ao-chip' + (F.period === id ? ' is-active' : '') + '" data-period="' + id + '" type="button">' + title + '</button>'
+          ).join('') +
         '</div>' +
-        '<input class="ao-search" id="aoOrderSearch" placeholder="Пошук: №, імʼя, телефон, ТТН" value="' + esc(orderSearch) + '">' +
+        (F.period === 'custom'
+          ? '<span class="ao-daterange">' +
+              '<input type="date" id="aoFrom" value="' + esc(F.from) + '" max="' + todayISO() + '">' +
+              '<i>—</i>' +
+              '<input type="date" id="aoTo" value="' + esc(F.to) + '" max="' + todayISO() + '">' +
+            '</span>'
+          : '') +
+      '</div>'
+    );
+  }
+
+  function statusBarHTML() {
+    const list = periodOrders().filter(matchesSearch);
+    const counts = { all: list.length };
+    STATUSES.forEach((s) => {
+      counts[s.id] = list.filter((o) => (o.status || 'new') === s.id).length;
+    });
+    const chip = (id, title) =>
+      '<button class="ao-chip' + (F.status === id ? ' is-active' : '') + '" data-status-filter="' + id + '" type="button">' +
+        title + ' <i>' + counts[id] + '</i>' +
+      '</button>';
+
+    return (
+      '<div class="ao-filterbar">' +
+        '<div class="ao-chips">' + chip('all', 'Всі') + STATUSES.map((s) => chip(s.id, s.title)).join('') + '</div>' +
+        '<input class="ao-search" id="aoSearch" placeholder="Пошук: №, імʼя, телефон, ТТН, місто, товар" value="' + esc(F.search) + '">' +
+        '<select class="ao-sort" id="aoSort">' +
+          '<option value="new"' + (F.sort === 'new' ? ' selected' : '') + '>Спершу нові</option>' +
+          '<option value="old"' + (F.sort === 'old' ? ' selected' : '') + '>Спершу старі</option>' +
+          '<option value="sum"' + (F.sort === 'sum' ? ' selected' : '') + '>Сума ↓</option>' +
+          '<option value="sumAsc"' + (F.sort === 'sumAsc' ? ' selected' : '') + '>Сума ↑</option>' +
+        '</select>' +
+      '</div>'
+    );
+  }
+
+  function bulkBarHTML(visible) {
+    const n = selection.size;
+    if (!n) {
+      return (
+        '<div class="ao-bulk ao-bulk--idle">' +
+          '<label class="a-check"><input type="checkbox" id="aoSelectAll"> Вибрати всі показані (' + visible.length + ')</label>' +
+          '<button class="btn btn--ghost btn--sm" data-export type="button">Експорт CSV</button>' +
+        '</div>'
+      );
+    }
+    return (
+      '<div class="ao-bulk is-active">' +
+        '<label class="a-check"><input type="checkbox" id="aoSelectAll" checked> Обрано: <b>' + n + '</b></label>' +
+        '<span class="ao-bulk__actions">' +
+          STATUSES.map((s) =>
+            '<button class="btn btn--ghost btn--sm" data-bulk-status="' + s.id + '" type="button">' + s.title + '</button>'
+          ).join('') +
+          '<button class="btn btn--ghost btn--sm" data-export type="button">Експорт CSV</button>' +
+          '<button class="btn btn--ghost btn--sm" data-print type="button">Друк</button>' +
+          '<button class="btn btn--ghost btn--sm" data-clear-sel type="button">Зняти вибір</button>' +
+        '</span>' +
+      '</div>'
+    );
+  }
+
+  function trackLink(o) {
+    if (!o.ttn) return '';
+    const base = TRACK_URLS[(o.customer || {}).carrier];
+    if (!base) return '';
+    return '<a class="ao-track" href="' + base + encodeURIComponent(o.ttn) + '" target="_blank" rel="noopener">відстежити ↗</a>';
+  }
+
+  function historyHTML(o) {
+    const log = (o.statusLog || []).slice().reverse();
+    if (!log.length) return '<p class="ao-note">Історія порожня — статус ще не змінювався.</p>';
+    return (
+      '<div class="ao-history">' +
+        log.map((h) => {
+          const d = h.at ? new Date(h.at).toLocaleString('uk-UA', {
+            day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+          }) : '';
+          return '<div><b>' + esc(statusInfo(h.status).title) + '</b>' +
+            '<span>' + esc(d) + (h.by ? ' · ' + esc(h.by) : '') + '</span></div>';
+        }).join('') +
       '</div>'
     );
   }
 
   function orderCardHTML(o) {
     const st = o.status || 'new';
-    const date = o.date
-      ? new Date(o.date).toLocaleString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    const d = orderDate(o);
+    const dateFull = d.getTime()
+      ? d.toLocaleString('uk-UA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
       : '';
     const c = o.customer || {};
     const delivery = [c.carrier, c.city, c.branch].filter(Boolean).join(', ');
+    const units = (o.items || []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
+    const isOpen = expanded.has(o._id);
+    const next = NEXT_STEP[st];
+
     const items = (o.items || [])
-      .map((i) => '<div>' + esc(i.name) + (i.size ? ' · <b>' + esc(i.size) + '</b>' : '') + ' × ' + i.qty + ' — ' + fmt(i.price * i.qty) + ' грн</div>')
-      .join('');
-    const statusSelect =
-      '<select class="ao-status-select st-' + st + '" data-ao-status>' +
-        STATUSES.map((s) =>
-          '<option value="' + s.id + '"' + (s.id === st ? ' selected' : '') + '>' + s.title + '</option>'
-        ).join('') +
-      '</select>';
+      .map((i) =>
+        '<div class="ao-line">' +
+          '<span>' + esc(i.name) + (i.size ? ' · <b>' + esc(i.size) + '</b>' : '') + '</span>' +
+          '<span>' + i.qty + ' × ' + fmt(i.price) + ' = <b>' + fmt(i.price * i.qty) + ' грн</b></span>' +
+        '</div>'
+      ).join('');
 
     return (
-      '<article class="ao-card st-' + st + '" data-id="' + esc(o._id) + '">' +
-        '<div class="ao-card__head">' +
-          '<b>№' + esc(o.num) + '</b>' +
-          statusSelect +
+      '<article class="ao-card st-' + st + (isOpen ? ' is-open' : '') + '" data-id="' + esc(o._id) + '">' +
+
+        '<div class="ao-card__top">' +
+          '<label class="ao-pick"><input type="checkbox" data-pick' + (selection.has(o._id) ? ' checked' : '') + '></label>' +
+          '<b class="ao-card__num">№' + esc(o.num) + '</b>' +
+          '<select class="ao-status-select st-' + st + '" data-ao-status>' +
+            STATUSES.map((s) =>
+              '<option value="' + s.id + '"' + (s.id === st ? ' selected' : '') + '>' + s.title + '</option>'
+            ).join('') +
+          '</select>' +
           (o.stockApplied ? '<span class="ao-tag" title="Товар списано зі складу">склад ✓</span>' : '') +
-          '<span class="ao-card__date">' + esc(date) + '</span>' +
+          '<span class="ao-card__date">' + esc(dateFull) + '</span>' +
+          '<span class="ao-card__sum">' + fmt(o.total) + ' грн</span>' +
         '</div>' +
-        '<div class="ao-card__customer">' +
-          '👤 ' + esc(c.name || '—') +
-          ' · 📞 <a href="tel:' + esc(c.phone || '') + '">' + esc(c.phone || '—') + '</a>' +
-          ((c.email || o.email) ? ' · ✉️ ' + esc(c.email || o.email) : '') +
-          (delivery ? '<br>🚚 ' + esc(delivery) : '') +
-          (c.comment ? '<br>💬 ' + esc(c.comment) : '') +
+
+        '<div class="ao-card__mid">' +
+          '<div class="ao-card__customer">' +
+            '<b>' + esc(c.name || '—') + '</b>' +
+            ' · <a href="tel:' + esc((c.phone || '').replace(/\s/g, '')) + '">' + esc(c.phone || '—') + '</a>' +
+            ((c.email || o.email) ? ' · <a href="mailto:' + esc(c.email || o.email) + '">' + esc(c.email || o.email) + '</a>' : '') +
+            (delivery ? '<br><span class="ao-muted">🚚 ' + esc(delivery) + '</span>' : '') +
+            (c.comment ? '<br><span class="ao-muted">💬 ' + esc(c.comment) + '</span>' : '') +
+          '</div>' +
+          '<button class="ao-toggle" data-toggle type="button">' +
+            (isOpen ? 'Згорнути' : 'Деталі') + ' · ' + units + ' шт' +
+          '</button>' +
         '</div>' +
-        '<div class="ao-card__items">' + items + '</div>' +
-        '<div class="ao-card__foot">' +
-          '<span class="ao-card__total">Разом: ' + fmt(o.total) + ' грн</span>' +
-          '<span class="ao-ttn">ТТН: <input data-ao-ttn value="' + esc(o.ttn || '') + '" placeholder="номер накладної"></span>' +
-        '</div>' +
+
+        (isOpen
+          ? '<div class="ao-card__details">' +
+              '<div class="ao-card__items">' + items + '</div>' +
+              '<div class="ao-card__grid">' +
+                '<label class="ao-field"><span>ТТН ' + trackLink(o) + '</span>' +
+                  '<input data-ao-ttn value="' + esc(o.ttn || '') + '" placeholder="номер накладної"></label>' +
+                '<label class="ao-field"><span>Нотатка менеджера</span>' +
+                  '<input data-ao-note value="' + esc(o.note || '') + '" placeholder="напр.: передзвонити після 18:00"></label>' +
+              '</div>' +
+              '<div class="ao-card__hist"><span class="ao-field__label">Історія статусів</span>' + historyHTML(o) + '</div>' +
+            '</div>'
+          : '') +
+
         '<div class="ao-card__actions">' +
-          '<button class="btn btn--ghost btn--sm" data-ao-copy type="button">Скопіювати</button>' +
-          '<button class="btn btn--ghost btn--sm ao-danger" data-ao-del type="button">Видалити</button>' +
+          (next ? '<button class="btn btn--primary btn--sm" data-next="' + next.id + '" type="button">' + next.label + '</button>' : '') +
+          (st !== 'cancelled' && st !== 'done'
+            ? '<button class="btn btn--ghost btn--sm" data-next="cancelled" type="button">Скасувати</button>' : '') +
+          '<button class="btn btn--ghost btn--sm" data-copy type="button">Скопіювати</button>' +
+          '<button class="btn btn--ghost btn--sm" data-print-one type="button">Друк</button>' +
+          '<button class="btn btn--ghost btn--sm ao-danger" data-del type="button">Видалити</button>' +
         '</div>' +
+
       '</article>'
     );
   }
 
-  function adminsHTML() {
-    const admins = adminsCache || [];
-    return (
-      '<div class="ao-admins">' +
-        '<h4>Адміністратори</h4>' +
-        '<p class="ao-note">Адміни мають повний доступ до адмінки. Вхід — через Google цим email.</p>' +
-        FOUNDERS.map((e) =>
-          '<div class="ao-admin"><span>' + esc(e) + '</span><i>постійний</i></div>'
-        ).join('') +
-        admins.map((a) =>
-          '<div class="ao-admin"><span>' + esc(a.email) + '</span>' +
-          (a.by ? '<i>додав ' + esc(a.by) + '</i>' : '') +
-          '<button data-ao-rmadmin="' + esc(a.email) + '" type="button" title="Прибрати">✕</button></div>'
-        ).join('') +
-        '<form class="ao-addadmin" id="addAdminForm">' +
-          '<input id="newAdminEmail" type="email" placeholder="email нового адміна" autocomplete="off">' +
-          '<button class="btn btn--primary btn--sm" type="submit">Додати</button>' +
-        '</form>' +
-      '</div>'
-    );
-  }
+  function renderOrders() {
+    const list = filteredOrders();
+    const visible = list.slice(0, F.limit);
 
-  function renderOrdersUI() {
-    const list = ordersCache.filter(orderMatches);
+    // прибираємо з вибору те, що зникло з фільтра
+    const visibleIds = new Set(list.map((o) => o._id));
+    Array.from(selection).forEach((id) => {
+      if (!visibleIds.has(id)) selection.delete(id);
+    });
+
     ordersBody().innerHTML =
       '<div class="ao-toolbar">' +
         '<span class="ao-live">● live</span>' +
-        '<span>Замовлення надходять сюди автоматично</span>' +
+        '<span>Нові замовлення зʼявляються автоматично</span>' +
       '</div>' +
-      orderStatsHTML() +
-      orderFiltersHTML() +
+      statsHTML() +
+      periodBarHTML() +
+      statusBarHTML() +
+      bulkBarHTML(visible) +
       '<div class="ao-list">' +
-        (list.length
-          ? list.map(orderCardHTML).join('')
+        (visible.length
+          ? visible.map(orderCardHTML).join('')
           : '<div class="a-empty">' +
-              (ordersCache.length ? 'Нічого не знайдено за цим фільтром.' : 'Замовлень поки немає. Щойно покупець оформить кошик — воно зʼявиться тут.') +
+              (ordersCache.length
+                ? 'За цими фільтрами нічого не знайдено. Спробуйте розширити період або скинути пошук.'
+                : 'Замовлень поки немає. Щойно покупець оформить кошик — воно зʼявиться тут.') +
             '</div>') +
       '</div>' +
-      adminsHTML();
+      (list.length > visible.length
+        ? '<button class="btn btn--ghost ao-more" data-more type="button">Показати ще ' +
+            Math.min(PAGE_SIZE, list.length - visible.length) + ' із ' + (list.length - visible.length) + '</button>'
+        : (list.length ? '<p class="ao-note ao-count">Показано всі ' + list.length + '</p>' : ''));
 
-    const search = $id('aoOrderSearch');
+    bindLiveInputs();
+  }
+
+  /* Живі поля (пошук, дати, сортування) — щоб не перерендерювати на кожен символ */
+  function bindLiveInputs() {
+    const search = $id('aoSearch');
     if (search) {
       search.addEventListener('input', () => {
-        orderSearch = search.value;
-        const listEl = ordersBody().querySelector('.ao-list');
-        const filtered = ordersCache.filter(orderMatches);
-        listEl.innerHTML = filtered.length
-          ? filtered.map(orderCardHTML).join('')
-          : '<div class="a-empty">Нічого не знайдено.</div>';
+        F.search = search.value;
+        F.limit = PAGE_SIZE;
+        const pos = search.selectionStart;
+        renderOrders();
+        const again = $id('aoSearch');
+        if (again) {
+          again.focus();
+          again.setSelectionRange(pos, pos);
+        }
+      });
+    }
+
+    const sort = $id('aoSort');
+    if (sort) {
+      sort.addEventListener('change', () => {
+        F.sort = sort.value;
+        renderOrders();
+      });
+    }
+
+    const from = $id('aoFrom');
+    const to = $id('aoTo');
+    if (from) from.addEventListener('change', () => { F.from = from.value; renderOrders(); });
+    if (to) to.addEventListener('change', () => { F.to = to.value; renderOrders(); });
+
+    const all = $id('aoSelectAll');
+    if (all) {
+      all.addEventListener('change', () => {
+        const visible = filteredOrders().slice(0, F.limit);
+        if (all.checked) visible.forEach((o) => selection.add(o._id));
+        else selection.clear();
+        renderOrders();
       });
     }
   }
 
-  async function applyStatus(order, next) {
+  /* ---------- Зміна статусу ---------- */
+
+  function statusLogEntry(status) {
+    return {
+      status: status,
+      at: new Date().toISOString(),
+      by: (R.fb.user && R.fb.user.email) || ''
+    };
+  }
+
+  async function applyStatus(order, next, opts) {
     const prev = order.status || 'new';
-    if (prev === next) return;
+    if (prev === next) return true;
+    opts = opts || {};
+
+    const wasApplied = !!order.stockApplied;
+    const willConsume = CONSUMING.includes(next);
+
+    // Попередження про нестачу лише при першому списанні
+    if (willConsume && !wasApplied && !opts.silent) {
+      const short = stockShortage(order);
+      if (short.length) {
+        const ok = confirm(
+          'На складі не вистачає товару:\n\n' + short.join('\n') +
+          '\n\nПродовжити? Залишки підуть у мінус — це видно на сторінці «Склад».'
+        );
+        if (!ok) return false;
+      }
+    }
 
     try {
       const batch = R.fb.db.batch();
-      const upd = { status: next };
+      const upd = {
+        status: next,
+        statusLog: firebase.firestore.FieldValue.arrayUnion(statusLogEntry(next))
+      };
 
-      const forward = ['confirmed', 'shipped', 'done'].includes(next);
-      const backward = ['new', 'cancelled'].includes(next);
-
-      if (forward && !order.stockApplied) {
+      if (willConsume && !wasApplied) {
         adjustOrderStock(batch, order, -1);
         upd.stockApplied = true;
       }
-      if (backward && order.stockApplied) {
+      if (!willConsume && wasApplied) {
         adjustOrderStock(batch, order, +1);
         upd.stockApplied = false;
       }
@@ -1253,13 +1534,141 @@
       batch.update(R.fb.db.collection('orders').doc(order._id), upd);
       await batch.commit();
 
-      if (upd.stockApplied === true) toast('Статус оновлено, товар списано зі складу ✓', 'success');
-      else if (upd.stockApplied === false) toast('Статус оновлено, товар повернено на склад ✓', 'success');
-      else toast('Статус: ' + statusInfo(next).title + ' ✓', 'success');
+      if (!opts.silent) {
+        if (upd.stockApplied === true) toast('Статус оновлено, товар списано зі складу ✓', 'success');
+        else if (upd.stockApplied === false) toast('Статус оновлено, товар повернено на склад ✓', 'success');
+        else toast('Статус: ' + statusInfo(next).title + ' ✓', 'success');
+      }
+      return true;
     } catch (err) {
-      toast('Не вдалося оновити статус');
-      renderOrdersUI();
+      if (!opts.silent) toast('Не вдалося оновити статус');
+      renderOrders();
+      return false;
     }
+  }
+
+  async function bulkStatus(next) {
+    const ids = Array.from(selection);
+    if (!ids.length) return;
+    const orders = ids.map((id) => ordersCache.find((o) => o._id === id)).filter(Boolean);
+    const toChange = orders.filter((o) => (o.status || 'new') !== next);
+
+    if (!toChange.length) {
+      toast('Усі обрані замовлення вже мають цей статус');
+      return;
+    }
+    if (!confirm('Змінити статус на «' + statusInfo(next).title + '» для ' + toChange.length + ' замовлень?')) return;
+
+    toast('Оновлюємо ' + toChange.length + ' замовлень…');
+    let done = 0;
+    for (let i = 0; i < toChange.length; i += BULK_CHUNK) {
+      const chunk = toChange.slice(i, i + BULK_CHUNK);
+      // послідовно, щоб не перевищити ліміт операцій у батчі
+      for (const o of chunk) {
+        const ok = await applyStatus(o, next, { silent: true });
+        if (ok) done++;
+      }
+    }
+    selection.clear();
+    toast('Оновлено замовлень: ' + done + ' ✓', 'success');
+    renderOrders();
+  }
+
+  /* ---------- Експорт і друк ---------- */
+
+  function csvCell(v) {
+    const s = String(v == null ? '' : v).replace(/"/g, '""');
+    return '"' + s + '"';
+  }
+
+  function exportCSV() {
+    const list = selection.size
+      ? filteredOrders().filter((o) => selection.has(o._id))
+      : filteredOrders();
+
+    if (!list.length) {
+      toast('Немає що експортувати');
+      return;
+    }
+
+    const head = ['Номер', 'Дата', 'Статус', 'Клієнт', 'Телефон', 'Email',
+                  'Перевізник', 'Місто', 'Відділення', 'ТТН', 'Товари', 'Кількість', 'Сума, грн', 'Нотатка'];
+    const rows = list.map((o) => {
+      const c = o.customer || {};
+      const items = (o.items || [])
+        .map((i) => i.name + (i.size ? ' (' + i.size + ')' : '') + ' ×' + i.qty).join('; ');
+      const units = (o.items || []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
+      return [
+        o.num,
+        orderDate(o).toLocaleString('uk-UA'),
+        statusInfo(o.status || 'new').title,
+        c.name || '', c.phone || '', c.email || o.email || '',
+        c.carrier || '', c.city || '', c.branch || '',
+        o.ttn || '', items, units, o.total || 0, o.note || ''
+      ].map(csvCell).join(',');
+    });
+
+    // BOM — щоб Excel правильно показав кирилицю
+    const csv = '﻿' + [head.map(csvCell).join(',')].concat(rows).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'reyter-zamovlennya-' + todayISO() + '.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Експортовано замовлень: ' + list.length + ' ✓', 'success');
+  }
+
+  function printOrders(list) {
+    if (!list.length) {
+      toast('Немає що друкувати');
+      return;
+    }
+    const win = window.open('', '_blank');
+    if (!win) {
+      toast('Браузер заблокував нове вікно — дозвольте спливаючі вікна');
+      return;
+    }
+
+    const body = list.map((o) => {
+      const c = o.customer || {};
+      const items = (o.items || [])
+        .map((i) => '<tr><td>' + esc(i.name) + (i.size ? ' (' + esc(i.size) + ')' : '') +
+          '</td><td>' + i.qty + '</td><td>' + fmt(i.price * i.qty) + ' грн</td></tr>').join('');
+      return (
+        '<section>' +
+          '<h2>Замовлення №' + esc(o.num) + '</h2>' +
+          '<p class="meta">' + esc(orderDate(o).toLocaleString('uk-UA')) +
+            ' · ' + esc(statusInfo(o.status || 'new').title) + '</p>' +
+          '<p><b>' + esc(c.name || '') + '</b><br>' + esc(c.phone || '') +
+            (c.email ? '<br>' + esc(c.email) : '') + '</p>' +
+          '<p>' + esc([c.carrier, c.city, c.branch].filter(Boolean).join(', ')) +
+            (o.ttn ? '<br>ТТН: <b>' + esc(o.ttn) + '</b>' : '') + '</p>' +
+          (c.comment ? '<p><i>' + esc(c.comment) + '</i></p>' : '') +
+          '<table><thead><tr><th>Товар</th><th>К-сть</th><th>Сума</th></tr></thead>' +
+            '<tbody>' + items + '</tbody></table>' +
+          '<p class="total">Разом: ' + fmt(o.total) + ' грн</p>' +
+        '</section>'
+      );
+    }).join('');
+
+    win.document.write(
+      '<!DOCTYPE html><html lang="uk"><head><meta charset="utf-8">' +
+      '<title>REYTER — замовлення</title><style>' +
+      'body{font-family:system-ui,-apple-system,sans-serif;color:#171b26;margin:24px;}' +
+      'section{page-break-after:always;border-bottom:1px dashed #ccc;padding-bottom:18px;margin-bottom:18px;}' +
+      'section:last-child{page-break-after:auto;border-bottom:none;}' +
+      'h2{font-size:18px;margin:0 0 4px;}' +
+      '.meta{color:#6e6a5e;font-size:12px;margin:0 0 10px;}' +
+      'p{margin:6px 0;font-size:14px;}' +
+      'table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px;}' +
+      'th,td{border-bottom:1px solid #eee;padding:5px 4px;text-align:left;}' +
+      'th{background:#f4f4f4;}' +
+      '.total{font-weight:700;font-size:15px;margin-top:8px;}' +
+      '</style></head><body>' + body + '</body></html>'
+    );
+    win.document.close();
+    setTimeout(() => win.print(), 400);
   }
 
   /* ============================================================
@@ -1296,7 +1705,7 @@
       (snap) => {
         inv = {};
         snap.forEach((d) => { inv[d.id] = d.data(); });
-        renderStockUI();
+        if (currentView() === 'stock') renderStockUI();
       },
       (err) => {
         stopStock();
@@ -1319,13 +1728,13 @@
     try {
       const snap = await R.fb.db.collection('restocks').orderBy('expected').limit(100).get();
       restocksCache = snap.docs.map((d) => Object.assign({ _id: d.id }, d.data()));
-      if (stockTab === 'restock') renderStockUI();
+      if (currentView() === 'stock' && stockTab === 'restock') renderStockUI();
     } catch (e) { /* порожній список */ }
   }
 
   async function loadMoves() {
     try {
-      const snap = await R.fb.db.collection('stock_moves').orderBy('ts', 'desc').limit(60).get();
+      const snap = await R.fb.db.collection('stock_moves').orderBy('ts', 'desc').limit(80).get();
       movesCache = snap.docs.map((d) => d.data());
       if (stockTab === 'moves') renderStockUI();
     } catch (e) { /* порожній список */ }
@@ -1392,10 +1801,7 @@
       });
       if (!items.length) return '';
       shown += items.length;
-      return (
-        '<h5 class="ao-cat-title">' + esc(cat.title) + '</h5>' +
-        items.map(stockRowHTML).join('')
-      );
+      return '<h5 class="ao-cat-title">' + esc(cat.title) + '</h5>' + items.map(stockRowHTML).join('');
     }).join('');
 
     return shown ? sections : '<div class="a-empty">Нічого не знайдено.</div>';
@@ -1700,8 +2106,55 @@
   }
 
   /* ============================================================
-     АДМІНІСТРАТОРИ ТА НАЛАШТУВАННЯ
+     НАЛАШТУВАННЯ: сповіщення + адміністратори
      ============================================================ */
+
+  let adminsCache = [];
+  let settingsTab = 'notify';
+
+  async function loadAdmins() {
+    try {
+      const snap = await R.fb.db.collection('admins').get();
+      adminsCache = snap.docs
+        .map((d) => Object.assign({ email: d.id }, d.data()))
+        .filter((a) => !FOUNDERS.includes(a.email));
+    } catch (e) {
+      adminsCache = [];
+    }
+    renderAdmins();
+  }
+
+  function renderAdmins() {
+    const box = $id('settingsAdmins');
+    if (!box) return;
+    const me = ((R.fb.user && R.fb.user.email) || '').toLowerCase();
+
+    box.innerHTML =
+      '<p class="ao-note">Адміністратори мають повний доступ до каталогу, замовлень і складу. ' +
+      'Вхід — через Google цим email. Постійних адміністраторів прибрати не можна (вони прописані в правилах бази).</p>' +
+
+      '<div class="ao-admins">' +
+        FOUNDERS.map((e) =>
+          '<div class="ao-admin">' +
+            '<span>' + esc(e) + (e === me ? ' <em>(це ви)</em>' : '') + '</span>' +
+            '<i>постійний</i>' +
+          '</div>'
+        ).join('') +
+
+        adminsCache.map((a) =>
+          '<div class="ao-admin">' +
+            '<span>' + esc(a.email) + (a.email === me ? ' <em>(це ви)</em>' : '') + '</span>' +
+            (a.by ? '<i>додав ' + esc(a.by) + '</i>' : '') +
+            '<button data-rmadmin="' + esc(a.email) + '" type="button" title="Прибрати">✕</button>' +
+          '</div>'
+        ).join('') +
+
+        '<form class="ao-addadmin" id="addAdminForm">' +
+          '<input id="newAdminEmail" type="email" placeholder="email нового адміністратора" autocomplete="off">' +
+          '<button class="btn btn--primary btn--sm" type="submit">Додати</button>' +
+        '</form>' +
+      '</div>';
+  }
 
   async function addAdmin() {
     const input = $id('newAdminEmail');
@@ -1711,7 +2164,11 @@
       return;
     }
     if (FOUNDERS.includes(email)) {
-      toast('Цей email вже постійний адмін');
+      toast('Цей email вже постійний адміністратор');
+      return;
+    }
+    if (adminsCache.some((a) => a.email === email)) {
+      toast('Такий адміністратор вже доданий');
       return;
     }
     try {
@@ -1719,14 +2176,13 @@
         added: firebase.firestore.FieldValue.serverTimestamp(),
         by: (R.fb.user && R.fb.user.email) || ''
       });
-      toast('Адміна додано ✓', 'success');
+      input.value = '';
+      toast('Адміністратора додано ✓', 'success');
       loadAdmins();
     } catch (e) {
-      toast('Немає прав додавати адмінів');
+      toast('Немає прав додавати адміністраторів');
     }
   }
-
-  /* ---- налаштування сповіщень ---- */
 
   function settingsFromForm() {
     return {
@@ -1743,10 +2199,24 @@
     el.textContent = text;
   }
 
+  function showSettingsTab(tab) {
+    settingsTab = tab;
+    $id('settingsNotify').hidden = tab !== 'notify';
+    $id('settingsAdmins').hidden = tab !== 'admins';
+    // Адміністратори зберігаються одразу — кнопка збереження тут зайва
+    $id('saveSettingsBtn').hidden = tab !== 'notify';
+    document.querySelectorAll('[data-set-tab]').forEach((b) => {
+      b.classList.toggle('is-active', b.dataset.setTab === tab);
+    });
+  }
+
   async function openSettings() {
     $id('settingsModal').hidden = false;
     document.body.style.overflow = 'hidden';
     $id('settingsStatus').hidden = true;
+    showSettingsTab('notify');
+    loadAdmins();
+
     const s = (await R.notify.load(true)) || {};
     $id('stTgToken').value = s.tgToken || '';
     $id('stTgChat').value = s.tgChatId || '';
@@ -1762,18 +2232,6 @@
     } catch (e) {
       setSettingsStatus('err', 'Немає прав зберігати налаштування');
     }
-  }
-
-  /* ============================================================
-     ПОДІЇ
-     ============================================================ */
-
-  function updateUserChip() {
-    const chip = $id('adminUserChip');
-    if (!chip) return;
-    const user = R.fb && R.fb.user;
-    chip.hidden = !user;
-    if (user) chip.textContent = user.email || '';
   }
 
   /* Пояснення типових помилок Telegram українською */
@@ -1794,6 +2252,18 @@
     return description || 'Перевірте токен і Chat ID';
   }
 
+  /* ============================================================
+     ПОДІЇ
+     ============================================================ */
+
+  function updateUserChip() {
+    const chip = $id('adminUserChip');
+    if (!chip) return;
+    const user = R.fb && R.fb.user;
+    chip.hidden = !user;
+    if (user) chip.textContent = user.email || '';
+  }
+
   function init() {
     if (!$id('viewCatalog')) return;
 
@@ -1802,9 +2272,38 @@
 
     $id('settingsBtn').addEventListener('click', openSettings);
     $id('saveSettingsBtn').addEventListener('click', saveSettings);
-
     $id('gateLoginBtn').addEventListener('click', signInGoogle);
     $id('gateLogoutBtn').addEventListener('click', () => R.fb.auth.signOut());
+
+    /* ---- налаштування ---- */
+
+    $id('settingsModal').addEventListener('click', async (e) => {
+      const tabBtn = e.target.closest('[data-set-tab]');
+      if (tabBtn) {
+        showSettingsTab(tabBtn.dataset.setTab);
+        return;
+      }
+      const rm = e.target.closest('[data-rmadmin]');
+      if (rm) {
+        const email = rm.dataset.rmadmin;
+        if (confirm('Прибрати адміністратора ' + email + '?')) {
+          try {
+            await R.fb.db.collection('admins').doc(email).delete();
+            toast('Адміністратора прибрано');
+            loadAdmins();
+          } catch (err) {
+            toast('Немає прав');
+          }
+        }
+      }
+    });
+
+    $id('settingsModal').addEventListener('submit', (e) => {
+      if (e.target.id === 'addAdminForm') {
+        e.preventDefault();
+        addAdmin();
+      }
+    });
 
     $id('tgDetectBtn').addEventListener('click', async () => {
       setSettingsStatus('wait', 'Шукаємо ваш Chat ID…');
@@ -1846,7 +2345,6 @@
     updateUserChip();
     refreshGate();
 
-    // Якщо вхід відбувався через перенаправлення — показуємо його помилки
     if (fbReady()) {
       R.fb.auth.getRedirectResult().catch((err) => {
         const status = $id('gateStatus');
@@ -1857,25 +2355,53 @@
     /* ---- замовлення ---- */
 
     ordersBody().addEventListener('click', async (e) => {
-      const filterBtn = e.target.closest('[data-ao-filter]');
-      if (filterBtn) {
-        orderFilter = filterBtn.dataset.aoFilter;
-        renderOrdersUI();
+      const periodBtn = e.target.closest('[data-period]');
+      if (periodBtn) {
+        F.period = periodBtn.dataset.period;
+        F.limit = PAGE_SIZE;
+        if (F.period === 'custom' && !F.from) {
+          const d = new Date();
+          d.setDate(d.getDate() - 6);
+          F.from = localISO(d);
+          F.to = todayISO();
+        }
+        renderOrders();
         return;
       }
 
-      const rm = e.target.closest('[data-ao-rmadmin]');
-      if (rm) {
-        const email = rm.dataset.aoRmadmin;
-        if (confirm('Прибрати адміна ' + email + '?')) {
-          try {
-            await R.fb.db.collection('admins').doc(email).delete();
-            toast('Адміна прибрано');
-            loadAdmins();
-          } catch (err) {
-            toast('Немає прав');
-          }
-        }
+      const statusBtn = e.target.closest('[data-status-filter]');
+      if (statusBtn) {
+        F.status = statusBtn.dataset.statusFilter;
+        F.limit = PAGE_SIZE;
+        renderOrders();
+        return;
+      }
+
+      if (e.target.closest('[data-more]')) {
+        F.limit += PAGE_SIZE;
+        renderOrders();
+        return;
+      }
+
+      if (e.target.closest('[data-export]')) {
+        exportCSV();
+        return;
+      }
+
+      if (e.target.closest('[data-print]')) {
+        printOrders(filteredOrders().filter((o) => selection.has(o._id)));
+        return;
+      }
+
+      if (e.target.closest('[data-clear-sel]')) {
+        selection.clear();
+        renderOrders();
+        return;
+      }
+
+      const bulkBtn = e.target.closest('[data-bulk-status]');
+      if (bulkBtn) {
+        bulkStatus(bulkBtn.dataset.bulkStatus);
         return;
       }
 
@@ -1884,12 +2410,28 @@
       const order = ordersCache.find((o) => o._id === card.dataset.id);
       if (!order) return;
 
-      if (e.target.closest('[data-ao-copy]')) {
+      if (e.target.closest('[data-toggle]')) {
+        if (expanded.has(order._id)) expanded.delete(order._id);
+        else expanded.add(order._id);
+        renderOrders();
+        return;
+      }
+
+      const nextBtn = e.target.closest('[data-next]');
+      if (nextBtn) {
+        applyStatus(order, nextBtn.dataset.next);
+        return;
+      }
+
+      if (e.target.closest('[data-copy]')) {
         R.copyText(order.message || '');
         toast('Скопійовано ✓', 'success');
-      } else if (e.target.closest('[data-ao-del]')) {
-        if (confirm('Видалити замовлення №' + order.num + '? Списаний товар автоматично НЕ повернеться на склад.')) {
+      } else if (e.target.closest('[data-print-one]')) {
+        printOrders([order]);
+      } else if (e.target.closest('[data-del]')) {
+        if (confirm('Видалити замовлення №' + order.num + '?\n\nСписаний товар автоматично НЕ повернеться на склад — спершу переведіть замовлення у «Скасовано», якщо потрібне повернення залишків.')) {
           try {
+            selection.delete(order._id);
             await R.fb.db.collection('orders').doc(order._id).delete();
           } catch (err) {
             toast('Немає прав видаляти');
@@ -1904,20 +2446,31 @@
       const order = ordersCache.find((o) => o._id === card.dataset.id);
       if (!order) return;
 
+      if (e.target.matches('[data-pick]')) {
+        if (e.target.checked) selection.add(order._id);
+        else selection.delete(order._id);
+        renderOrders();
+        return;
+      }
+
       if (e.target.matches('[data-ao-status]')) {
         applyStatus(order, e.target.value);
-      } else if (e.target.matches('[data-ao-ttn]')) {
+        return;
+      }
+
+      if (e.target.matches('[data-ao-ttn]')) {
         R.fb.db.collection('orders').doc(order._id)
           .update({ ttn: e.target.value.trim() })
           .then(() => toast('ТТН збережено — покупець бачить його в кабінеті ✓', 'success'))
           .catch(() => toast('Не вдалося зберегти ТТН'));
+        return;
       }
-    });
 
-    ordersBody().addEventListener('submit', (e) => {
-      if (e.target.id === 'addAdminForm') {
-        e.preventDefault();
-        addAdmin();
+      if (e.target.matches('[data-ao-note]')) {
+        R.fb.db.collection('orders').doc(order._id)
+          .update({ note: e.target.value.trim() })
+          .then(() => toast('Нотатку збережено ✓', 'success'))
+          .catch(() => toast('Не вдалося зберегти нотатку'));
       }
     });
 

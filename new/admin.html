@@ -226,11 +226,20 @@
   <div class="a-modal__backdrop" data-close></div>
   <div class="a-modal__panel a-modal__panel--sm">
     <header class="a-modal__head">
-      <h3 id="settingsTitle">Налаштування сповіщень</h3>
+      <h3 id="settingsTitle">Налаштування</h3>
       <button class="a-modal__close" data-close aria-label="Закрити">✕</button>
     </header>
 
-    <div class="a-publish">
+    <div class="a-settings__tabs" role="tablist">
+      <button class="ao-chip is-active" data-set-tab="notify" type="button" role="tab">Сповіщення</button>
+      <button class="ao-chip" data-set-tab="admins" type="button" role="tab">Адміністратори</button>
+    </div>
+
+    <!-- Вкладка: адміністратори -->
+    <div class="a-publish" id="settingsAdmins" hidden></div>
+
+    <!-- Вкладка: сповіщення -->
+    <div class="a-publish" id="settingsNotify">
       <h4 class="a-settings__sub">Telegram — сповіщення вам про нові замовлення</h4>
       <div class="field">
         <label for="stTgToken">Токен бота</label>
