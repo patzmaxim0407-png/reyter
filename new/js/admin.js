@@ -2449,6 +2449,7 @@
     return {
       tgToken: $id('stTgToken').value.trim(),
       tgChatId: $id('stTgChat').value.trim(),
+      workerUrl: $id('stWorkerUrl').value.trim().replace(/\/+$/, ''),
       fsEmail: $id('stFsEmail').value.trim()
     };
   }
@@ -2481,6 +2482,7 @@
     const s = (await R.notify.load(true)) || {};
     $id('stTgToken').value = s.tgToken || '';
     $id('stTgChat').value = s.tgChatId || '';
+    $id('stWorkerUrl').value = s.workerUrl || '';
     $id('stFsEmail').value = s.fsEmail || '';
   }
 
@@ -2658,8 +2660,11 @@
       }
       setSettingsStatus('wait', 'Надсилаємо тестовий лист…');
       const res = await R.notify.testEmail(settingsFromForm(), to);
+      const viaWorker = !!settingsFromForm().workerUrl;
       if (res.ok) {
-        setSettingsStatus('ok', 'Лист надіслано ✓ Перевірте пошту (і папку Спам)');
+        setSettingsStatus('ok', viaWorker
+          ? 'Фірмовий лист надіслано ✓ Перевірте пошту (і папку Спам)'
+          : 'Лист надіслано ✓ Перевірте пошту (і папку Спам)');
       } else if (res.needsActivation) {
         setSettingsStatus('wait',
           'Потрібна разова активація: відкрийте пошту ' + ($id('stFsEmail').value.trim() || 'магазину') +

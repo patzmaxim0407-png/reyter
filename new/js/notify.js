@@ -107,6 +107,35 @@
     }
   }
 
+  /* ---------- Фірмовий лист через Cloudflare Worker + Resend ----------
+     Воркер тримає ключ Resend у себе і сам збирає лист із даних
+     замовлення. Налаштування — поле «Адреса Worker» в адмінці.
+     Розгортання описане у new/worker/README.md */
+
+  async function sendViaWorker(settings, params) {
+    try {
+      const res = await fetch(settings.workerUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: params.to_email,
+          name: params.to_name || '',
+          orderNum: params.order_num,
+          items: params.items_list || [],
+          total: params.order_total,
+          delivery: params.order_delivery || '',
+          lang: R.lang ? R.lang() : 'uk'
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) return { ok: true };
+      return { ok: false, description: data.error || 'Воркер відповів помилкою (код ' + res.status + ')' };
+    } catch (e) {
+      return { ok: false, description: 'Не вдалося звʼязатися з воркером — перевірте адресу' };
+    }
+  }
+
   /* ---------- Email через FormSubmit ----------
      Простий текстовий лист покупцю (автовідповідь) і копія
      замовлення на пошту магазину. Резервний варіант. */
@@ -145,8 +174,14 @@
       return { ok: false, description: 'Покупець не вказав email' };
     }
 
+    // Фірмовий лист через воркер; FormSubmit — резерв
+    if (settings && settings.workerUrl) {
+      const res = await sendViaWorker(settings, params);
+      if (res.ok || !settings.fsEmail) return res;
+    }
+
     if (!settings || !settings.fsEmail) {
-      return { ok: false, description: 'Не заповнено email магазину' };
+      return { ok: false, description: 'Не налаштовано жодного відправника листів' };
     }
     try {
       const res = await fetch('https://formsubmit.co/ajax/' + encodeURIComponent(settings.fsEmail), {

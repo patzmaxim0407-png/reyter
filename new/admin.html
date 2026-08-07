@@ -363,7 +363,19 @@
       </div>
       <button class="btn btn--ghost btn--sm" id="tgTestBtn" type="button">Надіслати тестове повідомлення</button>
 
-      <h4 class="a-settings__sub">Email — підтвердження покупцю (FormSubmit)</h4>
+      <h4 class="a-settings__sub">Фірмовий лист покупцю (Resend через Worker)</h4>
+      <div class="field">
+        <label for="stWorkerUrl">Адреса Worker для листів</label>
+        <input id="stWorkerUrl" autocomplete="off" placeholder="https://reyter-mail.ваш-акаунт.workers.dev">
+        <p class="field__hint">
+          Клієнт отримає лист із логотипом REYTER, номером замовлення та кнопкою «Відстежити замовлення».
+          Ключ Resend зберігається у воркері, а не в коді сайту — вкрасти його з браузера неможливо.
+          Покрокова інструкція — у файлі <code>new/worker/README.md</code> репозиторію.
+          Якщо поле порожнє, працює простий текстовий лист через FormSubmit.
+        </p>
+      </div>
+
+      <h4 class="a-settings__sub">Резервний лист і копія замовлень (FormSubmit)</h4>
       <div class="field">
         <label for="stFsEmail">Email магазину</label>
         <input id="stFsEmail" type="email" autocomplete="off" placeholder="reyter.store1@gmail.com">
