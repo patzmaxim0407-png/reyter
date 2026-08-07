@@ -55,6 +55,78 @@
   gap: 0.5rem;
 }
 
+/* Навігація по сторінках адмінки */
+.abar__nav {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: 1rem;
+}
+
+.abar__tab {
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.75);
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: background-color var(--t-fast), color var(--t-fast);
+}
+
+.abar__tab:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.abar__tab.is-active {
+  color: var(--c-blue-ink);
+  background: #fff;
+}
+
+/* Повноцінні сторінки «Замовлення» та «Склад» */
+.a-page {
+  max-width: 1100px;
+  margin-inline: auto;
+  padding: 1.4rem clamp(1rem, 3vw, 1.6rem) 3.5rem;
+}
+
+.a-page__head {
+  margin-bottom: 1.2rem;
+}
+
+.a-page__head h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.5rem;
+  color: var(--c-blue-ink);
+}
+
+.a-page__head p {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--c-muted);
+  max-width: 46rem;
+}
+
+.a-orders--page {
+  padding: 0;
+  overflow: visible;
+}
+
+@media (max-width: 900px) {
+  .abar {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+  .abar__nav {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+  }
+  .abar__actions {
+    margin-left: auto;
+  }
+}
+
 .abar .btn--ghost {
   border-color: rgba(255, 255, 255, 0.35);
   color: #fff;

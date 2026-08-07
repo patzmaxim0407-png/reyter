@@ -2,7 +2,9 @@
    REYTER — notify.js
    Сповіщення про нове замовлення:
    • Telegram-повідомлення власнику (Bot API)
-   • Email-підтвердження покупцю з номером замовлення (EmailJS)
+   • Email-підтвердження покупцю з номером замовлення
+     (FormSubmit — безкоштовно, без лімітів; лист-копія
+     замовлення також приходить на пошту магазину)
    Налаштування зберігаються у Firestore: settings/notify —
    заповнюються в адмінці, розділ «Налаштування».
    ============================================================ */
@@ -29,7 +31,9 @@
   /* ---------- Telegram власнику ---------- */
 
   async function sendTelegram(settings, text) {
-    if (!settings || !settings.tgToken || !settings.tgChatId) return false;
+    if (!settings || !settings.tgToken || !settings.tgChatId) {
+      return { ok: false, description: 'Не заповнено токен або Chat ID' };
+    }
     try {
       const res = await fetch('https://api.telegram.org/bot' + settings.tgToken + '/sendMessage', {
         method: 'POST',
@@ -40,32 +44,79 @@
           disable_web_page_preview: true
         })
       });
-      const data = await res.json();
-      return !!data.ok;
+      const data = await res.json().catch(() => ({}));
+      return { ok: !!data.ok, description: data.description || '' };
     } catch (e) {
-      return false;
+      return { ok: false, description: 'Немає звʼязку з Telegram' };
     }
   }
 
-  /* ---------- Email покупцю (EmailJS) ---------- */
+  /* Визначає Chat ID з останнього повідомлення, надісланого боту */
+  async function detectChatId(token) {
+    if (!token) return { ok: false, description: 'Спершу вставте токен бота' };
+    try {
+      const res = await fetch('https://api.telegram.org/bot' + token + '/getUpdates');
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) return { ok: false, description: data.description || 'Невірний токен' };
+      const updates = data.result || [];
+      for (let i = updates.length - 1; i >= 0; i--) {
+        const msg = updates[i].message || updates[i].edited_message;
+        if (msg && msg.chat && msg.chat.id) {
+          return { ok: true, chatId: String(msg.chat.id), name: msg.chat.first_name || msg.chat.title || '' };
+        }
+      }
+      return { ok: false, description: 'Повідомлень не знайдено. Напишіть будь-що своєму боту і спробуйте ще раз' };
+    } catch (e) {
+      return { ok: false, description: 'Немає звʼязку з Telegram' };
+    }
+  }
+
+  /* ---------- Email через FormSubmit ----------
+     Лист покупцю надсилається як автовідповідь (_autoresponse),
+     а на пошту магазину приходить копія замовлення. */
+
+  function customerLetter(params) {
+    return (
+      'Вітаємо' + (params.to_name ? ', ' + params.to_name : '') + '!\n\n' +
+      'Ми отримали ваше замовлення №' + params.order_num + ' на reyter.men — дякуємо 💙\n\n' +
+      params.order_items + '\n\n' +
+      'Разом: ' + params.order_total + '\n' +
+      (params.order_delivery ? 'Доставка: ' + params.order_delivery + '\n' : '') +
+      '\nМенеджер звʼяжеться з вами для підтвердження. ' +
+      'Статус замовлення можна відстежувати у своєму кабінеті на https://reyter.men/new/\n\n' +
+      '— Команда REYTER. Характер — це REYTER!'
+    );
+  }
 
   async function sendEmail(settings, params) {
-    if (!settings || !settings.ejService || !settings.ejTemplate || !settings.ejPublicKey) return false;
-    if (!params.to_email) return false;
+    if (!settings || !settings.fsEmail) {
+      return { ok: false, description: 'Не заповнено email магазину' };
+    }
+    if (!params.to_email) {
+      return { ok: false, description: 'Покупець не вказав email' };
+    }
     try {
-      const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      const res = await fetch('https://formsubmit.co/ajax/' + encodeURIComponent(settings.fsEmail), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({
-          service_id: settings.ejService,
-          template_id: settings.ejTemplate,
-          user_id: settings.ejPublicKey,
-          template_params: params
+          _subject: '🛍 Замовлення №' + params.order_num + ' — reyter.men',
+          _template: 'table',
+          _captcha: 'false',
+          _autoresponse: customerLetter(params),
+          name: params.to_name || 'Покупець',
+          email: params.to_email,
+          'Замовлення': params.order_num,
+          'Товари': params.order_items,
+          'Разом': params.order_total,
+          'Доставка': params.order_delivery || '—'
         })
       });
-      return res.ok;
+      const data = await res.json().catch(() => ({}));
+      const ok = res.ok && (data.success === true || data.success === 'true');
+      return { ok: ok, description: ok ? '' : (data.message || 'FormSubmit відхилив запит') };
     } catch (e) {
-      return false;
+      return { ok: false, description: 'Немає звʼязку з FormSubmit' };
     }
   }
 
@@ -73,6 +124,7 @@
 
   R.notify = {
     load: loadSettings,
+    detectChatId: detectChatId,
 
     /* Викликається після оформлення замовлення; помилки не блокують покупку */
     async orderPlaced(order) {
@@ -92,7 +144,7 @@
           .join('\n');
         sendEmail(settings, {
           to_email: c.email,
-          to_name: c.name || 'покупцю',
+          to_name: c.name || '',
           order_num: order.num,
           order_items: itemsText,
           order_total: R.fmt(order.total) + ' грн',

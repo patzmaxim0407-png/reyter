@@ -857,11 +857,52 @@
     const ok = await isAdminUser();
     if (ok) {
       gate.hidden = true;
+      startCloud();
+      showView();
     } else {
       gate.hidden = false;
       status.textContent = 'У акаунта ' + (R.fb.user.email || '') + ' немає прав адміністратора.';
       logoutBtn.hidden = false;
     }
+  }
+
+  /* ============================================================
+     РОУТЕР: Каталог / Замовлення / Склад — повноцінні сторінки
+     ============================================================ */
+
+  const VIEWS = ['catalog', 'orders', 'stock'];
+
+  function currentView() {
+    const v = (location.hash || '').replace(/^#\/?/, '');
+    return VIEWS.includes(v) ? v : 'catalog';
+  }
+
+  function showView() {
+    const v = currentView();
+    $id('viewCatalog').hidden = v !== 'catalog';
+    $id('viewOrders').hidden = v !== 'orders';
+    $id('viewStock').hidden = v !== 'stock';
+    document.querySelectorAll('.abar__tab').forEach((t) => {
+      t.classList.toggle('is-active', t.dataset.view === v);
+    });
+    if (v === 'orders') renderOrdersRoot();
+    if (v === 'stock') renderStockRoot();
+    window.scrollTo(0, 0);
+  }
+
+  /* Підписки живуть постійно, поки адмін у системі:
+     бейдж нових замовлень і сповіщення працюють у всіх розділах */
+  function startCloud() {
+    if (!ordersUnsub) subscribeOrders();
+    if (!invUnsub) {
+      subscribeInventory();
+      loadRestocks();
+    }
+  }
+
+  function stopCloud() {
+    stopOrders();
+    stopStock();
   }
 
   /* ============================================================
@@ -955,15 +996,8 @@
     return $id('ordersBody');
   }
 
-  function openOrders() {
-    $id('ordersModal').hidden = false;
-    document.body.style.overflow = 'hidden';
-    renderOrdersRoot();
-  }
-
   function renderOrdersRoot() {
     if (!fbReady() || !R.fb.user) {
-      stopOrders();
       ordersBody().innerHTML = '<p class="ao-note">Спершу увійдіть акаунтом адміністратора.</p>';
       return;
     }
@@ -1226,15 +1260,8 @@
     return $id('stockBody');
   }
 
-  function openStock() {
-    $id('stockModal').hidden = false;
-    document.body.style.overflow = 'hidden';
-    renderStockRoot();
-  }
-
   function renderStockRoot() {
     if (!fbReady() || !R.fb.user) {
-      stopStock();
       stockBody().innerHTML = '<p class="ao-note">Спершу увійдіть акаунтом адміністратора.</p>';
       return;
     }
@@ -1688,9 +1715,7 @@
     return {
       tgToken: $id('stTgToken').value.trim(),
       tgChatId: $id('stTgChat').value.trim(),
-      ejService: $id('stEjService').value.trim(),
-      ejTemplate: $id('stEjTemplate').value.trim(),
-      ejPublicKey: $id('stEjKey').value.trim()
+      fsEmail: $id('stFsEmail').value.trim()
     };
   }
 
@@ -1708,9 +1733,7 @@
     const s = (await R.notify.load(true)) || {};
     $id('stTgToken').value = s.tgToken || '';
     $id('stTgChat').value = s.tgChatId || '';
-    $id('stEjService').value = s.ejService || '';
-    $id('stEjTemplate').value = s.ejTemplate || '';
-    $id('stEjKey').value = s.ejPublicKey || '';
+    $id('stFsEmail').value = s.fsEmail || '';
   }
 
   async function saveSettings() {
@@ -1728,12 +1751,6 @@
      ПОДІЇ
      ============================================================ */
 
-  function watchModalClose(modalEl, onClose) {
-    new MutationObserver(() => {
-      if (modalEl.hidden) onClose();
-    }).observe(modalEl, { attributes: true, attributeFilter: ['hidden'] });
-  }
-
   function updateUserChip() {
     const chip = $id('adminUserChip');
     if (!chip) return;
@@ -1742,48 +1759,72 @@
     if (user) chip.textContent = user.email || '';
   }
 
-  function init() {
-    const ordersBtn = $id('ordersBtn');
-    const stockBtn = $id('stockBtn');
-    if (!ordersBtn || !stockBtn) return;
+  /* Пояснення типових помилок Telegram українською */
+  function tgErrorHint(description) {
+    const d = String(description || '').toLowerCase();
+    if (d.includes("bots can't send messages to bots") || d.includes('bot can')) {
+      return 'Ви вказали ID бота замість свого. Натисніть «Визначити» — і Chat ID підставиться сам';
+    }
+    if (d.includes('chat not found')) {
+      return 'Чат не знайдено: напишіть своєму боту будь-що (натисніть Start) і спробуйте ще раз';
+    }
+    if (d.includes('unauthorized')) {
+      return 'Невірний токен бота — перевірте його в @BotFather';
+    }
+    if (d.includes('blocked')) {
+      return 'Бот заблокований у вашому Telegram — розблокуйте його';
+    }
+    return description || 'Перевірте токен і Chat ID';
+  }
 
-    ordersBtn.addEventListener('click', openOrders);
-    stockBtn.addEventListener('click', openStock);
+  function init() {
+    if (!$id('viewCatalog')) return;
+
+    window.addEventListener('hashchange', showView);
+    showView();
+
     $id('settingsBtn').addEventListener('click', openSettings);
     $id('saveSettingsBtn').addEventListener('click', saveSettings);
 
     $id('gateLoginBtn').addEventListener('click', signInGoogle);
     $id('gateLogoutBtn').addEventListener('click', () => R.fb.auth.signOut());
 
-    $id('tgTestBtn').addEventListener('click', async () => {
-      setSettingsStatus('wait', 'Надсилаємо тест у Telegram…');
-      const ok = await R.notify.testTelegram(settingsFromForm());
-      setSettingsStatus(ok ? 'ok' : 'err', ok
-        ? 'Тестове повідомлення надіслано ✓ Перевірте Telegram'
-        : 'Не вдалося. Перевірте токен, Chat ID і що ви натиснули Start у бота');
+    $id('tgDetectBtn').addEventListener('click', async () => {
+      setSettingsStatus('wait', 'Шукаємо ваш Chat ID…');
+      const res = await R.notify.detectChatId($id('stTgToken').value.trim());
+      if (res.ok) {
+        $id('stTgChat').value = res.chatId;
+        setSettingsStatus('ok', 'Знайдено' + (res.name ? ' (' + res.name + ')' : '') + ': ' + res.chatId + ' ✓ Не забудьте зберегти');
+      } else {
+        setSettingsStatus('err', res.description);
+      }
     });
 
-    $id('ejTestBtn').addEventListener('click', async () => {
-      const to = $id('ejTestEmail').value.trim();
+    $id('tgTestBtn').addEventListener('click', async () => {
+      setSettingsStatus('wait', 'Надсилаємо тест у Telegram…');
+      const res = await R.notify.testTelegram(settingsFromForm());
+      setSettingsStatus(res.ok ? 'ok' : 'err', res.ok
+        ? 'Тестове повідомлення надіслано ✓ Перевірте Telegram'
+        : tgErrorHint(res.description));
+    });
+
+    $id('fsTestBtn').addEventListener('click', async () => {
+      const to = $id('fsTestEmail').value.trim();
       if (!to) {
         setSettingsStatus('err', 'Вкажіть email для тесту');
         return;
       }
       setSettingsStatus('wait', 'Надсилаємо тестовий лист…');
-      const ok = await R.notify.testEmail(settingsFromForm(), to);
-      setSettingsStatus(ok ? 'ok' : 'err', ok
-        ? 'Лист надіслано ✓ Перевірте пошту (і папку Спам)'
-        : 'Не вдалося. Перевірте Service ID, Template ID і Public Key');
+      const res = await R.notify.testEmail(settingsFromForm(), to);
+      setSettingsStatus(res.ok ? 'ok' : 'err', res.ok
+        ? 'Лист надіслано ✓ Якщо це перший раз — відкрийте пошту магазину і натисніть Activate у листі від FormSubmit'
+        : (res.description || 'Не вдалося надіслати'));
     });
-
-    watchModalClose($id('ordersModal'), stopOrders);
-    watchModalClose($id('stockModal'), stopStock);
 
     document.addEventListener('auth:changed', () => {
       updateUserChip();
       refreshGate();
-      if (!$id('ordersModal').hidden) renderOrdersRoot();
-      if (!$id('stockModal').hidden) renderStockRoot();
+      if (!R.fb.user) stopCloud();
     });
     updateUserChip();
     refreshGate();

@@ -35,18 +35,21 @@
     <img src="../assets/images/logo_4.webp" alt="">
     <span>REYTER <b>· Адмінка</b></span>
   </div>
+  <nav class="abar__nav" aria-label="Розділи адмінки">
+    <a class="abar__tab is-active" href="#/catalog" data-view="catalog">Каталог</a>
+    <a class="abar__tab" href="#/orders" data-view="orders">Замовлення <span class="abar__count" id="newOrdersBadge" hidden></span></a>
+    <a class="abar__tab" href="#/stock" data-view="stock">Склад</a>
+  </nav>
   <div class="abar__actions">
     <span class="abar__user" id="adminUserChip" hidden></span>
-    <a class="btn btn--ghost btn--sm" href="index.html" target="_blank" rel="noopener">Відкрити сайт</a>
-    <button class="btn btn--ghost btn--sm" id="ordersBtn" type="button">Замовлення <span class="abar__count" id="newOrdersBadge" hidden></span></button>
-    <button class="btn btn--ghost btn--sm" id="stockBtn" type="button">Склад</button>
+    <a class="btn btn--ghost btn--sm" href="index.html" target="_blank" rel="noopener">Сайт</a>
     <button class="btn btn--ghost btn--sm" id="settingsBtn" type="button">Налаштування</button>
     <button class="btn btn--ghost btn--sm" id="downloadBtn" type="button">data.js</button>
     <button class="btn btn--primary btn--sm" id="publishBtn" type="button">Резервна копія</button>
   </div>
 </header>
 
-<div class="admin-wrap">
+<div class="admin-wrap" id="viewCatalog">
 
   <!-- Категорії -->
   <aside class="a-side">
@@ -232,37 +235,31 @@
       <div class="field">
         <label for="stTgToken">Токен бота</label>
         <input id="stTgToken" autocomplete="off" placeholder="1234567890:AA...">
-        <p class="field__hint">Напишіть у Telegram боту <b>@BotFather</b> → /newbot → скопіюйте токен. Потім відкрийте свого бота і натисніть Start.</p>
+        <p class="field__hint">Напишіть у Telegram боту <b>@BotFather</b> → /newbot → скопіюйте токен. Потім відкрийте свого нового бота і натисніть <b>Start</b>.</p>
       </div>
       <div class="field">
-        <label for="stTgChat">Chat ID</label>
-        <input id="stTgChat" autocomplete="off" placeholder="123456789">
-        <p class="field__hint">Напишіть боту <b>@userinfobot</b> — він відповість вашим Id. Сповіщення прийдуть у ваш чат із вашим ботом.</p>
+        <label for="stTgChat">Chat ID (ваш особистий, не бота)</label>
+        <div class="ao-addadmin">
+          <input id="stTgChat" autocomplete="off" placeholder="123456789">
+          <button class="btn btn--ghost btn--sm" id="tgDetectBtn" type="button">Визначити</button>
+        </div>
+        <p class="field__hint">Напишіть своєму боту будь-яке повідомлення і натисніть «Визначити» — Chat ID підставиться сам.</p>
       </div>
       <button class="btn btn--ghost btn--sm" id="tgTestBtn" type="button">Надіслати тестове повідомлення</button>
 
-      <h4 class="a-settings__sub">Email покупцю — підтвердження замовлення (EmailJS)</h4>
+      <h4 class="a-settings__sub">Email — підтвердження покупцю (FormSubmit, безкоштовно)</h4>
       <div class="field">
-        <label for="stEjService">Service ID</label>
-        <input id="stEjService" autocomplete="off" placeholder="service_...">
-      </div>
-      <div class="field">
-        <label for="stEjTemplate">Template ID</label>
-        <input id="stEjTemplate" autocomplete="off" placeholder="template_...">
-      </div>
-      <div class="field">
-        <label for="stEjKey">Public Key</label>
-        <input id="stEjKey" autocomplete="off" placeholder="AbC123...">
+        <label for="stFsEmail">Email магазину</label>
+        <input id="stFsEmail" type="email" autocomplete="off" placeholder="reyter.store1@gmail.com">
         <p class="field__hint">
-          Зареєструйтесь на <b>emailjs.com</b> (безкоштовно до 200 листів/міс) →
-          Add Service (Gmail) → Create Template. У шаблоні поле «To Email» = <code>{{to_email}}</code>,
-          а в тексті можна використовувати: <code>{{to_name}}</code>, <code>{{order_num}}</code>,
-          <code>{{order_items}}</code>, <code>{{order_total}}</code>, <code>{{order_delivery}}</code>.
+          Покупець отримає лист із номером замовлення, а на цю пошту прийде копія кожного замовлення.
+          Після першого тесту сервіс <b>formsubmit.co</b> надішле на цю адресу лист-активацію —
+          відкрийте його і натисніть <b>Activate</b> (один раз). Реєстрація не потрібна, лімітів немає.
         </p>
       </div>
       <div class="ao-addadmin">
-        <input id="ejTestEmail" type="email" placeholder="email для тестового листа">
-        <button class="btn btn--ghost btn--sm" id="ejTestBtn" type="button">Тест</button>
+        <input id="fsTestEmail" type="email" placeholder="email для тестового листа">
+        <button class="btn btn--ghost btn--sm" id="fsTestBtn" type="button">Тест</button>
       </div>
 
       <div class="a-publish__status" id="settingsStatus" hidden></div>
@@ -312,28 +309,22 @@
   </div>
 </div>
 
-<!-- Замовлення з хмари та адміністратори -->
-<div class="a-modal" id="ordersModal" role="dialog" aria-modal="true" aria-labelledby="ordersTitle" hidden>
-  <div class="a-modal__backdrop" data-close></div>
-  <div class="a-modal__panel">
-    <header class="a-modal__head">
-      <h3 id="ordersTitle">Замовлення</h3>
-      <button class="a-modal__close" data-close aria-label="Закрити">✕</button>
-    </header>
-    <div class="a-orders" id="ordersBody"></div>
+<!-- Сторінка «Замовлення» -->
+<div class="a-page" id="viewOrders" hidden>
+  <div class="a-page__head">
+    <h2>Замовлення</h2>
+    <p>Оформлені замовлення надходять сюди автоматично. Змінюйте статус — покупець бачить його у своєму кабінеті.</p>
   </div>
+  <div class="a-orders a-orders--page" id="ordersBody"></div>
 </div>
 
-<!-- Склад: залишки та прихід товару -->
-<div class="a-modal" id="stockModal" role="dialog" aria-modal="true" aria-labelledby="stockTitle" hidden>
-  <div class="a-modal__backdrop" data-close></div>
-  <div class="a-modal__panel">
-    <header class="a-modal__head">
-      <h3 id="stockTitle">Склад</h3>
-      <button class="a-modal__close" data-close aria-label="Закрити">✕</button>
-    </header>
-    <div class="a-orders" id="stockBody"></div>
+<!-- Сторінка «Склад» -->
+<div class="a-page" id="viewStock" hidden>
+  <div class="a-page__head">
+    <h2>Склад</h2>
+    <p>Залишки по розмірах, прихід товару та журнал руху. Сайт показує «Продано» і «Закінчується» з цих даних.</p>
   </div>
+  <div class="a-orders a-orders--page" id="stockBody"></div>
 </div>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
