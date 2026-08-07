@@ -112,9 +112,17 @@
      замовлення. Налаштування — поле «Адреса Worker» в адмінці.
      Розгортання описане у new/worker/README.md */
 
+  /* Адреса могла бути збережена без https:// — інакше браузер
+     вважатиме її відносним шляхом на самому сайті */
+  R.normalizeUrl = function (u) {
+    const s = String(u || '').trim().replace(/\/+$/, '');
+    if (!s) return '';
+    return /^https?:\/\//i.test(s) ? s : 'https://' + s;
+  };
+
   async function sendViaWorker(settings, params) {
     try {
-      const res = await fetch(settings.workerUrl, {
+      const res = await fetch(R.normalizeUrl(settings.workerUrl), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -129,10 +137,10 @@
       });
 
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.ok) return { ok: true };
-      return { ok: false, description: data.error || 'Воркер відповів помилкою (код ' + res.status + ')' };
+      if (res.ok && data.ok) return { ok: true, via: 'worker' };
+      return { ok: false, description: data.error || 'воркер відповів кодом ' + res.status };
     } catch (e) {
-      return { ok: false, description: 'Не вдалося звʼязатися з воркером — перевірте адресу' };
+      return { ok: false, description: 'не вдалося звʼязатися з воркером — перевірте адресу' };
     }
   }
 
@@ -175,9 +183,11 @@
     }
 
     // Фірмовий лист через воркер; FormSubmit — резерв
+    let workerError = '';
     if (settings && settings.workerUrl) {
       const res = await sendViaWorker(settings, params);
       if (res.ok || !settings.fsEmail) return res;
+      workerError = res.description;
     }
 
     if (!settings || !settings.fsEmail) {
@@ -205,6 +215,8 @@
       const msg = String(data.message || '');
       return {
         ok: ok,
+        via: ok ? 'formsubmit' : '',
+        workerError: workerError,
         needsActivation: /activat/i.test(msg),
         description: ok ? '' : (msg || 'FormSubmit відхилив запит')
       };

@@ -2449,7 +2449,7 @@
     return {
       tgToken: $id('stTgToken').value.trim(),
       tgChatId: $id('stTgChat').value.trim(),
-      workerUrl: $id('stWorkerUrl').value.trim().replace(/\/+$/, ''),
+      workerUrl: R.normalizeUrl($id('stWorkerUrl').value),
       fsEmail: $id('stFsEmail').value.trim()
     };
   }
@@ -2660,11 +2660,14 @@
       }
       setSettingsStatus('wait', 'Надсилаємо тестовий лист…');
       const res = await R.notify.testEmail(settingsFromForm(), to);
-      const viaWorker = !!settingsFromForm().workerUrl;
-      if (res.ok) {
-        setSettingsStatus('ok', viaWorker
-          ? 'Фірмовий лист надіслано ✓ Перевірте пошту (і папку Спам)'
-          : 'Лист надіслано ✓ Перевірте пошту (і папку Спам)');
+      if (res.ok && res.via === 'worker') {
+        setSettingsStatus('ok', 'Фірмовий лист надіслано через Worker ✓ Перевірте пошту (і папку Спам)');
+      } else if (res.ok && res.workerError) {
+        // воркер не спрацював — лист пішов резервним способом
+        setSettingsStatus('err', 'Worker не спрацював (' + res.workerError +
+          '). Лист надіслано простим текстом через FormSubmit');
+      } else if (res.ok) {
+        setSettingsStatus('ok', 'Лист надіслано через FormSubmit ✓ Перевірте пошту (і папку Спам)');
       } else if (res.needsActivation) {
         setSettingsStatus('wait',
           'Потрібна разова активація: відкрийте пошту ' + ($id('stFsEmail').value.trim() || 'магазину') +

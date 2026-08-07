@@ -140,6 +140,15 @@ export default {
       });
     }
 
+    // Найчастіша помилка налаштування — забули додати змінну
+    // або не натиснули Deploy після її додавання
+    if (!env.RESEND_KEY) {
+      return new Response(JSON.stringify({
+        ok: false,
+        error: 'у воркері не задано змінну RESEND_KEY (Settings → Variables and Secrets → Add → тип Secret → потім Deploy)'
+      }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+
     let d;
     try {
       d = await request.json();
