@@ -50,12 +50,22 @@ service cloud.firestore {
       allow write: if signedIn() && request.auth.uid == uid;
     }
 
-    // Замовлення: покупець створює своє (тільки зі статусом new)
-    // і бачить свої; адмін бачить, створює вручну і керує всіма
+    // Замовлення оформлюються на сайті: покупець з акаунтом створює
+    // своє, гість — без uid. В обох випадках лише статус 'new'
+    // і розумний розмір замовлення. Адмін бачить і керує всіма.
+    function validNewOrder() {
+      return request.resource.data.status == 'new'
+        && request.resource.data.total is number
+        && request.resource.data.total >= 0
+        && request.resource.data.total < 1000000
+        && request.resource.data.items.size() > 0
+        && request.resource.data.items.size() <= 50;
+    }
+
     match /orders/{orderId} {
-      allow create: if isAdmin() || (signedIn()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.status == 'new');
+      allow create: if isAdmin()
+        || (signedIn() && request.resource.data.uid == request.auth.uid && validNewOrder())
+        || (request.resource.data.uid == null && validNewOrder());
       allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
       allow update, delete: if isAdmin();
     }

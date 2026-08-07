@@ -1,7 +1,7 @@
 /* ============================================================
    REYTER — cart.js
    Кошик: додавання товарів, кількість, підсумок, оформлення
-   замовлення (Instagram Direct) та збереження в історію
+   замовлення на сайті та збереження в історію
    ============================================================ */
 
 (function () {
@@ -237,9 +237,7 @@
       '</form>';
 
     foot().innerHTML =
-      '<button class="btn btn--primary" data-submit type="button">' +
-        '<i class="fab fa-instagram" aria-hidden="true"></i> ' + R.t('cart.submit') +
-      '</button>' +
+      '<button class="btn btn--primary" data-submit type="button">' + R.t('cart.submit') + '</button>' +
       '<p class="pinfo__order-note" style="text-align:center;margin-top:.55rem">' + R.t('cart.submitNote') + '</p>';
   }
 
@@ -338,9 +336,11 @@
     orders.unshift(order);
     R.saveOrders(orders.slice(0, 50));
 
-    // З акаунтом — дублюємо замовлення і профіль у хмару
-    if (R.fb && R.fb.enabled && R.fb.user) {
+    // Замовлення йде в адмінку — і від гостя, і з акаунта
+    if (R.fb && R.fb.enabled) {
       R.fb.saveCloudOrder(order);
+    }
+    if (R.fb && R.fb.enabled && R.fb.user) {
       R.fb.saveCloudProfile({
         name: customer.name,
         phone: customer.phone,
@@ -378,14 +378,11 @@
         (order.customer.email
           ? '<p>' + R.t('cart.doneMail') + ' <b>' + R.esc(order.customer.email) + '</b> 📩</p>'
           : '') +
-        '<div class="order-msg">' + R.esc(order.message) + '</div>' +
-        '<a class="btn btn--primary" href="' + R.esc(R.config.orderUrl) + '" target="_blank" rel="noopener">' +
-          '<i class="fab fa-instagram" aria-hidden="true"></i> ' + R.t('cart.openIg') + '</a>' +
-        '<button class="btn btn--ghost" data-copy type="button">' + R.t('cart.copyAgain') + '</button>' +
+        '<button class="btn btn--primary" data-myorders type="button">' + R.t('cart.myOrders') + '</button>' +
+        '<button class="btn btn--ghost" data-close type="button">' + R.t('cart.keepShopping') + '</button>' +
       '</div>';
 
     foot().innerHTML = '';
-    R.copyText(order.message, true);
   }
 
   /* ---------- Копіювання в буфер ---------- */
@@ -453,8 +450,9 @@
         render();
       } else if (e.target.closest('[data-submit]')) {
         submitOrder();
-      } else if (e.target.closest('[data-copy]') && lastOrder) {
-        R.copyText(lastOrder.message);
+      } else if (e.target.closest('[data-myorders]')) {
+        R.overlay.close(d);
+        setTimeout(() => R.openAccount('orders'), 260);
       }
     });
   }

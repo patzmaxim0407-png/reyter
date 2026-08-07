@@ -96,8 +96,10 @@
 
   /* ---------- Хмарні замовлення ---------- */
 
+  /* Замовлення потрапляє в адмінку і від гостя без акаунта:
+     тоді uid порожній, а правила бази дозволяють такий запис. */
   R.fb.saveCloudOrder = async function (order) {
-    if (!R.fb.user) return;
+    const user = R.fb.user;
     try {
       await R.fb.db.collection('orders').add({
         num: order.num,
@@ -107,11 +109,16 @@
         customer: order.customer,
         message: order.message,
         status: 'new',
-        uid: R.fb.user.uid,
-        email: R.fb.user.email || '',
+        uid: user ? user.uid : null,
+        email: (order.customer && order.customer.email) || (user && user.email) || '',
+        source: 'Сайт',
+        lang: R.lang ? R.lang() : 'uk',
         created: firebase.firestore.FieldValue.serverTimestamp()
       });
-    } catch (e) { /* замовлення все одно збережено локально і надіслано в Direct */ }
+      return true;
+    } catch (e) {
+      return false; // локальна копія та сповіщення все одно спрацюють
+    }
   };
 
   /* ---------- Каталог із бази (публічне читання) ---------- */

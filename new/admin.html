@@ -363,37 +363,15 @@
       </div>
       <button class="btn btn--ghost btn--sm" id="tgTestBtn" type="button">Надіслати тестове повідомлення</button>
 
-      <h4 class="a-settings__sub">Email покупцю — фірмовий лист із логотипом (Brevo)</h4>
-      <div class="field">
-        <label for="stBvKey">API-ключ Brevo</label>
-        <input id="stBvKey" type="password" autocomplete="off" placeholder="xkeysib-...">
-        <p class="field__hint">
-          Зареєструйтесь на <b>brevo.com</b> (безкоштовно, 300 листів на день) →
-          Settings → <b>SMTP &amp; API</b> → Generate a new API key.
-          Тоді покупець отримає гарний лист із логотипом REYTER на синьому тлі.
-        </p>
-      </div>
-      <div class="a-grid-2">
-        <div class="field">
-          <label for="stBvSender">Адреса відправника</label>
-          <input id="stBvSender" type="email" autocomplete="off" placeholder="reyter.store1@gmail.com">
-        </div>
-        <div class="field">
-          <label for="stBvSenderName">Імʼя відправника</label>
-          <input id="stBvSenderName" autocomplete="off" placeholder="REYTER">
-        </div>
-      </div>
-      <p class="field__hint">Адресу відправника треба підтвердити у Brevo: Senders → Add a sender → лист із кнопкою підтвердження.</p>
-
-      <h4 class="a-settings__sub">Резервний спосіб і копія замовлень (FormSubmit)</h4>
+      <h4 class="a-settings__sub">Email — підтвердження покупцю (FormSubmit)</h4>
       <div class="field">
         <label for="stFsEmail">Email магазину</label>
         <input id="stFsEmail" type="email" autocomplete="off" placeholder="reyter.store1@gmail.com">
         <p class="field__hint">
-          На цю пошту приходить копія кожного замовлення. Якщо Brevo не налаштовано,
-          покупець отримає простий текстовий лист через <b>formsubmit.co</b> —
-          після першого тесту сервіс надішле сюди лист-активацію, відкрийте його
-          і натисніть <b>Activate</b> (один раз).
+          Покупець отримає лист із номером замовлення, а на цю пошту прийде копія
+          кожного замовлення. Після першого тесту сервіс <b>formsubmit.co</b> надішле
+          сюди лист-активацію — відкрийте його і натисніть <b>Activate</b> (один раз).
+          Реєстрація не потрібна, лімітів немає.
         </p>
       </div>
       <div class="ao-addadmin">

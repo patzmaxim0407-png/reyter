@@ -10,7 +10,6 @@ window.REYTER = window.REYTER || {};
 
 REYTER.config = {
   siteUrl: 'https://reyter.men',
-  orderUrl: 'https://www.instagram.com/reyter.ua?igsh=MXM4dGdvNXZ1Y2hidg==',
   socials: {
     tiktok:    'https://www.tiktok.com/@reyter.ua5',
     instagram: 'https://www.instagram.com/reyter.ua/',

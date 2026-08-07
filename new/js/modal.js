@@ -36,7 +36,6 @@
     el.sizeLink = document.getElementById('pmSizeLink');
     el.addCart = document.getElementById('pmAddCart');
     el.addCartLabel = document.getElementById('pmAddCartLabel');
-    el.order = document.getElementById('pmOrder');
     el.desc = document.getElementById('pmDesc');
     el.extras = document.getElementById('pmExtras');
     el.lightbox = document.getElementById('lightbox');
@@ -211,7 +210,6 @@
     el.price.innerHTML = R.priceHTML(p, true);
     el.saleNote.hidden = !p.saleNote;
     el.saleNote.textContent = p.saleNote ? R.tf(p, 'saleNote') : '';
-    el.order.href = R.config.orderUrl;
 
     renderSizes();
     renderDesc();

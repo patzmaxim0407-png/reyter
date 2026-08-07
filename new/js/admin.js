@@ -2449,9 +2449,6 @@
     return {
       tgToken: $id('stTgToken').value.trim(),
       tgChatId: $id('stTgChat').value.trim(),
-      bvKey: $id('stBvKey').value.trim(),
-      bvSender: $id('stBvSender').value.trim(),
-      bvSenderName: $id('stBvSenderName').value.trim(),
       fsEmail: $id('stFsEmail').value.trim()
     };
   }
@@ -2484,9 +2481,6 @@
     const s = (await R.notify.load(true)) || {};
     $id('stTgToken').value = s.tgToken || '';
     $id('stTgChat').value = s.tgChatId || '';
-    $id('stBvKey').value = s.bvKey || '';
-    $id('stBvSender').value = s.bvSender || '';
-    $id('stBvSenderName').value = s.bvSenderName || '';
     $id('stFsEmail').value = s.fsEmail || '';
   }
 
@@ -2664,11 +2658,8 @@
       }
       setSettingsStatus('wait', 'Надсилаємо тестовий лист…');
       const res = await R.notify.testEmail(settingsFromForm(), to);
-      const viaBrevo = !!(settingsFromForm().bvKey && settingsFromForm().bvSender);
       if (res.ok) {
-        setSettingsStatus('ok', viaBrevo
-          ? 'Фірмовий лист надіслано через Brevo ✓ Перевірте пошту (і папку Спам)'
-          : 'Лист надіслано ✓ Перевірте пошту (і папку Спам)');
+        setSettingsStatus('ok', 'Лист надіслано ✓ Перевірте пошту (і папку Спам)');
       } else if (res.needsActivation) {
         setSettingsStatus('wait',
           'Потрібна разова активація: відкрийте пошту ' + ($id('stFsEmail').value.trim() || 'магазину') +
