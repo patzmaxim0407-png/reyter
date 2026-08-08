@@ -52,10 +52,10 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
   <!-- Стилі -->
-  <link rel="stylesheet" href="css/base.css?v=20260808h">
-  <link rel="stylesheet" href="css/layout.css?v=20260808h">
-  <link rel="stylesheet" href="css/components.css?v=20260808h">
-  <link rel="stylesheet" href="css/modal.css?v=20260808h">
+  <link rel="stylesheet" href="css/base.css?v=20260808i">
+  <link rel="stylesheet" href="css/layout.css?v=20260808i">
+  <link rel="stylesheet" href="css/components.css?v=20260808i">
+  <link rel="stylesheet" href="css/modal.css?v=20260808i">
 </head>
 <body>
 
@@ -420,6 +420,16 @@
         <div class="pinfo__sizechart" id="pmSizeChart" hidden></div>
       </div>
 
+      <div class="pinfo__eta" id="pmEta" hidden>
+        <p class="pinfo__eta-text" id="pmEtaText"></p>
+        <form class="pinfo__eta-form" id="pmEtaForm">
+          <input type="email" id="pmEtaEmail" autocomplete="email"
+                 data-i18n-attr="placeholder:eta.emailPh" placeholder="you@example.com">
+          <button class="btn btn--ghost btn--sm" type="submit" data-i18n="eta.notify">Повідомити, коли зʼявиться</button>
+        </form>
+        <p class="pinfo__eta-done" id="pmEtaDone" hidden></p>
+      </div>
+
       <div class="pinfo__cta">
         <span class="pinfo__cta-price" id="pmCtaPrice" aria-hidden="true"></span>
         <button class="btn btn--primary btn--order" id="pmAddCart" type="button">
@@ -534,18 +544,18 @@
 <script src="https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore-compat.js" defer></script>
 
 <!-- Скрипти -->
-<script src="js/data.js?v=20260808h" defer></script>
-<script src="js/i18n.js?v=20260808h" defer></script>
-<script src="js/firebase.js?v=20260808h" defer></script>
-<script src="js/notify.js?v=20260808h" defer></script>
-<script src="js/promo.js?v=20260808h" defer></script>
-<script src="js/address.js?v=20260808h" defer></script>
-<script src="js/catalog.js?v=20260808h" defer></script>
-<script src="js/modal.js?v=20260808h" defer></script>
-<script src="js/cart.js?v=20260808h" defer></script>
-<script src="js/account.js?v=20260808h" defer></script>
-<script src="js/ui.js?v=20260808h" defer></script>
-<script src="js/main.js?v=20260808h" defer></script>
+<script src="js/data.js?v=20260808i" defer></script>
+<script src="js/i18n.js?v=20260808i" defer></script>
+<script src="js/firebase.js?v=20260808i" defer></script>
+<script src="js/notify.js?v=20260808i" defer></script>
+<script src="js/promo.js?v=20260808i" defer></script>
+<script src="js/address.js?v=20260808i" defer></script>
+<script src="js/catalog.js?v=20260808i" defer></script>
+<script src="js/modal.js?v=20260808i" defer></script>
+<script src="js/cart.js?v=20260808i" defer></script>
+<script src="js/account.js?v=20260808i" defer></script>
+<script src="js/ui.js?v=20260808i" defer></script>
+<script src="js/main.js?v=20260808i" defer></script>
 
 </body>
 </html>

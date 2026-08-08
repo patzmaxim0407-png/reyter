@@ -3848,8 +3848,51 @@
     );
   }
 
+  let editingRestockId = null;
+
+  /* Розміри для редагування приходу: з картки товару плюс ті,
+     що вже вписані в цей прихід */
+  function restockEditSizes(r, p) {
+    const carded = p && p.sizes && p.sizes.length ? p.sizes : R.config.allSizes;
+    const inDoc = Object.keys(r.items || {});
+    return R.config.allSizes.filter((s) => carded.includes(s) || inDoc.includes(s));
+  }
+
+  function restockEditHTML(r, p) {
+    const sized = r.items || (p && isSized(p));
+    const qtyInputs = sized
+      ? restockEditSizes(r, p).map((s) =>
+          '<label class="ao-qty"><span>' + s + '</span>' +
+          '<input type="number" min="0" value="' + (Number((r.items || {})[s]) || 0) + '" data-re-size="' + s + '"></label>'
+        ).join('')
+      : '<label class="ao-qty"><span>шт</span>' +
+        '<input type="number" min="0" value="' + (Number(r.qty) || 0) + '" data-re-qty></label>';
+
+    return (
+      '<div class="ao-restock ao-restock--edit" data-id="' + esc(r._id) + '">' +
+        '<div class="ao-restock__info">' +
+          '<b>' + esc(r.productName || r.productId) + '</b>' +
+          '<span class="ao-note">Вкажіть фактично отриману кількість — оприбуткується саме вона.</span>' +
+        '</div>' +
+        '<div class="ao-restock-form__qty">' + qtyInputs + '</div>' +
+        '<div class="ao-restock-form__row">' +
+          '<input type="date" data-re-date value="' + esc(r.expected || todayISO()) + '" title="Очікувана дата">' +
+          '<input data-re-note value="' + esc(r.note || '') + '" placeholder="Нотатка">' +
+        '</div>' +
+        '<div class="ao-restock__actions">' +
+          '<button class="btn btn--primary btn--sm" data-rst-save type="button">Зберегти</button>' +
+          '<button class="btn btn--ghost btn--sm" data-rst-cancel type="button">Скасувати</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
   function restockCardHTML(r) {
     const p = productById(r.productId);
+    if (r._id === editingRestockId && r.status === 'pending') {
+      return restockEditHTML(r, p);
+    }
+
     const overdue = r.status === 'pending' && r.expected && r.expected < todayISO();
     const qtyText = r.items
       ? Object.keys(r.items).filter((k) => r.items[k] > 0).map((k) => k + ': ' + r.items[k]).join(', ')
@@ -3869,11 +3912,49 @@
         (r.status === 'pending'
           ? '<div class="ao-restock__actions">' +
               '<button class="btn btn--primary btn--sm" data-rst-receive type="button">Оприбуткувати</button>' +
+              '<button class="btn btn--ghost btn--sm" data-rst-edit type="button">Змінити</button>' +
               '<button class="btn btn--ghost btn--sm ao-danger" data-rst-del type="button">✕</button>' +
             '</div>'
           : '') +
       '</div>'
     );
+  }
+
+  /* Зчитує форму редагування і зберігає прихід */
+  async function saveRestockEdit(r, rootEl) {
+    const upd = {
+      expected: rootEl.querySelector('[data-re-date]').value || todayISO(),
+      note: rootEl.querySelector('[data-re-note]').value.trim()
+    };
+
+    const sizeInputs = rootEl.querySelectorAll('[data-re-size]');
+    if (sizeInputs.length) {
+      const items = {};
+      let total = 0;
+      sizeInputs.forEach((inp) => {
+        const v = Math.max(0, Math.trunc(Number(inp.value) || 0));
+        if (v > 0) { items[inp.dataset.reSize] = v; total += v; }
+      });
+      if (!total) return toast('Вкажіть кількість хоча б для одного розміру');
+      upd.items = items;
+      upd.qty = firebase.firestore.FieldValue.delete();
+    } else {
+      const v = Math.max(0, Math.trunc(Number(rootEl.querySelector('[data-re-qty]').value) || 0));
+      if (!v) return toast('Вкажіть кількість');
+      upd.qty = v;
+      upd.items = firebase.firestore.FieldValue.delete();
+    }
+
+    try {
+      await R.fb.db.collection('restocks').doc(r._id).update(upd);
+      editingRestockId = null;
+      await loadRestocks();
+      await syncRestockEta(r.productId);
+      renderStockUI();
+      toast('Прихід оновлено ✓', 'success');
+    } catch (e) {
+      toast('Не вдалося зберегти прихід');
+    }
   }
 
   function restockListHTML() {
@@ -4005,6 +4086,11 @@
         ref: ''
       });
       await batch.commit();
+
+      // розмір щойно повернувся в наявність — сповіщаємо підписників
+      if (oldVal <= 0 && newVal > 0) {
+        notifyStockAlerts(pid, size ? [size] : []);
+      }
     } catch (err) {
       toast('Не вдалося зберегти залишок');
       renderStockUI();
@@ -4057,12 +4143,98 @@
 
     try {
       await R.fb.db.collection('restocks').add(doc);
+      await loadRestocks();
+      await syncRestockEta(pid);
       toast('Прихід заплановано ✓', 'success');
       restockProductId = '';
       loadRestocks().then(renderStockUI);
     } catch (err) {
       toast('Не вдалося зберегти прихід');
     }
+  }
+
+  /* ---------- «Очікується ~дата» для сайту ----------
+     З усіх запланованих приходів товару рахуємо найближчу дату
+     по кожному розміру і кладемо в публічний документ
+     restock_eta/{id}. Сайт показує «Очікується ~15 серпня»
+     на розпроданих розмірах. Кількості й нотатки не виходять
+     за межі адмінки. */
+
+  async function syncRestockEta(pid) {
+    if (!pid) return;
+    try {
+      const pending = restocksCache.filter(
+        (r) => r.productId === pid && r.status === 'pending');
+
+      if (!pending.length) {
+        await R.fb.db.collection('restock_eta').doc(pid).delete().catch(() => {});
+        return;
+      }
+
+      const sizes = {};
+      let any = null;
+      pending.forEach((r) => {
+        const d = r.expected || '';
+        if (!d) return;
+        if (!any || d < any) any = d;
+        Object.keys(r.items || {}).forEach((sz) => {
+          if (!sizes[sz] || d < sizes[sz]) sizes[sz] = d;
+        });
+      });
+
+      await R.fb.db.collection('restock_eta').doc(pid).set({
+        any: any || '',
+        sizes: sizes,
+        updated: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch (e) { /* некритично: сайт просто не покаже дату */ }
+  }
+
+  /* ---------- «Повідомити, коли зʼявиться» ----------
+     Підписки лежать у stock_alerts. Щойно розмір поповнився
+     з нуля, шлемо лист через той самий воркер (Resend) і
+     позначаємо підписку виконаною. Працює з сесії адміна —
+     сервера в проєкту немає, а наявність і зʼявляється саме
+     в момент дій адміна. */
+
+  async function notifyStockAlerts(pid, sizesBackInStock) {
+    try {
+      const p = productById(pid);
+      const snap = await R.fb.db.collection('stock_alerts')
+        .where('productId', '==', pid)
+        .where('notified', '==', false)
+        .limit(50)
+        .get();
+      if (snap.empty) return;
+
+      const backAll = !sizesBackInStock || !sizesBackInStock.length;
+      const hits = snap.docs.filter((d) => {
+        const a = d.data();
+        return backAll || !a.size || sizesBackInStock.includes(a.size);
+      });
+      if (!hits.length) return;
+
+      let sent = 0;
+      for (const d of hits) {
+        const a = d.data();
+        const ok = await R.notify.stockAlert({
+          to: a.email,
+          product: a.productName || (p && p.name) || pid,
+          size: a.size || '',
+          image: (p && p.images && p.images[0]) || '',
+          url: 'https://reyter.men/new/#p/' + encodeURIComponent(pid),
+          lang: a.lang || 'uk'
+        });
+        if (ok) {
+          await d.ref.update({
+            notified: true,
+            notifiedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          sent++;
+        }
+      }
+      if (sent) toast('Підписникам надіслано листи: ' + sent + ' ✓', 'success');
+    } catch (e) { /* воркер не налаштований — тихо */ }
   }
 
   async function receiveRestock(r) {
@@ -4099,6 +4271,12 @@
         });
       }
 
+      // які розміри зараз по нулях — вони «повернуться в наявність»
+      const cameBackSizes = r.items
+        ? Object.keys(r.items).filter((sz) => (Number(r.items[sz]) || 0) > 0 && sizeQty(r.productId, sz) <= 0)
+        : null;
+      const unitBack = !r.items && (Number(r.qty) || 0) > 0 && unitQty(r.productId) <= 0;
+
       batch.set(invRef, upd, { merge: true });
       batch.update(R.fb.db.collection('restocks').doc(r._id), {
         status: 'received',
@@ -4107,7 +4285,12 @@
       await batch.commit();
 
       toast('Оприбутковано ✓ Залишки оновлено', 'success');
-      loadRestocks().then(renderStockUI);
+      await loadRestocks();
+      renderStockUI();
+      syncRestockEta(r.productId);
+      if ((cameBackSizes && cameBackSizes.length) || unitBack) {
+        notifyStockAlerts(r.productId, cameBackSizes || []);
+      }
     } catch (err) {
       toast('Не вдалося оприбуткувати');
     }
@@ -4763,9 +4946,19 @@
         } else if (e.target.closest('[data-rst-del]')) {
           if (confirm('Видалити запланований прихід?')) {
             R.fb.db.collection('restocks').doc(r._id).delete()
-              .then(() => loadRestocks().then(renderStockUI))
+              .then(() => loadRestocks())
+              .then(() => syncRestockEta(r.productId))
+              .then(renderStockUI)
               .catch(() => toast('Немає прав'));
           }
+        } else if (e.target.closest('[data-rst-edit]')) {
+          editingRestockId = r._id;
+          renderStockUI();
+        } else if (e.target.closest('[data-rst-cancel]')) {
+          editingRestockId = null;
+          renderStockUI();
+        } else if (e.target.closest('[data-rst-save]')) {
+          saveRestockEdit(r, restockEl);
         }
       }
     });

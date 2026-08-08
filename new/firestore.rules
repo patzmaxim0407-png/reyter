@@ -114,6 +114,29 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Дата очікуваного приходу для сайту: лише «коли зʼявиться»,
+    // без кількостей і нотаток — це вже комерційна інформація.
+    // Пише адмінка автоматично при роботі з приходами.
+    match /restock_eta/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Підписки «повідомити, коли зʼявиться». Покупець створює
+    // свою (тільки з валідними полями), читає й розсилає адмін.
+    match /stock_alerts/{alertId} {
+      allow create: if request.resource.data.keys().hasOnly(
+          ['productId', 'productName', 'size', 'email', 'lang', 'notified', 'created'])
+        && request.resource.data.productId is string
+        && request.resource.data.productId.size() > 0
+        && request.resource.data.productId.size() < 60
+        && request.resource.data.email is string
+        && request.resource.data.email.matches('.+@.+[.].+')
+        && request.resource.data.email.size() < 120
+        && request.resource.data.notified == false;
+      allow read, update, delete: if isAdmin();
+    }
+
     // Журнал руху складу
     match /stock_moves/{moveId} {
       allow read, write: if isAdmin();

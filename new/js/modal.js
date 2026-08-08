@@ -37,6 +37,11 @@
     el.sizes = document.getElementById('pmSizes');
     el.sizeLink = document.getElementById('pmSizeLink');
     el.sizeChart = document.getElementById('pmSizeChart');
+    el.eta = document.getElementById('pmEta');
+    el.etaText = document.getElementById('pmEtaText');
+    el.etaForm = document.getElementById('pmEtaForm');
+    el.etaEmail = document.getElementById('pmEtaEmail');
+    el.etaDone = document.getElementById('pmEtaDone');
     el.addCart = document.getElementById('pmAddCart');
     el.addCartLabel = document.getElementById('pmAddCartLabel');
     el.ctaPrice = document.getElementById('pmCtaPrice');
@@ -104,7 +109,8 @@
   function sizePillHTML(size, opts) {
     const id = 'size-' + String(size).toLowerCase().replace(/[^a-zа-яіїє0-9]/gi, '');
     return (
-      '<span class="size-pill' + (opts.low ? ' size-pill--low' : '') + '">' +
+      '<span class="size-pill' + (opts.low ? ' size-pill--low' : '') +
+        (opts.disabled ? ' size-pill--out' : '') + '" data-size="' + R.esc(size) + '">' +
         '<input type="radio" name="pm-size" value="' + R.esc(size) + '" id="' + id + '"' +
         (opts.disabled ? ' disabled' : '') + (opts.checked ? ' checked' : '') + '>' +
         '<label for="' + id + '">' + R.esc(size) + '</label>' +
@@ -157,6 +163,103 @@
         });
       })
       .join('');
+  }
+
+  /* ---------- «Очікується ~дата» + «Повідомити, коли зʼявиться» ----------
+     Дати очікуваних приходів адмінка публікує в restock_eta —
+     без кількостей, лише «коли». Підписка кладе email у
+     stock_alerts; лист піде, щойно адмін оприбуткує прихід. */
+
+  const etaCache = {};
+  let etaFor = null; // розмір, для якого показано блок (null = весь товар)
+
+  function fetchEta(pid) {
+    if (etaCache[pid] !== undefined) return Promise.resolve(etaCache[pid]);
+    if (!R.fb || !R.fb.enabled) return Promise.resolve(null);
+    return R.fb.db.collection('restock_eta').doc(pid).get()
+      .then((snap) => {
+        etaCache[pid] = snap.exists ? snap.data() : null;
+        return etaCache[pid];
+      })
+      .catch(() => null);
+  }
+
+  function etaDateText(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString(R.lang && R.lang() === 'en' ? 'en-GB' : 'uk-UA',
+      { day: 'numeric', month: 'long' });
+  }
+
+  /* Показ блоку для конкретного розміру або товару загалом */
+  function showEta(size) {
+    if (!el.eta) return;
+    etaFor = size || null;
+    const soldAll = currentAv.soldOut;
+
+    fetchEta(current.id).then((eta) => {
+      if (!current) return;
+      const iso = eta
+        ? (size ? (eta.sizes || {})[size] || eta.any : eta.any)
+        : '';
+
+      let text;
+      if (iso) {
+        text = size
+          ? R.t('eta.expectedSize').replace('{size}', size).replace('{date}', etaDateText(iso))
+          : R.t('eta.expected').replace('{date}', etaDateText(iso));
+      } else {
+        text = size ? R.t('eta.noDate') : R.t('eta.noDateAll');
+      }
+
+      el.etaText.textContent = text;
+      el.etaDone.hidden = true;
+      el.etaForm.hidden = false;
+      el.etaEmail.value = (R.fb && R.fb.user && R.fb.user.email) || el.etaEmail.value || '';
+      el.eta.hidden = false;
+    });
+
+    // без бази показуємо блок лише коли є що сказати
+    if (!R.fb || !R.fb.enabled) el.eta.hidden = !soldAll;
+  }
+
+  function hideEta() {
+    if (!el.eta) return;
+    el.eta.hidden = true;
+    etaFor = null;
+  }
+
+  /* Після рендера розмірів: товар повністю проданий — блок
+     одразу; інакше блок зʼявляється кліком по сірому розміру */
+  function refreshEta() {
+    hideEta();
+    if (!R.fb || !R.fb.enabled) return;
+    if (currentAv.soldOut) showEta(null);
+  }
+
+  async function submitEtaForm() {
+    const email = el.etaEmail.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      R.toast(R.t('eta.badEmail'));
+      el.etaEmail.focus();
+      return;
+    }
+    try {
+      await R.fb.db.collection('stock_alerts').add({
+        productId: current.id,
+        productName: R.tf(current, 'name'),
+        size: etaFor || null,
+        email: email,
+        lang: R.lang ? R.lang() : 'uk',
+        notified: false,
+        created: new Date().toISOString()
+      });
+      el.etaForm.hidden = true;
+      el.etaDone.textContent = R.t('eta.done').replace('{email}', email);
+      el.etaDone.hidden = false;
+    } catch (e) {
+      R.toast(R.t('eta.fail'));
+    }
   }
 
   /* ---------- Розмірна сітка прямо в картці ----------
@@ -357,6 +460,7 @@
 
     renderColors();
     renderSizes();
+    refreshEta();
     renderDesc();
     renderExtras();
     refreshStatus();
@@ -518,6 +622,19 @@
     });
 
     el.sizeLink.addEventListener('click', () => toggleSizeChart());
+
+    // Клік по недоступному розміру: не покупка, а «коли буде?»
+    el.sizes.addEventListener('click', (e) => {
+      const pill = e.target.closest('.size-pill--out');
+      if (!pill) return;
+      showEta(pill.dataset.size);
+      el.eta.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+
+    el.etaForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      submitEtaForm();
+    });
 
     // Фото заміру відкривається на весь екран
     el.sizeChart.addEventListener('click', (e) => {

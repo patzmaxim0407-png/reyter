@@ -201,6 +201,71 @@ function promoHTML(d) {
   );
 }
 
+/* Лист «товар знову в наявності» для підписки
+   «Повідомити, коли зʼявиться» */
+function stockHTML(d) {
+  const en = d.lang === 'en';
+  const T = en ? {
+    hi: 'Good news!',
+    lead: 'The item you were waiting for is back in stock:',
+    size: 'Size',
+    cta: 'Buy now',
+    note: 'Quantities are limited — popular sizes sell out fast.',
+    slogan: 'Character is REYTER!'
+  } : {
+    hi: 'Гарні новини!',
+    lead: 'Товар, на який ви чекали, знову в наявності:',
+    size: 'Розмір',
+    cta: 'Перейти до товару',
+    note: 'Кількість обмежена — популярні розміри розбирають швидко.',
+    slogan: 'Характер — це REYTER!'
+  };
+
+  const url = clip(d.url, 300) || 'https://reyter.men/new/';
+
+  return (
+    '<div style="margin:0;padding:24px 12px;background:#fcf8f0;font-family:Helvetica,Arial,sans-serif">' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" ' +
+        'style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden">' +
+
+        '<tr><td style="background:' + BLUE + ';padding:30px 24px;text-align:center">' +
+          '<img src="' + LOGO + '" alt="REYTER" width="190" ' +
+            'style="display:block;margin:0 auto;max-width:190px;height:auto">' +
+        '</td></tr>' +
+
+        '<tr><td style="padding:30px 26px 8px;text-align:center">' +
+          '<p style="margin:0 0 6px;font-size:18px;font-weight:800;color:#171b26">' + T.hi + '</p>' +
+          '<p style="margin:0 0 18px;font-size:15px;color:#6e6a5e">' + T.lead + '</p>' +
+          (d.image
+            ? '<img src="' + esc(clip(d.image, 400)) + '" alt="" width="180" ' +
+                'style="display:block;margin:0 auto 14px;border-radius:12px;max-width:180px;height:auto">'
+            : '') +
+          '<p style="margin:0;font-size:17px;font-weight:800;color:' + INK + '">' +
+            esc(clip(d.product, 120)) + '</p>' +
+          (d.size
+            ? '<p style="margin:6px 0 0;font-size:14px;color:#6e6a5e">' + T.size + ': <b>' + esc(clip(d.size, 20)) + '</b></p>'
+            : '') +
+        '</td></tr>' +
+
+        '<tr><td style="padding:22px 26px 8px;text-align:center">' +
+          '<a href="' + esc(url) + '" style="display:inline-block;background:' + BLUE + ';color:#ffffff;' +
+            'text-decoration:none;font-size:15px;font-weight:700;padding:13px 30px;border-radius:999px">' +
+            T.cta + '</a>' +
+          '<p style="margin:14px 0 0;font-size:12px;color:#6e6a5e">' + T.note + '</p>' +
+        '</td></tr>' +
+
+        '<tr><td style="padding:26px 24px;background:' + INK + ';text-align:center">' +
+          '<p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#ffffff">' + T.slogan + '</p>' +
+          '<p style="margin:0;font-size:12px">' +
+            '<a href="https://reyter.men/new/" style="color:#ffffff;text-decoration:none">reyter.men</a>' +
+          '</p>' +
+        '</td></tr>' +
+
+      '</table>' +
+    '</div>'
+  );
+}
+
 /* ============================================================
    TELEGRAM
    Текст повідомлення воркер збирає сам із полів замовлення —
@@ -420,6 +485,23 @@ export default {
 
       const res = await tgSend(env, '✅ Тест: сповіщення REYTER надходять сюди. Все налаштовано правильно!');
       return reply(res, res.ok ? 200 : 400, cors);
+    }
+
+    /* --- «Знову в наявності» для підписки --- */
+
+    if (type === 'stock') {
+      const to = String(d.to || '').trim();
+      if (!EMAIL_RE.test(to)) {
+        return reply({ ok: false, error: 'Некоректний email отримувача' }, 400, cors);
+      }
+      if (!d.product) {
+        return reply({ ok: false, error: 'Не вказано товар' }, 400, cors);
+      }
+      const subject = d.lang === 'en'
+        ? 'Back in stock — ' + clip(d.product, 80) + ' | REYTER'
+        : 'Знову в наявності — ' + clip(d.product, 80) + ' | REYTER';
+      const res = await sendMail(env, to, subject, stockHTML(d));
+      return reply(res, res.ok ? 200 : 502, cors);
     }
 
     /* --- Лист із персональним промокодом --- */

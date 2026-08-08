@@ -1887,3 +1887,59 @@
   box-shadow: 0 10px 28px rgba(23, 27, 38, 0.28);
   pointer-events: none;
 }
+
+/* ---------- «Очікується ~дата» + підписка ---------- */
+
+.pinfo__eta {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1.1rem;
+  padding: 0.85rem 1rem;
+  background: var(--c-amber-soft);
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  border-radius: var(--radius-sm);
+}
+
+.pinfo__eta[hidden] {
+  display: none;
+}
+
+.pinfo__eta-text {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--c-amber);
+}
+
+.pinfo__eta-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pinfo__eta-form input {
+  flex: 1 1 180px;
+  min-width: 0;
+  padding: 0.6rem 0.9rem;
+  font: inherit;
+  font-size: 0.92rem;
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  background: var(--c-paper);
+}
+
+.pinfo__eta-form .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.pinfo__eta-done {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--c-green);
+}
+
+/* Недоступний розмір лишається клікабельним — він відповідає
+   «коли буде?», тому курсор не забороняємо */
+.size-pill--out {
+  cursor: pointer;
+}

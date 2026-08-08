@@ -379,6 +379,14 @@
     loadAdmin: loadAdminSettings,
     sendPromoLetter: (data) => loadSettings(true).then((s) => sendPromoLetter(s, data)),
 
+    /* Лист «знову в наявності» для підписки зі сторінки товару */
+    stockAlert: async (data) => {
+      const settings = await loadSettings(true);
+      if (!settings || !settings.workerUrl) return false;
+      const res = await callWorker(settings, Object.assign({ type: 'stock' }, data));
+      return !!res.ok;
+    },
+
     /* Стан воркера: чи задані ключі Resend і Telegram */
     async workerStatus(settings) {
       const res = await callWorker(settings, { type: 'status', key: R.workerKey() });
