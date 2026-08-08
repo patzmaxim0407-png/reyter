@@ -332,11 +332,98 @@
     );
   }
 
+  /* ---------- Відстеження без акаунта ----------
+     Замовлення можна оформити гостем — тоді історії в кабінеті
+     немає. Щоб покупець усе одно бачив рух, шукаємо запис за
+     номером замовлення й телефоном: разом вони працюють як ключ
+     до окремої публічної колекції (див. track.js). */
+
+  function trackFormHTML() {
+    return (
+      '<div class="auth-divider"><span>' + R.t('trk.divider') + '</span></div>' +
+      '<form class="form-grid" id="trackForm" novalidate>' +
+        '<div class="field">' +
+          '<label for="trkNum">' + R.t('trk.num') + '</label>' +
+          '<input id="trkNum" autocomplete="off" spellcheck="false" placeholder="R-260808-799">' +
+        '</div>' +
+        '<div class="field">' +
+          '<label for="trkPhone">' + R.t('trk.phone') + '</label>' +
+          '<input id="trkPhone" type="tel" autocomplete="tel" placeholder="+380…">' +
+        '</div>' +
+        '<button class="btn btn--ghost" type="submit">' + R.t('trk.find') + '</button>' +
+      '</form>' +
+      '<div id="trackResult"></div>'
+    );
+  }
+
+  function trackCardHTML(o) {
+    const date = o.date
+      ? new Date(o.date).toLocaleDateString(R.lang() === 'en' ? 'en-GB' : 'uk-UA', {
+          day: 'numeric', month: 'long', year: 'numeric'
+        })
+      : '';
+    const items = (o.items || [])
+      .map((i) =>
+        '<div>' + R.esc(R.tx(i.name)) + (i.size ? ' · ' + R.esc(R.tx(i.size)) : '') + ' × ' + (i.qty || 1) + '</div>')
+      .join('');
+    const st = o.status || 'new';
+    const where = [o.carrier, o.city].filter(Boolean).join(', ');
+
+    return (
+      '<article class="order-card">' +
+        '<div class="order-card__head">' +
+          '<span class="order-card__num">№' + R.esc(o.num) +
+            '<span class="order-card__status' +
+              (st === 'done' ? ' is-done' : '') + (st === 'cancelled' ? ' is-cancelled' : '') + '">' +
+              R.esc(statusInfo(st).title) + '</span>' +
+          '</span>' +
+          (date ? '<span class="order-card__date">' + date + '</span>' : '') +
+        '</div>' +
+        trackerHTML(st) +
+        (o.ttn
+          ? '<div class="order-card__ttn">📦 ' + R.t('acc.ttn') + ': <b>' + R.esc(o.ttn) + '</b>' +
+            '<button data-copyttn-track type="button">' + R.t('acc.copy') + '</button></div>'
+          : '') +
+        (items ? '<div class="order-card__items">' + items + '</div>' : '') +
+        (where ? '<div class="order-card__items">🚚 ' + R.esc(where) + '</div>' : '') +
+        '<div class="order-card__total">' + R.t('cart.total') + ': ' + R.uah(o.total) + '</div>' +
+      '</article>'
+    );
+  }
+
+  let trackedOrder = null;
+
+  async function doTrack() {
+    const box = document.getElementById('trackResult');
+    if (!box) return;
+    const num = document.getElementById('trkNum').value;
+    const phone = document.getElementById('trkPhone').value;
+
+    box.innerHTML = '<p class="account-note">' + R.t('trk.searching') + '</p>';
+    const res = await R.trackFind(num, phone);
+
+    if (res.ok) {
+      trackedOrder = res.order;
+      box.innerHTML = trackCardHTML(res.order);
+      return;
+    }
+
+    trackedOrder = null;
+    const why = {
+      no_num: 'trk.needNum',
+      no_phone: 'trk.needPhone',
+      not_found: 'trk.notFound',
+      offline: 'trk.offline'
+    }[res.reason] || 'trk.notFound';
+    box.innerHTML = '<p class="account-note account-note--warn">' + R.t(why) + '</p>';
+  }
+
   let shownOrders = []; // що зараз відображено (для кнопок)
 
   async function renderOrders() {
     if (R.fb && R.fb.enabled && !R.fb.user) {
       renderAuth();
+      body().insertAdjacentHTML('beforeend', trackFormHTML());
       return;
     }
 
@@ -485,6 +572,11 @@
         }
       }
 
+      if (e.target.closest('[data-copyttn-track]')) {
+        R.copyText((trackedOrder && trackedOrder.ttn) || '');
+        return;
+      }
+
       const card = e.target.closest('.order-card');
       if (e.target.closest('[data-copyttn]') && card) {
         R.copyText(shownOrders[Number(card.dataset.idx)].ttn || '');
@@ -503,6 +595,10 @@
     });
 
     d.addEventListener('submit', (e) => {
+      if (e.target.id === 'trackForm') {
+        e.preventDefault();
+        doTrack();
+      }
       if (e.target.id === 'authForm') {
         e.preventDefault();
         doEmailAuth();

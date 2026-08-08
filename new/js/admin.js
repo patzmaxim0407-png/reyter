@@ -2811,6 +2811,15 @@
       batch.update(R.fb.db.collection('orders').doc(order._id), upd);
       await batch.commit();
 
+      // Публічне відстеження: покупець-гість бачить рух замовлення
+      // за номером і телефоном
+      if (R.trackUpdate) {
+        R.trackUpdate(Object.assign({}, order, {
+          status: next,
+          statusLog: (order.statusLog || []).concat([statusLogEntry(next)])
+        }));
+      }
+
       if (!opts.silent) {
         if (upd.stockApplied === true) toast('Статус оновлено, товар списано зі складу ✓', 'success');
         else if (upd.stockApplied === false) toast('Статус оновлено, товар повернено на склад ✓', 'success');
@@ -3494,9 +3503,16 @@
     /* ---------- Збереження змін наявного замовлення ----------
        Склад: якщо товар уже списаний, повертаємо старий склад
        і списуємо новий — інакше залишки розійдуться з фактом. */
+    // Ключ відстеження залежить від номера й телефону: якщо телефон
+    // виправили, старий запис треба прибрати, інакше покупець
+    // побачить заморожений статус за старими даними
+    const trackKey = R.trackKey ? await R.trackKey(
+      editingOrder ? editingOrder.num : '', customer.phone) : '';
+
     if (editingOrder) {
       const prev = editingOrder;
       const updated = Object.assign({}, prev, {
+        trackKey: trackKey || prev.trackKey || '',
         items: items,
         discount: discount,
         promoCode: promoCode,
@@ -3527,10 +3543,18 @@
           email: updated.email,
           source: updated.source,
           message: updated.message,
+          trackKey: updated.trackKey,
           editedAt: updated.editedAt,
           editedBy: updated.editedBy
         });
         await batch.commit();
+
+        if (R.trackUpdate) {
+          if (prev.trackKey && trackKey && prev.trackKey !== trackKey) {
+            R.trackDelete(prev.trackKey);   // телефон змінили
+          }
+          R.trackUpdate(updated);
+        }
 
         noModal().hidden = true;
         R.unlockBg();
@@ -3559,6 +3583,7 @@
       created: firebase.firestore.FieldValue.serverTimestamp(),
       statusLog: [statusLogEntry(status)]
     };
+    order.trackKey = R.trackKey ? await R.trackKey(order.num, customer.phone) : '';
     order.message = buildOrderMessage(order);
 
     // Попередження про нестачу, якщо одразу підтверджуємо
@@ -3586,6 +3611,8 @@
 
       batch.set(ref, order);
       await batch.commit();
+
+      if (R.trackCreate) R.trackCreate(order);
 
       if ($id('noNotify').checked && customer.email) {
         // Замовлення завів адмін — сповіщати самого себе в Telegram зайве
@@ -5260,6 +5287,8 @@
           try {
             selection.delete(order._id);
             await R.fb.db.collection('orders').doc(order._id).delete();
+            // Разом із замовленням прибираємо і публічне відстеження
+            if (order.trackKey && R.trackDelete) R.trackDelete(order.trackKey);
           } catch (err) {
             toast('Немає прав видаляти');
           }
@@ -5286,9 +5315,13 @@
       }
 
       if (e.target.matches('[data-ao-ttn]')) {
+        const ttn = e.target.value.trim();
         R.fb.db.collection('orders').doc(order._id)
-          .update({ ttn: e.target.value.trim() })
-          .then(() => toast('ТТН збережено — покупець бачить його в кабінеті ✓', 'success'))
+          .update({ ttn: ttn })
+          .then(() => {
+            if (R.trackUpdate) R.trackUpdate(order, { ttn: ttn });
+            toast('ТТН збережено — покупець бачить його в кабінеті й у відстеженні ✓', 'success');
+          })
           .catch(() => toast('Не вдалося зберегти ТТН'));
         return;
       }

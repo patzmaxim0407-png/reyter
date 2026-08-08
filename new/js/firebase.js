@@ -100,6 +100,11 @@
      тоді uid порожній, а правила бази дозволяють такий запис. */
   R.fb.saveCloudOrder = async function (order) {
     const user = R.fb.user;
+    // Ключ відстеження рахуємо до запису: гість має отримати
+    // можливість дивитись статус одразу після оформлення
+    const trackKey = R.trackKey
+      ? await R.trackKey(order.num, (order.customer || {}).phone)
+      : '';
     try {
       await R.fb.db.collection('orders').add({
         num: order.num,
@@ -116,8 +121,12 @@
         email: (order.customer && order.customer.email) || (user && user.email) || '',
         source: 'Сайт',
         lang: R.lang ? R.lang() : 'uk',
+        trackKey: trackKey,
         created: firebase.firestore.FieldValue.serverTimestamp()
       });
+      if (trackKey && R.trackCreate) {
+        R.trackCreate(Object.assign({ status: 'new' }, order));
+      }
       return true;
     } catch (e) {
       return false; // локальна копія та сповіщення все одно спрацюють
@@ -187,19 +196,59 @@
     }
   };
 
+  /* Замовлення кабінету.
+     Шукаємо двома запитами: за uid і за поштою. Другий потрібен,
+     бо покупець міг оформити замовлення гостем, а зареєструватися
+     пізніше — такі замовлення uid не мають узагалі. Знайдені
+     «нічийні» одразу підвʼязуємо до акаунта, щоб наступного разу
+     їх повернув уже перший запит. */
   R.fb.loadCloudOrders = async function () {
-    if (!R.fb.user) return [];
-    try {
-      const snap = await R.fb.db
-        .collection('orders')
-        .where('uid', '==', R.fb.user.uid)
-        .limit(50)
-        .get();
-      const orders = snap.docs.map((d) => Object.assign({ _id: d.id }, d.data()));
-      orders.sort((a, b) => String(b.date).localeCompare(String(a.date)));
-      return orders;
-    } catch (e) {
-      return null; // null = не вдалося прочитати (нема бази чи правил)
+    const user = R.fb.user;
+    if (!user) return [];
+
+    const byId = new Map();
+    let failed = 0;
+
+    async function collect(field, value) {
+      try {
+        const snap = await R.fb.db
+          .collection('orders')
+          .where(field, '==', value)
+          .limit(50)
+          .get();
+        snap.docs.forEach((d) => byId.set(d.id, Object.assign({ _id: d.id }, d.data())));
+      } catch (e) {
+        failed++;
+      }
     }
+
+    const jobs = [collect('uid', user.uid)];
+    if (user.email) jobs.push(collect('email', user.email));
+    await Promise.all(jobs);
+
+    // жоден запит не пройшов — це вже схоже на проблему з правилами
+    if (failed === jobs.length) return null;
+
+    const orders = Array.from(byId.values());
+    orders.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+    claimGuestOrders(orders, user);
+    return orders;
   };
+
+  /* Замовлення без власника, оформлені на цю пошту, робимо
+     своїми. Правила дозволяють змінити рівно поле uid і лише
+     тому, чия пошта збігається, — чуже замовлення так не забрати.
+     Тихо: користувачеві ця технічна деталь не потрібна. */
+  function claimGuestOrders(orders, user) {
+    orders
+      .filter((o) => !o.uid && o.email && o.email === user.email)
+      .slice(0, 20)
+      .forEach((o) => {
+        R.fb.db.collection('orders').doc(o._id)
+          .update({ uid: user.uid })
+          .then(() => { o.uid = user.uid; })
+          .catch(() => { /* лишиться пошуку за поштою */ });
+      });
+  }
 })();

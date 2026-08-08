@@ -106,11 +106,51 @@ service cloud.firestore {
         && discountAllowed();
     }
 
+    // Покупець забирає собі замовлення, яке оформив гостем на цю
+    // саму пошту: змінити можна рівно поле uid і лише з порожнього
+    // на свій. Чуже замовлення так не привласнити — пошта в ньому
+    // має збігатися з підтвердженою поштою акаунта.
+    function claimsOwnOrder() {
+      return signedIn() && verified()
+        && resource.data.email == userEmail()
+        && resource.data.uid == null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid;
+    }
+
     match /orders/{orderId} {
       allow create: if isAdmin()
         || (signedIn() && request.resource.data.uid == request.auth.uid && validNewOrder())
         || (request.resource.data.uid == null && validNewOrder());
-      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      // Друга умова читання — щоб у кабінеті були видні й замовлення,
+      // оформлені до реєстрації: у них немає uid, лише пошта
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid)
+        || (signedIn() && verified() && resource.data.email == userEmail());
+      allow update: if isAdmin() || claimsOwnOrder();
+      allow delete: if isAdmin();
+    }
+
+    // Публічне відстеження замовлення без акаунта.
+    // Ідентифікатор документа — відбиток від номера замовлення
+    // і телефону покупця (SHA-256), тож відкрити запис може лише
+    // той, хто знає обидва. Усередині немає ні імені, ні телефону,
+    // ні адреси — тільки статус, дати, сума й ТТН.
+    function validTracking() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['num', 'date', 'status', 'total', 'items', 'ttn', 'carrier', 'city', 'log'])
+        && d.num is string && d.num.size() > 0 && d.num.size() < 40
+        && d.status == 'new'
+        && d.total is number && d.total >= 0 && d.total < 1000000
+        && d.items is list && d.items.size() > 0 && d.items.size() <= 50
+        && d.log is list && d.log.size() <= 12;
+    }
+
+    match /tracking/{key} {
+      allow get: if true;
+      // list заборонено: інакше можна було б вивантажити всі записи
+      // й читати статуси чужих замовлень без жодного ключа
+      allow create: if isAdmin() || validTracking();
       allow update, delete: if isAdmin();
     }
 

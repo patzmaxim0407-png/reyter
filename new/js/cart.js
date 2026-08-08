@@ -681,6 +681,10 @@
         (order.customer.email
           ? '<p>' + R.t('cart.doneMail') + ' <b>' + R.esc(order.customer.email) + '</b> 📩</p>'
           : '') +
+        // Гість не має історії в кабінеті — підказуємо, як стежити
+        (R.fb && R.fb.enabled && !R.fb.user
+          ? '<p class="order-done__track">' + R.t('cart.trackNote') + '</p>'
+          : '') +
         '<button class="btn btn--primary" data-myorders type="button">' + R.t('cart.myOrders') + '</button>' +
         '<button class="btn btn--ghost" data-close type="button">' + R.t('cart.keepShopping') + '</button>' +
       '</div>';

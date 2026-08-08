@@ -319,6 +319,7 @@
 }
 
 .fclub__slide {
+  position: relative;
   flex: 0 0 100%;
   scroll-snap-align: start;
   scroll-snap-stop: always;
@@ -1419,6 +1420,25 @@
   font-size: 0.9rem;
   color: var(--c-muted);
   margin-bottom: 0.6rem;
+}
+
+/* Підказка гостю про відстеження за номером */
+.order-done__track {
+  background: var(--c-paper);
+  border: 1px dashed rgba(6, 43, 92, 0.28);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.85rem;
+  text-align: left;
+  line-height: 1.5;
+}
+
+.account-note--warn {
+  color: var(--c-ink);
+  background: rgba(255, 193, 7, 0.14);
+  border: 1px solid rgba(164, 105, 26, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.85rem;
+  line-height: 1.5;
 }
 
 .order-msg {
