@@ -13,7 +13,7 @@
 
   const CARRIERS = ['Нова Пошта', 'Укрпошта', 'Meest', 'Міжнародна доставка'];
 
-  let tab = 'profile';    // profile | orders
+  let tab = 'profile';    // profile | promos | orders
   let authMode = 'login'; // login | register
 
   function drawer() {
@@ -30,11 +30,11 @@
 
   /* ---------- Форма входу / реєстрації ---------- */
 
-  function renderAuth() {
+  function renderAuth(append) {
     const isLogin = authMode === 'login';
 
-    body().innerHTML =
-      '<p class="account-note">' + R.t('acc.authNote') + '</p>' +
+    const html =
+      (append ? '' : '<p class="account-note">' + R.t('acc.authNote') + '</p>') +
 
       '<button class="btn btn--ghost auth-google" data-google type="button">' +
         '<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.7 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.5 13.2l7.9 6.2C12.3 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.4 28.6c-.5-1.5-.8-3-.8-4.6s.3-3.1.8-4.6l-7.9-6.2C.9 16.5 0 20.1 0 24s.9 7.5 2.5 10.8l7.9-6.2z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.6l-7.7-6c-2.1 1.4-4.7 2.3-7.5 2.3-6.3 0-11.7-4.1-13.6-9.9l-7.9 6.2C6.5 42.6 14.6 48 24 48z"/></svg>' +
@@ -63,6 +63,9 @@
             '<button data-reset type="button">' + R.t('acc.forgot') + '</button>'
           : '<button data-switch="login" type="button">' + R.t('acc.hasAccount') + ' <b>' + R.t('acc.login') + '</b></button>') +
       '</div>';
+
+    if (append) body().insertAdjacentHTML('beforeend', html);
+    else body().innerHTML = html;
   }
 
   async function doEmailAuth() {
@@ -211,6 +214,61 @@
     R.toast(R.t('acc.saved'), 'success');
   }
 
+
+  /* ---------- Персональні знижки ---------- */
+
+  function promoCardHTML(p, idx) {
+    const live = R.promoLive(p);
+    const value = p.type === 'fixed'
+      ? '−' + R.uah(p.value)
+      : '−' + (Number(p.value) || 0) + '%';
+
+    return (
+      '<article class="mypromo' + (live.ok ? '' : ' is-off') + '" data-idx="' + idx + '">' +
+        '<div class="mypromo__top">' +
+          '<b class="mypromo__code">' + R.esc(p.code) + '</b>' +
+          '<span class="mypromo__value">' + R.esc(value) + '</span>' +
+          '<span class="mypromo__state' + (live.ok ? ' is-live' : '') + '">' + R.esc(live.label) + '</span>' +
+        '</div>' +
+        '<p class="mypromo__terms">' + R.esc(R.promoTerms(p)) + '</p>' +
+        (live.ok
+          ? '<div class="mypromo__actions">' +
+              '<button class="btn btn--primary btn--sm" data-promo-apply type="button">' + R.t('acc.applyPromo') + '</button>' +
+              '<button class="btn btn--ghost btn--sm" data-promo-copy type="button">' + R.t('acc.copyPromo') + '</button>' +
+            '</div>'
+          : '') +
+      '</article>'
+    );
+  }
+
+  let myPromos = [];
+
+  async function renderPromos() {
+    if (!signedIn()) {
+      body().innerHTML =
+        '<p class="account-note">' + R.t('acc.promosGuest') + '</p>';
+      renderAuth(true);
+      return;
+    }
+
+    body().innerHTML = '<p class="account-note">' + R.t('acc.loading') + '</p>';
+    myPromos = await R.promoMine();
+
+    if (!myPromos.length) {
+      body().innerHTML =
+        '<div class="empty-state">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a2 2 0 0 1 0-4V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2a2 2 0 0 1 0 4 2 2 0 0 1 0 4v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2a2 2 0 0 1 0-4Z"/><path d="M12 7v10"/></svg>' +
+          '<strong>' + R.t('acc.noPromos') + '</strong>' +
+          R.t('acc.noPromosNote') +
+        '</div>';
+      return;
+    }
+
+    body().innerHTML =
+      '<p class="account-note">' + R.t('acc.promosNote') + '</p>' +
+      myPromos.map(promoCardHTML).join('');
+  }
+
   /* ---------- Історія замовлень ---------- */
 
   /* ---------- Трекер статусу замовлення ---------- */
@@ -356,6 +414,7 @@
       t.setAttribute('aria-selected', active ? 'true' : 'false');
     });
     if (tab === 'profile') renderProfile();
+    else if (tab === 'promos') renderPromos();
     else renderOrders();
   }
 
@@ -419,6 +478,21 @@
           render();
         });
         return;
+      }
+
+      const mp = e.target.closest('.mypromo');
+      if (mp) {
+        const p = myPromos[Number(mp.dataset.idx)];
+        if (e.target.closest('[data-promo-copy]')) {
+          R.copyText(p.code);
+          R.toast(R.t('acc.promoCopied'), 'success');
+          return;
+        }
+        if (e.target.closest('[data-promo-apply]')) {
+          R.overlay.close(drawer());
+          setTimeout(() => R.openCartWithPromo(p.code), 280);
+          return;
+        }
       }
 
       const card = e.target.closest('.order-card');

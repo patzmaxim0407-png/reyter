@@ -79,6 +79,14 @@
     if (!promo) return { ok: false, reason: 'not_found' };
     if (promo.active === false) return { ok: false, reason: 'inactive' };
 
+    // Персональний код працює лише в акаунті тієї самої пошти
+    if (promo.email) {
+      const me = (R.fb && R.fb.user && R.fb.user.email || '').toLowerCase();
+      if (me !== String(promo.email).toLowerCase()) {
+        return { ok: false, reason: 'not_yours', email: promo.email };
+      }
+    }
+
     if (promo.startsAt) {
       const from = startOfDay(promo.startsAt);
       if (from && time < from) {
@@ -144,6 +152,60 @@
     }
   };
 
+  /* ---------- Персональні знижки поточного акаунта ----------
+     Правила дозволяють такий запит: кожен документ вибірки
+     має email, що збігається з поштою користувача. */
+
+  R.promoMine = async function () {
+    if (!R.fb || !R.fb.enabled || !R.fb.user || !R.fb.user.email) return [];
+    try {
+      const snap = await R.fb.db.collection('promos')
+        .where('email', '==', R.fb.user.email)
+        .limit(50)
+        .get();
+      return snap.docs
+        .map((d) => Object.assign({ code: d.id }, d.data()))
+        .sort((a, b) => String(a.endsAt || '').localeCompare(String(b.endsAt || '')));
+    } catch (e) {
+      return [];
+    }
+  };
+
+  /* Короткий опис умов промокоду — для кабінету й адмінки */
+  R.promoTerms = function (p) {
+    const money = (n) => (R.uah ? R.uah(n) : n + ' грн');
+    const parts = [];
+
+    if (p.scope === 'categories') {
+      const names = (p.categories || []).map((c) =>
+        R.categoryTitle ? R.categoryTitle(c) : c).filter(Boolean);
+      if (names.length) parts.push(R.t('promo.onCats').replace('{cats}', names.join(', ')));
+    } else if (p.scope === 'products') {
+      parts.push(R.t('promo.onProducts').replace('{n}', (p.products || []).length));
+    } else {
+      parts.push(R.t('promo.onAll'));
+    }
+
+    if (Number(p.minTotal)) parts.push(R.t('promo.fromSum').replace('{sum}', money(p.minTotal)));
+    if (p.excludeSale) parts.push(R.t('promo.noSale'));
+    if (p.endsAt) parts.push(R.t('promo.till').replace('{date}', R.promoDate(p.endsAt)));
+
+    return parts.join(' · ');
+  };
+
+  /* Чи діє промокод зараз (без прив'язки до вмісту кошика) */
+  R.promoLive = function (p) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (p.active === false) return { ok: false, label: R.t('promo.stOff') };
+    if (p.startsAt && today < p.startsAt) return { ok: false, label: R.t('promo.stSoon') };
+    if (p.endsAt && today > p.endsAt) return { ok: false, label: R.t('promo.stExpired') };
+    const limit = Number(p.usageLimit) || 0;
+    if (limit > 0 && (Number(p.usedCount) || 0) >= limit) {
+      return { ok: false, label: R.t('promo.stUsed') };
+    }
+    return { ok: true, label: R.t('promo.stLive') };
+  };
+
   /* ---------- Збереження застосованого коду ---------- */
 
   R.promoSaved = function () {
@@ -199,7 +261,13 @@
         if (res.partial) msg += ' ' + t('promo.partial');
         return msg;
       }
-      case 'not_found':  return t('promo.notFound');
+      case 'not_found':
+        // Персональні коди недоступні для читання чужим акаунтам,
+        // тому «не знайдено» може означати саме це
+        return (R.fb && R.fb.enabled && !R.fb.user)
+          ? t('promo.notFoundGuest')
+          : t('promo.notFound');
+      case 'not_yours':  return t('promo.notYours').replace('{email}', res.email || '');
       case 'inactive':   return t('promo.inactive');
       case 'not_started':
         return t('promo.notStarted').replace('{date}', R.promoDate(res.date));

@@ -248,11 +248,32 @@
     };
   }
 
+  /* ---------- Лист із персональним промокодом ---------- */
+
+  async function sendPromoLetter(settings, data) {
+    if (!settings || !settings.workerUrl) {
+      return { ok: false, description: 'Не налаштовано Worker для листів (Налаштування → Фірмовий лист)' };
+    }
+    try {
+      const res = await fetch(R.normalizeUrl(settings.workerUrl), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({ type: 'promo', lang: 'uk' }, data))
+      });
+      const out = await res.json().catch(() => ({}));
+      if (res.ok && out.ok) return { ok: true };
+      return { ok: false, description: out.error || 'воркер відповів кодом ' + res.status };
+    } catch (e) {
+      return { ok: false, description: 'не вдалося звʼязатися з воркером' };
+    }
+  }
+
   /* ---------- Публічний API ---------- */
 
   R.notify = {
     load: loadSettings,
     detectChats: detectChats,
+    sendPromoLetter: (data) => loadSettings().then((s) => sendPromoLetter(s, data)),
 
     /* Викликається після оформлення замовлення; помилки не блокують покупку */
     async orderPlaced(order) {

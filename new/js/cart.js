@@ -567,6 +567,14 @@
 
   R.openCart = openCart;
 
+  /* Відкрити кошик і одразу застосувати код (з кабінету) */
+  R.openCartWithPromo = function (code) {
+    mode = 'cart';
+    render();
+    R.overlay.open(drawer(), { focus: drawer().querySelector('.drawer__close') });
+    setTimeout(() => applyPromo(code), 120);
+  };
+
   /* ---------- Ініціалізація ---------- */
 
   function init() {

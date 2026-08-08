@@ -2038,9 +2038,11 @@
           '<span class="a-promo__value">−' + esc(promoValueText(p)) + '</span>' +
           '<span class="order-card__status ' + (st.cls === 'is-on' ? 'is-done' : (st.cls === 'is-off' ? 'is-cancelled' : '')) + '">' +
             st.label + '</span>' +
+          (p.email ? '<span class="a-promo__personal">персональний</span>' : '') +
           '<span class="ao-card__date">' + esc(period) + '</span>' +
         '</div>' +
         '<div class="ao-card__customer">' +
+          (p.email ? '✉️ <b>' + esc(p.email) + '</b><br>' : '') +
           esc(promoScopeText(p)) +
           (p.excludeSale ? ' · без SALE-товарів' : '') +
           (Number(p.minTotal) ? ' · від ' + fmt(p.minTotal) + ' грн' : '') +
@@ -2053,6 +2055,7 @@
           '<button class="btn btn--ghost btn--sm" data-promo-toggle type="button">' +
             (p.active === false ? 'Увімкнути' : 'Вимкнути') + '</button>' +
           '<button class="btn btn--ghost btn--sm" data-promo-copy type="button">Скопіювати код</button>' +
+          (p.email ? '<button class="btn btn--ghost btn--sm" data-promo-mail type="button">Надіслати на пошту</button>' : '') +
           '<button class="btn btn--ghost btn--sm ao-danger" data-promo-del type="button">Видалити</button>' +
         '</div>' +
       '</article>'
@@ -2156,6 +2159,7 @@
       minTotal: Number($id('pcMinTotal').value) || 0,
       startsAt: $id('pcStartsAt').value || '',
       endsAt: $id('pcEndsAt').value || '',
+      email: $id('pcEmail').value.trim().toLowerCase(),
       usageLimit: Number($id('pcUsageLimit').value) || 0,
       active: $id('pcActive').checked,
       note: $id('pcNote').value.trim()
@@ -2178,6 +2182,7 @@
     $id('pcMinTotal').value = v.minTotal || '';
     $id('pcStartsAt').value = v.startsAt || '';
     $id('pcEndsAt').value = v.endsAt || '';
+    $id('pcEmail').value = v.email || '';
     $id('pcUsageLimit').value = v.usageLimit || '';
     $id('pcActive').checked = v.active !== false;
     $id('pcNote').value = v.note || '';
@@ -2203,6 +2208,9 @@
     if (p.scope === 'products' && !p.products.length) return pcSetStatus('err', 'Оберіть хоча б один товар');
     if (p.startsAt && p.endsAt && p.startsAt > p.endsAt) {
       return pcSetStatus('err', 'Дата початку пізніша за дату завершення');
+    }
+    if (p.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)) {
+      return pcSetStatus('err', 'Некоректна пошта клієнта');
     }
     if (!editingPromo && promosCache.some((x) => x.code === p.code)) {
       return pcSetStatus('err', 'Промокод ' + p.code + ' вже існує');
@@ -2244,6 +2252,20 @@
       } else if (e.target.closest('[data-promo-copy]')) {
         R.copyText(p.code);
         toast('Код скопійовано ✓', 'success');
+      } else if (e.target.closest('[data-promo-mail]')) {
+        const btn = e.target.closest('[data-promo-mail]');
+        btn.disabled = true;
+        btn.textContent = 'Надсилаємо…';
+        const res = await R.notify.sendPromoLetter({
+          to: p.email,
+          code: p.code,
+          value: p.type === 'fixed' ? fmt(p.value) + ' грн' : (Number(p.value) || 0) + '%',
+          terms: R.promoTerms ? R.promoTerms(p) : ''
+        });
+        btn.disabled = false;
+        btn.textContent = 'Надіслати на пошту';
+        if (res.ok) toast('Лист із промокодом надіслано на ' + p.email + ' ✓', 'success');
+        else toast('Не вдалося надіслати: ' + res.description);
       } else if (e.target.closest('[data-promo-toggle]')) {
         try {
           await R.fb.db.collection('promos').doc(p.code).update({ active: p.active === false });

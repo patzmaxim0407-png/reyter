@@ -1201,6 +1201,17 @@
   color: var(--c-blue-ink);
 }
 
+.a-promo__personal {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.12);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+}
+
 .a-promo__value {
   font-weight: 800;
   color: var(--c-green);

@@ -109,12 +109,26 @@ service cloud.firestore {
     // list заборонено, тому вивантажити всі коди не вийде.
     // Єдина зміна, дозволена покупцеві, — збільшити лічильник
     // використань рівно на одиницю після оформлення замовлення.
+    // Персональний промокод має поле email. Прочитати його може
+    // лише власник цієї пошти — тобто чужий код не спрацює навіть
+    // якщо його підгледіли.
+    function promoIsPublic() {
+      return !('email' in resource.data) || resource.data.email == '' || resource.data.email == null;
+    }
+
+    function promoIsMine() {
+      return signedIn() && verified() && resource.data.email == userEmail();
+    }
+
     match /promos/{code} {
-      allow get: if true;
-      allow list: if isAdmin();
+      allow get: if isAdmin() || promoIsPublic() || promoIsMine();
+      // Запит виду where('email','==', своя_пошта) дозволений:
+      // правило перевіряється для кожного документа вибірки
+      allow list: if isAdmin() || promoIsMine();
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedCount'])
+        (promoIsPublic() || promoIsMine())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedCount'])
         && request.resource.data.usedCount == resource.data.usedCount + 1
       );
     }

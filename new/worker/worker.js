@@ -120,6 +120,73 @@ function letterHTML(d) {
   );
 }
 
+/* Лист із персональним промокодом */
+function promoHTML(d) {
+  const en = d.lang === 'en';
+  const T = en ? {
+    hi: 'Hello',
+    lead: 'Here is your personal promo code 🎁',
+    use: 'Enter it in the cart — the discount applies instantly.',
+    terms: 'Terms', shop: 'Go shopping', slogan: 'Character is REYTER!'
+  } : {
+    hi: 'Вітаємо',
+    lead: 'Ваш персональний промокод 🎁',
+    use: 'Введіть його в кошику — знижка застосується одразу.',
+    terms: 'Умови', shop: 'Перейти до покупок', slogan: 'Характер — це REYTER!'
+  };
+
+  const siteUrl = 'https://reyter.men/new/' + (en ? '?lang=en' : '');
+
+  return (
+    '<div style="margin:0;padding:24px 12px;background:#fcf8f0;font-family:Helvetica,Arial,sans-serif">' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" ' +
+        'style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden">' +
+
+        '<tr><td style="background:' + BLUE + ';padding:30px 24px;text-align:center">' +
+          '<img src="' + LOGO + '" alt="REYTER" width="190" ' +
+            'style="display:block;margin:0 auto;max-width:190px;height:auto">' +
+        '</td></tr>' +
+
+        '<tr><td style="padding:30px 26px 6px;text-align:center">' +
+          '<p style="margin:0 0 6px;font-size:16px;color:#171b26">' +
+            T.hi + (d.name ? ', <strong>' + esc(clip(d.name, 80)) + '</strong>' : '') + '!</p>' +
+          '<p style="margin:0 0 22px;font-size:15px;color:#6e6a5e">' + T.lead + '</p>' +
+
+          '<div style="display:inline-block;border:2px dashed ' + BLUE + ';border-radius:14px;' +
+            'padding:16px 28px;background:rgba(1,74,173,.05)">' +
+            '<div style="font-size:26px;font-weight:800;letter-spacing:.14em;color:' + BLUE + '">' +
+              esc(clip(d.code, 30)) + '</div>' +
+            '<div style="font-size:15px;font-weight:700;color:#15803d;margin-top:6px">−' +
+              esc(clip(d.value, 24)) + '</div>' +
+          '</div>' +
+          '<p style="margin:18px 0 0;font-size:14px;color:#6e6a5e">' + T.use + '</p>' +
+        '</td></tr>' +
+
+        (d.terms
+          ? '<tr><td style="padding:18px 26px 0">' +
+              '<div style="background:#fcf8f0;border-radius:12px;padding:14px 16px;font-size:13px;color:#171b26">' +
+                '<strong>' + T.terms + ':</strong> ' + esc(clip(d.terms, 400)) +
+              '</div></td></tr>'
+          : '') +
+
+        '<tr><td style="padding:22px 26px 8px;text-align:center">' +
+          '<a href="' + siteUrl + '" style="display:inline-block;background:' + BLUE + ';color:#ffffff;' +
+            'text-decoration:none;font-size:15px;font-weight:700;padding:13px 30px;border-radius:999px">' +
+            T.shop + '</a>' +
+        '</td></tr>' +
+
+        '<tr><td style="padding:26px 24px;background:' + INK + ';text-align:center">' +
+          '<p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#ffffff">' + T.slogan + '</p>' +
+          '<p style="margin:0;font-size:12px">' +
+            '<a href="' + siteUrl + '" style="color:#ffffff;text-decoration:none">reyter.men</a>' +
+          '</p>' +
+        '</td></tr>' +
+
+      '</table>' +
+    '</div>'
+  );
+}
+
 export default {
   async fetch(request, env) {
     const allow = env.ALLOW_ORIGIN || 'https://reyter.men';
@@ -164,22 +231,26 @@ export default {
         status: 400, headers: { ...cors, 'Content-Type': 'application/json' }
       });
     }
-    if (!Array.isArray(d.items) || !d.items.length) {
-      return new Response(JSON.stringify({ ok: false, error: 'Порожнє замовлення' }), {
-        status: 400, headers: { ...cors, 'Content-Type': 'application/json' }
-      });
+    const isPromo = d.type === 'promo';
+
+    if (isPromo ? !d.code : !(Array.isArray(d.items) && d.items.length)) {
+      return new Response(JSON.stringify({
+        ok: false,
+        error: isPromo ? 'Не вказано промокод' : 'Порожнє замовлення'
+      }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
 
-    const subject = (d.lang === 'en' ? 'Order No. ' : 'Замовлення №') +
-      clip(d.orderNum, 40) + ' — REYTER';
+    const subject = isPromo
+      ? (d.lang === 'en' ? 'Your personal promo code — REYTER' : 'Ваш персональний промокод — REYTER')
+      : (d.lang === 'en' ? 'Order No. ' : 'Замовлення №') + clip(d.orderNum, 40) + ' — REYTER';
 
     const payload = {
       from: env.MAIL_FROM || 'REYTER <onboarding@resend.dev>',
       to: [to],
       subject: subject,
-      html: letterHTML(d)
+      html: isPromo ? promoHTML(d) : letterHTML(d)
     };
-    if (env.MAIL_BCC) payload.bcc = [env.MAIL_BCC];
+    if (env.MAIL_BCC && !isPromo) payload.bcc = [env.MAIL_BCC];
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',

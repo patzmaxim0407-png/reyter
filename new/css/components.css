@@ -914,6 +914,70 @@
   color: var(--c-red);
 }
 
+/* ---------- Персональні знижки в кабінеті ---------- */
+.mypromo {
+  background: var(--c-paper);
+  border: 1.5px dashed rgba(1, 74, 173, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.7rem;
+}
+
+.mypromo.is-off {
+  border-style: solid;
+  border-color: var(--c-line);
+  opacity: 0.65;
+}
+
+.mypromo__top {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.4rem;
+}
+
+.mypromo__code {
+  font-size: 1.05rem;
+  letter-spacing: 0.1em;
+  color: var(--c-blue-ink);
+}
+
+.mypromo__value {
+  font-weight: 800;
+  font-size: 0.88rem;
+  color: var(--c-green);
+  background: var(--c-green-soft);
+  border-radius: 999px;
+  padding: 0.15rem 0.7rem;
+}
+
+.mypromo__state {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-muted);
+}
+
+.mypromo__state.is-live {
+  color: var(--c-green);
+}
+
+.mypromo__terms {
+  font-size: 0.84rem;
+  color: var(--c-muted);
+  line-height: 1.5;
+}
+
+.mypromo__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+  flex-wrap: wrap;
+}
+
 /* Рядки підсумку */
 .cart-line {
   display: flex;

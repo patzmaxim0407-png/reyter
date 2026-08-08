@@ -515,6 +515,18 @@
 
       <label class="a-check"><input type="checkbox" id="pcExcludeSale"> Не діє на товари, що вже зі знижкою (SALE)</label>
 
+      <h5 class="ao-sub">Персональний промокод</h5>
+      <div class="field">
+        <label for="pcEmail">Прив'язати до пошти клієнта</label>
+        <input id="pcEmail" type="email" autocomplete="off" placeholder="порожньо — код для всіх">
+        <p class="field__hint">
+          Якщо вказати пошту, код спрацює лише в акаунті з цією адресою — інші його
+          навіть не зможуть прочитати з бази. Клієнт побачить цю знижку у своєму
+          кабінеті в розділі «Мої знижки». Для персональних кодів зазвичай ставлять
+          ліміт використань 1.
+        </p>
+      </div>
+
       <h5 class="ao-sub">Умови та обмеження</h5>
       <div class="a-grid-3">
         <div class="field">
