@@ -3696,3 +3696,12 @@ label.a-promo-product i {
     height: 44px;
   }
 }
+
+/* Розмір, якого немає в картці товару, але залишок ще ненульовий */
+.ao-qty.is-stray span {
+  color: var(--c-amber);
+}
+
+.ao-qty.is-stray input {
+  border-color: rgba(217, 119, 6, 0.45);
+}

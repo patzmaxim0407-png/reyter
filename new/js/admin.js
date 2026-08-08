@@ -3718,15 +3718,32 @@
     return { cls: 'is-ok', label: 'в наявності' };
   }
 
+  /* Розміри рядка складу: лише зафіксовані в картці товару.
+     Плюс розміри, яких у картці вже немає, але залишок ненульовий —
+     інакше ці штуки зникли б з очей і зіпсували підсумок.
+     Такі позначаються як «не в картці». */
+  function stockSizes(p) {
+    const carded = p.sizes && p.sizes.length ? p.sizes : R.config.allSizes;
+    const inv = invOf(p.id).sizes || {};
+    return R.config.allSizes
+      .filter((s) => carded.includes(s) || Number(inv[s]))
+      .map((s) => ({ size: s, stray: !carded.includes(s) }));
+  }
+
   function stockRowHTML(p) {
     const state = productRowState(p);
     const total = totalQty(p);
     const inputs = isSized(p)
-      ? R.config.allSizes.map((s) => {
+      ? stockSizes(p).map((it) => {
+          const s = it.size;
           const v = sizeQty(p.id, s);
+          const cls = 'ao-qty' + (v < 0 ? ' is-neg' : '') + (it.stray ? ' is-stray' : '');
+          const hint = it.stray
+            ? ' title="Цього розміру немає в картці товару: спишіть залишок у нуль — і він зникне"'
+            : '';
           return (
-            '<label class="ao-qty' + (v < 0 ? ' is-neg' : '') + '">' +
-              '<span>' + s + '</span>' +
+            '<label class="' + cls + '"' + hint + '>' +
+              '<span>' + s + (it.stray ? '*' : '') + '</span>' +
               '<input type="number" data-stk-pid="' + esc(p.id) + '" data-stk-size="' + s + '" value="' + v + '">' +
             '</label>'
           );
@@ -3803,7 +3820,7 @@
     const qtyInputs = !selected
       ? '<p class="ao-note">Оберіть товар, щоб вказати кількість.</p>'
       : (isSized(selected)
-          ? R.config.allSizes.map((s) =>
+          ? (selected.sizes && selected.sizes.length ? selected.sizes : R.config.allSizes).map((s) =>
               '<label class="ao-qty"><span>' + s + '</span><input type="number" min="0" value="0" data-rst-size="' + s + '"></label>'
             ).join('')
           : '<label class="ao-qty"><span>шт</span><input type="number" min="0" value="0" data-rst-qty></label>');
