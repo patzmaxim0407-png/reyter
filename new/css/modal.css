@@ -32,15 +32,15 @@
   opacity: 1;
 }
 
+/* Панель сама не гортається — гортається лише .pmodal__scroll.
+   Завдяки цьому хрестик і смужка-«ручка» завжди на місці. */
 .pmodal__panel {
   position: relative;
-  display: grid;
-  grid-template-columns: 1.05fr 1fr;
-  gap: clamp(1.2rem, 2.5vw, 2.2rem);
+  display: flex;
+  flex-direction: column;
   width: min(1060px, 100%);
   max-height: min(92vh, 100%);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
   background: var(--c-cream);
   border-radius: var(--radius-lg);
   padding: clamp(1.1rem, 2.5vw, 2rem);
@@ -48,6 +48,23 @@
   opacity: 0;
   transform: translateY(22px) scale(0.985);
   transition: opacity 0.32s var(--ease-out), transform 0.32s var(--ease-out);
+}
+
+.pmodal__scroll {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: clamp(1.2rem, 2.5vw, 2.2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;          /* дозволяє стискатися всередині flex */
+  margin: calc(clamp(1.1rem, 2.5vw, 2rem) * -1);
+  padding: clamp(1.1rem, 2.5vw, 2rem);
+}
+
+/* Смужка-«ручка» — лише на телефоні */
+.pmodal__handle {
+  display: none;
 }
 
 .pmodal.is-open .pmodal__panel {
@@ -462,22 +479,25 @@
   display: none;
 }
 
-/* ---------- Підтвердження «Додано» ---------- */
+/* ---------- Підтвердження «Додано» ----------
+   Анімуємо лише transform і колір — без тіні та фільтрів,
+   інакше на телефоні кадри просідають. */
 .btn--order {
   position: relative;
-  overflow: hidden;
-  transition: background-color 0.25s var(--ease-out),
-              transform var(--t-fast), box-shadow var(--t-fast);
+  transition: background-color 0.22s var(--ease-out);
 }
 
 .btn--order.is-added {
   background: var(--c-green);
-  box-shadow: 0 8px 22px rgba(21, 128, 61, 0.32);
-  animation: addedPop 0.4s var(--ease-out);
+  box-shadow: none;
+  animation: addedPop 0.34s var(--ease-out);
+  will-change: transform;
 }
 
 .btn--order.is-added:hover {
   background: var(--c-green);
+  transform: none;
+  box-shadow: none;
 }
 
 /* Кошик змінюється на галочку */
@@ -638,30 +658,42 @@
   }
 
   .pmodal__panel {
-    grid-template-columns: 1fr;
-    gap: 1.1rem;
     max-height: 94dvh;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     width: 100%;
     transform: translateY(40px);
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    padding-top: 0.7rem;
+  }
+
+  .pmodal__scroll {
+    grid-template-columns: 1fr;
+    gap: 1.1rem;
+    margin-top: 0;
+    padding-top: 0.6rem;
     /* місце під липку кнопку і «домашню смужку» */
     padding-bottom: calc(84px + env(safe-area-inset-bottom));
   }
 
-  /* Смужка-«ручка»: за неї панель тягнеться вниз і закривається */
-  .pmodal__panel::before {
-    content: '';
-    position: sticky;
-    top: 0;
-    z-index: 4;
+  /* Смужка-«ручка»: за неї панель тягнеться вниз і закривається.
+     Вона поза шаром прокрутки, тож працює з будь-якого місця картки. */
+  .pmodal__handle {
     display: block;
+    flex: none;
     width: 44px;
     height: 5px;
-    margin: -4px auto 6px;
+    margin: 0 auto 0.35rem;
     border-radius: 999px;
     background: rgba(23, 27, 38, 0.24);
+  }
+
+  /* Ширша невидима зона захвату — щоб легко було вхопити пальцем */
+  .pmodal__handle::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 34px;
   }
 
   .gal__main {
@@ -678,9 +710,9 @@
     margin: 0;
     padding: 0.7rem clamp(1.1rem, 4vw, 2rem);
     padding-bottom: max(0.7rem, env(safe-area-inset-bottom));
-    background: color-mix(in srgb, var(--c-cream) 94%, transparent);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    /* Суцільний фон замість blur: backdrop-filter на телефоні
+       перемальовує пів-екрана і з'їдає плавність анімації */
+    background: var(--c-cream);
     border-top: 1px solid var(--c-line);
   }
 

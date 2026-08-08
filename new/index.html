@@ -351,10 +351,12 @@
 <div class="pmodal" id="productModal" role="dialog" aria-modal="true" aria-labelledby="pmName" hidden>
   <div class="pmodal__backdrop" data-close></div>
   <div class="pmodal__panel">
+    <span class="pmodal__handle" id="pmHandle" aria-hidden="true"></span>
     <button class="pmodal__close" data-close data-i18n-attr="aria-label:p.close">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
     </button>
 
+    <div class="pmodal__scroll" id="pmScroll">
     <div class="pmodal__gallery">
       <div class="gal__main" id="galMain">
         <img id="galImage" src="" alt="">
@@ -407,6 +409,7 @@
         <div class="note-card" data-i18n="p.note2"></div>
         <div class="note-card" data-i18n="p.note3"></div>
       </div>
+    </div>
     </div>
   </div>
 </div>

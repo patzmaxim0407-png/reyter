@@ -40,6 +40,8 @@
     el.ctaPrice = document.getElementById('pmCtaPrice');
     el.desc = document.getElementById('pmDesc');
     el.extras = document.getElementById('pmExtras');
+    el.scroll = document.getElementById('pmScroll');
+    el.handle = document.getElementById('pmHandle');
     el.lightbox = document.getElementById('lightbox');
     el.lbImage = document.getElementById('lbImage');
     el.lbCounter = document.getElementById('lbCounter');
@@ -280,9 +282,7 @@
     setImage(0);
 
     R.overlay.open(el.modal, { focus: el.modal.querySelector('.pmodal__close') });
-    requestAnimationFrame(() => {
-      el.modal.querySelector('.pmodal__panel').scrollTop = 0;
-    });
+    requestAnimationFrame(() => { el.scroll.scrollTop = 0; });
 
     if (history.replaceState) {
       history.replaceState(null, '', '#p/' + encodeURIComponent(p.id));
@@ -337,37 +337,42 @@
     let startY = 0;
     let shift = 0;
     let dragging = false;
+    let fromHandle = false;
 
     const isSheet = () => window.matchMedia('(max-width: 820px)').matches;
 
-    panel.addEventListener('touchstart', (e) => {
-      // тягнемо лише коли вміст догорнуто до самого верху
-      if (!isSheet() || e.touches.length !== 1 || panel.scrollTop > 0) return;
+    function onStart(e) {
+      if (!isSheet() || e.touches.length !== 1) return;
+      fromHandle = e.currentTarget === el.handle;
+      // з «ручки» тягнемо завжди; з вмісту — лише коли догорнуто вгору
+      if (!fromHandle && el.scroll.scrollTop > 0) return;
       startY = e.touches[0].clientY;
       shift = 0;
       dragging = true;
       panel.style.transition = 'none';
-    }, { passive: true });
+    }
 
-    panel.addEventListener('touchmove', (e) => {
+    function onMove(e) {
       if (!dragging) return;
       const dy = e.touches[0].clientY - startY;
 
-      if (dy <= 0) {           // потягнули вгору — віддаємо прокрутку вмісту
+      if (dy <= 0) {
         shift = 0;
         panel.style.transform = '';
-        dragging = false;
-        panel.style.transition = '';
+        if (!fromHandle) {          // віддаємо жест прокрутці вмісту
+          dragging = false;
+          panel.style.transition = '';
+        }
         return;
       }
 
-      e.preventDefault();      // забираємо жест собі
+      if (e.cancelable) e.preventDefault();
       shift = dy;
       panel.style.transform = 'translateY(' + dy + 'px)';
       if (backdrop) backdrop.style.opacity = String(Math.max(0.15, 1 - dy / 450));
-    }, { passive: false });
+    }
 
-    function endDrag() {
+    function onEnd() {
       if (!dragging) return;
       dragging = false;
       panel.style.transition = '';
@@ -377,8 +382,13 @@
       shift = 0;
     }
 
-    panel.addEventListener('touchend', endDrag);
-    panel.addEventListener('touchcancel', endDrag);
+    [el.handle, el.scroll].forEach((target) => {
+      if (!target) return;
+      target.addEventListener('touchstart', onStart, { passive: true });
+      target.addEventListener('touchmove', onMove, { passive: false });
+      target.addEventListener('touchend', onEnd);
+      target.addEventListener('touchcancel', onEnd);
+    });
   }
 
   /* ---------- Ініціалізація ---------- */
