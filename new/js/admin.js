@@ -911,7 +911,7 @@
      РОУТЕР: Каталог / Замовлення / Склад
      ============================================================ */
 
-  const VIEWS = ['catalog', 'orders', 'stock'];
+  const VIEWS = ['catalog', 'orders', 'stock', 'promos'];
 
   function currentView() {
     const v = (location.hash || '').replace(/^#\/?/, '');
@@ -923,16 +923,19 @@
     $id('viewCatalog').hidden = v !== 'catalog';
     $id('viewOrders').hidden = v !== 'orders';
     $id('viewStock').hidden = v !== 'stock';
+    $id('viewPromos').hidden = v !== 'promos';
     document.querySelectorAll('.abar__tab').forEach((t) => {
       t.classList.toggle('is-active', t.dataset.view === v);
     });
     if (v === 'orders') renderOrdersRoot();
     if (v === 'stock') renderStockRoot();
+    if (v === 'promos') renderPromosRoot();
     window.scrollTo(0, 0);
   }
 
   function startCloud() {
     if (!ordersUnsub) subscribeOrders();
+    if (!promosUnsub) subscribePromos();
     if (!invUnsub) {
       subscribeInventory();
       loadRestocks();
@@ -942,6 +945,7 @@
   function stopCloud() {
     stopOrders();
     stopStock();
+    stopPromos();
   }
 
   /* ============================================================
@@ -1932,6 +1936,347 @@
     el.textContent = text;
   }
 
+
+  /* ============================================================
+     ПРОМОКОДИ
+     ============================================================ */
+
+  let promosCache = [];
+  let promosUnsub = null;
+  let editingPromo = null;   // код, що редагується (null — новий)
+  let pcProdFilter = '';
+
+  function promosBody() {
+    return $id('promosBody');
+  }
+
+  function renderPromosRoot() {
+    if (!fbReady() || !R.fb.user) {
+      promosBody().innerHTML = '<p class="ao-note">Спершу увійдіть акаунтом адміністратора.</p>';
+      return;
+    }
+    if (!promosUnsub) {
+      promosBody().innerHTML = '<p class="ao-note">Завантажуємо промокоди…</p>';
+      subscribePromos();
+    } else {
+      renderPromos();
+    }
+  }
+
+  function subscribePromos() {
+    promosUnsub = R.fb.db.collection('promos').onSnapshot(
+      (snap) => {
+        promosCache = snap.docs.map((d) => Object.assign({ code: d.id }, d.data()));
+        promosCache.sort((a, b) => String(a.code).localeCompare(String(b.code)));
+        if (currentView() === 'promos') renderPromos();
+      },
+      (err) => {
+        stopPromos();
+        promosBody().innerHTML =
+          '<p class="ao-note">Не вдалося завантажити промокоди' +
+          (err && err.code === 'permission-denied'
+            ? ': немає прав.'
+            : '. Перевірте, що правила Firestore оновлено (файл new/firestore.rules).') +
+          '</p>';
+      }
+    );
+  }
+
+  function stopPromos() {
+    if (promosUnsub) {
+      promosUnsub();
+      promosUnsub = null;
+    }
+  }
+
+  /* Стан промокоду для бейджа у списку */
+  function promoState(p) {
+    const today = todayISO();
+    if (p.active === false) return { cls: 'is-off', label: 'Вимкнено' };
+    if (p.startsAt && today < p.startsAt) return { cls: 'is-soon', label: 'Ще не почався' };
+    if (p.endsAt && today > p.endsAt) return { cls: 'is-off', label: 'Завершився' };
+    const limit = Number(p.usageLimit) || 0;
+    if (limit > 0 && (Number(p.usedCount) || 0) >= limit) return { cls: 'is-off', label: 'Вичерпано' };
+    return { cls: 'is-on', label: 'Діє' };
+  }
+
+  function promoScopeText(p) {
+    if (p.scope === 'categories') {
+      const names = (p.categories || []).map((c) => {
+        const cat = categories().find((x) => x.id === c);
+        return cat ? cat.title : c;
+      });
+      return 'Категорії: ' + (names.join(', ') || '—');
+    }
+    if (p.scope === 'products') {
+      const names = (p.products || []).map((id) => {
+        const prod = productById(id);
+        return prod ? prod.name : id;
+      });
+      return 'Товари: ' + (names.join(', ') || '—');
+    }
+    return 'Весь кошик';
+  }
+
+  function promoValueText(p) {
+    return p.type === 'fixed' ? fmt(p.value) + ' грн' : (Number(p.value) || 0) + '%';
+  }
+
+  function promoCardHTML(p) {
+    const st = promoState(p);
+    const limit = Number(p.usageLimit) || 0;
+    const used = Number(p.usedCount) || 0;
+    const period = [
+      p.startsAt ? 'з ' + p.startsAt : '',
+      p.endsAt ? 'до ' + p.endsAt : ''
+    ].filter(Boolean).join(' ');
+
+    return (
+      '<article class="ao-card a-promo ' + st.cls + '" data-code="' + esc(p.code) + '">' +
+        '<div class="ao-card__head">' +
+          '<b class="a-promo__code">' + esc(p.code) + '</b>' +
+          '<span class="a-promo__value">−' + esc(promoValueText(p)) + '</span>' +
+          '<span class="order-card__status ' + (st.cls === 'is-on' ? 'is-done' : (st.cls === 'is-off' ? 'is-cancelled' : '')) + '">' +
+            st.label + '</span>' +
+          '<span class="ao-card__date">' + esc(period) + '</span>' +
+        '</div>' +
+        '<div class="ao-card__customer">' +
+          esc(promoScopeText(p)) +
+          (p.excludeSale ? ' · без SALE-товарів' : '') +
+          (Number(p.minTotal) ? ' · від ' + fmt(p.minTotal) + ' грн' : '') +
+          '<br><span class="ao-muted">Використано: <b>' + used + '</b>' +
+            (limit ? ' із ' + limit : ' (без ліміту)') +
+            (p.note ? ' · ' + esc(p.note) : '') + '</span>' +
+        '</div>' +
+        '<div class="ao-card__actions">' +
+          '<button class="btn btn--ghost btn--sm" data-promo-edit type="button">Редагувати</button>' +
+          '<button class="btn btn--ghost btn--sm" data-promo-toggle type="button">' +
+            (p.active === false ? 'Увімкнути' : 'Вимкнути') + '</button>' +
+          '<button class="btn btn--ghost btn--sm" data-promo-copy type="button">Скопіювати код</button>' +
+          '<button class="btn btn--ghost btn--sm ao-danger" data-promo-del type="button">Видалити</button>' +
+        '</div>' +
+      '</article>'
+    );
+  }
+
+  function renderPromos() {
+    const active = promosCache.filter((p) => promoState(p).cls === 'is-on').length;
+    const totalUses = promosCache.reduce((s, p) => s + (Number(p.usedCount) || 0), 0);
+
+    promosBody().innerHTML =
+      '<div class="ao-stats">' +
+        '<div class="ao-stat"><b>' + promosCache.length + '</b><span>усього промокодів</span></div>' +
+        '<div class="ao-stat"><b>' + active + '</b><span>діють зараз</span></div>' +
+        '<div class="ao-stat"><b>' + totalUses + '</b><span>використань</span></div>' +
+      '</div>' +
+      '<div class="ao-list">' +
+        (promosCache.length
+          ? promosCache.map(promoCardHTML).join('')
+          : '<div class="a-empty">Промокодів ще немає. Натисніть «+ Новий промокод», щоб створити першу знижку.</div>') +
+      '</div>';
+  }
+
+  /* ---------- Редактор промокоду ---------- */
+
+  function pcSetStatus(cls, text) {
+    const el = $id('pcStatus');
+    el.hidden = false;
+    el.className = 'a-publish__status ' + cls;
+    el.textContent = text;
+  }
+
+  function renderPcCats(selected) {
+    $id('pcCats').innerHTML = categories()
+      .map((c) =>
+        '<label><input type="checkbox" value="' + esc(c.id) + '"' +
+        ((selected || []).includes(c.id) ? ' checked' : '') + '> ' + esc(c.title) + '</label>'
+      ).join('');
+  }
+
+  function renderPcProds(selected) {
+    const q = pcProdFilter.toLowerCase();
+    const list = products().filter((p) =>
+      !q || (p.name + ' ' + p.id).toLowerCase().includes(q)
+    );
+    $id('pcProds').innerHTML = list.length
+      ? list.map((p) =>
+          '<label class="a-promo-product"><input type="checkbox" value="' + esc(p.id) + '"' +
+          ((selected || []).includes(p.id) ? ' checked' : '') + '>' +
+          '<img src="' + esc((p.images && p.images[0]) || '') + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
+          '<span>' + esc(p.name) + '<i>' + esc(p.id) + ' · ' + fmt(p.price) + ' грн</i></span></label>'
+        ).join('')
+      : '<div class="a-empty">Нічого не знайдено.</div>';
+  }
+
+  function pcSelected(sel) {
+    return Array.prototype.map.call(document.querySelectorAll(sel + ' input:checked'), (i) => i.value);
+  }
+
+  function pcSyncScope() {
+    const scope = $id('pcScope').value;
+    $id('pcCatsBox').hidden = scope !== 'categories';
+    $id('pcProdsBox').hidden = scope !== 'products';
+    pcPreview();
+  }
+
+  /* Живий приклад: скільки зекономить клієнт на типовому кошику */
+  function pcPreview() {
+    const p = pcCollect();
+    const box = $id('pcPreview');
+    if (!p.value) {
+      box.innerHTML = '';
+      return;
+    }
+
+    // беремо перші три видимі товари як приклад кошика
+    const sample = products().filter((x) => !x.hidden).slice(0, 3).map((x) => ({
+      id: x.id, category: x.category, price: x.price, qty: 1, sale: !!x.sale
+    }));
+    const res = R.promoCheck(Object.assign({}, p, { usedCount: 0 }), sample, new Date());
+    const sum = sample.reduce((s, i) => s + i.price, 0);
+
+    box.innerHTML =
+      '<b>Приклад</b>: кошик на ' + fmt(sum) + ' грн із товарів ' +
+      sample.map((i) => esc(i.id)).join(', ') + ' → ' +
+      (res.ok
+        ? '<span class="is-good">знижка ' + fmt(res.discount) + ' грн, до сплати ' + fmt(sum - res.discount) + ' грн</span>'
+        : '<span class="is-bad">не спрацює: ' + esc(R.promoMessage(res, p)) + '</span>');
+  }
+
+  function pcCollect() {
+    const scope = $id('pcScope').value;
+    return {
+      code: R.promoNormalize($id('pcCode').value),
+      type: $id('pcType').value,
+      value: Number($id('pcValue').value) || 0,
+      scope: scope,
+      categories: scope === 'categories' ? pcSelected('#pcCats') : [],
+      products: scope === 'products' ? pcSelected('#pcProds') : [],
+      excludeSale: $id('pcExcludeSale').checked,
+      minTotal: Number($id('pcMinTotal').value) || 0,
+      startsAt: $id('pcStartsAt').value || '',
+      endsAt: $id('pcEndsAt').value || '',
+      usageLimit: Number($id('pcUsageLimit').value) || 0,
+      active: $id('pcActive').checked,
+      note: $id('pcNote').value.trim()
+    };
+  }
+
+  function openPromoEditor(p) {
+    editingPromo = p ? p.code : null;
+    pcProdFilter = '';
+    $id('promoTitle').textContent = p ? 'Промокод ' + p.code : 'Новий промокод';
+    $id('pcStatus').hidden = true;
+
+    const v = p || {};
+    $id('pcCode').value = v.code || '';
+    $id('pcCode').disabled = !!p;          // код — це id документа, не міняємо
+    $id('pcType').value = v.type || 'percent';
+    $id('pcValue').value = v.value != null ? v.value : '';
+    $id('pcScope').value = v.scope || 'all';
+    $id('pcExcludeSale').checked = !!v.excludeSale;
+    $id('pcMinTotal').value = v.minTotal || '';
+    $id('pcStartsAt').value = v.startsAt || '';
+    $id('pcEndsAt').value = v.endsAt || '';
+    $id('pcUsageLimit').value = v.usageLimit || '';
+    $id('pcActive').checked = v.active !== false;
+    $id('pcNote').value = v.note || '';
+    $id('pcProdSearch').value = '';
+
+    renderPcCats(v.categories);
+    renderPcProds(v.products);
+    pcSyncScope();
+
+    $id('promoModal').hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  async function savePromo() {
+    const p = pcCollect();
+
+    if (!/^[A-Z0-9_-]{3,24}$/.test(p.code)) {
+      return pcSetStatus('err', 'Код: 3–24 символи, лише латиниця, цифри, дефіс або підкреслення');
+    }
+    if (!p.value || p.value <= 0) return pcSetStatus('err', 'Вкажіть розмір знижки');
+    if (p.type === 'percent' && p.value > 100) return pcSetStatus('err', 'Відсоток не може бути більшим за 100');
+    if (p.scope === 'categories' && !p.categories.length) return pcSetStatus('err', 'Оберіть хоча б одну категорію');
+    if (p.scope === 'products' && !p.products.length) return pcSetStatus('err', 'Оберіть хоча б один товар');
+    if (p.startsAt && p.endsAt && p.startsAt > p.endsAt) {
+      return pcSetStatus('err', 'Дата початку пізніша за дату завершення');
+    }
+    if (!editingPromo && promosCache.some((x) => x.code === p.code)) {
+      return pcSetStatus('err', 'Промокод ' + p.code + ' вже існує');
+    }
+
+    const doc = Object.assign({}, p);
+    delete doc.code;
+    if (!editingPromo) {
+      doc.usedCount = 0;
+      doc.created = firebase.firestore.FieldValue.serverTimestamp();
+      doc.createdBy = (R.fb.user && R.fb.user.email) || '';
+    }
+
+    try {
+      await R.fb.db.collection('promos').doc(p.code).set(doc, { merge: true });
+      $id('promoModal').hidden = true;
+      document.body.style.overflow = '';
+      toast(editingPromo ? 'Промокод оновлено ✓' : 'Промокод створено ✓', 'success');
+      editingPromo = null;
+    } catch (e) {
+      pcSetStatus('err', 'Не вдалося зберегти. Перевірте правила Firestore для колекції promos');
+    }
+  }
+
+  function initPromos() {
+    if (!$id('newPromoBtn')) return;
+
+    $id('newPromoBtn').addEventListener('click', () => openPromoEditor(null));
+    $id('pcSaveBtn').addEventListener('click', savePromo);
+
+    promosBody().addEventListener('click', async (e) => {
+      const card = e.target.closest('.a-promo');
+      if (!card) return;
+      const p = promosCache.find((x) => x.code === card.dataset.code);
+      if (!p) return;
+
+      if (e.target.closest('[data-promo-edit]')) {
+        openPromoEditor(p);
+      } else if (e.target.closest('[data-promo-copy]')) {
+        R.copyText(p.code);
+        toast('Код скопійовано ✓', 'success');
+      } else if (e.target.closest('[data-promo-toggle]')) {
+        try {
+          await R.fb.db.collection('promos').doc(p.code).update({ active: p.active === false });
+        } catch (err) {
+          toast('Немає прав');
+        }
+      } else if (e.target.closest('[data-promo-del]')) {
+        if (confirm('Видалити промокод ' + p.code + '?')) {
+          try {
+            await R.fb.db.collection('promos').doc(p.code).delete();
+          } catch (err) {
+            toast('Немає прав');
+          }
+        }
+      }
+    });
+
+    const modal = $id('promoModal');
+    modal.addEventListener('change', (e) => {
+      if (e.target.id === 'pcScope') pcSyncScope();
+      else pcPreview();
+    });
+    modal.addEventListener('input', (e) => {
+      if (e.target.id === 'pcProdSearch') {
+        pcProdFilter = e.target.value;
+        const keep = pcSelected('#pcProds');
+        renderPcProds(keep);
+      } else {
+        pcPreview();
+      }
+    });
+  }
+
   /* ============================================================
      ПАНЕЛЬ «СКЛАД»
      ============================================================ */
@@ -2533,6 +2878,7 @@
     window.addEventListener('hashchange', showView);
     showView();
 
+    initPromos();
     $id('settingsBtn').addEventListener('click', openSettings);
     $id('saveSettingsBtn').addEventListener('click', saveSettings);
     $id('gateLoginBtn').addEventListener('click', signInGoogle);

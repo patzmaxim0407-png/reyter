@@ -39,6 +39,7 @@
     <a class="abar__tab is-active" href="#/catalog" data-view="catalog">Каталог</a>
     <a class="abar__tab" href="#/orders" data-view="orders">Замовлення <span class="abar__count" id="newOrdersBadge" hidden></span></a>
     <a class="abar__tab" href="#/stock" data-view="stock">Склад</a>
+    <a class="abar__tab" href="#/promos" data-view="promos">Промокоди</a>
   </nav>
   <div class="abar__actions">
     <span class="abar__user" id="adminUserChip" hidden></span>
@@ -450,6 +451,110 @@
   <div class="a-orders a-orders--page" id="ordersBody"></div>
 </div>
 
+<!-- Сторінка «Промокоди» -->
+<div class="a-page" id="viewPromos" hidden>
+  <div class="a-page__head a-page__head--row">
+    <div>
+      <h2>Промокоди</h2>
+      <p>Знижки для клієнтів: на весь кошик, на окремі категорії або конкретні товари. Покупець вводить код у кошику й одразу бачить суму знижки.</p>
+    </div>
+    <button class="btn btn--primary" id="newPromoBtn" type="button">+ Новий промокод</button>
+  </div>
+  <div class="a-orders a-orders--page" id="promosBody"></div>
+</div>
+
+<!-- Редактор промокоду -->
+<div class="a-modal" id="promoModal" role="dialog" aria-modal="true" aria-labelledby="promoTitle" hidden>
+  <div class="a-modal__backdrop" data-close></div>
+  <div class="a-modal__panel">
+    <header class="a-modal__head">
+      <h3 id="promoTitle">Промокод</h3>
+      <button class="a-modal__close" data-close aria-label="Закрити">✕</button>
+    </header>
+
+    <div class="a-neworder">
+      <div class="a-grid-3">
+        <div class="field">
+          <label for="pcCode">Код *</label>
+          <input id="pcCode" autocomplete="off" placeholder="SUMMER10" style="text-transform:uppercase">
+          <p class="field__hint">Латиниця та цифри. Клієнт вводитиме саме цей код.</p>
+        </div>
+        <div class="field">
+          <label for="pcType">Тип знижки</label>
+          <select id="pcType">
+            <option value="percent">Відсоток (%)</option>
+            <option value="fixed">Фіксована сума (грн)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="pcValue">Розмір знижки *</label>
+          <input id="pcValue" type="number" min="1" placeholder="10">
+        </div>
+      </div>
+
+      <h5 class="ao-sub">На що діє</h5>
+      <div class="field">
+        <label for="pcScope">Область дії</label>
+        <select id="pcScope">
+          <option value="all">Весь кошик</option>
+          <option value="categories">Обрані категорії</option>
+          <option value="products">Обрані товари</option>
+        </select>
+      </div>
+
+      <div class="field" id="pcCatsBox" hidden>
+        <span class="field__label">Категорії</span>
+        <div class="a-sizes" id="pcCats"></div>
+      </div>
+
+      <div class="field" id="pcProdsBox" hidden>
+        <span class="field__label">Товари</span>
+        <input class="ao-search" id="pcProdSearch" placeholder="Пошук товару за назвою або артикулом">
+        <div class="a-promo-products" id="pcProds"></div>
+      </div>
+
+      <label class="a-check"><input type="checkbox" id="pcExcludeSale"> Не діє на товари, що вже зі знижкою (SALE)</label>
+
+      <h5 class="ao-sub">Умови та обмеження</h5>
+      <div class="a-grid-3">
+        <div class="field">
+          <label for="pcMinTotal">Мінімальна сума кошика, грн</label>
+          <input id="pcMinTotal" type="number" min="0" placeholder="0 — без обмежень">
+        </div>
+        <div class="field">
+          <label for="pcStartsAt">Діє з</label>
+          <input id="pcStartsAt" type="date">
+        </div>
+        <div class="field">
+          <label for="pcEndsAt">Діє до (включно)</label>
+          <input id="pcEndsAt" type="date">
+        </div>
+      </div>
+
+      <div class="a-grid-2">
+        <div class="field">
+          <label for="pcUsageLimit">Ліміт використань</label>
+          <input id="pcUsageLimit" type="number" min="0" placeholder="0 — без ліміту">
+        </div>
+        <label class="a-check a-check--pad"><input type="checkbox" id="pcActive" checked> Промокод увімкнено</label>
+      </div>
+
+      <div class="field">
+        <label for="pcNote">Нотатка для себе</label>
+        <input id="pcNote" autocomplete="off" placeholder="напр.: розсилка для Friendly Club">
+      </div>
+
+      <div class="a-promo-preview" id="pcPreview"></div>
+      <div class="a-publish__status" id="pcStatus" hidden></div>
+    </div>
+
+    <footer class="a-modal__foot">
+      <button class="btn btn--ghost" data-close type="button">Скасувати</button>
+      <button class="btn btn--primary" id="pcSaveBtn" type="button">Зберегти промокод</button>
+    </footer>
+  </div>
+</div>
+
 <!-- Сторінка «Склад» -->
 <div class="a-page" id="viewStock" hidden>
   <div class="a-page__head">
@@ -466,8 +571,10 @@
 <script src="https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore-compat.js"></script>
 
 <script src="js/data.js"></script>
+<script src="js/i18n.js"></script>
 <script src="js/firebase.js"></script>
 <script src="js/notify.js"></script>
+<script src="js/promo.js"></script>
 <script src="js/admin.js"></script>
 
 </body>

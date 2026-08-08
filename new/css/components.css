@@ -824,6 +824,116 @@
   background: var(--c-green);
 }
 
+/* ---------- Промокод ---------- */
+.promo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.promo input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.6rem 0.9rem;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1.5px dashed rgba(6, 43, 92, 0.3);
+  border-radius: var(--radius-sm);
+  background: var(--c-paper);
+}
+
+.promo input::placeholder {
+  letter-spacing: normal;
+  text-transform: none;
+  font-weight: 500;
+  color: var(--c-muted);
+}
+
+.promo input:focus {
+  outline: none;
+  border-style: solid;
+  border-color: var(--c-blue);
+}
+
+.promo--on {
+  background: var(--c-green-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.7rem 0.55rem 0.9rem;
+}
+
+.promo__badge {
+  display: grid;
+  line-height: 1.25;
+}
+
+.promo__badge b {
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  color: var(--c-green);
+}
+
+.promo__badge span {
+  font-size: 0.72rem;
+  color: var(--c-muted);
+}
+
+.promo__sum {
+  margin-left: auto;
+  font-weight: 800;
+  color: var(--c-green);
+}
+
+.promo__remove {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--c-muted);
+  flex-shrink: 0;
+}
+
+.promo__remove:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--c-red);
+}
+
+.promo__hint {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: -0.3rem 0 0.7rem;
+}
+
+.promo__hint.is-ok {
+  color: var(--c-green);
+}
+
+.promo__hint.is-err {
+  color: var(--c-red);
+}
+
+/* Рядки підсумку */
+.cart-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.88rem;
+  color: var(--c-muted);
+  padding-bottom: 0.25rem;
+}
+
+.cart-line.is-off {
+  color: var(--c-green);
+  font-weight: 700;
+}
+
+.checkout-summary .is-off {
+  color: var(--c-green);
+  font-weight: 700;
+}
+
 /* Підсумок кошика */
 .cart-total {
   display: flex;

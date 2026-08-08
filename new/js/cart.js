@@ -17,6 +17,8 @@
 
   let mode = 'cart'; // cart | checkout | done
   let lastOrder = null;
+  let promo = null;      // застосований промокод
+  let promoMsg = null;   // { ok, text } — підказка під полем
 
   /* ---------- Сховище ---------- */
 
@@ -93,6 +95,19 @@
         const p = R.getProduct(i.id);
         return s + (p ? p.price * i.qty : 0);
       }, 0);
+    },
+    /* Позиції у вигляді, зрозумілому рушію промокодів */
+    forPromo() {
+      return cart.items().map((i) => {
+        const p = R.getProduct(i.id);
+        return {
+          id: p.id,
+          category: p.category,
+          price: p.price,
+          qty: i.qty,
+          sale: !!p.sale
+        };
+      });
     }
   };
 
@@ -144,6 +159,87 @@
     else renderDone();
   }
 
+  /* ---------- Промокод ---------- */
+
+  /* Перерахунок при кожній зміні кошика: якщо умови перестали
+     виконуватись (прибрали товар, впала сума) — знімаємо код */
+  function revalidatePromo() {
+    if (!promo) return;
+    const res = R.promoCheck(promo, cart.forPromo());
+    if (res.ok) {
+      promo.discount = res.discount;
+      promo.partial = res.partial;
+      promoMsg = { ok: true, text: R.promoMessage(res, promo) };
+    } else {
+      promoMsg = { ok: false, text: R.promoMessage(res, promo) };
+      promo = null;
+      R.promoSave(null);
+    }
+  }
+
+  function discount() {
+    return promo ? Math.min(promo.discount || 0, cart.subtotal()) : 0;
+  }
+
+  function total() {
+    return Math.max(0, cart.subtotal() - discount());
+  }
+
+  async function applyPromo(codeRaw) {
+    const code = R.promoNormalize(codeRaw);
+    if (!code) return;
+
+    promoMsg = { ok: false, text: R.t('promo.checking'), pending: true };
+    render();
+
+    const found = await R.promoFetch(code);
+    const res = R.promoCheck(found, cart.forPromo());
+
+    if (res.ok) {
+      promo = Object.assign({}, found, { discount: res.discount, partial: res.partial });
+      R.promoSave(promo);
+      promoMsg = { ok: true, text: R.promoMessage(res, found) };
+    } else {
+      promo = null;
+      R.promoSave(null);
+      promoMsg = { ok: false, text: R.promoMessage(res, found) };
+    }
+    render();
+  }
+
+  function removePromo() {
+    promo = null;
+    promoMsg = null;
+    R.promoSave(null);
+    render();
+  }
+
+  function promoHTML() {
+    if (promo) {
+      return (
+        '<div class="promo promo--on">' +
+          '<div class="promo__badge">' +
+            '<b>' + R.esc(promo.code) + '</b>' +
+            '<span>' + R.esc(R.t('promo.applied')) + '</span>' +
+          '</div>' +
+          '<span class="promo__sum">−' + R.uah(discount()) + '</span>' +
+          '<button class="promo__remove" data-promo-remove type="button" aria-label="' + R.t('promo.remove') + '">✕</button>' +
+        '</div>' +
+        (promo.partial ? '<p class="promo__hint is-ok">' + R.t('promo.partial') + '</p>' : '')
+      );
+    }
+
+    return (
+      '<form class="promo" id="promoForm">' +
+        '<input id="promoInput" placeholder="' + R.t('promo.placeholder') + '" autocomplete="off" spellcheck="false">' +
+        '<button class="btn btn--ghost btn--sm" type="submit">' + R.t('promo.apply') + '</button>' +
+      '</form>' +
+      (promoMsg
+        ? '<p class="promo__hint' + (promoMsg.ok ? ' is-ok' : ' is-err') + '">' + R.esc(promoMsg.text) + '</p>'
+        : '')
+    );
+  }
+
   function renderCart() {
     const items = cart.items();
 
@@ -188,20 +284,33 @@
       })
       .join('');
 
-    const total = cart.subtotal();
+    revalidatePromo();
+
+    const sub = cart.subtotal();
+    const off = discount();
+    const sum = total();
     const limit = R.config.freeDeliveryFrom;
-    const left = Math.max(0, limit - total);
-    const pct = Math.min(100, Math.round((total / limit) * 100));
+    const left = Math.max(0, limit - sum);
+    const pct = Math.min(100, Math.round((sum / limit) * 100));
 
     foot().innerHTML =
+      promoHTML() +
       '<div class="free-ship">' +
         (left > 0
           ? R.t('cart.freeLeft') + ' ' + R.uah(left)
           : R.t('cart.freeDone')) +
         '<div class="free-ship__bar"><div class="free-ship__fill' + (left === 0 ? ' is-done' : '') + '" style="width:' + pct + '%"></div></div>' +
       '</div>' +
-      '<div class="cart-total"><span>' + R.t('cart.total') + '</span><span class="cart-total__sum">' + R.uah(total) + '</span></div>' +
+      (off
+        ? '<div class="cart-line"><span>' + R.t('cart.subtotal') + '</span><span>' + R.uah(sub) + '</span></div>' +
+          '<div class="cart-line is-off"><span>' + R.t('cart.discount') + ' · ' + R.esc(promo.code) + '</span>' +
+            '<span>−' + R.uah(off) + '</span></div>'
+        : '') +
+      '<div class="cart-total"><span>' + R.t('cart.total') + '</span><span class="cart-total__sum">' + R.uah(sum) + '</span></div>' +
       '<button class="btn btn--primary" data-checkout type="button">' + R.t('cart.checkout') + '</button>';
+
+    const input = document.getElementById('promoInput');
+    if (input && promoMsg && !promoMsg.ok && !promoMsg.pending) input.focus();
   }
 
   /* ---------- Оформлення ---------- */
@@ -218,7 +327,10 @@
   function renderCheckout() {
     const items = cart.items();
     const profile = R.getProfile();
-    const total = cart.subtotal();
+    revalidatePromo();
+    const sub = cart.subtotal();
+    const off = discount();
+    const sum = total();
 
     const summary = items
       .map((i) => {
@@ -233,7 +345,12 @@
     body().innerHTML =
       '<button class="checkout-back" data-back type="button">' + R.t('cart.back') + '</button>' +
       '<div class="checkout-summary">' + summary +
-        '<div class="sum"><span>' + R.t('cart.total') + '</span><span>' + R.uah(total) + '</span></div>' +
+        (off
+          ? '<div><span>' + R.t('cart.subtotal') + '</span><span>' + R.uah(sub) + '</span></div>' +
+            '<div class="is-off"><span>' + R.t('cart.discount') + ' · ' + R.esc(promo.code) + '</span>' +
+              '<span>−' + R.uah(off) + '</span></div>'
+          : '') +
+        '<div class="sum"><span>' + R.t('cart.total') + '</span><span>' + R.uah(sum) + '</span></div>' +
       '</div>' +
       '<form class="form-grid" id="checkoutForm" novalidate>' +
         fieldHTML('coName', R.t('cart.name'), profile.name, 'autocomplete="name" required') +
@@ -271,6 +388,10 @@
       lines.push('   ' + (i.size ? (i.volume ? 'обʼєм ' : 'розмір ') + i.size + ' · ' : '') + i.qty + ' шт · ' + R.fmt(i.price * i.qty) + ' грн');
     });
     lines.push('');
+    if (order.discount) {
+      lines.push('Сума: ' + R.fmt(order.subtotal) + ' грн');
+      lines.push('Промокод ' + order.promoCode + ': −' + R.fmt(order.discount) + ' грн');
+    }
     lines.push('Разом: ' + R.fmt(order.total) + ' грн');
     lines.push('');
     lines.push('👤 ' + order.customer.name);
@@ -347,7 +468,10 @@
           volume: !!p.volume
         };
       }),
-      total: cart.subtotal(),
+      subtotal: cart.subtotal(),
+      discount: discount(),
+      promoCode: promo ? promo.code : '',
+      total: total(),
       customer: customer
     };
 
@@ -375,8 +499,13 @@
     // Сповіщення: Telegram власнику + email-підтвердження покупцю
     if (R.notify) R.notify.orderPlaced(order);
 
+    if (promo) R.promoCountUse(promo.code);
+
     lastOrder = order;
     cart.clear();
+    promo = null;
+    promoMsg = null;
+    R.promoSave(null);
     mode = 'done';
     render();
   }
@@ -442,12 +571,20 @@
 
   function init() {
     updateBadge();
+    promo = R.promoSaved();
 
     const btn = document.getElementById('cartBtn');
     if (btn) btn.addEventListener('click', openCart);
 
     const d = drawer();
     if (!d) return;
+
+    d.addEventListener('submit', (e) => {
+      if (e.target.id === 'promoForm') {
+        e.preventDefault();
+        applyPromo(document.getElementById('promoInput').value);
+      }
+    });
 
     d.addEventListener('click', (e) => {
       const item = e.target.closest('.cart-item');
@@ -463,6 +600,8 @@
         const idx = Number(item.dataset.idx);
         cart.setQty(idx, cart.items()[idx].qty - 1);
         render();
+      } else if (e.target.closest('[data-promo-remove]')) {
+        removePromo();
       } else if (e.target.closest('[data-checkout]')) {
         mode = 'checkout';
         render();
