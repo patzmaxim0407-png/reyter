@@ -399,6 +399,15 @@
           <svg class="ico-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="m4.5 12.5 5 5 10-11"/></svg>
           <span id="pmAddCartLabel"></span>
         </button>
+
+        <div class="pinfo__incart" id="pmInCart" hidden>
+          <span class="qty qty--lg">
+            <button type="button" data-pm-minus aria-label="−">−</button>
+            <span id="pmQtyValue">1</span>
+            <button type="button" data-pm-plus aria-label="+">+</button>
+          </span>
+          <button class="btn btn--ghost" type="button" id="pmGoCart" data-i18n="p.goToCart"></button>
+        </div>
       </div>
 
       <div class="pinfo__desc" id="pmDesc"></div>

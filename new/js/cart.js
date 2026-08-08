@@ -56,6 +56,27 @@
       items[idx].qty = Math.max(1, Math.min(99, qty));
       cart.save(items);
     },
+    /* Скільки саме цього товару в цьому розмірі вже в кошику */
+    qtyOf(id, size) {
+      const found = cart.items().find((i) => i.id === id && i.size === (size || null));
+      return found ? found.qty : 0;
+    },
+    /* Встановити кількість; 0 — прибрати позицію з кошика */
+    setQtyOf(id, size, qty) {
+      const items = cart.items();
+      const idx = items.findIndex((i) => i.id === id && i.size === (size || null));
+      const next = Math.max(0, Math.min(99, qty));
+
+      if (idx < 0) {
+        if (next > 0) items.push({ id: id, size: size || null, qty: next });
+      } else if (next === 0) {
+        items.splice(idx, 1);
+      } else {
+        items[idx].qty = next;
+      }
+      cart.save(items);
+      return next;
+    },
     remove(idx) {
       const items = cart.items();
       items.splice(idx, 1);

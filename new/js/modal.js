@@ -38,6 +38,9 @@
     el.addCart = document.getElementById('pmAddCart');
     el.addCartLabel = document.getElementById('pmAddCartLabel');
     el.ctaPrice = document.getElementById('pmCtaPrice');
+    el.inCart = document.getElementById('pmInCart');
+    el.qtyValue = document.getElementById('pmQtyValue');
+    el.goCart = document.getElementById('pmGoCart');
     el.desc = document.getElementById('pmDesc');
     el.extras = document.getElementById('pmExtras');
     el.scroll = document.getElementById('pmScroll');
@@ -237,9 +240,34 @@
     el.addCart.classList.remove('is-added');
     clearTimeout(addedTimer);
     el.addCartLabel.textContent = soldOut ? R.t('p.soldOut') : R.t('p.addToCart');
+
+    // Якщо товар уже в кошику — одразу показуємо лічильник
+    showInCart(!soldOut && R.cart.qtyOf(current.id, selectedSize) > 0);
   }
 
-  /* Кнопка на дві секунди перетворюється на підтвердження */
+  /* Перемикання «Додати в кошик» ⇄ лічильник кількості */
+  function showInCart(on) {
+    el.addCart.hidden = on;
+    el.inCart.hidden = !on;
+    if (on) el.qtyValue.textContent = R.cart.qtyOf(current.id, selectedSize);
+  }
+
+  function changeQty(delta) {
+    const now = R.cart.qtyOf(current.id, selectedSize);
+    const next = R.cart.setQtyOf(current.id, selectedSize, now + delta);
+    if (next === 0) {
+      showInCart(false);            // прибрали з кошика — знову «Додати»
+      el.addCart.classList.remove('is-added');
+      el.addCartLabel.textContent = R.t('p.addToCart');
+    } else {
+      el.qtyValue.textContent = next;
+      el.qtyValue.classList.remove('bump');
+      void el.qtyValue.offsetWidth;
+      el.qtyValue.classList.add('bump');
+    }
+  }
+
+  /* Кнопка коротко підтверджує, а тоді стає лічильником */
   let addedTimer = null;
 
   function confirmAdded() {
@@ -250,7 +278,8 @@
     addedTimer = setTimeout(() => {
       el.addCart.classList.remove('is-added');
       el.addCartLabel.textContent = R.t('p.addToCart');
-    }, 2000);
+      showInCart(true);
+    }, 1100);
   }
 
   /* ---------- Відкриття / закриття ---------- */
@@ -411,7 +440,18 @@
       if (e.target.name === 'pm-size') {
         selectedSize = e.target.value;
         refreshStatus();
+        refreshCta();   // кількість рахується для кожного розміру окремо
       }
+    });
+
+    el.inCart.addEventListener('click', (e) => {
+      if (e.target.closest('[data-pm-minus]')) changeQty(-1);
+      else if (e.target.closest('[data-pm-plus]')) changeQty(1);
+    });
+
+    el.goCart.addEventListener('click', () => {
+      R.overlay.close(el.modal);
+      setTimeout(() => R.openCart(), 260);
     });
 
     el.sizeLink.addEventListener('click', () => toggleSizeChart());

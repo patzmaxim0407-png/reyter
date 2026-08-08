@@ -127,6 +127,7 @@
       'p.chooseSize': 'Оберіть розмір',
       'p.added': 'Додано в кошик ✓',
       'p.addedShort': 'Додано',
+      'p.goToCart': 'Перейти в кошик',
 
       'cart.title': 'Кошик',
       'cart.empty': 'Кошик порожній',
@@ -326,6 +327,7 @@
       'p.chooseSize': 'Choose a size',
       'p.added': 'Added to cart ✓',
       'p.addedShort': 'Added',
+      'p.goToCart': 'Go to cart',
 
       'cart.title': 'Cart',
       'cart.empty': 'Your cart is empty',

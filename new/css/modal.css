@@ -479,6 +479,55 @@
   display: none;
 }
 
+/* ---------- Лічильник кількості замість кнопки ---------- */
+.pinfo__incart {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1 1 240px;
+  animation: incartIn 0.28s var(--ease-out);
+}
+
+@keyframes incartIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.qty--lg {
+  flex: 0 0 auto;
+  border-width: 2px;
+  border-color: rgba(1, 74, 173, 0.35);
+}
+
+.qty--lg button {
+  width: 40px;
+  height: 40px;
+  font-size: 1.2rem;
+  color: var(--c-blue);
+}
+
+.qty--lg > span {
+  min-width: 34px;
+  font-size: 1rem;
+  color: var(--c-blue-ink);
+  transition: transform var(--t-fast);
+}
+
+/* Число підстрибує, коли змінюється */
+.qty--lg > span.bump {
+  animation: qtyBump 0.28s var(--ease-out);
+}
+
+@keyframes qtyBump {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+
+.pinfo__incart .btn {
+  flex: 1 1 auto;
+}
+
 /* ---------- Підтвердження «Додано» ----------
    Анімуємо лише transform і колір — без тіні та фільтрів,
    інакше на телефоні кадри просідають. */
@@ -738,6 +787,21 @@
     padding-block: 1rem;
     padding-inline: 1rem;
     font-size: 1rem;
+  }
+
+  /* Коли показано лічильник, ціна поступається місцем —
+     на вузькому екрані важливіші кількість і перехід у кошик */
+  .pinfo__cta:has(.pinfo__incart:not([hidden])) .pinfo__cta-price {
+    display: none;
+  }
+
+  .pinfo__incart {
+    width: 100%;
+    gap: 0.5rem;
+  }
+
+  .pinfo__incart .btn {
+    padding-inline: 0.8rem;
   }
 }
 

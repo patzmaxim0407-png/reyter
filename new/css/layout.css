@@ -152,7 +152,7 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin-left: 0.2rem;
+  margin-left: auto;   /* завжди притиснуті до правого краю */
 }
 
 .hbtn {
@@ -480,6 +480,24 @@
 @media (max-width: 980px) {
   .burger {
     display: flex;
+  }
+
+  /* Ущільнюємо, щоб група іконок вміщалася і не вилазила за край */
+  .site-header__inner {
+    gap: 0.6rem;
+  }
+
+  .header-actions {
+    gap: 0.25rem;
+  }
+
+  .lang-switch {
+    padding: 2px;
+  }
+
+  .lang-btn {
+    padding: 0.26rem 0.45rem;
+    font-size: 0.72rem;
   }
 
   .site-nav {
