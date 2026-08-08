@@ -232,6 +232,8 @@
   let myPromos = [];
 
   async function renderPromos() {
+    // список щоразу свіжий: після замовлення лічильник змінився,
+    // і код міг стати вичерпаним
     if (!signedIn()) {
       body().innerHTML =
         '<p class="account-note">' + R.t('acc.promosGuest') + '</p>';

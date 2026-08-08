@@ -66,6 +66,22 @@ service cloud.firestore {
         : subtotal * promoDoc(code).value / 100;
     }
 
+    // Ліміт використань: 0 (або поле відсутнє) — без обмежень
+    function promoHasUsesLeft(code) {
+      let p = promoDoc(code);
+      return !('usageLimit' in p) || p.usageLimit == 0
+        || (('usedCount' in p) ? p.usedCount : 0) < p.usageLimit;
+    }
+
+    function promoInDateRange(code) {
+      let p = promoDoc(code);
+      let today = request.time.toMillis();
+      return (!('startsAt' in p) || p.startsAt == '' ||
+              timestamp.value(p.startsAt + 'T00:00:00Z').toMillis() <= today)
+        && (!('endsAt' in p) || p.endsAt == '' ||
+              timestamp.value(p.endsAt + 'T23:59:59Z').toMillis() >= today);
+    }
+
     function discountAllowed() {
       let d = request.resource.data;
       return d.discount == 0
@@ -74,6 +90,7 @@ service cloud.firestore {
             d.promoCode is string && d.promoCode.size() > 0
             && exists(/databases/$(database)/documents/promos/$(d.promoCode))
             && promoDoc(d.promoCode).active != false
+            && promoHasUsesLeft(d.promoCode)
             && d.discount <= maxDiscount(d.promoCode, d.subtotal)
           );
     }
@@ -183,10 +200,20 @@ service cloud.firestore {
       // Запит виду where('email','==', своя_пошта) дозволений:
       // правило перевіряється для кожного документа вибірки
       allow list: if isAdmin() || promoIsMine();
-      // Змінювати промокод може лише адмін. Скільки разів код
-      // використано, адмінка рахує із замовлень — тому браузеру
-      // покупця запис сюди не потрібен узагалі.
-      allow create, update, delete: if isAdmin();
+      // Змінювати промокод може лише адмін — з одним винятком:
+      // після оформлення замовлення браузер покупця збільшує
+      // лічильник використань рівно на одиницю і більше нічого
+      // не чіпає. Обнулити чи «розширити» код так неможливо,
+      // а без цього ліміт не працював би взагалі.
+      function onlyUsedCountBumped() {
+        return request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['usedCount'])
+          && request.resource.data.usedCount ==
+             (('usedCount' in resource.data) ? resource.data.usedCount : 0) + 1;
+      }
+
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || onlyUsedCountBumped();
     }
 
     // Налаштування.

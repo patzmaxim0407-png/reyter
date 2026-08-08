@@ -3315,9 +3315,16 @@
   /* Стан промокоду для бейджа у списку */
   /* Скільки разів код реально використано — рахуємо із замовлень,
      а не довіряємо лічильнику, який писав браузер покупця */
+  /* Скільки разів код використано. Два джерела мають збігатись:
+     лічильник у самому промокоді (за ним працює перевірка
+     в кошику) і фактичні замовлення. Беремо більше з двох —
+     інакше адмінка показувала б «вичерпано» там, де кошик
+     ще пускає, і навпаки. */
   function promoUsed(code) {
-    return ordersCache.filter((o) =>
+    const p = promosCache.find((x) => x.code === code) || {};
+    const byOrders = ordersCache.filter((o) =>
       o.promoCode === code && o.status !== 'cancelled').length;
+    return Math.max(Number(p.usedCount) || 0, byOrders);
   }
 
   function promoState(p) {

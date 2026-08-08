@@ -543,7 +543,7 @@
     return lines.join('\n');
   }
 
-  function submitOrder() {
+  async function submitOrder() {
     const name = document.getElementById('coName');
     const phone = document.getElementById('coPhone');
     const email = document.getElementById('coEmail');
@@ -563,6 +563,25 @@
     if (!emailOk) {
       R.toast(R.t('cart.checkEmail'));
       return;
+    }
+
+    /* Промокод перечитуємо з бази саме зараз: між застосуванням
+       і натисканням «Підтвердити» його могли вимкнути, вичерпати
+       або він міг протермінуватись. Інакше замовлення пішло б
+       зі знижкою, яку база вже не визнає. */
+    if (promo) {
+      const fresh = await R.promoFetch(promo.code);
+      const check = R.promoCheck(fresh, cart.forPromo());
+      if (!check.ok) {
+        promo = null;
+        R.promoSaveCode('');
+        promoMsg = { ok: false, text: R.promoMessage(check, fresh) };
+        mode = 'cart';
+        render();
+        R.toast(R.t('promo.dropped'));
+        return;
+      }
+      promo = Object.assign({}, fresh, { discount: check.discount, partial: check.partial });
     }
 
     const addr = R.addressCheck('co');
@@ -627,6 +646,9 @@
     if (R.fb && R.fb.enabled && R.fb.user) {
       R.fb.saveCloudProfile(Object.assign({}, customer, { comment: '' }));
     }
+
+    // Промокод використано — лічильник +1, щоб ліміт справді діяв
+    if (order.promoCode) R.promoConsume(order.promoCode);
 
     // Сповіщення: Telegram власнику + email-підтвердження покупцю
     if (R.notify) R.notify.orderPlaced(order);
@@ -717,6 +739,14 @@
 
     const d = drawer();
     if (!d) return;
+
+    /* Персональний промокод діє лише в акаунті, для якого його
+       видано. Вхід або вихід змінює цю умову — перевіряємо код
+       заново, інакше в кошику лишалася б чужа знижка. */
+    document.addEventListener('auth:changed', () => {
+      if (!promo && !R.promoSavedCode()) return;
+      refreshPromoFromDb();
+    });
 
     d.addEventListener('input', (e) => {
       if (e.target.id === 'promoInput') promoInputValue = e.target.value;
