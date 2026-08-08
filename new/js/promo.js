@@ -208,31 +208,26 @@
 
   /* ---------- Збереження застосованого коду ---------- */
 
-  R.promoSaved = function () {
+  /* Зберігаємо ЛИШЕ код: умови завжди перечитуються з бази,
+     інакше підроблений обʼєкт у сховищі давав би будь-яку знижку,
+     а вимкнений адміном код продовжував би діяти. */
+  R.promoSavedCode = function () {
     try {
-      return JSON.parse(localStorage.getItem(KEY)) || null;
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return '';
+      // сумісність зі старим форматом, де лежав цілий обʼєкт
+      const val = raw.charAt(0) === '{' ? (JSON.parse(raw) || {}).code : raw;
+      return R.promoNormalize(val);
     } catch (e) {
-      return null;
+      return '';
     }
   };
 
-  R.promoSave = function (promo) {
+  R.promoSaveCode = function (code) {
     try {
-      if (promo) localStorage.setItem(KEY, JSON.stringify(promo));
+      if (code) localStorage.setItem(KEY, R.promoNormalize(code));
       else localStorage.removeItem(KEY);
     } catch (e) { /* приватний режим */ }
-  };
-
-  /* ---------- Лічильник використань ----------
-     Викликається після успішного оформлення замовлення. */
-
-  R.promoCountUse = async function (code) {
-    if (!R.fb || !R.fb.enabled || !code) return;
-    try {
-      await R.fb.db.collection('promos').doc(R.promoNormalize(code)).update({
-        usedCount: firebase.firestore.FieldValue.increment(1)
-      });
-    } catch (e) { /* не критично для замовлення */ }
   };
 
   /* ---------- Текст для покупця ---------- */

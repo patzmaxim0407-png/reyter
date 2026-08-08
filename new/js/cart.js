@@ -17,8 +17,9 @@
 
   let mode = 'cart'; // cart | checkout | done
   let lastOrder = null;
-  let promo = null;      // застосований промокод
+  let promo = null;      // свіжий документ промокоду з бази
   let promoMsg = null;   // { ok, text } — підказка під полем
+  let promoInputValue = ''; // те, що покупець набрав, — не губимо при перемальовці
 
   /* ---------- Сховище ---------- */
 
@@ -169,12 +170,28 @@
     if (res.ok) {
       promo.discount = res.discount;
       promo.partial = res.partial;
-      promoMsg = { ok: true, text: R.promoMessage(res, promo) };
     } else {
       promoMsg = { ok: false, text: R.promoMessage(res, promo) };
       promo = null;
-      R.promoSave(null);
+      R.promoSaveCode('');
     }
+  }
+
+  /* Перечитує умови коду з бази — щоб вимкнений або змінений
+     адміном промокод одразу переставав діяти */
+  async function refreshPromoFromDb() {
+    const code = R.promoSavedCode();
+    if (!code) return;
+    const fresh = await R.promoFetch(code);
+    const res = R.promoCheck(fresh, cart.forPromo());
+    if (res.ok) {
+      promo = Object.assign({}, fresh, { discount: res.discount, partial: res.partial });
+    } else {
+      promo = null;
+      R.promoSaveCode('');
+      if (fresh) promoMsg = { ok: false, text: R.promoMessage(res, fresh) };
+    }
+    render();
   }
 
   function discount() {
@@ -197,12 +214,13 @@
 
     if (res.ok) {
       promo = Object.assign({}, found, { discount: res.discount, partial: res.partial });
-      R.promoSave(promo);
+      R.promoSaveCode(code);
+      promoInputValue = '';
       promoMsg = { ok: true, text: R.promoMessage(res, found) };
     } else {
       promo = null;
-      R.promoSave(null);
-      promoMsg = { ok: false, text: R.promoMessage(res, found) };
+      R.promoSaveCode('');
+      promoMsg = { ok: false, text: R.promoMessage(res, found), focus: true };
     }
     render();
   }
@@ -210,7 +228,8 @@
   function removePromo() {
     promo = null;
     promoMsg = null;
-    R.promoSave(null);
+    promoInputValue = '';
+    R.promoSaveCode('');
     render();
   }
 
@@ -231,11 +250,14 @@
 
     return (
       '<form class="promo" id="promoForm">' +
-        '<input id="promoInput" placeholder="' + R.t('promo.placeholder') + '" autocomplete="off" spellcheck="false">' +
+        '<input id="promoInput" value="' + R.esc(promoInputValue) + '" placeholder="' +
+          R.t('promo.placeholder') + '" autocomplete="off" spellcheck="false">' +
         '<button class="btn btn--ghost btn--sm" type="submit">' + R.t('promo.apply') + '</button>' +
       '</form>' +
       (promoMsg
-        ? '<p class="promo__hint' + (promoMsg.ok ? ' is-ok' : ' is-err') + '">' + R.esc(promoMsg.text) + '</p>'
+        ? '<p class="promo__hint' +
+            (promoMsg.pending ? '' : (promoMsg.ok ? ' is-ok' : ' is-err')) + '">' +
+            R.esc(promoMsg.text) + '</p>'
         : '')
     );
   }
@@ -309,8 +331,13 @@
       '<div class="cart-total"><span>' + R.t('cart.total') + '</span><span class="cart-total__sum">' + R.uah(sum) + '</span></div>' +
       '<button class="btn btn--primary" data-checkout type="button">' + R.t('cart.checkout') + '</button>';
 
+    // фокус повертаємо лише одразу після невдалої спроби, а не на кожній перемальовці
     const input = document.getElementById('promoInput');
-    if (input && promoMsg && !promoMsg.ok && !promoMsg.pending) input.focus();
+    if (input && promoMsg && promoMsg.focus) {
+      promoMsg.focus = false;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
   }
 
   /* ---------- Оформлення ---------- */
@@ -499,13 +526,12 @@
     // Сповіщення: Telegram власнику + email-підтвердження покупцю
     if (R.notify) R.notify.orderPlaced(order);
 
-    if (promo) R.promoCountUse(promo.code);
-
     lastOrder = order;
     cart.clear();
     promo = null;
     promoMsg = null;
-    R.promoSave(null);
+    promoInputValue = '';
+    R.promoSaveCode('');
     mode = 'done';
     render();
   }
@@ -562,6 +588,7 @@
   function openCart() {
     mode = 'cart';
     render();
+    refreshPromoFromDb();   // умови завжди свіжі з бази
     R.overlay.open(drawer(), { focus: drawer().querySelector('.drawer__close') });
   }
 
@@ -579,13 +606,16 @@
 
   function init() {
     updateBadge();
-    promo = R.promoSaved();
 
     const btn = document.getElementById('cartBtn');
     if (btn) btn.addEventListener('click', openCart);
 
     const d = drawer();
     if (!d) return;
+
+    d.addEventListener('input', (e) => {
+      if (e.target.id === 'promoInput') promoInputValue = e.target.value;
+    });
 
     d.addEventListener('submit', (e) => {
       if (e.target.id === 'promoForm') {

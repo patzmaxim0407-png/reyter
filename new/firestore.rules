@@ -53,13 +53,40 @@ service cloud.firestore {
     // Замовлення оформлюються на сайті: покупець з акаунтом створює
     // своє, гість — без uid. В обох випадках лише статус 'new'
     // і розумний розмір замовлення. Адмін бачить і керує всіма.
+    // Знижка приймається лише така, яку справді дозволяє
+    // існуючий увімкнений промокод. Без цієї перевірки покупець
+    // міг би підставити будь-яку суму зі свого браузера.
+    function promoDoc(code) {
+      return get(/databases/$(database)/documents/promos/$(code)).data;
+    }
+
+    function maxDiscount(code, subtotal) {
+      return promoDoc(code).type == 'fixed'
+        ? promoDoc(code).value
+        : subtotal * promoDoc(code).value / 100;
+    }
+
+    function discountAllowed() {
+      let d = request.resource.data;
+      return d.discount == 0
+        ? d.promoCode == ''
+        : (
+            d.promoCode is string && d.promoCode.size() > 0
+            && exists(/databases/$(database)/documents/promos/$(d.promoCode))
+            && promoDoc(d.promoCode).active != false
+            && d.discount <= maxDiscount(d.promoCode, d.subtotal)
+          );
+    }
+
     function validNewOrder() {
-      return request.resource.data.status == 'new'
-        && request.resource.data.total is number
-        && request.resource.data.total >= 0
-        && request.resource.data.total < 1000000
-        && request.resource.data.items.size() > 0
-        && request.resource.data.items.size() <= 50;
+      let d = request.resource.data;
+      return d.status == 'new'
+        && d.total is number && d.total >= 0 && d.total < 1000000
+        && d.subtotal is number && d.subtotal >= 0 && d.subtotal < 1000000
+        && d.discount is number && d.discount >= 0
+        && d.total == d.subtotal - d.discount
+        && d.items.size() > 0 && d.items.size() <= 50
+        && discountAllowed();
     }
 
     match /orders/{orderId} {
@@ -107,8 +134,6 @@ service cloud.firestore {
     // Промокоди.
     // get — покупець може перевірити конкретний код, який знає;
     // list заборонено, тому вивантажити всі коди не вийде.
-    // Єдина зміна, дозволена покупцеві, — збільшити лічильник
-    // використань рівно на одиницю після оформлення замовлення.
     // Персональний промокод має поле email. Прочитати його може
     // лише власник цієї пошти — тобто чужий код не спрацює навіть
     // якщо його підгледіли.
@@ -125,12 +150,10 @@ service cloud.firestore {
       // Запит виду where('email','==', своя_пошта) дозволений:
       // правило перевіряється для кожного документа вибірки
       allow list: if isAdmin() || promoIsMine();
-      allow create, delete: if isAdmin();
-      allow update: if isAdmin() || (
-        (promoIsPublic() || promoIsMine())
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedCount'])
-        && request.resource.data.usedCount == resource.data.usedCount + 1
-      );
+      // Змінювати промокод може лише адмін. Скільки разів код
+      // використано, адмінка рахує із замовлень — тому браузеру
+      // покупця запис сюди не потрібен узагалі.
+      allow create, update, delete: if isAdmin();
     }
 
     // Налаштування сповіщень (Telegram / Email).

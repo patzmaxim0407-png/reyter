@@ -779,6 +779,25 @@
     return Number(n || 0).toLocaleString('uk-UA');
   }
 
+  /* cart.js в адмінці не підключено, тож копіюємо самі */
+  function copyText(text) {
+    const done = () => toast('Скопійовано ✓', 'success');
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } else {
+      fallback();
+    }
+    function fallback() {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { /* ігноруємо */ }
+      ta.remove();
+    }
+  }
+
   function toast(msg, type) {
     const wrap = $id('toasts');
     if (!wrap) return;
@@ -1337,8 +1356,23 @@
     );
   }
 
+  /* Сума позицій має сходитися з тим, що прислав браузер.
+     Розбіжність — привід перевірити замовлення вручну. */
+  function orderMismatch(o) {
+    if (!(o.items || []).length || o.subtotal === undefined) return '';
+    const itemsSum = (o.items || []).reduce((s, i) =>
+      s + (Number(i.price) || 0) * (Number(i.qty) || 0), 0);
+    const sub = Number(o.subtotal) || 0;
+    const off = Number(o.discount) || 0;
+    const tot = Number(o.total) || 0;
+    if (itemsSum !== sub) return 'сума позицій ' + fmt(itemsSum) + ' грн ≠ вказана ' + fmt(sub) + ' грн';
+    if (Math.abs(sub - off - tot) > 1) return 'підсумок не сходиться';
+    return '';
+  }
+
   function orderCardHTML(o) {
     const st = o.status || 'new';
+    const mismatch = orderMismatch(o);
     const d = orderDate(o);
     const dateFull = d.getTime()
       ? d.toLocaleString('uk-UA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
@@ -1945,6 +1979,7 @@
   let promosUnsub = null;
   let editingPromo = null;   // код, що редагується (null — новий)
   let pcProdFilter = '';
+  let pcPicked = new Set();   // вибрані товари живуть тут, а не в DOM
 
   function promosBody() {
     return $id('promosBody');
@@ -1990,13 +2025,20 @@
   }
 
   /* Стан промокоду для бейджа у списку */
+  /* Скільки разів код реально використано — рахуємо із замовлень,
+     а не довіряємо лічильнику, який писав браузер покупця */
+  function promoUsed(code) {
+    return ordersCache.filter((o) =>
+      o.promoCode === code && o.status !== 'cancelled').length;
+  }
+
   function promoState(p) {
     const today = todayISO();
     if (p.active === false) return { cls: 'is-off', label: 'Вимкнено' };
     if (p.startsAt && today < p.startsAt) return { cls: 'is-soon', label: 'Ще не почався' };
     if (p.endsAt && today > p.endsAt) return { cls: 'is-off', label: 'Завершився' };
     const limit = Number(p.usageLimit) || 0;
-    if (limit > 0 && (Number(p.usedCount) || 0) >= limit) return { cls: 'is-off', label: 'Вичерпано' };
+    if (limit > 0 && promoUsed(p.code) >= limit) return { cls: 'is-off', label: 'Вичерпано' };
     return { cls: 'is-on', label: 'Діє' };
   }
 
@@ -2025,7 +2067,7 @@
   function promoCardHTML(p) {
     const st = promoState(p);
     const limit = Number(p.usageLimit) || 0;
-    const used = Number(p.usedCount) || 0;
+    const used = promoUsed(p.code);
     const period = [
       p.startsAt ? 'з ' + p.startsAt : '',
       p.endsAt ? 'до ' + p.endsAt : ''
@@ -2064,7 +2106,7 @@
 
   function renderPromos() {
     const active = promosCache.filter((p) => promoState(p).cls === 'is-on').length;
-    const totalUses = promosCache.reduce((s, p) => s + (Number(p.usedCount) || 0), 0);
+    const totalUses = promosCache.reduce((s, p) => s + promoUsed(p.code), 0);
 
     promosBody().innerHTML =
       '<div class="ao-stats">' +
@@ -2096,7 +2138,7 @@
       ).join('');
   }
 
-  function renderPcProds(selected) {
+  function renderPcProds() {
     const q = pcProdFilter.toLowerCase();
     const list = products().filter((p) =>
       !q || (p.name + ' ' + p.id).toLowerCase().includes(q)
@@ -2104,15 +2146,16 @@
     $id('pcProds').innerHTML = list.length
       ? list.map((p) =>
           '<label class="a-promo-product"><input type="checkbox" value="' + esc(p.id) + '"' +
-          ((selected || []).includes(p.id) ? ' checked' : '') + '>' +
+          (pcPicked.has(p.id) ? ' checked' : '') + '>' +
           '<img src="' + esc((p.images && p.images[0]) || '') + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
           '<span>' + esc(p.name) + '<i>' + esc(p.id) + ' · ' + fmt(p.price) + ' грн</i></span></label>'
         ).join('')
       : '<div class="a-empty">Нічого не знайдено.</div>';
   }
 
-  function pcSelected(sel) {
-    return Array.prototype.map.call(document.querySelectorAll(sel + ' input:checked'), (i) => i.value);
+  function pcSelectedCats() {
+    return Array.prototype.map.call(
+      document.querySelectorAll('#pcCats input:checked'), (i) => i.value);
   }
 
   function pcSyncScope() {
@@ -2153,8 +2196,8 @@
       type: $id('pcType').value,
       value: Number($id('pcValue').value) || 0,
       scope: scope,
-      categories: scope === 'categories' ? pcSelected('#pcCats') : [],
-      products: scope === 'products' ? pcSelected('#pcProds') : [],
+      categories: scope === 'categories' ? pcSelectedCats() : [],
+      products: scope === 'products' ? Array.from(pcPicked) : [],
       excludeSale: $id('pcExcludeSale').checked,
       minTotal: Number($id('pcMinTotal').value) || 0,
       startsAt: $id('pcStartsAt').value || '',
@@ -2188,8 +2231,9 @@
     $id('pcNote').value = v.note || '';
     $id('pcProdSearch').value = '';
 
+    pcPicked = new Set(v.products || []);
     renderPcCats(v.categories);
-    renderPcProds(v.products);
+    renderPcProds();
     pcSyncScope();
 
     $id('promoModal').hidden = false;
@@ -2250,8 +2294,7 @@
       if (e.target.closest('[data-promo-edit]')) {
         openPromoEditor(p);
       } else if (e.target.closest('[data-promo-copy]')) {
-        R.copyText(p.code);
-        toast('Код скопійовано ✓', 'success');
+        copyText(p.code);
       } else if (e.target.closest('[data-promo-mail]')) {
         const btn = e.target.closest('[data-promo-mail]');
         btn.disabled = true;
@@ -2285,14 +2328,19 @@
 
     const modal = $id('promoModal');
     modal.addEventListener('change', (e) => {
-      if (e.target.id === 'pcScope') pcSyncScope();
-      else pcPreview();
+      if (e.target.id === 'pcScope') { pcSyncScope(); return; }
+      // запамʼятовуємо вибір товару одразу — пошук його не скине
+      const box = e.target.closest('#pcProds');
+      if (box && e.target.type === 'checkbox') {
+        if (e.target.checked) pcPicked.add(e.target.value);
+        else pcPicked.delete(e.target.value);
+      }
+      pcPreview();
     });
     modal.addEventListener('input', (e) => {
       if (e.target.id === 'pcProdSearch') {
         pcProdFilter = e.target.value;
-        const keep = pcSelected('#pcProds');
-        renderPcProds(keep);
+        renderPcProds();
       } else {
         pcPreview();
       }
@@ -3132,8 +3180,7 @@
       }
 
       if (e.target.closest('[data-copy]')) {
-        R.copyText(order.message || '');
-        toast('Скопійовано ✓', 'success');
+        copyText(order.message || '');
       } else if (e.target.closest('[data-print-one]')) {
         printOrders([order]);
       } else if (e.target.closest('[data-del]')) {

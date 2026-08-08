@@ -1894,3 +1894,13 @@
   color: var(--c-muted);
   flex-shrink: 0;
 }
+
+/* Попередження про розбіжність у сумі замовлення */
+.ao-warn {
+  background: var(--c-amber-soft);
+  color: var(--c-amber);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
