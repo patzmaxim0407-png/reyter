@@ -131,6 +131,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Опублікований каталог. Адмінка редагує чернетку
+    // (catalog_categories / catalog_products), а сайт показує
+    // зафіксований знімок published/catalog. Запланована версія
+    // лежить у published/next і вмикається сама, щойно настає
+    // її час — порівнянням часу в браузері покупця, без сервера.
+    match /published/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Промокоди.
     // get — покупець може перевірити конкретний код, який знає;
     // list заборонено, тому вивантажити всі коди не вийде.

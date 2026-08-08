@@ -1858,3 +1858,23 @@
     height: 44px;
   }
 }
+
+/* Плашка попереднього перегляду чернетки (?preview=draft) */
+.draft-pill {
+  position: fixed;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 4000;
+  max-width: calc(100vw - 2rem);
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  background: var(--c-amber);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-align: center;
+  box-shadow: 0 10px 28px rgba(23, 27, 38, 0.28);
+  pointer-events: none;
+}

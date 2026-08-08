@@ -124,6 +124,36 @@
     }
   };
 
+  /* ---------- Опублікований каталог ----------
+     Адмінка працює з чернеткою (колекції catalog_*), а сайт
+     читає зафіксований знімок published/catalog. Запланована
+     версія лежить у published/next і набирає чинності сама,
+     щойно годинник покупця перейде за publishAt. */
+
+  R.fb.loadPublishedCatalog = async function () {
+    try {
+      const res = await Promise.all([
+        R.fb.db.collection('published').doc('next').get(),
+        R.fb.db.collection('published').doc('catalog').get()
+      ]);
+      const next = res[0].exists ? res[0].data() : null;
+      const cur = res[1].exists ? res[1].data() : null;
+
+      const due = next && Number(next.publishAt) <= Date.now();
+      const snap = due ? next : cur;
+      if (!snap || !Array.isArray(snap.products) || !snap.products.length) return null;
+
+      return {
+        categories: snap.categories || [],
+        products: snap.products,
+        // коли набере чинності запланована версія — для таймера
+        nextAt: !due && next && Number(next.publishAt) ? Number(next.publishAt) : null
+      };
+    } catch (e) {
+      return null;
+    }
+  };
+
   /* ---------- Каталог із бази (публічне читання) ---------- */
 
   R.fb.loadCatalog = async function () {

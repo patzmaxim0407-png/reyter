@@ -135,7 +135,7 @@
       await batch.commit();
       seeded = true;
       render();
-      toast('Каталог імпортовано в базу ✓ Тепер усі зміни зберігаються одразу', 'success');
+      toast('Каталог імпортовано в чернетку ✓ Опублікуйте, коли будете готові', 'success');
     } catch (err) {
       toast('Не вдалося імпортувати. Увійдіть акаунтом адміністратора і перевірте правила Firestore');
     }
@@ -175,29 +175,22 @@
     return { gone, added, renamed, moved, missing, extra, fileCats, fileProds, dbById };
   }
 
-  async function syncStructure() {
-    if (!fbOk()) return toast('Спершу увійдіть акаунтом адміністратора');
-    if (!seeded) return toast('Спершу імпортуйте каталог у базу');
+  /* Разова міграція: коли структура категорій у data.js змінилась
+     (реліз нового каталогу), приводимо до неї ЧЕРНЕТКУ — сайт
+     це не зачіпає, адмін переглядає результат і публікує сам.
+     Маркер у settings/migrations, щоб не ганяти щоразу. */
+  async function migrateStructure() {
+    if (!seeded) return;
+
+    const mig = await R.fb.db.collection('settings').doc('migrations').get()
+      .catch(() => null);
+    if (mig && mig.exists && mig.data().catalogStructV2) return;
 
     const plan = structurePlan();
-    const lines = [];
-    if (plan.added.length) lines.push('• додати категорії: ' + plan.added.map((c) => c.title).join(', '));
-    if (plan.renamed.length) lines.push('• перейменувати: ' + plan.renamed.map((c) => c.title).join(', '));
-    if (plan.gone.length) lines.push('• прибрати категорії: ' + plan.gone.map((c) => c.title).join(', '));
-    if (plan.moved.length) lines.push('• перекласти по категоріях товарів: ' + plan.moved.length);
-    if (plan.missing.length) lines.push('• створити товарів: ' + plan.missing.length);
-    if (plan.extra.length) lines.push('• товарів лишиться без змін (їх немає у файлі): ' + plan.extra.length);
+    const hasChanges = plan.added.length || plan.gone.length || plan.renamed.length ||
+      plan.moved.length || plan.missing.length;
 
-    if (!lines.length) return toast('База вже збігається з data.js — міняти нічого');
-
-    const ok = confirm(
-      'Привести структуру каталогу у базі до data.js?\n\n' + lines.join('\n') +
-      '\n\nЦіни, назви, фото й описи наявних товарів не змінюються.\n' +
-      'Складські залишки не чіпаються.'
-    );
-    if (!ok) return;
-
-    try {
+    if (hasChanges) {
       const batch = R.fb.db.batch();
 
       plan.fileCats.forEach((c, i) => {
@@ -211,10 +204,7 @@
       plan.fileProds.forEach((p) => {
         const db = plan.dbById[p.id];
         if (db) {
-          const patch = {
-            category: p.category,
-            hidden: !!p.hidden
-          };
+          const patch = { category: p.category, hidden: !!p.hidden };
           patch.categories = Array.isArray(p.categories) && p.categories.length
             ? p.categories
             : firebase.firestore.FieldValue.delete();
@@ -225,11 +215,12 @@
       });
 
       await batch.commit();
-      toast('Структуру оновлено ✓', 'success');
-      loadCatalog();
-    } catch (err) {
-      toast('Не вдалося оновити структуру — перевірте правила Firestore');
+      await loadCatalog();
+      toast('Категорії в чернетці оновлено за новою структурою — перегляньте і опублікуйте', 'success');
     }
+
+    await R.fb.db.collection('settings').doc('migrations')
+      .set({ catalogStructV2: true }, { merge: true });
   }
 
   /* ---------- Рендер ---------- */
@@ -324,6 +315,7 @@
   function render() {
     renderCats();
     renderList();
+    refreshPublishBadge();
   }
 
   /* ---------- Операції з категоріями ---------- */
@@ -829,7 +821,7 @@
 
       render();
       closeModal($('editorModal'));
-      toast(existing ? 'Товар оновлено — вже на сайті ✓' : 'Товар додано — вже на сайті ✓', 'success');
+      toast(existing ? 'Товар збережено в чернетку ✓' : 'Товар додано в чернетку ✓', 'success');
       editingId = null;
     } catch (e) {
       toast('Не вдалося зберегти. Увійдіть акаунтом адміністратора');
@@ -838,9 +830,14 @@
 
   /* ---------- data.js: завантаження та резервна копія ---------- */
 
-  function buildDataJs() {
+  function buildDataJs(snap) {
+    const src = snap || state;
     const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
-    const cats = state.categories.map((c) => ({ id: c.id, title: c.title, order: c.order }));
+    const cats = src.categories.map((c) => {
+      const out = { id: c.id, title: c.title, order: c.order };
+      if (c.titleEn) out.titleEn = c.titleEn;
+      return out;
+    });
     return (
       '/* ============================================================\n' +
       '   REYTER — резервна копія каталогу\n' +
@@ -850,7 +847,7 @@
       'window.REYTER = window.REYTER || {};\n\n' +
       'REYTER.config = ' + JSON.stringify(R.config, null, 2) + ';\n\n' +
       'REYTER.categories = ' + JSON.stringify(cats, null, 2) + ';\n\n' +
-      'REYTER.products = ' + JSON.stringify(state.products, null, 2) + ';\n'
+      'REYTER.products = ' + JSON.stringify(src.products, null, 2) + ';\n'
     );
   }
 
@@ -875,12 +872,266 @@
     return btoa(unescape(encodeURIComponent(str)));
   }
 
-  async function doPublish() {
-    const token = $('ghToken').value.trim();
-    if (!token) return setPublishStatus('err', 'Вставте GitHub-токен');
+  /* ============================================================
+     ПУБЛІКАЦІЯ
+     ------------------------------------------------------------
+     Чернетка (колекції catalog_*) → знімок published/catalog,
+     який читає сайт. Запланована версія лежить у published/next
+     і вмикається сама, щойно годинник покупця перейде publishAt.
+     ============================================================ */
 
-    if ($('ghRemember').checked) localStorage.setItem(KEY_TOKEN, token);
-    else localStorage.removeItem(KEY_TOKEN);
+  let published = null;      // чинна опублікована версія
+  let scheduledDoc = null;   // запланована (published/next)
+  let pubBusy = false;
+
+  function pubCol() {
+    return R.fb.db.collection('published');
+  }
+
+  /* Стабільний JSON: ключі відсортовані, undefined відкинуто —
+     інакше однакові дані з різних джерел «відрізняються» */
+  function stableStr(o) {
+    if (Array.isArray(o)) return '[' + o.map(stableStr).join(',') + ']';
+    if (o && typeof o === 'object') {
+      return '{' + Object.keys(o).sort()
+        .filter((k) => o[k] !== undefined)
+        .map((k) => JSON.stringify(k) + ':' + stableStr(o[k]))
+        .join(',') + '}';
+    }
+    return JSON.stringify(o === undefined ? null : o);
+  }
+
+  function snapshotDraft() {
+    return {
+      categories: JSON.parse(JSON.stringify(state.categories)),
+      products: JSON.parse(JSON.stringify(state.products))
+    };
+  }
+
+  function draftDiffers() {
+    if (!seeded || !state.products.length) return false;
+    if (!published) return true;
+    return stableStr({ c: state.categories, p: state.products }) !==
+           stableStr({ c: published.categories || [], p: published.products || [] });
+  }
+
+  function scheduledStale() {
+    if (!scheduledDoc) return false;
+    return stableStr({ c: state.categories, p: state.products }) !==
+           stableStr({ c: scheduledDoc.categories || [], p: scheduledDoc.products || [] });
+  }
+
+  function refreshPublishBadge() {
+    const differs = draftDiffers();
+    const badge = $('publishBadge');
+    if (badge) badge.hidden = !differs && !scheduledDoc;
+    const more = document.getElementById('abarMoreBtn');
+    if (more) more.classList.toggle('has-draft', differs || !!scheduledDoc);
+  }
+
+  async function loadPublished() {
+    if (!fbOk()) return;
+    try {
+      const res = await Promise.all([
+        pubCol().doc('catalog').get(),
+        pubCol().doc('next').get()
+      ]);
+      published = res[0].exists ? res[0].data() : null;
+      scheduledDoc = res[1].exists ? res[1].data() : null;
+    } catch (e) { /* правила ще не оновлені — працюємо по-старому */ }
+    refreshPublishBadge();
+  }
+
+  /* Прибирання при вході адміна:
+     1) запланована версія, чий час настав, стає чинною;
+     2) якщо публікацій ще не було — фіксуємо поточний стан,
+        щоб сайт показував рівно те саме, що й досі;
+     3) разова міграція структури категорій у чернетці. */
+  async function housekeeping() {
+    if (!fbOk() || !R.fb.user) return;
+    try {
+      if (scheduledDoc && Number(scheduledDoc.publishAt) <= Date.now()) {
+        const snap = {
+          categories: scheduledDoc.categories || [],
+          products: scheduledDoc.products || []
+        };
+        await pubCol().doc('catalog').set(Object.assign({}, snap, {
+          publishedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          publishedBy: scheduledDoc.scheduledBy || ''
+        }));
+        await pubCol().doc('next').delete();
+        published = snap;
+        scheduledDoc = null;
+        backupDataJs(snap);
+      }
+
+      if (!published && seeded && state.products.length) {
+        const snap = snapshotDraft();
+        await pubCol().doc('catalog').set(Object.assign({}, snap, {
+          publishedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          publishedBy: (R.fb.user && R.fb.user.email) || ''
+        }));
+        published = snap;
+      }
+
+      await migrateStructure();
+    } catch (e) { /* без прав чи правил — нічого не ламаємо */ }
+    refreshPublishBadge();
+  }
+
+  /* ---------- Діалог публікації ---------- */
+
+  function fmtWhen(ts) {
+    return new Date(Number(ts)).toLocaleString('uk-UA', {
+      day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
+    });
+  }
+
+  function toLocalInput(d) {
+    const p2 = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) +
+      'T' + p2(d.getHours()) + ':' + p2(d.getMinutes());
+  }
+
+  function fewNames(list) {
+    const names = list.slice(0, 3).map((x) => x.title || x.name || x.id);
+    return names.join(', ') + (list.length > 3 ? '…' : '');
+  }
+
+  function diffSummary() {
+    const pub = published || { categories: [], products: [] };
+    const pubP = {};
+    const pubC = {};
+    (pub.products || []).forEach((p) => { pubP[p.id] = p; });
+    (pub.categories || []).forEach((c) => { pubC[c.id] = c; });
+
+    const addedP = state.products.filter((p) => !pubP[p.id]);
+    const removedP = (pub.products || []).filter((p) => !state.products.some((x) => x.id === p.id));
+    const changedP = state.products.filter((p) => pubP[p.id] && stableStr(p) !== stableStr(pubP[p.id]));
+    const addedC = state.categories.filter((c) => !pubC[c.id]);
+    const removedC = (pub.categories || []).filter((c) => !state.categories.some((x) => x.id === c.id));
+    const changedC = state.categories.filter((c) => pubC[c.id] && stableStr(c) !== stableStr(pubC[c.id]));
+
+    const lines = [];
+    if (addedP.length) lines.push('нові товари — ' + addedP.length + ': ' + fewNames(addedP));
+    if (changedP.length) lines.push('змінені товари — ' + changedP.length + ': ' + fewNames(changedP));
+    if (removedP.length) lines.push('видалені товари — ' + removedP.length + ': ' + fewNames(removedP));
+    if (addedC.length) lines.push('нові категорії: ' + fewNames(addedC));
+    if (changedC.length) lines.push('змінені категорії: ' + fewNames(changedC));
+    if (removedC.length) lines.push('видалені категорії: ' + fewNames(removedC));
+    if (!lines.length) lines.push('зміни порядку або службових полів');
+    return lines;
+  }
+
+  function renderPublishDialog() {
+    const sum = $('pubSummary');
+    const differs = draftDiffers();
+
+    if (!published) {
+      sum.innerHTML = '<p class="a-pub__lead">Перша публікація: чернетка стане версією, яку бачать покупці.</p>';
+    } else if (!differs) {
+      sum.innerHTML = '<p class="a-pub__lead is-ok">✓ Сайт показує актуальну версію — неопублікованих змін немає.</p>';
+    } else {
+      sum.innerHTML =
+        '<p class="a-pub__lead">Неопубліковані зміни:</p>' +
+        '<ul class="a-pub__diff">' +
+          diffSummary().map((l) => '<li>' + esc(l) + '</li>').join('') +
+        '</ul>';
+    }
+
+    const box = $('pubSchedInfo');
+    if (scheduledDoc) {
+      box.hidden = false;
+      box.innerHTML =
+        '🕒 Заплановано на <b>' + esc(fmtWhen(scheduledDoc.publishAt)) + '</b>. ' +
+        'У цей момент сайт сам перейде на збережену версію.' +
+        (scheduledStale()
+          ? '<br><b>Чернетка змінилася після планування.</b> Заплануйте знову або опублікуйте зараз, щоб узяти свіжі зміни.'
+          : '') +
+        '<br><button class="a-linklike" id="pubCancelBtn" type="button">Скасувати заплановану публікацію</button>';
+    } else {
+      box.hidden = true;
+      box.innerHTML = '';
+    }
+
+    $('doPublishBtn').disabled = !differs && !scheduledDoc && !!published;
+    $('pubWhenBox').hidden = true;
+    $('pubScheduleBtn').textContent = 'Запланувати…';
+  }
+
+  /* ---------- Дії ---------- */
+
+  async function publishNow() {
+    if (pubBusy) return;
+    pubBusy = true;
+    setPublishStatus('wait', 'Публікуємо…');
+    try {
+      const snap = snapshotDraft();
+      await pubCol().doc('catalog').set(Object.assign({}, snap, {
+        publishedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        publishedBy: (R.fb.user && R.fb.user.email) || ''
+      }));
+      try { await pubCol().doc('next').delete(); } catch (e) { /* його могло не бути */ }
+      published = snap;
+      scheduledDoc = null;
+      renderPublishDialog();
+      refreshPublishBadge();
+      setPublishStatus('ok', 'Опубліковано ✓ Сайт уже показує нову версію');
+      toast('Опубліковано ✓', 'success');
+      backupDataJs(snap);
+    } catch (e) {
+      setPublishStatus('err', 'Не вдалося опублікувати. Перевірте правила Firestore — потрібен блок published');
+    }
+    pubBusy = false;
+  }
+
+  async function schedulePublish(ts) {
+    if (pubBusy) return;
+    pubBusy = true;
+    setPublishStatus('wait', 'Зберігаємо розклад…');
+    try {
+      const snap = snapshotDraft();
+      await pubCol().doc('next').set(Object.assign({}, snap, {
+        publishAt: ts,
+        scheduledAt: firebase.firestore.FieldValue.serverTimestamp(),
+        scheduledBy: (R.fb.user && R.fb.user.email) || ''
+      }));
+      scheduledDoc = Object.assign({}, snap, { publishAt: ts });
+      renderPublishDialog();
+      refreshPublishBadge();
+      setPublishStatus('ok', 'Заплановано на ' + fmtWhen(ts) +
+        ' ✓ Сайт перейде на нову версію сам — тримати адмінку відкритою не треба');
+      toast('Публікацію заплановано ✓', 'success');
+    } catch (e) {
+      setPublishStatus('err', 'Не вдалося запланувати. Перевірте правила Firestore — потрібен блок published');
+    }
+    pubBusy = false;
+  }
+
+  async function cancelSchedule() {
+    try {
+      await pubCol().doc('next').delete();
+      scheduledDoc = null;
+      renderPublishDialog();
+      refreshPublishBadge();
+      setPublishStatus('ok', 'Заплановану публікацію скасовано');
+    } catch (e) {
+      setPublishStatus('err', 'Не вдалося скасувати — спробуйте ще раз');
+    }
+  }
+
+  /* Резервний data.js у репозиторії: сайт показує його першим,
+     поки вантажиться база. Публікація від GitHub не залежить —
+     це фонове оновлення запасного джерела. */
+  async function backupDataJs(snap) {
+    const note = $('pubBackupStatus');
+    const fromField = $('ghToken') ? $('ghToken').value.trim() : '';
+    const token = fromField || ghToken();
+    if (!token) {
+      if (note) note.textContent = 'Резервний data.js не оновлено: не збережено GitHub-токен (поле вище).';
+      return;
+    }
+    localStorage.setItem(KEY_TOKEN, token);
 
     const api = 'https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + GH.path;
     const headers = {
@@ -889,14 +1140,16 @@
     };
 
     try {
-      setPublishStatus('wait', 'Оновлюємо резервну копію…');
-
+      if (note) note.textContent = 'Оновлюємо резервний data.js…';
       const getRes = await fetch(api + '?ref=' + GH.branch, { headers: headers });
       if (getRes.status === 401 || getRes.status === 403) {
-        return setPublishStatus('err', 'Токен не має доступу до репозиторію. Потрібен дозвіл Contents: Read and write.');
+        localStorage.removeItem(KEY_TOKEN);
+        if (note) note.textContent = 'Резервний data.js не оновлено: токен не має дозволу Contents: Read and write.';
+        return;
       }
       if (!getRes.ok) {
-        return setPublishStatus('err', 'Не вдалося прочитати файл із GitHub (код ' + getRes.status + ')');
+        if (note) note.textContent = 'Резервний data.js не оновлено (GitHub відповів ' + getRes.status + ').';
+        return;
       }
       const info = await getRes.json();
 
@@ -904,29 +1157,29 @@
         method: 'PUT',
         headers: headers,
         body: JSON.stringify({
-          message: 'Резервна копія каталогу з адмінки',
-          content: b64(buildDataJs()),
+          message: 'Публікація каталогу з адмінки',
+          content: b64(buildDataJs(snap)),
           sha: info.sha,
           branch: GH.branch
         })
       });
-
-      if (!putRes.ok) {
-        const err = await putRes.json().catch(() => ({}));
-        return setPublishStatus('err', 'Помилка: ' + (err.message || putRes.status));
+      if (note) {
+        note.textContent = putRes.ok
+          ? 'Резервний data.js оновлено ✓'
+          : 'Резервний data.js не оновлено (GitHub відповів ' + putRes.status + ').';
       }
-
-      setPublishStatus('ok', 'Резервну копію оновлено ✓');
-      toast('Резервну копію оновлено ✓', 'success');
     } catch (e) {
-      setPublishStatus('err', 'Немає звʼязку з GitHub. Перевірте інтернет.');
+      if (note) note.textContent = 'Резервний data.js не оновлено — немає звʼязку з GitHub.';
     }
   }
 
+
   /* ---------- Події ---------- */
 
+  let catalogReady = null;
+
   function init() {
-    loadCatalog();
+    catalogReady = loadCatalog();
 
     // Категорії
     $('catList').addEventListener('click', (e) => {
@@ -1031,9 +1284,6 @@
       });
     }
 
-    const syncBtn = $('syncStructBtn');
-    if (syncBtn) syncBtn.addEventListener('click', syncStructure);
-
     $('addProductBtn').addEventListener('click', () => {
       if (!state.categories.length) {
         toast('Спершу створіть категорію');
@@ -1067,12 +1317,52 @@
 
     // Експорт і резервна копія
     $('downloadBtn').addEventListener('click', downloadDataJs);
+
     $('publishBtn').addEventListener('click', () => {
       $('ghToken').value = localStorage.getItem(KEY_TOKEN) || '';
       $('publishStatus').hidden = true;
+      $('pubBackupStatus').textContent = '';
+      renderPublishDialog();
       openModal($('publishModal'));
     });
-    $('doPublishBtn').addEventListener('click', doPublish);
+
+    $('doPublishBtn').addEventListener('click', publishNow);
+
+    /* «Запланувати…» спершу відкриває вибір часу, другим кліком —
+       зберігає розклад */
+    $('pubScheduleBtn').addEventListener('click', () => {
+      const box = $('pubWhenBox');
+      if (box.hidden) {
+        box.hidden = false;
+        const d = new Date(Date.now() + 3600 * 1000);
+        d.setMinutes(0, 0, 0);
+        $('pubWhen').value = toLocalInput(d);
+        $('pubWhen').min = toLocalInput(new Date());
+        $('pubScheduleBtn').textContent = 'Запланувати';
+        $('pubWhen').focus();
+        return;
+      }
+      const val = $('pubWhen').value;
+      const ts = val ? new Date(val).getTime() : NaN;
+      if (!ts || isNaN(ts)) return setPublishStatus('err', 'Оберіть дату й час публікації');
+      if (ts < Date.now() + 60 * 1000) {
+        return setPublishStatus('err', 'Цей час уже минув — оберіть майбутній момент');
+      }
+      schedulePublish(ts);
+    });
+
+    $('publishModal').addEventListener('click', (e) => {
+      if (e.target.id === 'pubCancelBtn') cancelSchedule();
+    });
+
+    /* Опубліковану версію вантажимо після входу: прибирання
+       (просрочений розклад, перша публікація, міграція) вимагає
+       прав адміністратора */
+    document.addEventListener('auth:changed', () => {
+      if (R.fb && R.fb.user) {
+        Promise.resolve(catalogReady).then(loadPublished).then(housekeeping);
+      }
+    });
 
     // Закриття модалок
     document.addEventListener('click', (e) => {
