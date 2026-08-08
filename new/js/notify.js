@@ -1,12 +1,18 @@
 /* ============================================================
    REYTER — notify.js
    Сповіщення про нове замовлення:
-   • Telegram-повідомлення власнику (Bot API)
-   • Email-підтвердження покупцю з номером замовлення
-     (FormSubmit — безкоштовно, без лімітів; лист-копія
-     замовлення також приходить на пошту магазину)
-   Налаштування зберігаються у Firestore: settings/notify —
-   заповнюються в адмінці, розділ «Налаштування».
+   • Telegram-повідомлення магазину
+   • фірмовий лист-підтвердження покупцю
+   Обидва канали проходять через Cloudflare Worker: він тримає
+   у себе ключ Resend і токен Telegram-бота, тому з коду сайту
+   їх не прочитати. Резервні шляхи (FormSubmit для листа,
+   прямий Bot API для Telegram) вмикаються, лише якщо воркер
+   не налаштований або не відповів.
+
+   Налаштування у Firestore:
+     settings/public — адреса воркера й пошта магазину
+                       (читає браузер покупця, секретів немає)
+     settings/notify — те саме + службові поля, лише для адміна
    ============================================================ */
 
 (function () {
@@ -16,11 +22,17 @@
 
   let cached = null;
 
+  /* Покупцю потрібна лише публічна частина. settings/notify —
+     резерв для сайтів, де адмін ще не перезберіг налаштування
+     після оновлення (тоді settings/public ще не існує). */
   async function loadSettings(force) {
     if (cached && !force) return cached;
     if (!R.fb || !R.fb.enabled) return null;
     try {
-      const snap = await R.fb.db.collection('settings').doc('notify').get();
+      let snap = await R.fb.db.collection('settings').doc('public').get();
+      if (!snap.exists) {
+        snap = await R.fb.db.collection('settings').doc('notify').get();
+      }
       cached = snap.exists ? snap.data() : {};
       return cached;
     } catch (e) {
@@ -28,9 +40,63 @@
     }
   }
 
-  /* ---------- Telegram ----------
-     Отримувачів може бути кілька: особисті чати менеджерів
-     або спільна група — Chat ID перелічуються через кому. */
+  /* Повні налаштування — читає лише адмінка (правила бази
+     дозволяють settings/notify тільки адміністраторам) */
+  async function loadAdminSettings() {
+    if (!R.fb || !R.fb.enabled) return null;
+    try {
+      const snap = await R.fb.db.collection('settings').doc('notify').get();
+      return snap.exists ? snap.data() : {};
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /* ---------- Звернення до воркера ----------
+     Адреса могла бути збережена без https:// — інакше браузер
+     вважатиме її відносним шляхом на самому сайті */
+
+  R.normalizeUrl = function (u) {
+    const s = String(u || '').trim().replace(/\/+$/, '');
+    if (!s) return '';
+    return /^https?:\/\//i.test(s) ? s : 'https://' + s;
+  };
+
+  /* Ключ адміністратора воркера зберігається лише в браузері
+     адміна — у базу він не потрапляє */
+  const KEY_STORE = 'reyter:workerKey';
+
+  R.workerKey = function (value) {
+    try {
+      if (value === undefined) return localStorage.getItem(KEY_STORE) || '';
+      if (value) localStorage.setItem(KEY_STORE, value);
+      else localStorage.removeItem(KEY_STORE);
+      return value || '';
+    } catch (e) {
+      return '';
+    }
+  };
+
+  async function callWorker(settings, body) {
+    const url = R.normalizeUrl(settings && settings.workerUrl);
+    if (!url) return { ok: false, error: 'не вказано адресу Worker у налаштуваннях' };
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok && !data.error) data.error = 'воркер відповів кодом ' + res.status;
+      return data;
+    } catch (e) {
+      return { ok: false, error: 'не вдалося звʼязатися з воркером — перевірте адресу' };
+    }
+  }
+
+  /* ---------- Telegram напряму (резерв) ----------
+     Працює, поки токен ще лежить у settings/notify. Після
+     переносу токена у воркер цей шлях не використовується. */
 
   function chatIds(settings) {
     return String((settings && settings.tgChatId) || '')
@@ -57,7 +123,7 @@
     }
   }
 
-  async function sendTelegram(settings, text) {
+  async function sendTelegramDirect(settings, text) {
     const ids = chatIds(settings);
     if (!settings || !settings.tgToken || !ids.length) {
       return { ok: false, sent: 0, total: 0, description: 'Не заповнено токен або Chat ID' };
@@ -74,13 +140,14 @@
     };
   }
 
-  /* Знаходить усі чати, які писали боту (особисті та групи) */
-  async function detectChats(token) {
-    if (!token) return { ok: false, description: 'Спершу вставте токен бота' };
+  /* Хто писав боту — те саме, що вміє воркер, але з токеном
+     із бази. Потрібне лише під час переходу на воркер. */
+  async function detectChatsDirect(token) {
+    if (!token) return { ok: false, description: 'у воркері не задано TG_TOKEN' };
     try {
       const res = await fetch('https://api.telegram.org/bot' + token + '/getUpdates');
       const data = await res.json().catch(() => ({}));
-      if (!data.ok) return { ok: false, description: data.description || 'Невірний токен' };
+      if (!data.ok) return { ok: false, description: data.description || 'невірний токен бота' };
 
       const seen = {};
       (data.result || []).forEach((u) => {
@@ -98,55 +165,18 @@
       if (!chats.length) {
         return {
           ok: false,
-          description: 'Повідомлень не знайдено. Напишіть боту будь-що (або додайте його в групу і напишіть там) і спробуйте ще раз'
+          description: 'повідомлень не знайдено. Напишіть боту будь-що (або додайте його в групу і напишіть там) і спробуйте ще раз'
         };
       }
       return { ok: true, chats: chats };
     } catch (e) {
-      return { ok: false, description: 'Немає звʼязку з Telegram' };
+      return { ok: false, description: 'немає звʼязку з Telegram' };
     }
   }
 
-  /* ---------- Фірмовий лист через Cloudflare Worker + Resend ----------
-     Воркер тримає ключ Resend у себе і сам збирає лист із даних
-     замовлення. Налаштування — поле «Адреса Worker» в адмінці.
-     Розгортання описане у new/worker/README.md */
-
-  /* Адреса могла бути збережена без https:// — інакше браузер
-     вважатиме її відносним шляхом на самому сайті */
-  R.normalizeUrl = function (u) {
-    const s = String(u || '').trim().replace(/\/+$/, '');
-    if (!s) return '';
-    return /^https?:\/\//i.test(s) ? s : 'https://' + s;
-  };
-
-  async function sendViaWorker(settings, params) {
-    try {
-      const res = await fetch(R.normalizeUrl(settings.workerUrl), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: params.to_email,
-          name: params.to_name || '',
-          orderNum: params.order_num,
-          items: params.items_list || [],
-          total: params.order_total,
-          delivery: params.order_delivery || '',
-          lang: R.lang ? R.lang() : 'uk'
-        })
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.ok) return { ok: true, via: 'worker' };
-      return { ok: false, description: data.error || 'воркер відповів кодом ' + res.status };
-    } catch (e) {
-      return { ok: false, description: 'не вдалося звʼязатися з воркером — перевірте адресу' };
-    }
-  }
-
-  /* ---------- Email через FormSubmit ----------
+  /* ---------- Email через FormSubmit (резерв) ----------
      Простий текстовий лист покупцю (автовідповідь) і копія
-     замовлення на пошту магазину. Резервний варіант. */
+     замовлення на пошту магазину. */
 
   /* Лист покупцю — мовою, якою він користувався на сайті */
   function customerLetter(params) {
@@ -177,21 +207,9 @@
     );
   }
 
-  async function sendEmail(settings, params) {
-    if (!params.to_email) {
-      return { ok: false, description: 'Покупець не вказав email' };
-    }
-
-    // Фірмовий лист через воркер; FormSubmit — резерв
-    let workerError = '';
-    if (settings && settings.workerUrl) {
-      const res = await sendViaWorker(settings, params);
-      if (res.ok || !settings.fsEmail) return res;
-      workerError = res.description;
-    }
-
+  async function sendFormSubmit(settings, params) {
     if (!settings || !settings.fsEmail) {
-      return { ok: false, description: 'Не налаштовано жодного відправника листів' };
+      return { ok: false, description: 'Не налаштовано резервну пошту (FormSubmit)' };
     }
     try {
       const res = await fetch('https://formsubmit.co/ajax/' + encodeURIComponent(settings.fsEmail), {
@@ -216,7 +234,6 @@
       return {
         ok: ok,
         via: ok ? 'formsubmit' : '',
-        workerError: workerError,
         needsActivation: /activat/i.test(msg),
         description: ok ? '' : (msg || 'FormSubmit відхилив запит')
       };
@@ -225,14 +242,17 @@
     }
   }
 
-  /* Дані замовлення → параметри листа (для обох відправників) */
+  /* ---------- Дані замовлення → тіло запиту до воркера ---------- */
+
   function buildParams(order) {
     const c = order.customer || {};
-    const money = (n) => (R.uah ? R.uah(n) : R.fmt(n) + ' грн');
+    const money = (n) => (R.uah ? R.uah(n) : R.fmt ? R.fmt(n) + ' грн' : n + ' грн');
+    const discount = Number(order.discount) || 0;
 
     return {
-      to_email: c.email,
+      to_email: c.email || '',
       to_name: c.name || '',
+      to_phone: c.phone || '',
       order_num: order.num,
       order_items: (order.items || [])
         .map((i) => '• ' + i.name + (i.size ? ' (' + i.size + ')' : '') + ' × ' + i.qty + ' — ' + money(i.price * i.qty))
@@ -244,8 +264,99 @@
         sum: money(i.price * i.qty)
       })),
       order_total: money(order.total),
+      order_discount: discount ? money(discount) : '',
+      order_promo: order.promoCode || '',
+      order_comment: c.comment || '',
+      order_source: order.source || 'Сайт',
       order_delivery: [c.carrier, c.city, c.branch].filter(Boolean).join(', ')
     };
+  }
+
+  function workerOrderBody(params, silent) {
+    return {
+      type: 'order',
+      silent: !!silent,
+      to: params.to_email,
+      name: params.to_name,
+      phone: params.to_phone,
+      orderNum: params.order_num,
+      items: params.items_list || [],
+      total: params.order_total,
+      discount: params.order_discount,
+      promoCode: params.order_promo,
+      delivery: params.order_delivery,
+      comment: params.order_comment,
+      source: params.order_source,
+      lang: R.lang ? R.lang() : 'uk'
+    };
+  }
+
+  /* Старий воркер (до переносу Telegram) відповідав {ok, id} —
+     це стосувалось лише листа */
+  function splitWorkerResult(res) {
+    return {
+      email: res.email || { ok: !!res.ok, error: res.error || '' },
+      telegram: res.telegram || { ok: false, sent: 0, total: 0, error: 'воркер не вміє надсилати в Telegram — оновіть його код' }
+    };
+  }
+
+  /* Той самий вигляд повідомлення, що й у воркері — на випадок,
+     коли доводиться надсилати напряму з браузера */
+  function directText(params) {
+    const L = ['🛍 НОВЕ ЗАМОВЛЕННЯ №' + params.order_num];
+    if (params.order_source) L.push('Звідки: ' + params.order_source);
+    L.push('');
+
+    if (params.to_name) L.push('👤 ' + params.to_name);
+    if (params.to_phone) L.push('📞 ' + params.to_phone);
+    if (params.to_email) L.push('✉️ ' + params.to_email);
+    if (params.order_delivery) L.push('📦 ' + params.order_delivery);
+
+    L.push('', params.order_items, '');
+    if (params.order_discount) {
+      L.push('Знижка' + (params.order_promo ? ' (' + params.order_promo + ')' : '') +
+        ': −' + params.order_discount);
+    }
+    L.push('💰 Разом: ' + params.order_total);
+    if (params.order_comment) L.push('', '💬 ' + params.order_comment);
+
+    return L.join('\n');
+  }
+
+  /* ---------- Замовлення: обидва канали ---------- */
+
+  /* silent — замовлення, яке адмін завів вручну: він і так про
+     нього знає, тож у Telegram не шумимо, лише лист покупцю */
+  async function sendOrder(settings, params, silent) {
+    const out = {
+      email: { ok: false, description: params.to_email ? '' : 'Покупець не вказав email' },
+      telegram: { ok: false, skipped: !!silent, description: '' }
+    };
+
+    if (settings && settings.workerUrl) {
+      const res = splitWorkerResult(await callWorker(settings, workerOrderBody(params, silent)));
+
+      out.email = { ok: !!res.email.ok, via: res.email.ok ? 'worker' : '', description: res.email.error || '' };
+      out.telegram = {
+        ok: !!res.telegram.ok, via: res.telegram.ok ? 'worker' : '',
+        sent: res.telegram.sent || 0, total: res.telegram.total || 0,
+        description: res.telegram.error || ''
+      };
+    }
+
+    // Резерв: лист простим текстом
+    if (!out.email.ok && params.to_email && settings && settings.fsEmail) {
+      const fs = await sendFormSubmit(settings, params);
+      out.email = Object.assign({ workerError: out.email.description }, fs);
+    }
+
+    // Резерв: Telegram напряму, поки токен ще в базі
+    if (!silent && !out.telegram.ok && settings && settings.tgToken) {
+      const tg = await sendTelegramDirect(settings, directText(params));
+      out.telegram = Object.assign({ via: tg.ok ? 'direct' : '', workerError: out.telegram.description }, tg);
+    }
+
+    return out;
   }
 
   /* ---------- Лист із персональним промокодом ---------- */
@@ -254,59 +365,77 @@
     if (!settings || !settings.workerUrl) {
       return { ok: false, description: 'Не налаштовано Worker для листів (Налаштування → Фірмовий лист)' };
     }
-    try {
-      const res = await fetch(R.normalizeUrl(settings.workerUrl), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.assign({ type: 'promo', lang: 'uk' }, data))
-      });
-      const out = await res.json().catch(() => ({}));
-      if (res.ok && out.ok) return { ok: true };
-      return { ok: false, description: out.error || 'воркер відповів кодом ' + res.status };
-    } catch (e) {
-      return { ok: false, description: 'не вдалося звʼязатися з воркером' };
-    }
+    const res = await callWorker(settings, Object.assign({ type: 'promo', lang: 'uk' }, data));
+    return res.ok ? { ok: true } : { ok: false, description: res.error || 'воркер не надіслав лист' };
   }
 
   /* ---------- Публічний API ---------- */
 
   R.notify = {
     load: loadSettings,
-    detectChats: detectChats,
-    sendPromoLetter: (data) => loadSettings().then((s) => sendPromoLetter(s, data)),
+    loadAdmin: loadAdminSettings,
+    sendPromoLetter: (data) => loadSettings(true).then((s) => sendPromoLetter(s, data)),
+
+    /* Стан воркера: чи задані ключі Resend і Telegram */
+    async workerStatus(settings) {
+      const res = await callWorker(settings, { type: 'status', key: R.workerKey() });
+      return res.ok ? res : { ok: false, description: res.error || 'воркер не відповів' };
+    },
+
+    /* Хто писав боту — щоб вписати Chat ID у змінну TG_CHAT.
+       Поки токен ще в базі, працює й без оновленого воркера. */
+    async detectChats(settings) {
+      const res = await callWorker(settings, { type: 'tg-detect', key: R.workerKey() });
+      if (res.ok) return res;
+      if (settings && settings.tgToken) {
+        const direct = await detectChatsDirect(settings.tgToken);
+        if (direct.ok) return direct;
+      }
+      return { ok: false, description: res.error || 'не вдалося знайти чати' };
+    },
 
     /* Викликається після оформлення замовлення; помилки не блокують покупку */
-    async orderPlaced(order) {
+    async orderPlaced(order, opts) {
       const settings = await loadSettings();
-      if (!settings) return;
-
-      const c = order.customer || {};
-
-      sendTelegram(
-        settings,
-        '🛍 НОВЕ ЗАМОВЛЕННЯ №' + order.num + '\n\n' + order.message
-      );
-
-      if (c.email) {
-        sendEmail(settings, buildParams(order));
-      }
+      if (!settings) return null;
+      return sendOrder(settings, buildParams(order), opts && opts.silent);
     },
 
     /* Тестові виклики для адмінки */
     async testTelegram(settings) {
-      return sendTelegram(settings, '✅ Тест: Telegram-сповіщення REYTER налаштовано правильно!');
+      const res = await callWorker(settings, { type: 'tg-test', key: R.workerKey() });
+      if (res.sent !== undefined) {
+        return { ok: !!res.ok, via: 'worker', sent: res.sent, total: res.total, description: res.error || '' };
+      }
+      // воркер старий або не налаштований — пробуємо напряму
+      const direct = await sendTelegramDirect(settings, '✅ Тест: Telegram-сповіщення REYTER налаштовано правильно!');
+      return Object.assign({ via: 'direct', workerError: res.error || '' }, direct);
     },
 
     async testEmail(settings, toEmail) {
-      return sendEmail(settings, {
+      const params = {
         to_email: toEmail,
         to_name: 'Тест',
+        to_phone: '+380000000000',
         order_num: 'R-TEST-000',
         order_items: '• Бріфи classic (M) × 1 — 550 грн',
         items_list: [{ name: 'Бріфи classic', size: 'M', qty: 1, sum: '550 грн' }],
         order_total: '550 грн',
+        order_discount: '',
+        order_promo: '',
+        order_comment: 'Це тестове замовлення — реагувати не потрібно',
+        order_source: 'Тест',
         order_delivery: 'Нова Пошта, Київ, Відділення №12'
-      });
+      };
+
+      if (settings && settings.workerUrl) {
+        const res = splitWorkerResult(await callWorker(settings, workerOrderBody(params, true)));
+        if (res.email.ok) return { ok: true, via: 'worker' };
+        if (!settings.fsEmail) return { ok: false, description: res.email.error || 'воркер не надіслав лист' };
+        const fs = await sendFormSubmit(settings, params);
+        return Object.assign({ workerError: res.email.error }, fs);
+      }
+      return sendFormSubmit(settings, params);
     },
 
     clearCache() {

@@ -156,12 +156,20 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // Налаштування сповіщень (Telegram / Email).
-    // Читання публічне — сповіщення надсилає браузер покупця
-    // під час оформлення замовлення.
-    match /settings/{docId} {
+    // Налаштування.
+    // settings/public — адреса Cloudflare Worker і пошта магазину.
+    // Браузер покупця має це прочитати, щоб надіслати замовлення,
+    // але секретів тут немає: і ключ Resend, і токен Telegram-бота
+    // лежать у змінних самого воркера.
+    match /settings/public {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // Решта налаштувань (у т.ч. старий токен бота, якщо він ще
+    // не прибраний) — лише для адміністраторів.
+    match /settings/{docId} {
+      allow read, write: if isAdmin();
     }
   }
 }

@@ -1952,7 +1952,8 @@
       await batch.commit();
 
       if ($id('noNotify').checked && customer.email) {
-        R.notify.orderPlaced(order);
+        // Замовлення завів адмін — сповіщати самого себе в Telegram зайве
+        R.notify.orderPlaced(order, { silent: true });
       }
 
       noModal().hidden = true;
@@ -2860,13 +2861,23 @@
     }
   }
 
+  /* Токен Telegram більше не редагується тут — він живе у
+     змінних воркера. Старе значення з бази лише показуємо,
+     щоб було що перенести, і даємо кнопку його прибрати. */
+  let legacyTg = null;
+
   function settingsFromForm() {
     return {
-      tgToken: $id('stTgToken').value.trim(),
-      tgChatId: $id('stTgChat').value.trim(),
       workerUrl: R.normalizeUrl($id('stWorkerUrl').value),
       fsEmail: $id('stFsEmail').value.trim()
     };
+  }
+
+  /* Для перевірок додаємо старі значення з бази — щоб кнопки
+     працювали і до переносу токена у воркер. У Firestore таке
+     не пишемо: інакше токен потрапив би у публічний документ. */
+  function settingsForTest() {
+    return Object.assign(settingsFromForm(), legacyTg || {});
   }
 
   function setSettingsStatus(cls, text) {
@@ -2887,23 +2898,125 @@
     });
   }
 
+  /* Залишки старого способу: токен у базі. Показуємо, щоб адмін
+     переніс значення у Cloudflare, і одразу даємо його прибрати. */
+  function renderLegacyTg() {
+    const box = $id('tgLegacy');
+    if (!box) return;
+    const has = legacyTg && (legacyTg.tgToken || legacyTg.tgChatId);
+    box.hidden = !has;
+    if (!has) return;
+
+    $id('tgLegacyVals').innerHTML =
+      (legacyTg.tgToken
+        ? '<div><span>TG_TOKEN</span><code>' + esc(legacyTg.tgToken) + '</code>' +
+          '<button data-copy-legacy="' + esc(legacyTg.tgToken) + '" type="button">Копіювати</button></div>'
+        : '') +
+      (legacyTg.tgChatId
+        ? '<div><span>TG_CHAT</span><code>' + esc(legacyTg.tgChatId) + '</code>' +
+          '<button data-copy-legacy="' + esc(legacyTg.tgChatId) + '" type="button">Копіювати</button></div>'
+        : '');
+  }
+
+  async function wipeLegacyTg() {
+    if (!confirm('Прибрати токен і Chat ID із бази?\n\nПеред цим переконайтесь, що тестове ' +
+      'повідомлення через воркер уже приходить — інакше сповіщення перестануть надходити.')) return;
+    try {
+      await R.fb.db.collection('settings').doc('notify').update({
+        tgToken: firebase.firestore.FieldValue.delete(),
+        tgChatId: firebase.firestore.FieldValue.delete()
+      });
+      legacyTg = null;
+      renderLegacyTg();
+      R.notify.clearCache();
+      setSettingsStatus('ok', 'Токен прибрано з бази ✓ Тепер він є лише у воркері');
+    } catch (e) {
+      setSettingsStatus('err', 'Не вдалося прибрати токен — спробуйте ще раз');
+    }
+  }
+
+  /* Що саме налаштовано у воркері — без цього легко здогадуватись,
+     чому лист або повідомлення не дійшли */
+  async function checkWorker(quiet) {
+    const box = $id('workerStatus');
+    const url = R.normalizeUrl($id('stWorkerUrl').value);
+    if (!url) {
+      box.hidden = true;
+      if (!quiet) setSettingsStatus('err', 'Спершу вкажіть адресу Worker');
+      return;
+    }
+
+    box.hidden = false;
+    box.className = 'a-wstatus is-wait';
+    box.textContent = 'Питаємо воркер…';
+
+    const res = await R.notify.workerStatus({ workerUrl: url });
+    if (!res.ok) {
+      box.className = 'a-wstatus is-err';
+      box.textContent = 'Воркер не відповів: ' + (res.description || 'невідома помилка');
+      return;
+    }
+
+    /* state: 'on' | 'off' | 'skip' — «skip» для того, що не задане,
+       але й не обовʼязкове: червоний хрестик там лише лякає */
+    const line = (state, label, extra) =>
+      '<div class="is-' + state + '">' +
+      (state === 'on' ? '✓' : state === 'off' ? '✕' : '•') + ' ' +
+      esc(label) + (extra ? ' <span>' + esc(extra) + '</span>' : '') + '</div>';
+
+    box.className = 'a-wstatus ' + (res.resend && res.telegram && res.chats ? 'is-ok' : 'is-warn');
+    box.innerHTML =
+      line(res.resend ? 'on' : 'off', 'Resend (листи покупцям)',
+        res.mailFrom || 'RESEND_KEY не задано') +
+      line(res.telegram && res.chats > 0 ? 'on' : 'off', 'Telegram (сповіщення вам)',
+        !res.telegram ? 'TG_TOKEN не задано'
+          : !res.chats ? 'TG_CHAT не задано'
+          : 'отримувачів: ' + res.chats) +
+      line(res.adminKey ? 'on' : 'skip', 'ADMIN_KEY — службові кнопки під захистом',
+        res.adminKey ? '' : 'не заданий (необовʼязково)');
+  }
+
   async function openSettings() {
     $id('settingsModal').hidden = false;
     document.body.style.overflow = 'hidden';
     $id('settingsStatus').hidden = true;
+    $id('workerStatus').hidden = true;
+    $id('tgChatsBox').hidden = true;
     showSettingsTab('notify');
     loadAdmins();
 
-    const s = (await R.notify.load(true)) || {};
-    $id('stTgToken').value = s.tgToken || '';
-    $id('stTgChat').value = s.tgChatId || '';
+    const s = (await R.notify.loadAdmin()) || {};
     $id('stWorkerUrl').value = s.workerUrl || '';
     $id('stFsEmail').value = s.fsEmail || '';
+    $id('stWorkerKey').value = R.workerKey();
+
+    legacyTg = (s.tgToken || s.tgChatId) ? { tgToken: s.tgToken || '', tgChatId: s.tgChatId || '' } : null;
+    renderLegacyTg();
+
+    // Публічну копію створюємо самі: інакше сайт, де правила вже
+    // оновлені, а «Зберегти» ще не натискали, лишиться без адреси
+    // воркера — і замовлення прийдуть без листа й сповіщення
+    if (s.workerUrl || s.fsEmail) {
+      R.fb.db.collection('settings').doc('public').set({
+        workerUrl: s.workerUrl || '',
+        fsEmail: s.fsEmail || ''
+      }, { merge: true }).catch(() => { /* немає прав — покаже під час збереження */ });
+    }
+
+    if (s.workerUrl) checkWorker(true);
   }
 
   async function saveSettings() {
+    const data = settingsFromForm();
+    R.workerKey($id('stWorkerKey').value.trim());
     try {
-      await R.fb.db.collection('settings').doc('notify').set(settingsFromForm(), { merge: true });
+      // Публічну копію читає браузер покупця: там лише адреса
+      // воркера й пошта магазину, жодних ключів
+      const batch = R.fb.db.batch();
+      batch.set(R.fb.db.collection('settings').doc('notify'), data, { merge: true });
+      batch.set(R.fb.db.collection('settings').doc('public'), data, { merge: true });
+      await batch.commit();
+
       R.notify.clearCache();
       setSettingsStatus('ok', 'Налаштування збережено ✓');
       toast('Налаштування збережено ✓', 'success');
@@ -2915,19 +3028,34 @@
   /* Пояснення типових помилок Telegram українською */
   function tgErrorHint(description) {
     const d = String(description || '').toLowerCase();
+    if (d.includes('tg_token')) {
+      return 'У воркері немає змінної TG_TOKEN: Cloudflare → ваш воркер → Settings → ' +
+        'Variables and Secrets → Add → тип Secret → потім обовʼязково Deploy';
+    }
+    if (d.includes('tg_chat')) {
+      return 'У воркері немає змінної TG_CHAT. Натисніть «Показати Chat ID», ' +
+        'скопіюйте значення у цю змінну і натисніть Deploy';
+    }
+    if (d.includes('admin_key')) {
+      return 'Невірний ключ адміністратора — впишіть те саме значення, що у змінній ADMIN_KEY воркера';
+    }
+    if (d.includes('email отримувача') || d.includes('порожнє замовлення')) {
+      return 'Код воркера застарілий — замініть його вмістом new/worker/worker.js і натисніть Deploy';
+    }
+    if (d.includes('воркер')) return description;
     if (d.includes("bots can't send messages to bots") || d.includes('bot can')) {
-      return 'Ви вказали ID бота замість свого. Натисніть «Визначити» — і Chat ID підставиться сам';
+      return 'У TG_CHAT вказано ID бота замість вашого. Натисніть «Показати Chat ID» — там правильні значення';
     }
     if (d.includes('chat not found')) {
       return 'Чат не знайдено: напишіть своєму боту будь-що (натисніть Start) і спробуйте ще раз';
     }
     if (d.includes('unauthorized')) {
-      return 'Невірний токен бота — перевірте його в @BotFather';
+      return 'Невірний токен бота — перевірте значення TG_TOKEN у воркері (видає @BotFather)';
     }
     if (d.includes('blocked')) {
       return 'Бот заблокований у вашому Telegram — розблокуйте його';
     }
-    return description || 'Перевірте токен і Chat ID';
+    return description || 'Перевірте змінні TG_TOKEN і TG_CHAT у воркері';
   }
 
   /* ============================================================
@@ -3008,6 +3136,12 @@
         showSettingsTab(tabBtn.dataset.setTab);
         return;
       }
+      const cp = e.target.closest('[data-copy-legacy]');
+      if (cp) {
+        copyText(cp.dataset.copyLegacy);
+        toast('Скопійовано ✓', 'success');
+        return;
+      }
       const rm = e.target.closest('[data-rmadmin]');
       if (rm) {
         const email = rm.dataset.rmadmin;
@@ -3030,41 +3164,53 @@
       }
     });
 
+    $id('workerCheckBtn').addEventListener('click', () => {
+      R.workerKey($id('stWorkerKey').value.trim());
+      checkWorker(false);
+    });
+
+    $id('tgWipeBtn').addEventListener('click', wipeLegacyTg);
+
     $id('tgDetectBtn').addEventListener('click', async () => {
-      setSettingsStatus('wait', 'Шукаємо чати…');
-      const res = await R.notify.detectChats($id('stTgToken').value.trim());
+      const box = $id('tgChatsBox');
+      R.workerKey($id('stWorkerKey').value.trim());
+
+      box.hidden = false;
+      box.className = 'a-wstatus is-wait';
+      box.textContent = 'Питаємо Telegram, хто писав боту…';
+
+      const res = await R.notify.detectChats(settingsForTest());
       if (!res.ok) {
-        setSettingsStatus('err', res.description);
+        box.className = 'a-wstatus is-err';
+        box.textContent = tgErrorHint(res.description);
         return;
       }
 
-      // Додаємо знайдені чати до вже вписаних, без дублікатів
-      const field = $id('stTgChat');
-      const existing = field.value.split(/[,;\s]+/).map((s) => s.trim()).filter(Boolean);
-      const added = [];
-      res.chats.forEach((c) => {
-        if (!existing.includes(c.id)) {
-          existing.push(c.id);
-          added.push((c.isGroup ? 'група ' : '') + (c.name || c.id));
-        }
-      });
-      field.value = existing.join(', ');
-
-      setSettingsStatus('ok', added.length
-        ? 'Додано: ' + added.join(', ') + ' ✓ Не забудьте зберегти'
-        : 'Нових чатів не знайдено — усі вже у списку');
+      const ids = res.chats.map((c) => c.id).join(', ');
+      box.className = 'a-wstatus is-ok';
+      box.innerHTML =
+        '<p>Впишіть це у змінну <code>TG_CHAT</code> вашого воркера й натисніть <b>Deploy</b>:</p>' +
+        '<div class="a-legacy"><div><code>' + esc(ids) + '</code>' +
+          '<button data-copy-legacy="' + esc(ids) + '" type="button">Копіювати</button></div></div>' +
+        '<ul>' + res.chats.map((c) =>
+          '<li>' + esc(c.id) + ' — ' + esc(c.name || 'без назви') +
+          (c.isGroup ? ' <b>(група)</b>' : '') + '</li>').join('') + '</ul>';
     });
 
     $id('tgTestBtn').addEventListener('click', async () => {
+      R.workerKey($id('stWorkerKey').value.trim());
       setSettingsStatus('wait', 'Надсилаємо тест у Telegram…');
-      const res = await R.notify.testTelegram(settingsFromForm());
-      if (res.sent === res.total && res.sent > 0) {
-        setSettingsStatus('ok', 'Надіслано отримувачам: ' + res.sent + ' ✓ Перевірте Telegram');
+
+      const res = await R.notify.testTelegram(settingsForTest());
+      const where = res.via === 'direct' ? ' (напряму з браузера — токен ще в базі)' : '';
+
+      if (res.sent > 0 && res.sent === res.total) {
+        setSettingsStatus('ok', 'Надіслано отримувачам: ' + res.sent + where + ' ✓ Перевірте Telegram');
       } else if (res.sent > 0) {
         setSettingsStatus('err', 'Надіслано ' + res.sent + ' із ' + res.total +
           '. Не вдалося: ' + tgErrorHint(res.description));
       } else {
-        setSettingsStatus('err', tgErrorHint(res.description));
+        setSettingsStatus('err', tgErrorHint(res.workerError || res.description));
       }
     });
 
@@ -3075,7 +3221,7 @@
         return;
       }
       setSettingsStatus('wait', 'Надсилаємо тестовий лист…');
-      const res = await R.notify.testEmail(settingsFromForm(), to);
+      const res = await R.notify.testEmail(settingsForTest(), to);
       if (res.ok && res.via === 'worker') {
         setSettingsStatus('ok', 'Фірмовий лист надіслано через Worker ✓ Перевірте пошту (і папку Спам)');
       } else if (res.ok && res.workerError) {

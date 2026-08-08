@@ -1,17 +1,22 @@
 /* ============================================================
-   REYTER — Cloudflare Worker для листів клієнтам (Resend)
+   REYTER — Cloudflare Worker: листи покупцям (Resend)
+   та сповіщення магазину (Telegram)
    ------------------------------------------------------------
    Навіщо: Resend не приймає запити напряму з браузера (немає
-   CORS), а ключ у коді сайту міг би прочитати будь-хто. Цей
-   воркер тримає ключ у себе і сам збирає лист із даних
-   замовлення — тому надіслати через нього щось стороннє
-   неможливо.
+   CORS), а ключ Resend і токен Telegram-бота в коді сайту міг
+   би прочитати будь-хто. Воркер тримає їх у себе і сам збирає
+   і лист, і повідомлення з даних замовлення — тому надіслати
+   через нього щось стороннє неможливо.
 
    Як розгорнути — див. README.md у цій же папці.
-   Змінні оточення (Settings → Variables):
+   Змінні оточення (Settings → Variables and Secrets):
      RESEND_KEY  — ключ Resend (Secret)
      MAIL_FROM   — відправник, напр. REYTER <orders@reyter.men>
      MAIL_BCC    — (необовʼязково) пошта магазину для копії
+     TG_TOKEN    — токен Telegram-бота від @BotFather (Secret)
+     TG_CHAT     — Chat ID отримувачів, кілька — через кому
+     ADMIN_KEY   — (необовʼязково) пароль для службових запитів
+                   з адмінки: перевірка стану, пошук чатів, тест
      ALLOW_ORIGIN— (необовʼязково) домен сайту, за замовчуванням
                    https://reyter.men
    ============================================================ */
@@ -19,6 +24,7 @@
 const BLUE = '#014AAD';
 const INK = '#062B5C';
 const LOGO = 'https://reyter.men/assets/images/Logo1.png';
+const TG_LIMIT = 3900; // Telegram обриває повідомлення на 4096
 
 function esc(s) {
   return String(s == null ? '' : s)
@@ -187,6 +193,169 @@ function promoHTML(d) {
   );
 }
 
+/* ============================================================
+   TELEGRAM
+   Текст повідомлення воркер збирає сам із полів замовлення —
+   довільний текст ззовні надіслати через нього не вийде.
+   ============================================================ */
+
+function tgChats(env) {
+  return String(env.TG_CHAT || '')
+    .split(/[,;\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function orderText(d) {
+  const L = [];
+
+  L.push('🛍 НОВЕ ЗАМОВЛЕННЯ №' + clip(d.orderNum, 40));
+  if (d.source) L.push('Звідки: ' + clip(d.source, 40));
+  L.push('');
+
+  if (d.name) L.push('👤 ' + clip(d.name, 80));
+  if (d.phone) L.push('📞 ' + clip(d.phone, 40));
+  if (d.to) L.push('✉️ ' + clip(d.to, 120));
+  if (d.delivery) L.push('📦 ' + clip(d.delivery, 200));
+
+  L.push('');
+  (d.items || []).slice(0, 50).forEach((i) => {
+    L.push('• ' + clip(i.name, 120) +
+      (i.size ? ' (' + clip(i.size, 20) + ')' : '') +
+      ' × ' + (Number(i.qty) || 1) +
+      ' — ' + clip(i.sum, 40));
+  });
+
+  L.push('');
+  if (d.discount) {
+    L.push('Знижка' + (d.promoCode ? ' (' + clip(d.promoCode, 30) + ')' : '') +
+      ': −' + clip(d.discount, 30));
+  }
+  L.push('💰 Разом: ' + clip(d.total, 40));
+
+  if (d.comment) L.push('', '💬 ' + clip(d.comment, 500));
+
+  const text = L.join('\n');
+  return text.length > TG_LIMIT ? text.slice(0, TG_LIMIT) + '\n…' : text;
+}
+
+async function tgSendOne(token, chatId, text) {
+  try {
+    const res = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: text, disable_web_page_preview: true })
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: !!data.ok, chatId: chatId, error: data.description || '' };
+  } catch (e) {
+    return { ok: false, chatId: chatId, error: 'немає звʼязку з Telegram' };
+  }
+}
+
+async function tgSend(env, text) {
+  const ids = tgChats(env);
+  if (!env.TG_TOKEN || !ids.length) {
+    return {
+      ok: false, sent: 0, total: 0,
+      error: 'у воркері не задано ' + (!env.TG_TOKEN ? 'TG_TOKEN' : 'TG_CHAT') +
+        ' (Settings → Variables and Secrets → Add → потім Deploy)'
+    };
+  }
+
+  const results = await Promise.all(ids.map((id) => tgSendOne(env.TG_TOKEN, id, text)));
+  const failed = results.filter((r) => !r.ok);
+
+  return {
+    ok: failed.length < results.length, // хоч комусь дійшло
+    sent: results.length - failed.length,
+    total: results.length,
+    error: failed.map((f) => f.chatId + ' — ' + f.error).join('; ')
+  };
+}
+
+/* Хто писав боту — щоб адмін дізнався Chat ID для змінної TG_CHAT */
+async function tgDetect(env) {
+  if (!env.TG_TOKEN) {
+    return { ok: false, error: 'у воркері не задано TG_TOKEN' };
+  }
+  try {
+    const res = await fetch('https://api.telegram.org/bot' + env.TG_TOKEN + '/getUpdates');
+    const data = await res.json().catch(() => ({}));
+    if (!data.ok) return { ok: false, error: data.description || 'невірний токен бота' };
+
+    const seen = {};
+    (data.result || []).forEach((u) => {
+      const msg = u.message || u.edited_message || u.my_chat_member;
+      const chat = msg && msg.chat;
+      if (!chat || !chat.id) return;
+      seen[String(chat.id)] = {
+        id: String(chat.id),
+        name: chat.title || [chat.first_name, chat.last_name].filter(Boolean).join(' ') || chat.username || '',
+        isGroup: chat.type === 'group' || chat.type === 'supergroup'
+      };
+    });
+
+    const chats = Object.keys(seen).map((k) => seen[k]);
+    if (!chats.length) {
+      return {
+        ok: false,
+        error: 'повідомлень не знайдено. Напишіть боту будь-що (або додайте його в групу і напишіть там) і спробуйте ще раз'
+      };
+    }
+    return { ok: true, chats: chats };
+  } catch (e) {
+    return { ok: false, error: 'немає звʼязку з Telegram' };
+  }
+}
+
+/* ---------- Resend ---------- */
+
+async function sendMail(env, to, subject, html, bcc) {
+  if (!env.RESEND_KEY) {
+    return {
+      ok: false,
+      error: 'у воркері не задано змінну RESEND_KEY (Settings → Variables and Secrets → Add → тип Secret → потім Deploy)'
+    };
+  }
+
+  const payload = {
+    from: env.MAIL_FROM || 'REYTER <onboarding@resend.dev>',
+    to: [to],
+    subject: subject,
+    html: html
+  };
+  if (bcc) payload.bcc = [bcc];
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + env.RESEND_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok
+      ? { ok: true, id: data.id }
+      : { ok: false, error: data.message || 'Resend відповів кодом ' + res.status };
+  } catch (e) {
+    return { ok: false, error: 'немає звʼязку з Resend' };
+  }
+}
+
+/* ---------- Відповідь ---------- */
+
+function reply(body, status, cors) {
+  return new Response(JSON.stringify(body), {
+    status: status,
+    headers: { ...cors, 'Content-Type': 'application/json' }
+  });
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default {
   async fetch(request, env) {
     const allow = env.ALLOW_ORIGIN || 'https://reyter.men';
@@ -202,70 +371,98 @@ export default {
       return new Response(null, { status: 204, headers: cors });
     }
     if (request.method !== 'POST') {
-      return new Response(JSON.stringify({ ok: false, error: 'Method not allowed' }), {
-        status: 405, headers: { ...cors, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Найчастіша помилка налаштування — забули додати змінну
-    // або не натиснули Deploy після її додавання
-    if (!env.RESEND_KEY) {
-      return new Response(JSON.stringify({
-        ok: false,
-        error: 'у воркері не задано змінну RESEND_KEY (Settings → Variables and Secrets → Add → тип Secret → потім Deploy)'
-      }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+      return reply({ ok: false, error: 'Method not allowed' }, 405, cors);
     }
 
     let d;
     try {
       d = await request.json();
     } catch (e) {
-      return new Response(JSON.stringify({ ok: false, error: 'Bad JSON' }), {
-        status: 400, headers: { ...cors, 'Content-Type': 'application/json' }
-      });
+      return reply({ ok: false, error: 'Bad JSON' }, 400, cors);
+    }
+
+    const type = String(d.type || 'order');
+
+    /* --- Службові запити з адмінки --- */
+
+    if (type === 'status' || type === 'tg-detect' || type === 'tg-test') {
+      // ADMIN_KEY необовʼязковий, але якщо заданий — без нього
+      // ці запити недоступні навіть тому, хто знає адресу воркера
+      if (env.ADMIN_KEY && d.key !== env.ADMIN_KEY) {
+        return reply({ ok: false, error: 'Невірний ключ адміністратора (ADMIN_KEY)' }, 403, cors);
+      }
+
+      if (type === 'status') {
+        return reply({
+          ok: true,
+          resend: !!env.RESEND_KEY,
+          mailFrom: env.MAIL_FROM || '',
+          bcc: env.MAIL_BCC || '',
+          telegram: !!env.TG_TOKEN,
+          chats: tgChats(env).length,
+          adminKey: !!env.ADMIN_KEY
+        }, 200, cors);
+      }
+
+      if (type === 'tg-detect') {
+        const res = await tgDetect(env);
+        return reply(res, res.ok ? 200 : 400, cors);
+      }
+
+      const res = await tgSend(env, '✅ Тест: сповіщення REYTER надходять сюди. Все налаштовано правильно!');
+      return reply(res, res.ok ? 200 : 400, cors);
+    }
+
+    /* --- Лист із персональним промокодом --- */
+
+    if (type === 'promo') {
+      const to = String(d.to || '').trim();
+      if (!EMAIL_RE.test(to)) {
+        return reply({ ok: false, error: 'Некоректний email отримувача' }, 400, cors);
+      }
+      if (!d.code) {
+        return reply({ ok: false, error: 'Не вказано промокод' }, 400, cors);
+      }
+      const subject = d.lang === 'en'
+        ? 'Your personal promo code — REYTER'
+        : 'Ваш персональний промокод — REYTER';
+      const res = await sendMail(env, to, subject, promoHTML(d));
+      return reply(res, res.ok ? 200 : 502, cors);
+    }
+
+    /* --- Замовлення: лист покупцю + сповіщення магазину --- */
+
+    if (!(Array.isArray(d.items) && d.items.length)) {
+      return reply({ ok: false, error: 'Порожнє замовлення' }, 400, cors);
     }
 
     const to = String(d.to || '').trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-      return new Response(JSON.stringify({ ok: false, error: 'Некоректний email отримувача' }), {
-        status: 400, headers: { ...cors, 'Content-Type': 'application/json' }
-      });
-    }
-    const isPromo = d.type === 'promo';
+    const wantsMail = !!to;
 
-    if (isPromo ? !d.code : !(Array.isArray(d.items) && d.items.length)) {
-      return new Response(JSON.stringify({
-        ok: false,
-        error: isPromo ? 'Не вказано промокод' : 'Порожнє замовлення'
-      }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
-    }
+    const [mail, tg] = await Promise.all([
+      wantsMail
+        ? (EMAIL_RE.test(to)
+            ? sendMail(
+                env, to,
+                (d.lang === 'en' ? 'Order No. ' : 'Замовлення №') + clip(d.orderNum, 40) + ' — REYTER',
+                letterHTML(d),
+                env.MAIL_BCC
+              )
+            : Promise.resolve({ ok: false, error: 'Некоректний email отримувача' }))
+        : Promise.resolve({ ok: false, skipped: true, error: 'Покупець не вказав email' }),
+      // silent — перевірка листа з адмінки: у Telegram не шумимо
+      d.silent === true
+        ? Promise.resolve({ ok: false, sent: 0, total: 0, skipped: true, error: '' })
+        : tgSend(env, orderText(d))
+    ]);
 
-    const subject = isPromo
-      ? (d.lang === 'en' ? 'Your personal promo code — REYTER' : 'Ваш персональний промокод — REYTER')
-      : (d.lang === 'en' ? 'Order No. ' : 'Замовлення №') + clip(d.orderNum, 40) + ' — REYTER';
-
-    const payload = {
-      from: env.MAIL_FROM || 'REYTER <onboarding@resend.dev>',
-      to: [to],
-      subject: subject,
-      html: isPromo ? promoHTML(d) : letterHTML(d)
-    };
-    if (env.MAIL_BCC && !isPromo) payload.bcc = [env.MAIL_BCC];
-
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + env.RESEND_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    return new Response(
-      JSON.stringify(res.ok ? { ok: true, id: data.id } : { ok: false, error: data.message || 'Resend error' }),
-      { status: res.ok ? 200 : 502, headers: { ...cors, 'Content-Type': 'application/json' } }
-    );
+    // ok = хоч один канал спрацював; сайт розбирає деталі й за
+    // потреби вмикає резервні способи
+    return reply({
+      ok: mail.ok || tg.ok,
+      email: mail,
+      telegram: tg,
+      id: mail.id
+    }, 200, cors);
   }
 };

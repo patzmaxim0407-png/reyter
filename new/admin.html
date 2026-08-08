@@ -344,36 +344,49 @@
 
     <!-- Вкладка: сповіщення -->
     <div class="a-publish" id="settingsNotify">
-      <h4 class="a-settings__sub">Telegram — сповіщення вам про нові замовлення</h4>
+      <h4 class="a-settings__sub">Cloudflare Worker — листи покупцям і Telegram</h4>
       <div class="field">
-        <label for="stTgToken">Токен бота</label>
-        <input id="stTgToken" autocomplete="off" placeholder="1234567890:AA...">
-        <p class="field__hint">Напишіть у Telegram боту <b>@BotFather</b> → /newbot → скопіюйте токен. Потім відкрийте свого нового бота і натисніть <b>Start</b>.</p>
-      </div>
-      <div class="field">
-        <label for="stTgChat">Кому надсилати (Chat ID, можна кілька через кому)</label>
-        <div class="ao-addadmin">
-          <input id="stTgChat" autocomplete="off" placeholder="229167654, -1001234567890">
-          <button class="btn btn--ghost btn--sm" id="tgDetectBtn" type="button">Визначити</button>
-        </div>
-        <p class="field__hint">
-          <b>Одному менеджеру:</b> напишіть боту будь-що і натисніть «Визначити».<br>
-          <b>Кільком людям:</b> нехай кожен напише боту — потім натисніть «Визначити», усі ID додадуться через кому.<br>
-          <b>Спільна група:</b> створіть групу, додайте туди бота, напишіть у ній будь-що і натисніть «Визначити» — ID групи (з мінусом) підставиться сам. Тоді сповіщення бачить уся команда.
-        </p>
-      </div>
-      <button class="btn btn--ghost btn--sm" id="tgTestBtn" type="button">Надіслати тестове повідомлення</button>
-
-      <h4 class="a-settings__sub">Фірмовий лист покупцю (Resend через Worker)</h4>
-      <div class="field">
-        <label for="stWorkerUrl">Адреса Worker для листів</label>
+        <label for="stWorkerUrl">Адреса Worker</label>
         <input id="stWorkerUrl" autocomplete="off" placeholder="https://reyter-mail.ваш-акаунт.workers.dev">
         <p class="field__hint">
-          Клієнт отримає лист із логотипом REYTER, номером замовлення та кнопкою «Відстежити замовлення».
-          Ключ Resend зберігається у воркері, а не в коді сайту — вкрасти його з браузера неможливо.
+          Через воркер ідуть обидва сповіщення: фірмовий лист покупцю та повідомлення вам у Telegram.
+          Ключ Resend і токен бота лежать у самому воркері, тож із коду сайту їх не прочитати.
           Покрокова інструкція — у файлі <code>new/worker/README.md</code> репозиторію.
-          Якщо поле порожнє, працює простий текстовий лист через FormSubmit.
         </p>
+      </div>
+      <div class="field">
+        <label for="stWorkerKey">Ключ адміністратора (ADMIN_KEY)</label>
+        <div class="ao-addadmin">
+          <input id="stWorkerKey" type="password" autocomplete="off" placeholder="якщо задали змінну ADMIN_KEY у воркері">
+          <button class="btn btn--ghost btn--sm" id="workerCheckBtn" type="button">Перевірити</button>
+        </div>
+        <p class="field__hint">
+          Необовʼязково. Захищає службові кнопки нижче від сторонніх. Зберігається лише
+          у цьому браузері — у базу сайту не потрапляє.
+        </p>
+      </div>
+      <div class="a-wstatus" id="workerStatus" hidden></div>
+
+      <h4 class="a-settings__sub">Telegram — сповіщення вам про нові замовлення</h4>
+      <p class="ao-note">
+        Токен бота і Chat ID зберігаються у змінних воркера <code>TG_TOKEN</code> та
+        <code>TG_CHAT</code> (Cloudflare → ваш воркер → Settings → Variables and Secrets).
+        Кілька отримувачів — через кому. Щоб сповіщення бачила вся команда, створіть групу,
+        додайте туди бота і впишіть ID групи (він з мінусом).
+      </p>
+      <div class="a-settings__row">
+        <button class="btn btn--ghost btn--sm" id="tgDetectBtn" type="button">Показати Chat ID</button>
+        <button class="btn btn--ghost btn--sm" id="tgTestBtn" type="button">Надіслати тестове повідомлення</button>
+      </div>
+      <div class="a-wstatus" id="tgChatsBox" hidden></div>
+
+      <div class="a-warnbox" id="tgLegacy" hidden>
+        <p><b>Токен бота досі лежить у базі сайту.</b> Поки правила Firestore його відкривають,
+          прочитати токен може будь-хто. Перенесіть значення у змінні воркера
+          <code>TG_TOKEN</code> і <code>TG_CHAT</code>, натисніть <b>Deploy</b>, перевірте
+          тестовим повідомленням — і приберіть токен звідси.</p>
+        <div class="a-legacy" id="tgLegacyVals"></div>
+        <button class="btn btn--ghost btn--sm" id="tgWipeBtn" type="button">Прибрати токен із бази</button>
       </div>
 
       <h4 class="a-settings__sub">Резервний лист і копія замовлень (FormSubmit)</h4>
