@@ -141,6 +141,97 @@
     }
   }
 
+  /* ---------- Синхронізація структури з data.js ----------
+     Сайт показує каталог із бази, а не з файлу. Коли структуру
+     категорій міняють у data.js (перейменували, додали, перерозподілили
+     товари), базу треба привести до неї — інакше зміни нікуди не
+     дійдуть. Чіпаємо ЛИШЕ структуру: назви категорій, порядок,
+     приналежність товару до категорій і прапорець «сховано».
+     Ціни, фото й описи, відредаговані в адмінці, лишаються. */
+
+  function structurePlan() {
+    const fileCats = R.categories || [];
+    const fileProds = R.products || [];
+    const fileCatIds = new Set(fileCats.map((c) => c.id));
+    const dbById = {};
+    state.products.forEach((p) => { dbById[p.id] = p; });
+
+    const gone = state.categories.filter((c) => !fileCatIds.has(c.id));
+    const added = fileCats.filter((c) => !state.categories.some((x) => x.id === c.id));
+    const renamed = fileCats.filter((c) => {
+      const db = state.categories.find((x) => x.id === c.id);
+      return db && db.title !== c.title;
+    });
+
+    const moved = fileProds.filter((p) => {
+      const db = dbById[p.id];
+      if (!db) return false;
+      return prodCats(db).join(',') !== prodCats(p).join(',') || !!db.hidden !== !!p.hidden;
+    });
+
+    const missing = fileProds.filter((p) => !dbById[p.id]);
+    const extra = state.products.filter((p) => !fileProds.some((f) => f.id === p.id));
+
+    return { gone, added, renamed, moved, missing, extra, fileCats, fileProds, dbById };
+  }
+
+  async function syncStructure() {
+    if (!fbOk()) return toast('Спершу увійдіть акаунтом адміністратора');
+    if (!seeded) return toast('Спершу імпортуйте каталог у базу');
+
+    const plan = structurePlan();
+    const lines = [];
+    if (plan.added.length) lines.push('• додати категорії: ' + plan.added.map((c) => c.title).join(', '));
+    if (plan.renamed.length) lines.push('• перейменувати: ' + plan.renamed.map((c) => c.title).join(', '));
+    if (plan.gone.length) lines.push('• прибрати категорії: ' + plan.gone.map((c) => c.title).join(', '));
+    if (plan.moved.length) lines.push('• перекласти по категоріях товарів: ' + plan.moved.length);
+    if (plan.missing.length) lines.push('• створити товарів: ' + plan.missing.length);
+    if (plan.extra.length) lines.push('• товарів лишиться без змін (їх немає у файлі): ' + plan.extra.length);
+
+    if (!lines.length) return toast('База вже збігається з data.js — міняти нічого');
+
+    const ok = confirm(
+      'Привести структуру каталогу у базі до data.js?\n\n' + lines.join('\n') +
+      '\n\nЦіни, назви, фото й описи наявних товарів не змінюються.\n' +
+      'Складські залишки не чіпаються.'
+    );
+    if (!ok) return;
+
+    try {
+      const batch = R.fb.db.batch();
+
+      plan.fileCats.forEach((c, i) => {
+        const doc = { title: c.title, order: i * 10 };
+        if (c.titleEn) doc.titleEn = c.titleEn;
+        batch.set(catCol().doc(c.id), doc, { merge: true });
+      });
+
+      plan.gone.forEach((c) => batch.delete(catCol().doc(c.id)));
+
+      plan.fileProds.forEach((p) => {
+        const db = plan.dbById[p.id];
+        if (db) {
+          const patch = {
+            category: p.category,
+            hidden: !!p.hidden
+          };
+          patch.categories = Array.isArray(p.categories) && p.categories.length
+            ? p.categories
+            : firebase.firestore.FieldValue.delete();
+          batch.update(prodCol().doc(p.id), patch);
+        } else {
+          batch.set(prodCol().doc(p.id), prodDocData(JSON.parse(JSON.stringify(p))));
+        }
+      });
+
+      await batch.commit();
+      toast('Структуру оновлено ✓', 'success');
+      loadCatalog();
+    } catch (err) {
+      toast('Не вдалося оновити структуру — перевірте правила Firestore');
+    }
+  }
+
   /* ---------- Рендер ---------- */
 
   function countIn(catId) {
@@ -166,10 +257,10 @@
           esc(c.title) +
           '<span class="a-cat__count">' + countIn(c.id) + '</span>' +
           '<span class="a-cat__tools">' +
-            (i > 0 ? '<button data-act="up" title="Вище">↑</button>' : '') +
-            (i < state.categories.length - 1 ? '<button data-act="down" title="Нижче">↓</button>' : '') +
-            '<button data-act="rename" title="Перейменувати">✎</button>' +
-            '<button data-act="del" title="Видалити">✕</button>' +
+            (i > 0 ? '<button data-act="up" title="Вище" aria-label="Підняти категорію вище">↑</button>' : '') +
+            (i < state.categories.length - 1 ? '<button data-act="down" title="Нижче" aria-label="Опустити категорію нижче">↓</button>' : '') +
+            '<button data-act="rename" title="Перейменувати" aria-label="Перейменувати категорію">✎</button>' +
+            '<button data-act="del" title="Видалити" aria-label="Видалити категорію">✕</button>' +
           '</span>' +
         '</li>'
       )
@@ -217,10 +308,12 @@
               '</div>' +
             '</div>' +
             '<div class="a-item__actions">' +
-              '<button data-act="edit" title="Редагувати">✎</button>' +
-              '<button data-act="dup" title="Дублювати">⧉</button>' +
-              '<button data-act="toggle" title="' + (p.hidden ? 'Показати' : 'Сховати') + '">' + (p.hidden ? '🙈' : '👁') + '</button>' +
-              '<button data-act="del" class="danger" title="Видалити">✕</button>' +
+              '<button data-act="edit" title="Редагувати" aria-label="Редагувати товар">✎</button>' +
+              '<button data-act="dup" title="Дублювати" aria-label="Дублювати товар">⧉</button>' +
+              '<button data-act="toggle" title="' + (p.hidden ? 'Показати' : 'Сховати') +
+                '" aria-label="' + (p.hidden ? 'Показати товар на сайті' : 'Сховати товар із сайту') + '">' +
+                (p.hidden ? '🙈' : '👁') + '</button>' +
+              '<button data-act="del" class="danger" title="Видалити" aria-label="Видалити товар">✕</button>' +
             '</div>' +
           '</div>'
         );
@@ -291,14 +384,40 @@
 
   /* ---------- Редактор товару ---------- */
 
+  /* Блокування прокрутки фону під модалкою.
+     overflow: hidden на iOS не тримає сторінку — вона все одно
+     «протягується», тож фіксуємо body і повертаємо позицію назад.
+     Живе на спільному namespace: модалки відкривають обидва
+     модулі адмінки, а це різні області видимості. */
+  let lockedScroll = 0;
+
+  R.lockBg = function () {
+    if (document.body.classList.contains('no-scroll')) return;
+    lockedScroll = window.scrollY || window.pageYOffset || 0;
+    document.body.style.top = -lockedScroll + 'px';
+    document.body.classList.add('no-scroll');
+  };
+
+  R.unlockBg = function () {
+    // ще відкрита якась модалка — прокрутку не повертаємо
+    if (document.querySelector('.a-modal:not([hidden])')) return;
+    if (!document.body.classList.contains('no-scroll')) return;
+    document.body.classList.remove('no-scroll');
+    document.body.style.top = '';
+    const behavior = document.documentElement.style.scrollBehavior;
+    document.documentElement.style.scrollBehavior = 'auto';
+    window.scrollTo(0, lockedScroll);
+    document.documentElement.style.scrollBehavior = behavior;
+  };
+
   function openModal(el) {
     el.hidden = false;
-    document.body.style.overflow = 'hidden';
+    R.lockBg();
   }
 
   function closeModal(el) {
     el.hidden = true;
-    document.body.style.overflow = '';
+    R.unlockBg();
   }
 
   function fillCategorySelect(selected) {
@@ -702,6 +821,9 @@
         }
       }
     });
+
+    const syncBtn = $('syncStructBtn');
+    if (syncBtn) syncBtn.addEventListener('click', syncStructure);
 
     $('addProductBtn').addEventListener('click', () => {
       if (!state.categories.length) {
@@ -1535,6 +1657,16 @@
     );
   }
 
+  /* Після перемальовки стрічка фільтрів починається з нуля —
+     повертаємо в поле зору те, що обране зараз. На телефоні
+     чіпи стають прокрутною доріжкою, інакше активного не видно. */
+  function showActiveChips(root) {
+    if (!root) return;
+    root.querySelectorAll('.ao-chips .ao-chip.is-active').forEach((c) => {
+      if (c.scrollIntoView) c.scrollIntoView({ inline: 'center', block: 'nearest' });
+    });
+  }
+
   function renderOrders() {
     const list = filteredOrders();
     const visible = list.slice(0, F.limit);
@@ -1610,6 +1742,8 @@
         renderOrders();
       });
     }
+
+    showActiveChips(ordersBody());
   }
 
   /* ---------- Зміна статусу ---------- */
@@ -1783,6 +1917,7 @@
 
     win.document.write(
       '<!DOCTYPE html><html lang="uk"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
       '<title>REYTER — замовлення</title><style>' +
       'body{font-family:system-ui,-apple-system,sans-serif;color:#171b26;margin:24px;}' +
       'section{page-break-after:always;border-bottom:1px dashed #ccc;padding-bottom:18px;margin-bottom:18px;}' +
@@ -1865,9 +2000,11 @@
       '<div class="a-norow' + (short ? ' is-short' : '') + '" data-row="' + row.uid + '">' +
         '<span class="a-norow__product">' + productSelect + '</span>' +
         '<span class="a-norow__size">' + sizeSelect + '</span>' +
-        '<span class="a-norow__qty"><input type="number" min="1" value="' + row.qty + '" data-no-qty></span>' +
-        '<span class="a-norow__price"><input type="number" min="0" value="' + (row.price || 0) + '" data-no-price> грн</span>' +
-        '<span class="a-norow__sum">' + fmt((row.price || 0) * row.qty) + ' грн</span>' +
+        '<span class="a-norow__qty"><input type="number" min="1" value="' + row.qty +
+          '" data-no-qty placeholder="К-сть" aria-label="Кількість"></span>' +
+        '<span class="a-norow__price"><input type="number" min="0" value="' + (row.price || 0) +
+          '" data-no-price placeholder="Ціна" aria-label="Ціна за штуку"> грн</span>' +
+        '<span class="a-norow__sum">Разом: ' + fmt((row.price || 0) * row.qty) + ' грн</span>' +
         '<button class="a-norow__del" data-no-del type="button" title="Прибрати">✕</button>' +
         (short ? '<span class="a-norow__warn">На складі лише ' + sizeQty(p.id, row.size) + ' шт — залишок піде в мінус</span>' : '') +
       '</div>'
@@ -1925,7 +2062,7 @@
     $id('noStatusMsg').hidden = true;
     addNoRow();
     noModal().hidden = false;
-    document.body.style.overflow = 'hidden';
+    R.lockBg();
     setTimeout(() => $id('noName').focus(), 60);
   }
 
@@ -2048,7 +2185,7 @@
       }
 
       noModal().hidden = true;
-      document.body.style.overflow = '';
+      R.unlockBg();
       toast('Замовлення №' + order.num + ' створено ✓', 'success');
     } catch (err) {
       setNoStatus('err', 'Не вдалося створити замовлення. Перевірте правила Firestore (потрібен дозвіл create для адміна).');
@@ -2329,7 +2466,7 @@
     pcSyncScope();
 
     $id('promoModal').hidden = false;
-    document.body.style.overflow = 'hidden';
+    R.lockBg();
   }
 
   async function savePromo() {
@@ -2363,7 +2500,7 @@
     try {
       await R.fb.db.collection('promos').doc(p.code).set(doc, { merge: true });
       $id('promoModal').hidden = true;
-      document.body.style.overflow = '';
+      R.unlockBg();
       toast(editingPromo ? 'Промокод оновлено ✓' : 'Промокод створено ✓', 'success');
       editingPromo = null;
     } catch (e) {
@@ -2734,6 +2871,8 @@
       '</div>' +
       content;
 
+    showActiveChips(stockBody());
+
     const search = $id('aoStockSearch');
     if (search) {
       search.addEventListener('input', () => {
@@ -3069,7 +3208,7 @@
 
   async function openSettings() {
     $id('settingsModal').hidden = false;
-    document.body.style.overflow = 'hidden';
+    R.lockBg();
     $id('settingsStatus').hidden = true;
     $id('workerStatus').hidden = true;
     $id('tgChatsBox').hidden = true;
@@ -3161,11 +3300,41 @@
     if (user) chip.textContent = user.email || '';
   }
 
+  /* Меню «⋯» у шапці на телефоні */
+  function initBarMenu() {
+    const menu = $id('abarMenu');
+    const btn = $id('abarMoreBtn');
+    if (!menu || !btn) return;
+
+    const close = () => {
+      menu.classList.remove('is-open');
+      btn.setAttribute('aria-expanded', 'false');
+    };
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = menu.classList.toggle('is-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+
+    // Клік по пункту меню або поза ним закриває його
+    menu.addEventListener('click', (e) => {
+      if (e.target.closest('.abar__drop')) close();
+    });
+    document.addEventListener('click', (e) => {
+      if (!menu.contains(e.target)) close();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') close();
+    });
+  }
+
   function init() {
     if (!$id('viewCatalog')) return;
 
     window.addEventListener('hashchange', showView);
     showView();
+    initBarMenu();
 
     initPromos();
     $id('settingsBtn').addEventListener('click', openSettings);

@@ -41,12 +41,17 @@
     <a class="abar__tab" href="#/stock" data-view="stock">Склад</a>
     <a class="abar__tab" href="#/promos" data-view="promos">Промокоди</a>
   </nav>
-  <div class="abar__actions">
-    <span class="abar__user" id="adminUserChip" hidden></span>
-    <a class="btn btn--ghost btn--sm" href="index.html" target="_blank" rel="noopener">Сайт</a>
-    <button class="btn btn--ghost btn--sm" id="settingsBtn" type="button">Налаштування</button>
-    <button class="btn btn--ghost btn--sm" id="downloadBtn" type="button">data.js</button>
-    <button class="btn btn--primary btn--sm" id="publishBtn" type="button">Резервна копія</button>
+  <div class="abar__actions" id="abarMenu">
+    <button class="abar__more" id="abarMoreBtn" type="button" aria-expanded="false" aria-haspopup="true" aria-label="Ще дії">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="abar__drop">
+      <span class="abar__user" id="adminUserChip" hidden></span>
+      <a class="btn btn--ghost btn--sm" href="index.html" target="_blank" rel="noopener">Сайт</a>
+      <button class="btn btn--ghost btn--sm" id="settingsBtn" type="button">Налаштування</button>
+      <button class="btn btn--ghost btn--sm" id="downloadBtn" type="button">data.js</button>
+      <button class="btn btn--primary btn--sm" id="publishBtn" type="button">Резервна копія</button>
+    </div>
   </div>
 </header>
 
@@ -62,13 +67,18 @@
       <button class="btn btn--primary btn--sm" type="submit">Додати</button>
     </form>
 
-    <div class="a-side__note">
+    <button class="btn btn--ghost btn--sm a-side__sync" id="syncStructBtn" type="button">
+      Оновити структуру з data.js
+    </button>
+
+    <details class="a-side__note">
+      <summary>Як зберігається каталог</summary>
       Каталог зберігається в базі даних: усі зміни
       зʼявляються на сайті одразу після збереження.
       Кнопка «Резервна копія» оновлює файл
       <code>new/js/data.js</code> у репозиторії — його сайт
       показує, поки база завантажується.
-    </div>
+    </details>
   </aside>
 
   <!-- Товари -->
