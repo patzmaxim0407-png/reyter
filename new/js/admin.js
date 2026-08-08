@@ -243,13 +243,14 @@
       '</li>';
 
     html += state.categories
-      .map((c, i) =>
+      .map((c) =>
         '<li class="a-cat' + (currentCat === c.id ? ' is-active' : '') + '" data-id="' + esc(c.id) + '">' +
+          '<button type="button" class="a-cat__grip" data-grip ' +
+            'title="Перетягніть, щоб змінити порядок" ' +
+            'aria-label="Перетягнути категорію (стрілки ↑↓ теж працюють)">⠿</button>' +
           esc(c.title) +
           '<span class="a-cat__count">' + countIn(c.id) + '</span>' +
           '<span class="a-cat__tools">' +
-            (i > 0 ? '<button data-act="up" title="Вище" aria-label="Підняти категорію вище">↑</button>' : '') +
-            (i < state.categories.length - 1 ? '<button data-act="down" title="Нижче" aria-label="Опустити категорію нижче">↓</button>' : '') +
             '<button data-act="rename" title="Перейменувати" aria-label="Перейменувати категорію">✎</button>' +
             '<button data-act="del" title="Видалити" aria-label="Видалити категорію">✕</button>' +
           '</span>' +
@@ -354,24 +355,103 @@
     }
   }
 
-  async function swapCategories(i, j) {
-    const a = state.categories[i];
-    const b = state.categories[j];
-    const orderA = Number(a.order) || 0;
-    const orderB = Number(b.order) || 0;
+  /* Зчитує порядок категорій із DOM після перетягування
+     і зберігає його в чернетку */
+  async function persistCatOrder() {
+    const ids = Array.prototype.map.call($('catList').children, (li) => li.dataset.id)
+      .filter((id) => id && id !== 'all');
+    const byId = {};
+    state.categories.forEach((c) => { byId[c.id] = c; });
+    const next = ids.map((id) => byId[id]).filter(Boolean);
+
+    if (next.length !== state.categories.length) {
+      render(); // список розійшовся зі станом — перемальовуємо як було
+      return;
+    }
+    if (!next.some((c, i) => state.categories[i] !== c)) return;
+
     try {
       const batch = R.fb.db.batch();
-      batch.update(catCol().doc(a.id), { order: orderB });
-      batch.update(catCol().doc(b.id), { order: orderA });
+      next.forEach((c, i) => {
+        const order = i * 10;
+        if (c.order !== order) batch.update(catCol().doc(c.id), { order: order });
+        c.order = order;
+      });
+      state.categories = next;
       await batch.commit();
-      a.order = orderB;
-      b.order = orderA;
-      state.categories[i] = b;
-      state.categories[j] = a;
       render();
     } catch (e) {
-      toast('Не вдалося перемістити');
+      toast('Не вдалося зберегти порядок');
+      loadCatalog();
     }
+  }
+
+  /* Перетягування категорій за ручку ⠿. Pointer-події працюють
+     і мишею, і пальцем; під час руху елемент переставляється
+     в DOM одразу, а зберігається порядок один раз — коли
+     відпустили. На телефоні список горизонтальний — вісь
+     визначаємо з розкладки, а не вгадуємо пристрій. */
+  function initCatDrag() {
+    const list = $('catList');
+    let dragEl = null;
+    let pid = null;
+
+    list.addEventListener('pointerdown', (e) => {
+      const grip = e.target.closest('[data-grip]');
+      if (!grip) return;
+      const li = grip.closest('.a-cat');
+      if (!li || li.dataset.id === 'all') return;
+      dragEl = li;
+      pid = e.pointerId;
+      e.preventDefault();
+      try { grip.setPointerCapture(pid); } catch (err) { /* старий браузер */ }
+      li.classList.add('is-dragging');
+    });
+
+    list.addEventListener('pointermove', (e) => {
+      if (!dragEl || e.pointerId !== pid) return;
+      const horizontal =
+        getComputedStyle(list).gridAutoFlow.indexOf('column') === 0;
+      const pos = horizontal ? e.clientX : e.clientY;
+
+      let before = null;
+      for (const li of list.children) {
+        if (li === dragEl || li.dataset.id === 'all') continue;
+        const r = li.getBoundingClientRect();
+        const mid = horizontal ? r.left + r.width / 2 : r.top + r.height / 2;
+        if (pos < mid) { before = li; break; }
+      }
+      if (before) list.insertBefore(dragEl, before);
+      else list.appendChild(dragEl);
+    });
+
+    const finishDrag = (e) => {
+      if (!dragEl || e.pointerId !== pid) return;
+      dragEl.classList.remove('is-dragging');
+      dragEl = null;
+      pid = null;
+      persistCatOrder();
+    };
+    list.addEventListener('pointerup', finishDrag);
+    list.addEventListener('pointercancel', finishDrag);
+
+    // Клавіатура: стрілки на сфокусованій ручці
+    list.addEventListener('keydown', (e) => {
+      if (!e.target.closest('[data-grip]')) return;
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' &&
+          e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const li = e.target.closest('.a-cat');
+      const back = e.key === 'ArrowUp' || e.key === 'ArrowLeft';
+      const sibling = back ? li.previousElementSibling : li.nextElementSibling;
+      if (!sibling || sibling.dataset.id === 'all') return;
+      if (back) list.insertBefore(li, sibling);
+      else list.insertBefore(sibling, li);
+      persistCatOrder().then(() => {
+        const again = $('catList').querySelector('[data-id="' + li.dataset.id + '"] [data-grip]');
+        if (again) again.focus();
+      });
+    });
   }
 
   /* ---------- Редактор товару ---------- */
@@ -472,6 +552,17 @@
      редагованого товару. Панель позиціонується фіксовано, тож
      прокрутка модалки її не обрізає. */
 
+  /* input[type=color] приймає лише #rrggbb — розгортаємо
+     скорочену форму й відкидаємо все, що не hex */
+  function normalizeHex(v) {
+    const h = String(v || '').trim();
+    if (/^#[0-9a-f]{6}$/i.test(h)) return h.toLowerCase();
+    if (/^#[0-9a-f]{3}$/i.test(h)) {
+      return ('#' + h[1] + h[1] + h[2] + h[2] + h[3] + h[3]).toLowerCase();
+    }
+    return '';
+  }
+
   function colorTriggerHTML(id) {
     const p = id ? state.products.find((x) => x.id === id) : null;
     if (!p) {
@@ -527,6 +618,17 @@
       if (colorDropFor) {
         colorDropFor.dataset.ref = opt.dataset.pickId;
         colorDropFor.innerHTML = colorTriggerHTML(opt.dataset.pickId);
+
+        // Підтягуємо колір самого товару: перший з його палітри.
+        // Якщо у товару кольорів немає — свотч не чіпаємо.
+        const target = state.products.find((x) => x.id === opt.dataset.pickId);
+        const hex = target ? normalizeHex((adminColors(target)[0] || {}).hex) : '';
+        if (hex) {
+          const swatch = colorDropFor.closest('.a-color')
+            .querySelector('input[type="color"]');
+          if (swatch) swatch.value = hex;
+        }
+
         updatePreview();
       }
       closeColorDrop();
@@ -1339,6 +1441,7 @@
 
   function init() {
     catalogReady = loadCatalog();
+    initCatDrag();
 
     // Категорії
     $('catList').addEventListener('click', (e) => {
@@ -1365,10 +1468,6 @@
           return;
         }
         if (confirm('Видалити категорію «' + cat.title + '»?')) deleteCategory(idx);
-      } else if (act === 'up' && idx > 0) {
-        swapCategories(idx, idx - 1);
-      } else if (act === 'down' && idx < state.categories.length - 1) {
-        swapCategories(idx, idx + 1);
       }
     });
 
@@ -3533,20 +3632,16 @@
       '<form class="ao-restock-form" id="restockForm">' +
         '<h5>Новий прихід</h5>' +
         '<div class="ao-restock-form__row">' +
-          '<select id="rstProduct">' +
-            '<option value="">— товар —</option>' +
-            categories().map((cat) => {
-              const items = all.filter((p) => p.category === cat.id);
-              if (!items.length) return '';
-              return '<optgroup label="' + esc(cat.title) + '">' +
-                items.map((p) =>
-                  '<option value="' + esc(p.id) + '"' + (p.id === restockProductId ? ' selected' : '') + '>' +
-                    esc(p.name) + ' (' + esc(p.id) + ')' +
-                  '</option>'
-                ).join('') +
-              '</optgroup>';
-            }).join('') +
-          '</select>' +
+          '<div class="acombo a-nopick a-rstpick">' +
+            '<div class="acombo__box">' +
+              (selected ? productChipHTML(selected) : '') +
+              '<input id="rstProduct" value="' + esc(selected ? selected.name : '') + '" ' +
+                'placeholder="товар — назва або артикул" autocomplete="off" spellcheck="false" ' +
+                'role="combobox" aria-expanded="false" data-ref="' + esc(restockProductId) + '">' +
+              '<span class="acombo__spin" hidden></span>' +
+              '<ul class="acombo__list" role="listbox" hidden></ul>' +
+            '</div>' +
+          '</div>' +
           '<input type="date" id="rstDate" value="' + todayISO() + '" title="Очікувана дата приходу">' +
         '</div>' +
         '<div class="ao-restock-form__qty" id="rstQtyBox">' + qtyInputs + '</div>' +
@@ -3653,6 +3748,35 @@
 
     showActiveChips(stockBody());
 
+    /* Пошук товару для приходу — той самий список із фото,
+       що в ручному замовленні */
+    const rst = $id('rstProduct');
+    if (rst && R.attachCombo) {
+      R.attachCombo(rst, {
+        minChars: 0,
+        openOnFocus: true,
+        load: (q) => {
+          const needle = q.trim().toLowerCase();
+          return products().filter((x) =>
+            !needle ||
+            x.name.toLowerCase().includes(needle) ||
+            x.id.toLowerCase().includes(needle) ||
+            catName(x.category).toLowerCase().includes(needle));
+        },
+        render: (x) => ({
+          html: productOptionHTML(x),
+          cls: 'a-pick',
+          value: x.name,
+          ref: x.id
+        }),
+        onPick: (x) => {
+          restockProductId = x.id;
+          renderStockUI();
+        },
+        empty: 'admin.noProduct'
+      });
+    }
+
     const search = $id('aoStockSearch');
     if (search) {
       search.addEventListener('input', () => {
@@ -3691,7 +3815,7 @@
   }
 
   async function createRestock() {
-    const pid = $id('rstProduct').value;
+    const pid = restockProductId;
     const p = productById(pid);
     if (!p) {
       toast('Оберіть товар');
@@ -4445,10 +4569,6 @@
       if (e.target.matches('[data-stk-pid]')) {
         setStockValue(e.target.dataset.stkPid, e.target.dataset.stkSize || null, e.target.value);
         return;
-      }
-      if (e.target.id === 'rstProduct') {
-        restockProductId = e.target.value;
-        renderStockUI();
       }
     });
 

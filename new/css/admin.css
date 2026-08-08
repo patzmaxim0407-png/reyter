@@ -3624,3 +3624,42 @@ label.a-promo-product i {
   font-weight: 700;
   box-shadow: 0 12px 30px rgba(6, 27, 60, 0.35);
 }
+
+/* ---------- Перетягування категорій ---------- */
+
+.a-cat__grip {
+  flex-shrink: 0;
+  width: 26px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  margin-left: -0.25rem;
+  border: none;
+  background: none;
+  color: var(--c-muted);
+  font-size: 0.85rem;
+  letter-spacing: -1px;
+  cursor: grab;
+  touch-action: none;       /* палець тягне категорію, а не сторінку */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.a-cat__grip:active {
+  cursor: grabbing;
+}
+
+.a-cat {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.a-cat.is-dragging {
+  opacity: 0.55;
+  box-shadow: 0 8px 22px rgba(6, 27, 60, 0.22);
+}
+
+/* Поле вибору товару у формі приходу */
+.ao-restock-form__row .a-rstpick {
+  flex: 1 1 260px;
+  min-width: 0;
+}
