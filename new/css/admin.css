@@ -3705,3 +3705,210 @@ label.a-promo-product i {
 .ao-qty.is-stray input {
   border-color: rgba(217, 119, 6, 0.45);
 }
+
+/* ---------- Діалог замість alert / confirm / prompt ---------- */
+
+.a-ask__body {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.1rem 1.4rem 0.4rem;
+}
+
+.a-ask__body p {
+  display: grid;
+  gap: 0.6rem;
+  font-size: 0.94rem;
+  line-height: 1.6;
+  color: var(--c-ink);
+  white-space: pre-line;
+}
+
+.a-ask .a-modal__foot {
+  border-top: none;
+  padding-top: 0.8rem;
+}
+
+.btn--danger {
+  background: var(--c-red);
+  border-color: var(--c-red);
+  color: #fff;
+}
+
+.btn--danger:hover {
+  background: #a81a1a;
+  border-color: #a81a1a;
+  color: #fff;
+}
+
+/* ---------- Редагування запланованого приходу ---------- */
+
+.ao-restock--edit {
+  display: grid;
+  gap: 0.8rem;
+  align-items: stretch;
+  border-left-color: var(--c-amber);
+  background: var(--c-cream);
+  padding: 1rem 1.1rem;
+}
+
+.ao-restock--edit .ao-restock__info {
+  gap: 0.2rem;
+}
+
+.ao-restock--edit .ao-restock__info b {
+  font-size: 0.95rem;
+  color: var(--c-blue-ink);
+}
+
+/* Поля кількості: рівна сітка, а не злиплий ряд */
+.ao-restock--edit .ao-restock-form__qty {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.ao-restock--edit .ao-qty {
+  display: grid;
+  gap: 0.25rem;
+  background: var(--c-paper);
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.55rem;
+}
+
+.ao-restock--edit .ao-qty span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--c-muted);
+  text-transform: uppercase;
+}
+
+.ao-restock--edit .ao-qty input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--c-ink);
+}
+
+.ao-restock--edit .ao-qty input:focus {
+  outline: none;
+}
+
+.ao-restock--edit .ao-qty:focus-within {
+  border-color: var(--c-blue);
+  box-shadow: 0 0 0 3px rgba(1, 74, 173, 0.12);
+}
+
+/* Дата й нотатка: дата вузька, нотатка забирає решту.
+   Стилі задаємо явно — успадковані від .ao-restock-form
+   тут не діють, бо це вже інший контейнер. */
+.ao-restock--edit .ao-restock-form__row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.ao-restock--edit .ao-restock-form__row input {
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--c-ink);
+  background: var(--c-paper);
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-sm);
+}
+
+.ao-restock--edit .ao-restock-form__row input:focus {
+  outline: none;
+  border-color: var(--c-blue);
+  box-shadow: 0 0 0 3px rgba(1, 74, 173, 0.12);
+}
+
+.ao-restock--edit .ao-restock-form__row input[data-re-date] {
+  flex: 0 0 auto;
+  width: 11rem;
+}
+
+.ao-restock--edit .ao-restock-form__row input[data-re-note] {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.ao-restock--edit .ao-restock__actions {
+  margin-left: 0;
+  display: flex;
+  gap: 0.5rem;
+}
+
+@media (max-width: 620px) {
+  .ao-restock--edit .ao-restock__actions .btn {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+
+  .ao-restock--edit .ao-restock-form__row input[data-re-date] {
+    width: 100%;
+  }
+}
+
+/* ---------- Підсумок у картці замовлення ---------- */
+
+.ao-sums {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--c-line);
+}
+
+.ao-sumline {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  font-size: 0.86rem;
+  color: var(--c-muted);
+}
+
+.ao-sumline span:last-child {
+  white-space: nowrap;
+  color: var(--c-ink);
+  font-weight: 600;
+}
+
+.ao-sumline.is-off span:last-child {
+  color: var(--c-green);
+}
+
+.ao-sumline.is-total {
+  margin-top: 0.2rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--c-line);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--c-blue-ink);
+}
+
+.ao-sumline.is-total span:last-child {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--c-blue-ink);
+}
+
+.ao-editorder {
+  margin-top: 0.7rem;
+}
+
+@media (max-width: 620px) {
+  .ao-editorder {
+    width: 100%;
+    min-height: 44px;
+  }
+}

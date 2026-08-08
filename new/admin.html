@@ -12,9 +12,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/base.css?v=20260808j">
-  <link rel="stylesheet" href="css/components.css?v=20260808j">
-  <link rel="stylesheet" href="css/admin.css?v=20260808j">
+  <link rel="stylesheet" href="css/base.css?v=20260808k">
+  <link rel="stylesheet" href="css/components.css?v=20260808k">
+  <link rel="stylesheet" href="css/admin.css?v=20260808k">
 </head>
 <body class="admin-body">
 
@@ -481,6 +481,28 @@
   </div>
 </div>
 
+<!-- Універсальний діалог: підтвердження, введення, попередження -->
+<div class="a-modal a-ask" id="askModal" role="dialog" aria-modal="true" aria-labelledby="askTitle" hidden>
+  <div class="a-modal__backdrop" data-ask-cancel></div>
+  <div class="a-modal__panel a-modal__panel--sm">
+    <header class="a-modal__head">
+      <h3 id="askTitle">Підтвердження</h3>
+      <button class="a-modal__close" data-ask-cancel aria-label="Закрити">✕</button>
+    </header>
+    <div class="a-ask__body">
+      <p id="askText"></p>
+      <div class="field" id="askField" hidden>
+        <label for="askInput" id="askLabel"></label>
+        <input id="askInput" autocomplete="off">
+      </div>
+    </div>
+    <footer class="a-modal__foot">
+      <button class="btn btn--ghost" id="askCancel" type="button">Скасувати</button>
+      <button class="btn btn--primary" id="askOk" type="button">Гаразд</button>
+    </footer>
+  </div>
+</div>
+
 <!-- Сторінка «Замовлення» -->
 <div class="a-page" id="viewOrders" hidden>
   <div class="a-page__head a-page__head--row">
@@ -624,13 +646,13 @@
 <script src="https://www.gstatic.com/firebasejs/12.9.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore-compat.js"></script>
 
-<script src="js/data.js?v=20260808j"></script>
-<script src="js/i18n.js?v=20260808j"></script>
-<script src="js/address.js?v=20260808j"></script>
-<script src="js/firebase.js?v=20260808j"></script>
-<script src="js/notify.js?v=20260808j"></script>
-<script src="js/promo.js?v=20260808j"></script>
-<script src="js/admin.js?v=20260808j"></script>
+<script src="js/data.js?v=20260808k"></script>
+<script src="js/i18n.js?v=20260808k"></script>
+<script src="js/address.js?v=20260808k"></script>
+<script src="js/firebase.js?v=20260808k"></script>
+<script src="js/notify.js?v=20260808k"></script>
+<script src="js/promo.js?v=20260808k"></script>
+<script src="js/admin.js?v=20260808k"></script>
 
 </body>
 </html>

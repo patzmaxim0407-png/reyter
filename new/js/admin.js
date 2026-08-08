@@ -456,6 +456,80 @@
 
   /* ---------- Редактор товару ---------- */
 
+  /* ---------- Діалоги замість alert / confirm / prompt ----------
+     Системні вікна не стилізуються, на телефоні виглядають
+     чужорідно, а prompt взагалі заблокований у частині браузерів.
+     Повертають проміс: null — відмова, рядок чи true — згода. */
+
+  R.ask = function (opts) {
+    const modal = document.getElementById('askModal');
+    if (!modal) {
+      // сторінка без діалогу — не блокуємо роботу
+      return Promise.resolve(opts.input !== undefined ? window.prompt(opts.text, opts.input) : window.confirm(opts.text));
+    }
+
+    const titleEl = document.getElementById('askTitle');
+    const textEl = document.getElementById('askText');
+    const fieldEl = document.getElementById('askField');
+    const labelEl = document.getElementById('askLabel');
+    const inputEl = document.getElementById('askInput');
+    const okBtn = document.getElementById('askOk');
+    const cancelBtn = document.getElementById('askCancel');
+
+    titleEl.textContent = opts.title || 'Підтвердження';
+    textEl.innerHTML = String(opts.text || '')
+      .split('\n\n').map((para) => esc(para).replace(/\n/g, '<br>'))
+      .map((para) => '<span>' + para + '</span>').join('');
+
+    const wantsInput = opts.input !== undefined;
+    fieldEl.hidden = !wantsInput;
+    if (wantsInput) {
+      labelEl.textContent = opts.label || '';
+      inputEl.value = opts.input || '';
+      inputEl.placeholder = opts.placeholder || '';
+    }
+
+    okBtn.textContent = opts.okText || 'Гаразд';
+    okBtn.className = 'btn ' + (opts.danger ? 'btn--danger' : 'btn--primary');
+    cancelBtn.textContent = opts.cancelText || 'Скасувати';
+
+    modal.hidden = false;
+    R.lockBg();
+    setTimeout(() => (wantsInput ? inputEl : okBtn).focus(), 60);
+
+    return new Promise((resolve) => {
+      function close(result) {
+        modal.hidden = true;
+        R.unlockBg();
+        modal.removeEventListener('click', onClick);
+        document.removeEventListener('keydown', onKey);
+        inputEl.removeEventListener('keydown', onEnter);
+        resolve(result);
+      }
+      function onClick(e) {
+        if (e.target.closest('[data-ask-cancel]') || e.target === cancelBtn) return close(null);
+        if (e.target === okBtn) {
+          const val = wantsInput ? inputEl.value.trim() : true;
+          if (wantsInput && !val) { inputEl.focus(); return; }
+          close(val);
+        }
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') close(null);
+      }
+      function onEnter(e) {
+        if (e.key === 'Enter') { e.preventDefault(); okBtn.click(); }
+      }
+      modal.addEventListener('click', onClick);
+      document.addEventListener('keydown', onKey);
+      inputEl.addEventListener('keydown', onEnter);
+    });
+  };
+
+  R.confirmAsk = function (text, opts) {
+    return R.ask(Object.assign({ text: text }, opts || {})).then((v) => v === true);
+  };
+
   /* Блокування прокрутки фону під модалкою.
      overflow: hidden на iOS не тримає сторінку — вона все одно
      «протягується», тож фіксуємо body і повертаємо позицію назад.
@@ -1550,14 +1624,21 @@
       const cat = state.categories[idx];
 
       if (act === 'rename') {
-        const name = prompt('Нова назва категорії:', cat.title);
-        if (name && name.trim()) renameCategory(cat, name.trim());
+        R.ask({
+          title: 'Перейменувати категорію',
+          text: 'Як тепер має називатись «' + cat.title + '»?',
+          label: 'Назва категорії',
+          input: cat.title,
+          okText: 'Перейменувати'
+        }).then((name) => { if (name) renameCategory(cat, name); });
       } else if (act === 'del') {
         if (countIn(id)) {
           toast('Спершу перенесіть або видаліть товари з цієї категорії');
           return;
         }
-        if (confirm('Видалити категорію «' + cat.title + '»?')) deleteCategory(idx);
+        R.confirmAsk('Видалити категорію «' + cat.title + '»?', {
+          title: 'Видалення категорії', okText: 'Видалити', danger: true
+        }).then((ok) => { if (ok) deleteCategory(idx); });
       }
     });
 
@@ -1612,7 +1693,10 @@
           toast('Немає прав');
         }
       } else if (btn.dataset.act === 'del') {
-        if (confirm('Видалити товар «' + p.name + '» (' + p.id + ')?')) {
+        R.confirmAsk('Видалити товар «' + p.name + '» (' + p.id + ')?', {
+          title: 'Видалення товару', okText: 'Видалити', danger: true
+        }).then(async (ok) => {
+          if (!ok) return;
           try {
             await prodCol().doc(p.id).delete();
             state.products.splice(idx, 1);
@@ -1620,7 +1704,7 @@
           } catch (err) {
             toast('Немає прав');
           }
-        }
+        });
       }
     });
 
@@ -2501,6 +2585,23 @@
         '</div>'
       ).join('');
 
+    /* Підсумок: товари, знижка з промокодом і доставка окремими
+       рядками — інакше з картки не видно, чому сума саме така */
+    const goods = (o.items || []).reduce((n, i) => n + (Number(i.price) || 0) * (Number(i.qty) || 0), 0);
+    const disc = Number(o.discount) || 0;
+    const ship = Number(o.shipping) || 0;
+    const sumRows =
+      '<div class="ao-sumline"><span>Товари</span><span>' + fmt(goods) + ' грн</span></div>' +
+      (disc
+        ? '<div class="ao-sumline is-off"><span>Знижка' +
+            (o.promoCode ? ' · <b>' + esc(o.promoCode) + '</b>' : '') +
+          '</span><span>−' + fmt(disc) + ' грн</span></div>'
+        : '') +
+      (ship
+        ? '<div class="ao-sumline"><span>Доставка</span><span>' + fmt(ship) + ' грн</span></div>'
+        : '') +
+      '<div class="ao-sumline is-total"><span>До сплати</span><span>' + fmt(o.total) + ' грн</span></div>';
+
     return (
       '<article class="ao-card st-' + st + (isOpen ? ' is-open' : '') + '" data-id="' + esc(o._id) + '">' +
 
@@ -2522,7 +2623,12 @@
             '<b>' + esc(c.name || '—') + '</b>' +
             ' · <a href="tel:' + esc((c.phone || '').replace(/\s/g, '')) + '">' + esc(c.phone || '—') + '</a>' +
             ((c.email || o.email) ? ' · <a href="mailto:' + esc(c.email || o.email) + '">' + esc(c.email || o.email) + '</a>' : '') +
-            (delivery ? '<br><span class="ao-muted">🚚 ' + esc(delivery) + '</span>' : '') +
+            (delivery ? '<br><span class="ao-muted">🚚 ' + esc(delivery) +
+              (Number(o.shipping) ? ' · ' + fmt(o.shipping) + ' грн' : '') + '</span>' : '') +
+            (Number(o.discount)
+              ? '<br><span class="ao-muted">🏷 Знижка ' + fmt(o.discount) + ' грн' +
+                (o.promoCode ? ' · ' + esc(o.promoCode) : '') + '</span>'
+              : '') +
             confirmHTML(c) +
             (c.comment ? '<br><span class="ao-muted">💬 ' + esc(c.comment) + '</span>' : '') +
           '</div>' +
@@ -2534,6 +2640,11 @@
         (isOpen
           ? '<div class="ao-card__details">' +
               '<div class="ao-card__items">' + items + '</div>' +
+              '<div class="ao-sums">' + sumRows + '</div>' +
+              (st === 'done' || st === 'cancelled'
+                ? ''
+                : '<button class="btn btn--ghost btn--sm ao-editorder" data-edit-order type="button">' +
+                    '✎ Редагувати замовлення</button>') +
               '<div class="ao-card__grid">' +
                 '<label class="ao-field"><span>ТТН ' + trackLink(o) + '</span>' +
                   '<input data-ao-ttn value="' + esc(o.ttn || '') + '" placeholder="номер накладної"></label>' +
@@ -2668,10 +2779,10 @@
     if (willConsume && !wasApplied && !opts.silent) {
       const short = stockShortage(order);
       if (short.length) {
-        const ok = confirm(
+        const ok = await R.confirmAsk(
           'На складі не вистачає товару:\n\n' + short.join('\n') +
-          '\n\nПродовжити? Залишки підуть у мінус — це видно на сторінці «Склад».'
-        );
+          '\n\nПродовжити? Залишки підуть у мінус — це видно на сторінці «Склад».',
+          { title: 'Нестача на складі', okText: 'Продовжити', danger: true });
         if (!ok) return false;
       }
     }
@@ -2718,7 +2829,10 @@
       toast('Усі обрані замовлення вже мають цей статус');
       return;
     }
-    if (!confirm('Змінити статус на «' + statusInfo(next).title + '» для ' + toChange.length + ' замовлень?')) return;
+    const okBulk = await R.confirmAsk(
+      'Змінити статус на «' + statusInfo(next).title + '» для ' + toChange.length + ' замовлень?',
+      { title: 'Масова зміна статусу', okText: 'Змінити' });
+    if (!okBulk) return;
 
     toast('Оновлюємо ' + toChange.length + ' замовлень…');
     let done = 0;
@@ -3107,7 +3221,52 @@
     setTimeout(() => { box.hidden = true; }, 4000);
   }
 
+  /* Модалка «Нове замовлення» працює і як редактор наявного:
+     поля ті самі, різниця лише в тому, що саме зберігаємо. */
+  let editingOrder = null;
+
+  function openEditOrder(order) {
+    editingOrder = order;
+    const c = order.customer || {};
+
+    noRows = (order.items || []).map((i) => ({
+      uid: 'r' + (++noSeq),
+      pid: i.id,
+      size: i.size || '',
+      qty: Number(i.qty) || 1,
+      price: Number(i.price) || 0
+    }));
+    if (!noRows.length) noRows = [{ uid: 'r' + (++noSeq), pid: '', size: '', qty: 1, price: 0 }];
+
+    $id('newOrderTitle').textContent = 'Редагувати замовлення №' + order.num;
+    $id('noCreateBtn').textContent = 'Зберегти зміни';
+
+    $id('noName').value = c.name || '';
+    $id('noPhone').value = c.phone || '';
+    $id('noEmail').value = c.email || order.email || '';
+    $id('noComment').value = c.comment || '';
+    $id('noAddress').innerHTML = R.addressField('no', c);
+    R.initAddress('no');
+    $id('noKnown').hidden = true;
+    $id('noDiscount').value = Number(order.discount) || '';
+    $id('noShipping').value = Number(order.shipping) || '';
+    $id('noSource').value = order.source || 'Інше';
+    $id('noStatus').value = order.status || 'new';
+    $id('noStatus').disabled = true;   // статус міняють кнопками картки
+    $id('noNotify').checked = false;
+    $id('noStatusMsg').hidden = true;
+
+    renderNoItems();
+    noModal().hidden = false;
+    R.lockBg();
+    setTimeout(() => $id('noName').focus(), 60);
+  }
+
   function openNewOrder() {
+    editingOrder = null;
+    $id('newOrderTitle').textContent = 'Нове замовлення';
+    $id('noCreateBtn').textContent = 'Створити замовлення';
+    $id('noStatus').disabled = false;
     noRows = [];
     noSeq = 0;
     ['noName', 'noPhone', 'noEmail', 'noComment'].forEach((id) => { $id(id).value = ''; });
@@ -3196,13 +3355,64 @@
       comment: $id('noComment').value.trim()
     });
 
+    const total = Math.max(0, items.reduce((s, i) => s + i.price * i.qty, 0) - discount + shipping);
+
+    /* ---------- Збереження змін наявного замовлення ----------
+       Склад: якщо товар уже списаний, повертаємо старий склад
+       і списуємо новий — інакше залишки розійдуться з фактом. */
+    if (editingOrder) {
+      const prev = editingOrder;
+      const updated = Object.assign({}, prev, {
+        items: items,
+        discount: discount,
+        shipping: shipping,
+        total: total,
+        customer: customer,
+        email: customer.email,
+        source: $id('noSource').value,
+        editedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        editedBy: (R.fb.user && R.fb.user.email) || ''
+      });
+      updated.message = buildOrderMessage(updated);
+
+      setNoStatus('wait', 'Зберігаємо зміни…');
+      try {
+        const batch = R.fb.db.batch();
+        if (prev.stockApplied) {
+          adjustOrderStock(batch, prev, 1);       // повернули старий склад
+          adjustOrderStock(batch, updated, -1);   // списали новий
+        }
+        batch.update(R.fb.db.collection('orders').doc(prev._id), {
+          items: updated.items,
+          discount: updated.discount,
+          shipping: updated.shipping,
+          total: updated.total,
+          customer: updated.customer,
+          email: updated.email,
+          source: updated.source,
+          message: updated.message,
+          editedAt: updated.editedAt,
+          editedBy: updated.editedBy
+        });
+        await batch.commit();
+
+        noModal().hidden = true;
+        R.unlockBg();
+        editingOrder = null;
+        toast('Замовлення №' + prev.num + ' оновлено ✓', 'success');
+      } catch (err) {
+        setNoStatus('err', 'Не вдалося зберегти зміни');
+      }
+      return;
+    }
+
     const order = {
       num: orderNumber(),
       date: new Date().toISOString(),
       items: items,
       discount: discount,
       shipping: shipping,
-      total: Math.max(0, items.reduce((s, i) => s + i.price * i.qty, 0) - discount + shipping),
+      total: total,
       customer: customer,
       email: customer.email,
       status: status,
@@ -3218,8 +3428,10 @@
     if (CONSUMING.includes(status)) {
       const short = stockShortage(order);
       if (short.length) {
-        const ok = confirm('На складі не вистачає товару:\n\n' + short.join('\n') +
-          '\n\nСтворити замовлення? Залишки підуть у мінус.');
+        const ok = await R.confirmAsk(
+          'На складі не вистачає товару:\n\n' + short.join('\n') +
+          '\n\nСтворити замовлення? Залишки підуть у мінус.',
+          { title: 'Нестача на складі', okText: 'Все одно створити', danger: true });
         if (!ok) return;
       }
     }
@@ -3611,13 +3823,16 @@
           toast('Немає прав');
         }
       } else if (e.target.closest('[data-promo-del]')) {
-        if (confirm('Видалити промокод ' + p.code + '?')) {
+        R.confirmAsk('Видалити промокод ' + p.code + '?', {
+          title: 'Видалення промокоду', okText: 'Видалити', danger: true
+        }).then(async (ok) => {
+          if (!ok) return;
           try {
             await R.fb.db.collection('promos').doc(p.code).delete();
           } catch (err) {
             toast('Немає прав');
           }
-        }
+        });
       }
     });
 
@@ -4440,8 +4655,11 @@
   }
 
   async function wipeLegacyTg() {
-    if (!confirm('Прибрати токен і Chat ID із бази?\n\nПеред цим переконайтесь, що тестове ' +
-      'повідомлення через воркер уже приходить — інакше сповіщення перестануть надходити.')) return;
+    const okWipe = await R.confirmAsk(
+      'Прибрати токен і Chat ID із бази?\n\nПеред цим переконайтесь, що тестове ' +
+      'повідомлення через воркер уже приходить — інакше сповіщення перестануть надходити.',
+      { title: 'Токен Telegram', okText: 'Прибрати', danger: true });
+    if (!okWipe) return;
     try {
       await R.fb.db.collection('settings').doc('notify').update({
         tgToken: firebase.firestore.FieldValue.delete(),
@@ -4695,7 +4913,10 @@
       const rm = e.target.closest('[data-rmadmin]');
       if (rm) {
         const email = rm.dataset.rmadmin;
-        if (confirm('Прибрати адміністратора ' + email + '?')) {
+        R.confirmAsk('Прибрати адміністратора ' + email + '?', {
+          title: 'Права доступу', okText: 'Прибрати', danger: true
+        }).then(async (ok) => {
+          if (!ok) return;
           try {
             await R.fb.db.collection('admins').doc(email).delete();
             toast('Адміністратора прибрано');
@@ -4703,7 +4924,7 @@
           } catch (err) {
             toast('Немає прав');
           }
-        }
+        });
       }
     });
 
@@ -4875,12 +5096,18 @@
         return;
       }
 
-      if (e.target.closest('[data-copy]')) {
+      if (e.target.closest('[data-edit-order]')) {
+        openEditOrder(order);
+      } else if (e.target.closest('[data-copy]')) {
         copyText(order.message || '');
       } else if (e.target.closest('[data-print-one]')) {
         printOrders([order]);
       } else if (e.target.closest('[data-del]')) {
-        if (confirm('Видалити замовлення №' + order.num + '?\n\nСписаний товар автоматично НЕ повернеться на склад — спершу переведіть замовлення у «Скасовано», якщо потрібне повернення залишків.')) {
+        const okDel = await R.confirmAsk(
+          'Видалити замовлення №' + order.num + '?\n\nСписаний товар автоматично НЕ повернеться ' +
+          'на склад — спершу переведіть замовлення у «Скасовано», якщо потрібне повернення залишків.',
+          { title: 'Видалення замовлення', okText: 'Видалити', danger: true });
+        if (okDel) {
           try {
             selection.delete(order._id);
             await R.fb.db.collection('orders').doc(order._id).delete();
@@ -4951,13 +5178,16 @@
         if (e.target.closest('[data-rst-receive]')) {
           receiveRestock(r);
         } else if (e.target.closest('[data-rst-del]')) {
-          if (confirm('Видалити запланований прихід?')) {
+          R.confirmAsk('Видалити запланований прихід?', {
+            title: 'Видалення приходу', okText: 'Видалити', danger: true
+          }).then((ok) => {
+            if (!ok) return;
             R.fb.db.collection('restocks').doc(r._id).delete()
               .then(() => loadRestocks())
               .then(() => syncRestockEta(r.productId))
               .then(renderStockUI)
               .catch(() => toast('Немає прав'));
-          }
+          });
         } else if (e.target.closest('[data-rst-edit]')) {
           editingRestockId = r._id;
           renderStockUI();
