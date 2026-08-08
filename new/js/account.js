@@ -405,6 +405,8 @@
     if (res.ok) {
       trackedOrder = res.order;
       box.innerHTML = trackCardHTML(res.order);
+      // Форма стоїть під входом — знахідка інакше лишиться за екраном
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       return;
     }
 
@@ -450,7 +452,9 @@
       shownOrders = cloud;
       body().innerHTML =
         '<p class="account-note">' + R.t('acc.ordersNote') + '</p>' +
-        (cloud.length ? cloud.map((o, i) => orderCardHTML(o, i, true)).join('') : emptyHTML);
+        (cloud.length ? cloud.map((o, i) => orderCardHTML(o, i, true)).join('') : emptyHTML) +
+        // Порожньо — можливо, замовляли гостем і на іншу пошту
+        (cloud.length ? '' : trackFormHTML());
       return;
     }
 
