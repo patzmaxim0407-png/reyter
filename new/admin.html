@@ -208,8 +208,22 @@
 
         <div class="field">
           <label for="fImages">Фото (по одному шляху в рядку) *</label>
+
+          <div class="a-upload">
+            <label class="btn btn--ghost btn--sm a-upload__btn">
+              <input type="file" id="fUpload" accept="image/*" multiple hidden>
+              ⬆ Завантажити фото
+            </label>
+            <span class="a-upload__status" id="fUploadStatus"></span>
+          </div>
+
           <textarea id="fImages" rows="4" placeholder="../assets/images/boxers/bl5.webp"></textarea>
-          <p class="field__hint">Спершу додайте фото в папку <code>assets/images/…</code> репозиторію, потім впишіть шляхи сюди. Перше фото — обкладинка, друге — показується при наведенні.</p>
+          <p class="field__hint">
+            Найпростіше — кнопка «Завантажити фото»: файли зменшуються, переганяються
+            у WebP і лягають у репозиторій сайту, а шляхи додаються сюди самі.
+            Можна й вписати шлях руками, якщо фото вже в <code>assets/images/…</code>.
+            Перше фото — обкладинка, друге — показується при наведенні.
+          </p>
         </div>
 
         <div class="field">

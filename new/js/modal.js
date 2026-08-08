@@ -30,6 +30,8 @@
     el.article = document.getElementById('pmArticle');
     el.price = document.getElementById('pmPrice');
     el.saleNote = document.getElementById('pmSaleNote');
+    el.colorsBlock = document.getElementById('pmColorsBlock');
+    el.colors = document.getElementById('pmColors');
     el.sizesBlock = document.getElementById('pmSizesBlock');
     el.sizesTitle = document.getElementById('pmSizesTitle');
     el.sizes = document.getElementById('pmSizes');
@@ -231,6 +233,51 @@
     el.extras.innerHTML = html;
   }
 
+  /* ---------- Кольори ----------
+     До кольору може бути прив'язана картка того самого товару
+     в цьому кольорі: клік по зразку відкриває саме її.
+     Зразок без прив'язки — просто позначка наявного кольору. */
+
+  function renderColors() {
+    if (!el.colors) return;
+
+    const colors = R.productColors(current);
+    // самі кольори без прив'язок нічого не перемикають —
+    // вони вже видно на фото, тож блок не показуємо
+    const switchable = colors.filter((c) => c.id && R.getProduct(c.id));
+
+    if (!colors.length || !switchable.length) {
+      el.colorsBlock.hidden = true;
+      el.colors.innerHTML = '';
+      return;
+    }
+
+    /* Поточний товар теж має бути зразком, інакше повернутись
+       до нього після переходу не вийде */
+    const own = colors.find((c) => !c.id || c.id === current.id) || colors[0];
+
+    const list = [{ hex: own.hex, id: current.id }].concat(
+      switchable.filter((c) => c.id !== current.id)
+    );
+
+    el.colorsBlock.hidden = false;
+    el.colors.innerHTML = list.map((c) => {
+      const target = c.id === current.id ? current : R.getProduct(c.id);
+      const active = c.id === current.id;
+      const av = target ? R.availability(target) : null;
+      const name = target ? R.tf(target, 'name') : '';
+      return (
+        '<button type="button" class="swatch' + (active ? ' is-active' : '') +
+          (av && av.soldOut ? ' is-sold' : '') + '" ' +
+          'data-color-id="' + R.esc(c.id) + '" ' +
+          'style="--swatch:' + R.esc(c.hex) + '" ' +
+          'aria-current="' + active + '" ' +
+          'title="' + R.esc(name + (active ? ' — ' + R.t('p.thisColor') : '')) + '" ' +
+          'aria-label="' + R.esc(name) + '"></button>'
+      );
+    }).join('');
+  }
+
   /* ---------- Кнопки ---------- */
 
   function refreshCta() {
@@ -302,6 +349,7 @@
     el.saleNote.hidden = !p.saleNote;
     el.saleNote.textContent = p.saleNote ? R.tf(p, 'saleNote') : '';
 
+    renderColors();
     renderSizes();
     renderDesc();
     renderExtras();
@@ -442,6 +490,15 @@
         refreshStatus();
         refreshCta();   // кількість рахується для кожного розміру окремо
       }
+    });
+
+    /* Перемикання кольору = перехід на картку того кольору */
+    el.colors.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-color-id]');
+      if (!btn) return;
+      const id = btn.dataset.colorId;
+      if (!id || id === (current && current.id)) return;
+      if (R.getProduct(id)) openProduct(id);
     });
 
     el.inCart.addEventListener('click', (e) => {

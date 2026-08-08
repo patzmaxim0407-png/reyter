@@ -501,6 +501,12 @@
      не ламається без JS-фреймворків і не заважає вписати
      значення руками, якщо в списку його раптом немає. */
 
+  /* Доступний і для інших модулів: тим самим списком адмінка
+     обирає товар у ручному замовленні й прив'язує колір */
+  R.attachCombo = function (input, opts) {
+    attachCombo(input, opts);
+  };
+
   function attachCombo(input, opts) {
     if (!input) return;
     const box = input.closest('.acombo__box');
@@ -532,10 +538,11 @@
       if (!items.length) return message(opts.empty);
       list.innerHTML = items.map((it, i) => {
         const v = opts.render(it);
-        return '<li class="acombo__opt' + (i === active ? ' is-active' : '') + '" ' +
+        return '<li class="acombo__opt' + (i === active ? ' is-active' : '') +
+          (v.cls ? ' ' + v.cls : '') + '" ' +
           'role="option" data-i="' + i + '" aria-selected="' + (i === active) + '">' +
-          '<span>' + esc(v.text) + '</span>' +
-          (v.note ? '<i>' + esc(v.note) + '</i>' : '') +
+          (v.html || ('<span>' + esc(v.text) + '</span>' +
+            (v.note ? '<i>' + esc(v.note) + '</i>' : ''))) +
         '</li>';
       }).join('');
       list.hidden = false;
@@ -579,7 +586,7 @@
         draw();
       } catch (e) {
         if (my !== seq) return;
-        message('addr.offline');
+        message(opts.errorKey || 'addr.offline');
       } finally {
         if (my === seq) spin.hidden = true;
       }
@@ -593,6 +600,7 @@
 
     input.addEventListener('focus', () => {
       if (input.value.length >= opts.minChars) run();
+      if (opts.openOnFocus) run();
     });
 
     input.addEventListener('keydown', (e) => {

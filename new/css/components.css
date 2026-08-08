@@ -1781,3 +1781,80 @@
   content: ' *';
   color: var(--c-red);
 }
+
+/* ---------- Перемикач кольору в картці товару ---------- */
+
+.pinfo__colors {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1.1rem;
+}
+
+.pinfo__colors[hidden] {
+  display: none;
+}
+
+.pinfo__colors-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+/* Кільце навколо зразка, а не рамка на самому кольорі —
+   інакше темні відтінки зливаються з обведенням */
+.swatch {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--swatch, #ccc);
+  box-shadow: inset 0 0 0 1px rgba(23, 27, 38, 0.18),
+              0 0 0 2px var(--c-paper),
+              0 0 0 3px transparent;
+  cursor: pointer;
+  transition: box-shadow var(--t-fast), transform var(--t-fast);
+}
+
+.swatch:hover {
+  transform: translateY(-2px);
+}
+
+.swatch.is-active {
+  box-shadow: inset 0 0 0 1px rgba(23, 27, 38, 0.18),
+              0 0 0 2px var(--c-paper),
+              0 0 0 3px var(--c-blue);
+  cursor: default;
+}
+
+.swatch:focus-visible {
+  outline: 2px solid var(--c-blue);
+  outline-offset: 3px;
+}
+
+/* Проданий колір лишається видимим, але явно позначеним */
+.swatch.is-sold::after {
+  content: '';
+  position: absolute;
+  inset: 50% -3px auto -3px;
+  height: 2px;
+  background: var(--c-red);
+  transform: rotate(-45deg);
+  border-radius: 2px;
+}
+
+@media (pointer: coarse) {
+  .swatch {
+    width: 44px;
+    height: 44px;
+  }
+}

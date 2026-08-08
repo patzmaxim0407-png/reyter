@@ -466,17 +466,72 @@
       .join('');
   }
 
+  /* Колір + необовʼязкове посилання на картку того самого
+     товару в цьому кольорі: на сайті клієнт перемикає колір
+     і потрапляє саме на неї. */
+  /* Кольори у двох форматах: старий рядок і новий {hex, id} */
+  function adminColors(p) {
+    return ((p && p.colors) || []).map((c) =>
+      typeof c === 'string' ? { hex: c, id: '' } : { hex: c.hex || '', id: c.id || '' }
+    ).filter((c) => c.hex);
+  }
+
   function addColorRow(value) {
-    const row = document.createElement('span');
+    const c = typeof value === 'string' ? { hex: value, id: '' } : (value || {});
+    const linked = c.id ? state.products.find((x) => x.id === c.id) : null;
+
+    const row = document.createElement('div');
     row.className = 'a-color';
     row.innerHTML =
-      '<input type="color" value="' + esc(value || '#014AAD') + '">' +
-      '<button type="button" title="Прибрати">✕</button>';
-    row.querySelector('button').addEventListener('click', () => {
+      '<input type="color" value="' + esc(c.hex || '#014AAD') + '">' +
+      '<div class="acombo a-colorlink">' +
+        '<div class="acombo__box">' +
+          '<input data-color-pid value="' + esc(linked ? linked.name : '') + '" ' +
+            'placeholder="товар цього кольору (необовʼязково)" autocomplete="off" ' +
+            'spellcheck="false" role="combobox" data-ref="' + esc(c.id || '') + '">' +
+          '<span class="acombo__spin" hidden></span>' +
+          '<ul class="acombo__list" role="listbox" hidden></ul>' +
+        '</div>' +
+      '</div>' +
+      '<button type="button" class="a-color__del" title="Прибрати колір" aria-label="Прибрати колір">✕</button>';
+
+    row.querySelector('.a-color__del').addEventListener('click', () => {
       row.remove();
       updatePreview();
     });
+
     $('fColors').appendChild(row);
+    bindColorLink(row.querySelector('[data-color-pid]'));
+  }
+
+  /* Пошук товару для прив'язки — той самий список, що й
+     у ручному замовленні, але без залишків */
+  function bindColorLink(input) {
+    if (!input || !R.attachCombo) return;
+    R.attachCombo(input, {
+      minChars: 0,
+      openOnFocus: true,
+      load: (q) => {
+        const needle = q.trim().toLowerCase();
+        return state.products
+          .filter((x) => x.id !== $('fId').value.trim())
+          .filter((x) => !needle ||
+            x.name.toLowerCase().includes(needle) ||
+            x.id.toLowerCase().includes(needle));
+      },
+      render: (x) => ({
+        html:
+          '<img class="a-pick__img" src="' + esc((x.images && x.images[0]) || '') + '" alt="" ' +
+            'loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
+          '<span class="a-pick__body"><b>' + esc(x.name) + '</b>' +
+          '<i>' + esc(x.id) + ' · ' + catTitle(x.category) + '</i></span>',
+        cls: 'a-pick',
+        value: x.name,
+        ref: x.id
+      }),
+      onPick: updatePreview,
+      empty: 'admin.noProduct'
+    });
   }
 
   function openEditor(product) {
@@ -486,6 +541,7 @@
     const p = product || {};
     $('fId').value = p.id || '';
     $('fName').value = p.name || '';
+    setUploadStatus('', '');
     const mainCat = p.category || (currentCat !== 'all' ? currentCat : (state.categories[0] || {}).id);
     fillCategorySelect(mainCat);
     renderExtraCats(mainCat, prodCats(p));
@@ -552,8 +608,15 @@
     if ($('fModel').value.trim()) p.model = $('fModel').value.trim();
 
     const colors = Array.prototype.map.call(
-      document.querySelectorAll('#fColors input[type="color"]'),
-      (i) => i.value
+      document.querySelectorAll('#fColors .a-color'),
+      (row) => {
+        const hex = row.querySelector('input[type="color"]').value;
+        const link = row.querySelector('[data-color-pid]');
+        const id = link ? (link.dataset.ref || '') : '';
+        // без прив'язки лишаємо простий рядок — так data.js
+        // не роздувається обʼєктами там, де вони не потрібні
+        return id ? { hex: hex, id: id } : hex;
+      }
     );
     if (colors.length) p.colors = colors;
 
@@ -568,10 +631,148 @@
     return p;
   }
 
+  /* ---------- Завантаження фото ----------
+     Фото їдуть у той самий репозиторій, що й сайт, і роздає їх
+     GitHub Pages — тобто безкоштовно й без окремого сховища.
+     Перед відправкою зменшуємо й переганяємо у WebP: оригінали
+     з телефона важать по 4–6 МБ, а в репозиторії це назавжди. */
+
+  const UPLOAD_DIR = 'assets/images/products';
+  const MAX_SIDE = 1600;
+
+  function fileToImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Не вдалося прочитати файл')); };
+      img.src = url;
+    });
+  }
+
+  async function toWebp(file) {
+    const img = await fileToImage(file);
+    const scale = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+
+    const blob = await new Promise((res) => canvas.toBlob(res, 'image/webp', 0.82));
+    if (!blob) throw new Error('Браузер не вміє WebP');
+
+    const buf = await blob.arrayBuffer();
+    let bin = '';
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return { base64: btoa(bin), size: blob.size, w: w, h: h };
+  }
+
+  function slugFile(name) {
+    return String(name).toLowerCase()
+      .replace(/\.[^.]+$/, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'photo';
+  }
+
+  function ghToken() {
+    return (localStorage.getItem(KEY_TOKEN) || '').trim();
+  }
+
+  function setUploadStatus(cls, text) {
+    const el = $('fUploadStatus');
+    if (!el) return;
+    el.className = 'a-upload__status ' + (cls || '');
+    el.textContent = text || '';
+  }
+
+  async function uploadPhotos(files) {
+    if (!files.length) return;
+
+    let token = ghToken();
+    if (!token) {
+      token = (prompt(
+        'Фото зберігаються в репозиторії сайту (GitHub Pages роздає їх безкоштовно).\n\n' +
+        'Вставте GitHub-токен із дозволом Contents: Read and write — той самий, ' +
+        'що для «Резервної копії». Він збережеться в цьому браузері.'
+      ) || '').trim();
+      if (!token) return;
+      localStorage.setItem(KEY_TOKEN, token);
+    }
+
+    const article = ($('fId').value.trim() || 'misc').toLowerCase();
+    const dir = UPLOAD_DIR + '/' + article.replace(/[^a-z0-9-]/g, '');
+    const stamp = Date.now();
+    const added = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setUploadStatus('wait', 'Готуємо ' + (i + 1) + ' з ' + files.length + '…');
+
+      let img;
+      try {
+        img = await toWebp(file);
+      } catch (e) {
+        setUploadStatus('err', 'Не вдалося обробити «' + file.name + '»');
+        return;
+      }
+
+      const path = dir + '/' + stamp + '-' + (i + 1) + '-' + slugFile(file.name) + '.webp';
+      setUploadStatus('wait', 'Вивантажуємо ' + (i + 1) + ' з ' + files.length +
+        ' (' + Math.round(img.size / 1024) + ' КБ)…');
+
+      try {
+        const res = await fetch(
+          'https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + path,
+          {
+            method: 'PUT',
+            headers: {
+              Authorization: 'Bearer ' + token,
+              Accept: 'application/vnd.github+json'
+            },
+            body: JSON.stringify({
+              message: 'Фото товару ' + article,
+              content: img.base64,
+              branch: GH.branch
+            })
+          }
+        );
+
+        if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem(KEY_TOKEN);
+          setUploadStatus('err', 'Токен не має доступу до репозиторію. Потрібен дозвіл Contents: Read and write');
+          return;
+        }
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setUploadStatus('err', 'GitHub відмовив: ' + (err.message || res.status));
+          return;
+        }
+      } catch (e) {
+        setUploadStatus('err', 'Немає звʼязку з GitHub');
+        return;
+      }
+
+      added.push('../' + path);
+    }
+
+    const box = $('fImages');
+    const lines = box.value.split('\n').map((l) => l.trim()).filter(Boolean);
+    box.value = lines.concat(added).join('\n');
+    updatePreview();
+
+    setUploadStatus('ok', 'Додано фото: ' + added.length +
+      ' ✓ Зʼявляться на сайті за хвилину-дві, коли GitHub Pages перебудує сторінку');
+  }
+
   function updatePreview() {
     const p = collectForm();
-    const dots = (p.colors || [])
-      .map((c) => '<span class="dot" style="background-color:' + esc(c) + '"></span>')
+    const dots = adminColors(p)
+      .map((c) => '<span class="dot" style="background-color:' + esc(c.hex) + '"></span>')
       .join('');
     const badges = [];
     if (p.status === 'sold-out') badges.push('<span class="badge badge--sold">Продано</span>');
@@ -822,6 +1023,14 @@
       }
     });
 
+    const upload = $('fUpload');
+    if (upload) {
+      upload.addEventListener('change', () => {
+        uploadPhotos(Array.prototype.slice.call(upload.files));
+        upload.value = ''; // щоб той самий файл можна було вибрати вдруге
+      });
+    }
+
     const syncBtn = $('syncStructBtn');
     if (syncBtn) syncBtn.addEventListener('click', syncStructure);
 
@@ -990,6 +1199,12 @@
 
   function categories() {
     return (R.adminGetState ? R.adminGetState() : { categories: R.categories }).categories;
+  }
+
+  /* Назва категорії — у цього модуля свій список категорій */
+  function catName(id) {
+    const c = categories().find((x) => x.id === id);
+    return c ? c.title : (id || '');
   }
 
   function productById(id) {
@@ -1957,25 +2172,55 @@
     return tracked.length ? R.config.allSizes.filter((x) => tracked.includes(x)) : (p.sizes || []);
   }
 
+  /* Рядок товару у списку вибору: мініатюра, назва, артикул,
+     категорія, ціна й залишок — усе, чим одна позиція
+     відрізняється від сусідньої */
+  function productOptionHTML(x) {
+    const img = (x.images && x.images[0]) || '';
+    const left = hasInvDoc(x.id) ? totalQty(x) : null;
+    return (
+      '<img class="a-pick__img" src="' + esc(img) + '" alt="" loading="lazy"' +
+        ' onerror="this.style.visibility=\'hidden\'">' +
+      '<span class="a-pick__body">' +
+        '<b>' + esc(x.name) + '</b>' +
+        '<i>' + esc(x.id) + ' · ' + esc(catName(x.category)) + ' · ' + fmt(x.price) + ' грн' +
+          (left === null ? '' : ' · ' + left + ' шт') + '</i>' +
+      '</span>'
+    );
+  }
+
+  /* Обраний товар — той самий вигляд, але як мітка над полем */
+  function productChipHTML(p) {
+    const img = (p.images && p.images[0]) || '';
+    return (
+      '<span class="a-pick__chip">' +
+        '<img src="' + esc(img) + '" alt="" loading="lazy"' +
+          ' onerror="this.style.visibility=\'hidden\'">' +
+        '<span><b>' + esc(p.name) + '</b><i>' + esc(p.id) + ' · ' + fmt(p.price) + ' грн</i></span>' +
+      '</span>'
+    );
+  }
+
   function noRowHTML(row) {
     const p = productById(row.pid);
     const all = products();
 
+    /* Замість <select> — пошук зі списком, де видно мініатюру,
+       артикул, категорію, ціну й залишок: у списку три десятки
+       позицій із дуже схожими назвами («Бріфи classic» двічі),
+       і за самою назвою їх не розрізнити. */
     const productSelect =
-      '<select data-no-pid>' +
-        '<option value="">— оберіть товар —</option>' +
-        categories().map((cat) => {
-          const items = all.filter((x) => x.category === cat.id);
-          if (!items.length) return '';
-          return '<optgroup label="' + esc(cat.title) + '">' +
-            items.map((x) =>
-              '<option value="' + esc(x.id) + '"' + (x.id === row.pid ? ' selected' : '') + '>' +
-                esc(x.name) + ' — ' + fmt(x.price) + ' грн' +
-              '</option>'
-            ).join('') +
-          '</optgroup>';
-        }).join('') +
-      '</select>';
+      '<div class="acombo a-nopick">' +
+        '<div class="acombo__box">' +
+          (p ? productChipHTML(p) : '') +
+          '<input data-no-pid value="' + esc(p ? p.name : '') + '" ' +
+            'placeholder="оберіть товар — назва або артикул" ' +
+            'autocomplete="off" spellcheck="false" role="combobox" ' +
+            'aria-expanded="false" data-ref="' + esc(row.pid || '') + '">' +
+          '<span class="acombo__spin" hidden></span>' +
+          '<ul class="acombo__list" role="listbox" hidden></ul>' +
+        '</div>' +
+      '</div>';
 
     let sizeSelect;
     if (!p) {
@@ -2032,7 +2277,44 @@
     $id('noItems').innerHTML = noRows.length
       ? noRows.map(noRowHTML).join('')
       : '<div class="a-empty">Додайте хоча б одну позицію.</div>';
+    bindProductPickers();
     renderNoTotal();
+  }
+
+  /* Пошук товару в рядку позиції: шукає і за назвою, і за
+     артикулом — назви часто збігаються, артикули ні */
+  function bindProductPickers() {
+    $id('noItems').querySelectorAll('[data-no-pid]').forEach((input) => {
+      R.attachCombo(input, {
+        minChars: 0,
+        openOnFocus: true,
+        load: (q) => {
+          const needle = q.trim().toLowerCase();
+          return products().filter((x) =>
+            !needle ||
+            x.name.toLowerCase().includes(needle) ||
+            x.id.toLowerCase().includes(needle) ||
+            catName(x.category).toLowerCase().includes(needle));
+        },
+        render: (x) => ({
+          html: productOptionHTML(x),
+          cls: 'a-pick',
+          value: x.name,
+          ref: x.id
+        }),
+        onPick: (x) => {
+          const rowEl = input.closest('[data-row]');
+          const row = noRows.find((r) => r.uid === rowEl.dataset.row);
+          if (!row) return;
+          row.pid = x.id;
+          row.price = x.price;
+          const sizes = availableSizes(x);
+          row.size = !isSized(x) ? x.volume : (sizes[0] || '');
+          renderNoItems();
+        },
+        empty: 'admin.noProduct'
+      });
+    });
   }
 
   function renderNoTotal() {
@@ -3368,15 +3650,6 @@
         const row = noRows.find((r) => r.uid === rowEl.dataset.row);
         if (!row) return;
 
-        if (e.target.matches('[data-no-pid]')) {
-          row.pid = e.target.value;
-          const p = productById(row.pid);
-          row.price = p ? p.price : 0;
-          const sizes = p ? availableSizes(p) : [];
-          row.size = p && !isSized(p) ? p.volume : (sizes[0] || '');
-          renderNoItems();
-          return;
-        }
         if (e.target.matches('[data-no-size]')) row.size = e.target.value;
         if (e.target.matches('[data-no-qty]')) row.qty = Math.max(1, Math.trunc(Number(e.target.value) || 1));
         if (e.target.matches('[data-no-price]')) row.price = Math.max(0, Math.trunc(Number(e.target.value) || 0));

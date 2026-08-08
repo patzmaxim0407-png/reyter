@@ -45,6 +45,15 @@
     return list;
   };
 
+  /* Кольори товару. Старий формат — просто масив відтінків,
+     новий — обʼєкти {hex, id}, де id вказує на картку того
+     самого товару в іншому кольорі. Читаємо обидва. */
+  R.productColors = function (p) {
+    return ((p && p.colors) || []).map((c) =>
+      typeof c === 'string' ? { hex: c, id: '' } : { hex: c.hex || '', id: c.id || '' }
+    ).filter((c) => c.hex);
+  };
+
   R.inCategory = function (p, catId) {
     return R.productCats(p).includes(catId);
   };
@@ -129,8 +138,8 @@
       ? ' fetchpriority="high" decoding="async"'
       : ' loading="lazy" decoding="async"';
 
-    const dots = (p.colors || [])
-      .map((c) => '<span class="dot" style="background-color:' + R.esc(c) + '"></span>')
+    const dots = R.productColors(p)
+      .map((c) => '<span class="dot" style="background-color:' + R.esc(c.hex) + '"></span>')
       .join('');
 
     const altImg = p.images[1]
