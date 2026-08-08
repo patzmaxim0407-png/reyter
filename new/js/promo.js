@@ -51,11 +51,19 @@
 
   /* ---------- Позиції, на які поширюється промокод ---------- */
 
+  /* Товар може стояти в кількох категоріях — досить збігу з однією */
+  function itemCats(it) {
+    const list = Array.isArray(it.categories) ? it.categories.slice() : [];
+    if (it.category && !list.includes(it.category)) list.unshift(it.category);
+    return list;
+  }
+
   function eligible(promo, items) {
     return items.filter((it) => {
       if (promo.excludeSale && it.sale) return false;
       if (promo.scope === 'categories') {
-        return (promo.categories || []).includes(it.category);
+        const want = promo.categories || [];
+        return itemCats(it).some((c) => want.includes(c));
       }
       if (promo.scope === 'products') {
         return (promo.products || []).includes(it.id);

@@ -104,6 +104,9 @@
         return {
           id: p.id,
           category: p.category,
+          // товар може стояти в кількох категоріях — промокод
+          // на будь-яку з них має спрацювати
+          categories: R.productCats(p),
           price: p.price,
           qty: i.qty,
           sale: !!p.sale
@@ -351,6 +354,124 @@
     );
   }
 
+  /* ---------- Спосіб підтвердження ----------
+     Менеджер має знати, куди писати чи дзвонити. За замовчуванням
+     дзвінок на той самий номер — це найчастіший випадок, тож
+     покупцю не треба нічого чіпати. */
+
+  const MESSENGERS = [
+    { id: 'telegram', title: 'Telegram', icon: 'fa-telegram' },
+    { id: 'whatsapp', title: 'WhatsApp', icon: 'fa-whatsapp' },
+    { id: 'viber',    title: 'Viber',    icon: 'fa-viber' }
+  ];
+
+  function radioChip(name, value, label, checked, extraClass) {
+    return (
+      '<label class="ochip' + (extraClass ? ' ' + extraClass : '') + '">' +
+        '<input type="radio" name="' + name + '" value="' + value + '"' + (checked ? ' checked' : '') + '>' +
+        '<span>' + label + '</span>' +
+      '</label>'
+    );
+  }
+
+  function confirmHTML(profile) {
+    const c = profile.confirm || {};
+    const method = c.method === 'messenger' ? 'messenger' : 'call';
+    const messenger = MESSENGERS.some((m) => m.id === c.messenger) ? c.messenger : 'telegram';
+    const phoneMode = c.phoneMode === 'other' ? 'other' : 'same';
+
+    return (
+      '<div class="field co-confirm" id="coConfirm">' +
+        '<label>' + R.t('cart.confirmTitle') + '</label>' +
+        '<div class="ochips">' +
+          radioChip('co-method', 'call', R.t('cart.byCall'), method === 'call') +
+          radioChip('co-method', 'messenger', R.t('cart.byMessenger'), method === 'messenger') +
+        '</div>' +
+
+        '<div class="co-confirm__part" id="coMsgrBox"' + (method === 'messenger' ? '' : ' hidden') + '>' +
+          '<span class="co-confirm__label">' + R.t('cart.whichMessenger') + '</span>' +
+          '<div class="ochips">' +
+            MESSENGERS.map((m) => radioChip(
+              'co-messenger', m.id,
+              '<i class="fab ' + m.icon + '" aria-hidden="true"></i>' + m.title,
+              messenger === m.id, 'ochip--' + m.id
+            )).join('') +
+          '</div>' +
+        '</div>' +
+
+        '<div class="co-confirm__part">' +
+          '<span class="co-confirm__label">' + R.t('cart.contactPhone') + '</span>' +
+          '<div class="ochips">' +
+            radioChip('co-phone-mode', 'same', R.t('cart.samePhone'), phoneMode === 'same') +
+            radioChip('co-phone-mode', 'other', R.t('cart.otherPhone'), phoneMode === 'other') +
+          '</div>' +
+          '<input id="coAltPhone" type="tel" inputmode="tel" placeholder="+380..." value="' +
+            R.esc(c.altPhone || '') + '"' + (phoneMode === 'other' ? '' : ' hidden') + '>' +
+        '</div>' +
+
+        '<div class="co-confirm__part" id="coTgBox"' +
+          (method === 'messenger' && messenger === 'telegram' ? '' : ' hidden') + '>' +
+          '<span class="co-confirm__label">' + R.t('cart.tgLogin') + '</span>' +
+          '<input id="coTgLogin" placeholder="@username" autocomplete="off" spellcheck="false" value="' +
+            R.esc(c.telegram || '') + '">' +
+          '<p class="co-confirm__hint">' + R.t('cart.tgHint') + '</p>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  /* Показуємо тільки те, що доречно для обраного способу */
+  function syncConfirm() {
+    const box = document.getElementById('coConfirm');
+    if (!box) return;
+
+    const method = (box.querySelector('input[name="co-method"]:checked') || {}).value || 'call';
+    const messenger = (box.querySelector('input[name="co-messenger"]:checked') || {}).value || '';
+    const phoneMode = (box.querySelector('input[name="co-phone-mode"]:checked') || {}).value || 'same';
+
+    document.getElementById('coMsgrBox').hidden = method !== 'messenger';
+    document.getElementById('coTgBox').hidden = !(method === 'messenger' && messenger === 'telegram');
+    document.getElementById('coAltPhone').hidden = phoneMode !== 'other';
+  }
+
+  function collectConfirm() {
+    const box = document.getElementById('coConfirm');
+    if (!box) return null;
+
+    const val = (name) => (box.querySelector('input[name="' + name + '"]:checked') || {}).value || '';
+    const method = val('co-method') || 'call';
+    const phoneMode = val('co-phone-mode') || 'same';
+    const alt = document.getElementById('coAltPhone').value.trim();
+    const messenger = method === 'messenger' ? (val('co-messenger') || 'telegram') : '';
+    const tg = document.getElementById('coTgLogin').value.trim();
+
+    const out = {
+      method: method,
+      messenger: messenger,
+      phoneMode: phoneMode,
+      altPhone: phoneMode === 'other' ? alt : ''
+    };
+    if (messenger === 'telegram' && tg) out.telegram = tg.replace(/^@+/, '');
+    return out;
+  }
+
+  /* Один рядок для листа, повідомлення в Telegram і адмінки */
+  R.confirmLine = function (customer) {
+    const c = (customer || {}).confirm;
+    if (!c) return '';
+
+    const name = { telegram: 'Telegram', whatsapp: 'WhatsApp', viber: 'Viber' }[c.messenger] || '';
+    const how = c.method === 'messenger'
+      ? (name || R.t('cart.byMessenger'))
+      : R.t('cart.byCall');
+
+    const phone = c.phoneMode === 'other' && c.altPhone ? c.altPhone : (customer.phone || '');
+    const parts = [how];
+    if (phone) parts.push(phone);
+    if (c.telegram) parts.push('@' + c.telegram);
+    return parts.join(' · ');
+  };
+
   function renderCheckout() {
     const items = cart.items();
     const profile = R.getProfile();
@@ -395,6 +516,7 @@
           fieldHTML('coCity', R.t('cart.city'), profile.city, 'autocomplete="address-level2"') +
         '</div>' +
         fieldHTML('coBranch', R.t('cart.branch'), profile.branch, '') +
+        confirmHTML(profile) +
         '<div class="field">' +
           '<label for="coComment">' + R.t('cart.comment') + '</label>' +
           '<textarea id="coComment" placeholder="' + R.t('cart.commentPh') + '"></textarea>' +
@@ -426,6 +548,8 @@
     const delivery = [order.customer.carrier, order.customer.city, order.customer.branch]
       .filter(Boolean).join(', ');
     if (delivery) lines.push('🚚 ' + delivery);
+    const confirmLine = R.confirmLine(order.customer);
+    if (confirmLine) lines.push('☎️ Підтвердження: ' + confirmLine);
     if (order.customer.comment) lines.push('💬 ' + order.customer.comment);
     return lines.join('\n');
   }
@@ -459,7 +583,8 @@
       carrier: document.getElementById('coCarrier').value,
       city: document.getElementById('coCity').value.trim(),
       branch: document.getElementById('coBranch').value.trim(),
-      comment: document.getElementById('coComment').value.trim()
+      comment: document.getElementById('coComment').value.trim(),
+      confirm: collectConfirm()
     };
 
     // Профіль запамʼятовуємо для наступних замовлень
@@ -469,7 +594,8 @@
       email: customer.email,
       carrier: customer.carrier,
       city: customer.city,
-      branch: customer.branch
+      branch: customer.branch,
+      confirm: customer.confirm
     });
 
     const now = new Date();
@@ -519,7 +645,8 @@
         email: customer.email,
         carrier: customer.carrier,
         city: customer.city,
-        branch: customer.branch
+        branch: customer.branch,
+        confirm: customer.confirm
       });
     }
 
@@ -615,6 +742,12 @@
 
     d.addEventListener('input', (e) => {
       if (e.target.id === 'promoInput') promoInputValue = e.target.value;
+    });
+
+    // Перемикачі способу підтвердження ховають/показують поля
+    // без перемальовки форми — інакше введене загубиться
+    d.addEventListener('change', (e) => {
+      if (e.target.name && e.target.name.indexOf('co-') === 0) syncConfirm();
     });
 
     d.addEventListener('submit', (e) => {

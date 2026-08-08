@@ -34,6 +34,21 @@
     return R.products.filter((p) => !p.hidden);
   };
 
+  /* Товар може стояти в кількох категоріях одразу: наприклад
+     Swimwear показується і в своїй категорії, і в «New drop».
+     Поле category лишається головним — за ним працюють склад,
+     адмінка й старі дані, де масиву ще немає. */
+  R.productCats = function (p) {
+    if (!p) return [];
+    const list = Array.isArray(p.categories) ? p.categories.filter(Boolean) : [];
+    if (p.category && !list.includes(p.category)) list.unshift(p.category);
+    return list;
+  };
+
+  R.inCategory = function (p, catId) {
+    return R.productCats(p).includes(catId);
+  };
+
   R.uah = function (n) {
     return R.lang && R.lang() === 'en'
       ? 'UAH ' + R.fmt(n)
@@ -97,18 +112,29 @@
     return badges.length ? '<span class="pcard__badges">' + badges.join('') + '</span>' : '';
   }
 
+  /* Перші картки вантажимо одразу: поки їх зображення «ліниві»,
+     на початку каталогу видно порожні прямокутники. Решта —
+     lazy, інакше сторінка тягне всі 30 фото відразу. */
+  const EAGER_CARDS = 8;
+  let cardIndex = 0;
+
   function cardHTML(p) {
     const av = R.availability(p);
     const cls = ['pcard'];
     if (p.sale) cls.push('pcard--sale');
     if (av.soldOut) cls.push('pcard--sold');
 
+    const eager = cardIndex++ < EAGER_CARDS;
+    const load = eager
+      ? ' fetchpriority="high" decoding="async"'
+      : ' loading="lazy" decoding="async"';
+
     const dots = (p.colors || [])
       .map((c) => '<span class="dot" style="background-color:' + R.esc(c) + '"></span>')
       .join('');
 
     const altImg = p.images[1]
-      ? '<img class="alt" src="' + R.esc(p.images[1]) + '" alt="" loading="lazy">'
+      ? '<img class="alt" src="' + R.esc(p.images[1]) + '" alt="" loading="lazy" decoding="async">'
       : '';
 
     const saleNote = p.saleNote
@@ -118,7 +144,7 @@
     return (
       '<button type="button" class="' + cls.join(' ') + '" data-id="' + R.esc(p.id) + '" aria-haspopup="dialog">' +
         '<span class="pcard__media">' +
-          '<img src="' + R.esc(p.images[0]) + '" alt="' + R.esc(R.tf(p, 'name')) + '" loading="lazy">' +
+          '<img src="' + R.esc(p.images[0]) + '" alt="' + R.esc(R.tf(p, 'name')) + '"' + load + '>' +
           altImg +
           badgesHTML(p, av) +
         '</span>' +
@@ -139,12 +165,13 @@
     if (!root || !chips) return;
 
     const products = R.visibleProducts();
+    cardIndex = 0;
 
     let chipsHTML = '';
     let catsHTML = '';
 
     R.categories.forEach((cat) => {
-      const items = products.filter((p) => p.category === cat.id);
+      const items = products.filter((p) => R.inCategory(p, cat.id));
       if (!items.length) return;
 
       chipsHTML +=
@@ -165,11 +192,12 @@
     chips.innerHTML = chipsHTML;
     root.innerHTML = catsHTML;
 
-    // Плавна поява карток із невеликою затримкою-каскадом
+    // Плавна поява карток із невеликою затримкою-каскадом.
+    // Каскад короткий: довгий читається як підгальмовування.
     root.querySelectorAll('.pgrid').forEach((grid) => {
       Array.prototype.forEach.call(grid.children, (card, i) => {
         card.classList.add('reveal');
-        card.style.transitionDelay = Math.min(i % 4, 3) * 60 + 'ms';
+        card.style.transitionDelay = Math.min(i % 4, 3) * 35 + 'ms';
       });
     });
 
@@ -243,7 +271,13 @@
     document.querySelectorAll('.category').forEach((s) => observer.observe(s));
 
     chips.forEach((ch) => {
-      ch.addEventListener('click', () => setActive(ch.dataset.cat));
+      ch.addEventListener('click', () => {
+        setActive(ch.dataset.cat);
+        // Показуємо секцію ще до стрибка: інакше приїжджаєш
+        // на порожнє місце, яке проявляється вже під носом
+        const section = document.getElementById('cat-' + ch.dataset.cat);
+        if (section && R.revealNow) R.revealNow(section);
+      });
     });
   }
 

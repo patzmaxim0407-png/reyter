@@ -44,12 +44,14 @@ function letterHTML(d) {
     got: 'We have received your order — thank you 💙',
     items: 'Your order', total: 'Total', delivery: 'Delivery',
     next: 'Our manager will contact you shortly to confirm the order. You can track its status in your account.',
+    confirm: 'We will contact you via',
     track: 'Track my order', slogan: 'Character is REYTER!'
   } : {
     hi: 'Вітаємо',
     got: 'Ми отримали ваше замовлення — дякуємо 💙',
     items: 'Ваше замовлення', total: 'Разом', delivery: 'Доставка',
     next: 'Найближчим часом менеджер звʼяжеться з вами для підтвердження. Статус замовлення можна відстежувати у своєму кабінеті.',
+    confirm: 'Звʼяжемось із вами через',
     track: 'Відстежити замовлення', slogan: 'Характер — це REYTER!'
   };
 
@@ -98,10 +100,16 @@ function letterHTML(d) {
           '</tr></table>' +
         '</td></tr>' +
 
-        (d.delivery
+        (d.delivery || d.confirm
           ? '<tr><td style="padding:18px 26px 0">' +
               '<div style="background:#fcf8f0;border-radius:12px;padding:14px 16px;font-size:14px;color:#171b26">' +
-                '<strong>' + T.delivery + ':</strong> ' + esc(clip(d.delivery, 200)) +
+                (d.delivery
+                  ? '<strong>' + T.delivery + ':</strong> ' + esc(clip(d.delivery, 200))
+                  : '') +
+                (d.confirm
+                  ? (d.delivery ? '<br>' : '') +
+                    '<strong>' + T.confirm + ':</strong> ' + esc(clip(d.confirm, 120))
+                  : '') +
               '</div></td></tr>'
           : '') +
 
@@ -217,6 +225,7 @@ function orderText(d) {
   if (d.phone) L.push('📞 ' + clip(d.phone, 40));
   if (d.to) L.push('✉️ ' + clip(d.to, 120));
   if (d.delivery) L.push('📦 ' + clip(d.delivery, 200));
+  if (d.confirm) L.push('☎️ Підтвердити: ' + clip(d.confirm, 120));
 
   L.push('');
   (d.items || []).slice(0, 50).forEach((i) => {

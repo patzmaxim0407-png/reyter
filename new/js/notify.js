@@ -267,6 +267,7 @@
       order_discount: discount ? money(discount) : '',
       order_promo: order.promoCode || '',
       order_comment: c.comment || '',
+      order_confirm: R.confirmLine ? R.confirmLine(c) : '',
       order_source: order.source || 'Сайт',
       order_delivery: [c.carrier, c.city, c.branch].filter(Boolean).join(', ')
     };
@@ -286,6 +287,7 @@
       promoCode: params.order_promo,
       delivery: params.order_delivery,
       comment: params.order_comment,
+      confirm: params.order_confirm,
       source: params.order_source,
       lang: R.lang ? R.lang() : 'uk'
     };
@@ -311,6 +313,7 @@
     if (params.to_phone) L.push('📞 ' + params.to_phone);
     if (params.to_email) L.push('✉️ ' + params.to_email);
     if (params.order_delivery) L.push('📦 ' + params.order_delivery);
+    if (params.order_confirm) L.push('☎️ Підтвердити: ' + params.order_confirm);
 
     L.push('', params.order_items, '');
     if (params.order_discount) {
@@ -424,6 +427,7 @@
         order_discount: '',
         order_promo: '',
         order_comment: 'Це тестове замовлення — реагувати не потрібно',
+        order_confirm: 'Telegram · +380000000000 · @test',
         order_source: 'Тест',
         order_delivery: 'Нова Пошта, Київ, Відділення №12'
       };

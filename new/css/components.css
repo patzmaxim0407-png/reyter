@@ -515,6 +515,28 @@
   transform: scale(1.12);
 }
 
+/* Другий заголовок усередині тієї самої секції */
+.section-head--sub {
+  margin-top: 2.6rem;
+}
+
+.section-title--sm {
+  font-size: clamp(1.25rem, 3vw, 1.7rem);
+}
+
+/* Месенджери — у фірмових кольорах, щоб їх упізнавали з першого погляду */
+.contacts__grid--msg {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.soc-card--wa i { color: #25D366; }
+.soc-card--vb i { color: #7360F2; }
+.soc-card--tg i { color: #229ED9; }
+
+.soc-card--wa:hover { color: #128C4A; border-color: rgba(37, 211, 102, 0.5); }
+.soc-card--vb:hover { color: #5B49CE; border-color: rgba(115, 96, 242, 0.5); }
+.soc-card--tg:hover { color: #1B7FAE; border-color: rgba(34, 158, 217, 0.5); }
+
 /* ---------- Кнопка «догори» ---------- */
 .to-top {
   position: fixed;
@@ -827,13 +849,26 @@
 /* ---------- Промокод ---------- */
 .promo {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 0.5rem;
   margin-bottom: 0.7rem;
 }
 
+/* Форма промокоду живе у підвалі кошика, де діє
+   .drawer__foot .btn { width: 100% } — без цього скидання
+   кнопка «Застосувати» розтягується на всю ширину, а полю
+   лишається смужка в кілька десятків пікселів.
+   Селектор навмисно з .drawer__foot: у того правила така сама
+   вага, і воно йде нижче в файлі, тобто інакше перемагає воно. */
+.drawer__foot .promo .btn,
+.promo .btn {
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .promo input {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   padding: 0.6rem 0.9rem;
   font: inherit;
@@ -1072,6 +1107,116 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Спосіб підтвердження замовлення ---------- */
+
+.co-confirm {
+  display: grid;
+  gap: 0.7rem;
+  background: var(--c-cream);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem;
+}
+
+.co-confirm > label {
+  margin-bottom: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--c-blue-ink);
+}
+
+.co-confirm__part {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.co-confirm__part[hidden] {
+  display: none;
+}
+
+.co-confirm__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--c-muted);
+}
+
+.co-confirm__hint {
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--c-muted);
+}
+
+.co-confirm input[type="tel"],
+.co-confirm input:not([type="radio"]) {
+  width: 100%;
+}
+
+.co-confirm input[hidden] {
+  display: none;
+}
+
+/* Чіпи-перемикачі: справжній radio всередині, тож працює
+   клавіатура й читалки, а виглядає як кнопка */
+.ochips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ochip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 42px;
+  padding: 0.4rem 0.9rem;
+  border: 1.5px solid var(--c-line);
+  border-radius: 999px;
+  background: var(--c-paper);
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--c-ink);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--t-fast), background var(--t-fast), color var(--t-fast);
+}
+
+/* Сам radio не показуємо — стан видно по вигляду чіпа */
+.ochip input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ochip i {
+  font-size: 1.05rem;
+}
+
+.ochip:hover {
+  border-color: rgba(1, 74, 173, 0.45);
+}
+
+.ochip:has(input:checked) {
+  border-color: var(--c-blue);
+  background: rgba(1, 74, 173, 0.09);
+  color: var(--c-blue-ink);
+}
+
+/* Фокус із клавіатури має бути видно, раз сам input прихований */
+.ochip:has(input:focus-visible) {
+  outline: 2px solid var(--c-blue);
+  outline-offset: 2px;
+}
+
+.ochip--telegram:has(input:checked) { border-color: #229ED9; background: rgba(34, 158, 217, 0.12); }
+.ochip--whatsapp:has(input:checked) { border-color: #25D366; background: rgba(37, 211, 102, 0.14); }
+.ochip--viber:has(input:checked)    { border-color: #7360F2; background: rgba(115, 96, 242, 0.12); }
+
+.ochip--telegram i { color: #229ED9; }
+.ochip--whatsapp i { color: #25D366; }
+.ochip--viber i    { color: #7360F2; }
 
 .checkout-back {
   display: inline-flex;

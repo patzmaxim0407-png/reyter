@@ -38,16 +38,16 @@ REYTER.config = {
 
 /* Категорії показуються в цьому ж порядку */
 REYTER.categories = [
-  { id: 'home',    title: 'Home collection' },
-  { id: 'shirts',  title: 'Сорочки' },
-  { id: 'new',     title: 'Новинки' },
-  { id: 'tanks',   title: 'Майки' },
-  { id: 'jocks',   title: 'Джоки' },
-  { id: 'ribbed',  title: 'Рубчик' },
-  { id: 'royal',   title: 'Royal shorts' },
-  { id: 'briefs',  title: 'Бріфи' },
-  { id: 'sets',    title: 'Комплекти' },
-  { id: 'her',     title: 'Для неї' }
+  { id: 'new',    title: 'New drop',  titleEn: 'New drop' },
+  { id: 'briefs', title: 'Бріфи',     titleEn: 'Briefs' },
+  { id: 'slips',  title: 'Сліпи',     titleEn: 'Slips' },
+  { id: 'ribbed', title: 'Рубчик',    titleEn: 'Ribbed' },
+  { id: 'boxers', title: 'Бокси',     titleEn: 'Boxers' },
+  { id: 'jocks',  title: 'Jockstrap', titleEn: 'Jockstrap' },
+  { id: 'swim',   title: 'Swimwear',  titleEn: 'Swimwear' },
+  { id: 'tanks',  title: 'Майки',     titleEn: 'Tanks' },
+  { id: 'royal',  title: 'Shorts',    titleEn: 'Shorts' },
+  { id: 'sets',   title: 'Комплекти', titleEn: 'Sets' }
 ];
 
 /* ------------------------------------------------------------
@@ -77,6 +77,7 @@ REYTER.products = [
   /* ---------- Home collection ---------- */
   {
     id: 'CRH-001',
+    hidden: true,
     category: 'home',
     name: 'Candle Reyter',
     price: 465, priceUsd: 11,
@@ -94,6 +95,7 @@ REYTER.products = [
   },
   {
     id: 'DUF-001',
+    hidden: true,
     category: 'home',
     name: 'Duffuser',
     price: 750, priceUsd: 18,
@@ -108,6 +110,7 @@ REYTER.products = [
   /* ---------- Сорочки ---------- */
   {
     id: 'EO-001',
+    hidden: true,
     category: 'shirts',
     name: 'Сорочка Electric Oversized',
     price: 2190, priceUsd: 49,
@@ -123,6 +126,7 @@ REYTER.products = [
   },
   {
     id: 'BO-001',
+    hidden: true,
     category: 'shirts',
     name: 'Сорочка Basmin Oversized',
     price: 2190, priceUsd: 49,
@@ -140,7 +144,7 @@ REYTER.products = [
   /* ---------- Новинки ---------- */
   {
     id: 'WHJOCK-001',
-    category: 'new',
+    category: 'jocks',
     name: 'White Jockstrap',
     price: 820, priceUsd: 19,
     status: 'in-stock',
@@ -157,7 +161,7 @@ REYTER.products = [
   },
   {
     id: 'WW-001',
-    category: 'new',
+    category: 'slips',
     name: 'Wave white',
     price: 750, priceUsd: 18,
     status: 'in-stock',
@@ -174,7 +178,7 @@ REYTER.products = [
   },
   {
     id: 'RBK-001',
-    category: 'new',
+    category: 'ribbed',
     name: 'Ribbed black',
     price: 700, priceUsd: 17,
     status: 'in-stock',
@@ -193,7 +197,7 @@ REYTER.products = [
   },
   {
     id: 'BCLBL-001',
-    category: 'new',
+    category: 'briefs',
     name: 'Бріфи classic Black',
     price: 750, priceUsd: 18,
     status: 'in-stock',
@@ -210,7 +214,8 @@ REYTER.products = [
   },
   {
     id: 'SWBK-001',
-    category: 'new',
+    category: 'swim',
+    categories: ['swim', 'new'],
     name: 'Swimwear black',
     price: 880, priceUsd: 21,
     status: 'in-stock',
@@ -229,7 +234,8 @@ REYTER.products = [
   },
   {
     id: 'SW-003',
-    category: 'new',
+    category: 'swim',
+    categories: ['swim', 'new'],
     name: 'Swimwear rich',
     price: 880, priceUsd: 21,
     status: 'sold-out',
@@ -423,7 +429,7 @@ REYTER.products = [
   },
   {
     id: 'BRW-001',
-    category: 'briefs',
+    category: 'slips',
     name: 'Бріфи red wave',
     price: 550, oldPrice: 735, priceUsd: 14,
     status: 'in-stock',
@@ -473,7 +479,7 @@ REYTER.products = [
   },
   {
     id: 'BDW-001',
-    category: 'briefs',
+    category: 'slips',
     name: 'Бріфи dark wave',
     price: 550, oldPrice: 735, priceUsd: 14,
     status: 'in-stock',
@@ -490,7 +496,7 @@ REYTER.products = [
   },
   {
     id: 'BME-001',
-    category: 'briefs',
+    category: 'slips',
     name: 'Бріфи menthol',
     price: 690, oldPrice: 760, priceUsd: 16,
     status: 'in-stock',
@@ -506,7 +512,7 @@ REYTER.products = [
   },
   {
     id: 'BSP-001',
-    category: 'briefs',
+    category: 'boxers',
     name: 'Boxers sport (подовжені)',
     price: 720, oldPrice: 920, priceUsd: 19,
     status: 'in-stock',
@@ -524,7 +530,7 @@ REYTER.products = [
   },
   {
     id: 'BXS-001',
-    category: 'briefs',
+    category: 'boxers',
     name: 'Boxers sport (подовжені)',
     price: 720, oldPrice: 920, priceUsd: 19,
     status: 'in-stock',
@@ -617,6 +623,7 @@ REYTER.products = [
   /* ---------- Для неї ---------- */
   {
     id: 'MBLE-003',
+    hidden: true,
     category: 'her',
     name: 'Майка black',
     price: 560, priceUsd: 14,
@@ -635,6 +642,7 @@ REYTER.products = [
   },
   {
     id: 'MMIL-001',
+    hidden: true,
     category: 'her',
     name: 'Майка milk',
     price: 560, priceUsd: 14,
@@ -651,6 +659,7 @@ REYTER.products = [
   },
   {
     id: 'MAME-004',
+    hidden: true,
     category: 'her',
     name: 'Майка menthol',
     price: 560, priceUsd: 14,

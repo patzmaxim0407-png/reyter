@@ -144,7 +144,7 @@
   /* ---------- Рендер ---------- */
 
   function countIn(catId) {
-    return state.products.filter((p) => p.category === catId).length;
+    return state.products.filter((p) => inCat(p, catId)).length;
   }
 
   function catTitle(id) {
@@ -192,7 +192,7 @@
       : '';
 
     const items = state.products.filter(
-      (p) => currentCat === 'all' || p.category === currentCat
+      (p) => currentCat === 'all' || inCat(p, currentCat)
     );
 
     if (!items.length) {
@@ -211,7 +211,8 @@
             '<img class="a-item__img" src="' + esc((p.images && p.images[0]) || '') + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
             '<div>' +
               '<div class="a-item__name">' + esc(p.name) + tags.join('') + '</div>' +
-              '<div class="a-item__meta">' + esc(p.id) + ' · ' + catTitle(p.category) + ' · ' + fmt(p.price) + ' грн' +
+              '<div class="a-item__meta">' + esc(p.id) + ' · ' +
+                prodCats(p).map(catTitle).join(' + ') + ' · ' + fmt(p.price) + ' грн' +
                 (p.sizes && p.sizes.length ? ' · ' + p.sizes.join(', ') : '') +
               '</div>' +
             '</div>' +
@@ -306,6 +307,38 @@
       .join('');
   }
 
+  /* Усі категорії товару: головна плюс додаткові */
+  function prodCats(p) {
+    if (!p) return [];
+    const list = Array.isArray(p.categories) ? p.categories.filter(Boolean) : [];
+    if (p.category && !list.includes(p.category)) list.unshift(p.category);
+    return list;
+  }
+
+  function inCat(p, catId) {
+    return prodCats(p).includes(catId);
+  }
+
+  /* Додаткові категорії — усі, крім головної */
+  function renderExtraCats(main, extra) {
+    const box = $('fExtraCats');
+    if (!box) return;
+    const picked = (extra || []).filter((c) => c !== main);
+
+    box.innerHTML = state.categories
+      .filter((c) => c.id !== main)
+      .map((c) =>
+        '<label><input type="checkbox" value="' + esc(c.id) + '"' +
+        (picked.includes(c.id) ? ' checked' : '') + '> ' + esc(c.title) + '</label>'
+      )
+      .join('') || '<p class="ao-note">Інших категорій поки немає.</p>';
+  }
+
+  function pickedExtraCats() {
+    return Array.prototype.map.call(
+      document.querySelectorAll('#fExtraCats input:checked'), (i) => i.value);
+  }
+
   function renderSizeChecks(sizes) {
     $('fSizes').innerHTML = ALL_SIZES
       .map((s) =>
@@ -334,7 +367,9 @@
     const p = product || {};
     $('fId').value = p.id || '';
     $('fName').value = p.name || '';
-    fillCategorySelect(p.category || (currentCat !== 'all' ? currentCat : (state.categories[0] || {}).id));
+    const mainCat = p.category || (currentCat !== 'all' ? currentCat : (state.categories[0] || {}).id);
+    fillCategorySelect(mainCat);
+    renderExtraCats(mainCat, prodCats(p));
     $('fPrice').value = p.price != null ? p.price : '';
     $('fOldPrice').value = p.oldPrice != null ? p.oldPrice : '';
     $('fPriceUsd').value = p.priceUsd != null ? p.priceUsd : '';
@@ -373,6 +408,11 @@
     if (oldPrice) p.oldPrice = oldPrice;
     const usd = Number($('fPriceUsd').value);
     if (usd) p.priceUsd = usd;
+
+    // Головна категорія завжди перша у списку — так товар
+    // не загубиться, навіть якщо додаткові приберуть
+    const extra = pickedExtraCats().filter((c) => c && c !== p.category);
+    if (extra.length) p.categories = [p.category].concat(extra);
 
     const low = $('fLowStock').value.split(',').map((s) => s.trim()).filter(Boolean);
     if (low.length) p.lowStock = low;
@@ -682,7 +722,13 @@
       updatePreview();
     });
     $('productForm').addEventListener('input', updatePreview);
-    $('productForm').addEventListener('change', updatePreview);
+    $('productForm').addEventListener('change', (e) => {
+      // Головна категорія не має дублюватись у «показувати також»
+      if (e.target.id === 'fCategory') {
+        renderExtraCats(e.target.value, pickedExtraCats());
+      }
+      updatePreview();
+    });
     $('productForm').addEventListener('submit', (e) => {
       e.preventDefault();
       saveProduct();
@@ -1370,6 +1416,47 @@
     return '';
   }
 
+  /* Як покупець просив із ним звʼязатися. Месенджер — посилання:
+     менеджеру достатньо клікнути, а не переносити номер руками. */
+  const MSGR = {
+    telegram: { title: 'Telegram', icon: '✈️', link: (ph, tg) => tg ? 'https://t.me/' + tg : 'https://t.me/+' + ph },
+    whatsapp: { title: 'WhatsApp', icon: '🟢', link: (ph) => 'https://wa.me/' + ph },
+    viber:    { title: 'Viber',    icon: '🟣', link: (ph) => 'viber://chat?number=' + ph }
+  };
+
+  function confirmText(c) {
+    const cf = c && c.confirm;
+    if (!cf) return '';
+    const phone = (cf.phoneMode === 'other' && cf.altPhone ? cf.altPhone : (c.phone || ''));
+    const how = cf.method === 'messenger'
+      ? ((MSGR[cf.messenger] || {}).title || 'месенджер')
+      : 'дзвінок';
+    return [how, phone, cf.telegram ? '@' + cf.telegram : ''].filter(Boolean).join(' · ');
+  }
+
+  function confirmHTML(c) {
+    const cf = c && c.confirm;
+    if (!cf) return '';
+
+    const phone = (cf.phoneMode === 'other' && cf.altPhone ? cf.altPhone : (c.phone || ''));
+    const digits = phone.replace(/[^\d+]/g, '').replace(/^\+/, '');
+
+    if (cf.method !== 'messenger') {
+      return '<br><span class="ao-muted">📞 Підтвердити дзвінком' +
+        (phone && phone !== c.phone ? ' на <b>' + esc(phone) + '</b>' : '') + '</span>';
+    }
+
+    const m = MSGR[cf.messenger];
+    if (!m) return '<br><span class="ao-muted">💬 Підтвердити в месенджері</span>';
+
+    const label = m.icon + ' ' + m.title + (phone ? ' · ' + phone : '') +
+      (cf.telegram ? ' · @' + cf.telegram : '');
+
+    return '<br><span class="ao-muted">' +
+      '<a href="' + esc(m.link(digits, cf.telegram)) + '" target="_blank" rel="noopener">' +
+        esc(label) + '</a></span>';
+  }
+
   function orderCardHTML(o) {
     const st = o.status || 'new';
     const mismatch = orderMismatch(o);
@@ -1380,6 +1467,7 @@
     const c = o.customer || {};
     const delivery = [c.carrier, c.city, c.branch].filter(Boolean).join(', ');
     const units = (o.items || []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
+
     const isOpen = expanded.has(o._id);
     const next = NEXT_STEP[st];
 
@@ -1413,6 +1501,7 @@
             ' · <a href="tel:' + esc((c.phone || '').replace(/\s/g, '')) + '">' + esc(c.phone || '—') + '</a>' +
             ((c.email || o.email) ? ' · <a href="mailto:' + esc(c.email || o.email) + '">' + esc(c.email || o.email) + '</a>' : '') +
             (delivery ? '<br><span class="ao-muted">🚚 ' + esc(delivery) + '</span>' : '') +
+            confirmHTML(c) +
             (c.comment ? '<br><span class="ao-muted">💬 ' + esc(c.comment) + '</span>' : '') +
           '</div>' +
           '<button class="ao-toggle" data-toggle type="button">' +
@@ -1630,7 +1719,8 @@
     }
 
     const head = ['Номер', 'Дата', 'Статус', 'Клієнт', 'Телефон', 'Email',
-                  'Перевізник', 'Місто', 'Відділення', 'ТТН', 'Товари', 'Кількість', 'Сума, грн', 'Нотатка'];
+                  'Перевізник', 'Місто', 'Відділення', 'Підтвердження',
+                  'ТТН', 'Товари', 'Кількість', 'Сума, грн', 'Нотатка'];
     const rows = list.map((o) => {
       const c = o.customer || {};
       const items = (o.items || [])
@@ -1641,7 +1731,7 @@
         orderDate(o).toLocaleString('uk-UA'),
         statusInfo(o.status || 'new').title,
         c.name || '', c.phone || '', c.email || o.email || '',
-        c.carrier || '', c.city || '', c.branch || '',
+        c.carrier || '', c.city || '', c.branch || '', confirmText(c),
         o.ttn || '', items, units, o.total || 0, o.note || ''
       ].map(csvCell).join(',');
     });
@@ -1681,6 +1771,7 @@
           '<p><b>' + esc(c.name || '') + '</b><br>' + esc(c.phone || '') +
             (c.email ? '<br>' + esc(c.email) : '') + '</p>' +
           '<p>' + esc([c.carrier, c.city, c.branch].filter(Boolean).join(', ')) +
+            (confirmText(c) ? '<br>Підтвердження: ' + esc(confirmText(c)) : '') +
             (o.ttn ? '<br>ТТН: <b>' + esc(o.ttn) + '</b>' : '') + '</p>' +
           (c.comment ? '<p><i>' + esc(c.comment) + '</i></p>' : '') +
           '<table><thead><tr><th>Товар</th><th>К-сть</th><th>Сума</th></tr></thead>' +

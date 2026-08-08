@@ -162,6 +162,11 @@
       return;
     }
 
+    /* rootMargin знизу — щоб анімація стартувала ще до того, як
+       блок доїде до екрана. Інакше при швидкому прокручуванні
+       картки встигають показатись уже порожніми і «наздоганяють»
+       себе на очах. threshold 0 з тієї ж причини: чекати, поки
+       блок відкриється на 8%, — це ще майже пів екрана прокрутки. */
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -171,20 +176,28 @@
           }
         });
       },
-      { threshold: 0.08 }
+      { threshold: 0, rootMargin: '0px 0px 320px 0px' }
     );
 
     els.forEach((el) => {
       // Все, що вже у вʼюпорті (напр., при відкритті сторінки з якорем),
       // показуємо одразу — без очікування колбека обсервера
       const rect = el.getBoundingClientRect();
-      if (rect.top < window.innerHeight && rect.bottom > 0) {
+      if (rect.top < window.innerHeight + 320 && rect.bottom > -320) {
         el.classList.add('is-visible');
       } else {
         observer.observe(el);
       }
     });
   }
+
+  /* Перехід до категорії з чипа: цільова секція має бути вже
+     видимою на момент прокрутки, інакше під час стрибка бачиш
+     порожнє місце, яке проявляється лише коли ти вже там */
+  R.revealNow = function (root) {
+    (root || document).querySelectorAll('.reveal:not(.is-visible)')
+      .forEach((el) => el.classList.add('is-visible'));
+  };
 
   /* ---------- Кнопка «догори» ---------- */
 

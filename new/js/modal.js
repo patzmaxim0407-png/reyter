@@ -465,6 +465,9 @@
 
     el.addCart.addEventListener('click', () => {
       if (!current || currentAv.soldOut) return;
+      // Клік по зеленому «Додано» — це та сама покупка, а не ще одна.
+      // CSS уже вимикає pointer-events, але клавіатура їх не питає.
+      if (el.addCart.classList.contains('is-added')) return;
       if (!current.volume && !selectedSize) {
         R.toast(R.t('p.chooseSize'));
         el.sizes.classList.remove('shake');

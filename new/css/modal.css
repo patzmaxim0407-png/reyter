@@ -541,6 +541,9 @@
   box-shadow: none;
   animation: addedPop 0.34s var(--ease-out);
   will-change: transform;
+  /* Поки показуємо «Додано», кнопка вже не кнопка: повторний
+     клік по зеленому не має докидати ще одну штуку в кошик */
+  pointer-events: none;
 }
 
 .btn--order.is-added:hover {
