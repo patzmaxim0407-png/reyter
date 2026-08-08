@@ -1043,6 +1043,86 @@
       '</div>';
   }
 
+  /* ---------- Взаємні привʼязки кольорів ----------
+     Додали на «чорному» колір із привʼязкою до «білого» —
+     «білий» сам отримує зворотну привʼязку до «чорного»
+     (і до решти кольорів родини). Прибрали привʼязку —
+     зворотна теж знімається. Кожен товар родини показує
+     повний набір кольорів, налаштований лише на одній картці. */
+
+  function packColors(list) {
+    return list.map((c) => (c.id ? { hex: c.hex, id: c.id } : c.hex));
+  }
+
+  function syncColorLinks(p, oldColors, oldId) {
+    const updates = {}; // id → оновлений список кольорів
+
+    const colorsOf = (t) => updates[t.id] || adminColors(t);
+
+    // артикул перейменували — лагодимо чужі привʼязки на нього
+    if (oldId && oldId !== p.id) {
+      state.products.forEach((t) => {
+        if (t.id === p.id) return;
+        const colors = colorsOf(t);
+        if (colors.some((c) => c.id === oldId)) {
+          updates[t.id] = colors.map((c) =>
+            c.id === oldId ? { hex: c.hex, id: p.id } : c);
+        }
+      });
+    }
+
+    const mine = adminColors(p);
+    const links = mine.filter((c) => c.id && c.id !== p.id);
+    const own = mine.find((c) => !c.id || c.id === p.id) || mine[0];
+    const ownHex = (own || {}).hex || '#014aad';
+
+    // родина: сам товар + усі, до кого він привʼязаний
+    const family = [{ id: p.id, hex: ownHex }].concat(
+      links.map((c) => ({ id: c.id, hex: c.hex }))
+    );
+
+    family.slice(1).forEach((m) => {
+      const target = state.products.find((x) => x.id === m.id);
+      if (!target) return;
+      let colors = colorsOf(target).slice();
+      let touched = false;
+
+      // власний колір цільового товару, якщо його ще немає
+      if (!colors.some((c) => !c.id || c.id === target.id)) {
+        colors = [{ hex: m.hex, id: '' }].concat(colors);
+        touched = true;
+      }
+
+      family.forEach((o) => {
+        if (o.id === target.id) return;
+        const hit = colors.find((c) => c.id === o.id);
+        if (hit) {
+          if (hit.hex !== o.hex) { hit.hex = o.hex; touched = true; }
+        } else {
+          colors = colors.concat([{ hex: o.hex, id: o.id }]);
+          touched = true;
+        }
+      });
+
+      if (touched) updates[target.id] = colors;
+    });
+
+    // привʼязку зняли — знімаємо і зворотну
+    (oldColors || [])
+      .filter((c) => c.id && c.id !== p.id)
+      .filter((c) => !links.some((l) => l.id === c.id))
+      .forEach((c) => {
+        const target = state.products.find((x) => x.id === c.id);
+        if (!target) return;
+        const colors = colorsOf(target).filter((x) => x.id !== p.id && x.id !== oldId);
+        if (colors.length !== colorsOf(target).length) {
+          updates[target.id] = colors;
+        }
+      });
+
+    return updates;
+  }
+
   async function saveProduct() {
     const p = collectForm();
 
@@ -1058,22 +1138,32 @@
     const existing = editingId ? state.products.find((x) => x.id === editingId) : null;
     p.order = existing ? (Number(existing.order) || 0) : maxOrder(state.products) + 10;
 
+    const sideUpdates = syncColorLinks(
+      p,
+      existing ? adminColors(existing) : [],
+      existing ? editingId : ''
+    );
+
     try {
+      const batch = R.fb.db.batch();
       if (existing && editingId !== p.id) {
-        // артикул змінено — переносимо документ
-        const batch = R.fb.db.batch();
-        batch.delete(prodCol().doc(editingId));
-        batch.set(prodCol().doc(p.id), prodDocData(p));
-        await batch.commit();
-      } else {
-        await prodCol().doc(p.id).set(prodDocData(p));
+        batch.delete(prodCol().doc(editingId)); // артикул змінено
       }
+      batch.set(prodCol().doc(p.id), prodDocData(p));
+      Object.keys(sideUpdates).forEach((id) => {
+        batch.update(prodCol().doc(id), { colors: packColors(sideUpdates[id]) });
+      });
+      await batch.commit();
 
       if (existing) {
         state.products[state.products.indexOf(existing)] = p;
       } else {
         state.products.push(p);
       }
+      Object.keys(sideUpdates).forEach((id) => {
+        const t = state.products.find((x) => x.id === id);
+        if (t) t.colors = packColors(sideUpdates[id]);
+      });
 
       render();
       closeModal($('editorModal'));
