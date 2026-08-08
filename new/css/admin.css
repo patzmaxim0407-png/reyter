@@ -2306,11 +2306,6 @@ label.a-promo-product i {
     height: 40px;
   }
 
-  .a-cat__grip {
-    width: 40px;
-    height: 44px;
-  }
-
   .a-toolbar {
     flex-wrap: wrap;
   }
@@ -3691,4 +3686,13 @@ label.a-promo-product i {
 
 .ao-known .a-linklike {
   padding: 0.15rem 0;
+}
+
+/* Ручка перетягування: на дотику — пальце-розмір.
+   Стоїть після базового правила, інакше програє каскаду. */
+@media (max-width: 860px) {
+  .a-cat__grip {
+    width: 40px;
+    height: 44px;
+  }
 }
