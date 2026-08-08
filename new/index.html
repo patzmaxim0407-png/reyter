@@ -52,10 +52,10 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
   <!-- Стилі -->
-  <link rel="stylesheet" href="css/base.css?v=20260808k">
-  <link rel="stylesheet" href="css/layout.css?v=20260808k">
-  <link rel="stylesheet" href="css/components.css?v=20260808k">
-  <link rel="stylesheet" href="css/modal.css?v=20260808k">
+  <link rel="stylesheet" href="css/base.css?v=20260808m">
+  <link rel="stylesheet" href="css/layout.css?v=20260808m">
+  <link rel="stylesheet" href="css/components.css?v=20260808m">
+  <link rel="stylesheet" href="css/modal.css?v=20260808m">
 </head>
 <body>
 
@@ -155,12 +155,34 @@
   <section class="fclub-section">
     <div class="container">
       <article class="fclub reveal">
-        <img class="fclub__photo" src="../assets/images/Serpen2026/IMG_2325.webp" alt="Friendly Club — Reyter" loading="lazy">
+        <div class="fclub__strip" id="fcStrip" tabindex="0" role="group"
+             aria-roledescription="карусель" aria-label="Friendly Club">
+          <div class="fclub__slide">
+            <img class="fclub__media" src="../assets/images/Serpen2026/IMG_2325.webp"
+                 alt="Friendly Club — Reyter" loading="lazy">
+          </div>
+          <div class="fclub__slide">
+            <!-- src підставляє ui.js, коли слайд справді видно:
+                 інакше відео качалося б у кожного відвідувача -->
+            <video class="fclub__media" muted loop playsinline preload="none"
+                   poster="../assets/images/fclub-poster.webp"
+                   data-src="../assets/videos/fclub-desktop.mp4"
+                   data-src-sm="../assets/videos/fclub-mobile.mp4"
+                   aria-label="REYTER Summer"></video>
+          </div>
+        </div>
+
         <div class="fclub__overlay">
           <h2 class="fclub__title" data-i18n="fclub.title"></h2>
           <p class="fclub__lead" data-i18n="fclub.lead"></p>
           <button class="btn btn--light" id="fcOpenBtn" type="button" aria-haspopup="dialog" data-i18n="fclub.btn"></button>
         </div>
+
+        <button class="fclub__nav fclub__nav--prev" type="button" data-fc-nav="-1"
+                aria-label="Попередній кадр" hidden></button>
+        <button class="fclub__nav fclub__nav--next" type="button" data-fc-nav="1"
+                aria-label="Наступний кадр" hidden></button>
+        <div class="fclub__dots" id="fcDots" role="tablist" aria-label="Кадри"></div>
       </article>
     </div>
   </section>
@@ -544,18 +566,18 @@
 <script src="https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore-compat.js" defer></script>
 
 <!-- Скрипти -->
-<script src="js/data.js?v=20260808k" defer></script>
-<script src="js/i18n.js?v=20260808k" defer></script>
-<script src="js/firebase.js?v=20260808k" defer></script>
-<script src="js/notify.js?v=20260808k" defer></script>
-<script src="js/promo.js?v=20260808k" defer></script>
-<script src="js/address.js?v=20260808k" defer></script>
-<script src="js/catalog.js?v=20260808k" defer></script>
-<script src="js/modal.js?v=20260808k" defer></script>
-<script src="js/cart.js?v=20260808k" defer></script>
-<script src="js/account.js?v=20260808k" defer></script>
-<script src="js/ui.js?v=20260808k" defer></script>
-<script src="js/main.js?v=20260808k" defer></script>
+<script src="js/data.js?v=20260808m" defer></script>
+<script src="js/i18n.js?v=20260808m" defer></script>
+<script src="js/firebase.js?v=20260808m" defer></script>
+<script src="js/notify.js?v=20260808m" defer></script>
+<script src="js/promo.js?v=20260808m" defer></script>
+<script src="js/address.js?v=20260808m" defer></script>
+<script src="js/catalog.js?v=20260808m" defer></script>
+<script src="js/modal.js?v=20260808m" defer></script>
+<script src="js/cart.js?v=20260808m" defer></script>
+<script src="js/account.js?v=20260808m" defer></script>
+<script src="js/ui.js?v=20260808m" defer></script>
+<script src="js/main.js?v=20260808m" defer></script>
 
 </body>
 </html>

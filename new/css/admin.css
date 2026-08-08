@@ -673,9 +673,26 @@ html {
   gap: 0.9rem;
 }
 
+/* Промокод / знижка / доставка / джерело — рядок підсумків
+   у формі замовлення. Поля вирівнюємо по верху: підказка під
+   промокодом не має зсувати сусідні. */
+.a-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .a-grid-4 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (max-width: 560px) {
   .a-grid-2,
-  .a-grid-3 {
+  .a-grid-3,
+  .a-grid-4 {
     grid-template-columns: 1fr;
   }
 }
@@ -700,6 +717,12 @@ html {
   padding: 0.02rem 0.3rem;
   border-radius: 4px;
 }
+
+/* Стан перевірки промокоду у формі замовлення */
+.field__hint.is-ok { color: #1d7a4b; font-weight: 600; }
+.field__hint.is-warn { color: #a4691a; font-weight: 600; }
+.field__hint.is-bad { color: #b3261e; font-weight: 600; }
+.field__hint.is-wait { opacity: 0.65; }
 
 /* Чіпи з галочкою: розміри товару і категорії промокоду.
    align-items — щоб чіп з довгою назвою не розтягував усі інші

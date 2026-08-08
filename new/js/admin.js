@@ -1975,6 +1975,11 @@
     return c ? c.title : (id || '');
   }
 
+  /* Умови промокоду (promo.js) шукають назви категорій саме тут:
+     на сайті це дає catalog.js, в адмінці його немає, і без цього
+     в умовах світилися б голі id на кшталт «briefs» */
+  R.categoryTitle = catName;
+
   function productById(id) {
     return products().find((p) => p.id === id) || null;
   }
@@ -3077,6 +3082,8 @@
       : '<div class="a-empty">Додайте хоча б одну позицію.</div>';
     bindProductPickers();
     renderNoTotal();
+    // Відсоткова знижка залежить від складу кошика — перерахуємо
+    applyNoPromo(false);
   }
 
   /* Пошук товару в рядку позиції: шукає і за назвою, і за
@@ -3120,12 +3127,129 @@
     const discount = Number($id('noDiscount').value) || 0;
     const shipping = Number($id('noShipping').value) || 0;
     const units = noFilledRows().reduce((s, r) => s + (Number(r.qty) || 0), 0);
+    const code = R.promoNormalize($id('noPromo').value);
 
     $id('noTotal').innerHTML =
       '<div><span>Товарів: ' + units + ' шт</span><span>' + fmt(items) + ' грн</span></div>' +
-      (discount ? '<div><span>Знижка</span><span>− ' + fmt(discount) + ' грн</span></div>' : '') +
+      (discount
+        ? '<div><span>Знижка' + (code ? ' · <b>' + esc(code) + '</b>' : '') + '</span><span>− ' +
+          fmt(discount) + ' грн</span></div>'
+        : '') +
       (shipping ? '<div><span>Доставка</span><span>+ ' + fmt(shipping) + ' грн</span></div>' : '') +
       '<div class="is-sum"><span>До сплати</span><span>' + fmt(noTotal()) + ' грн</span></div>';
+  }
+
+  /* ---------- Промокод у формі замовлення ----------
+     Адмін вписує код, а знижку рахує той самий рушій, що й на
+     сайті, — інакше сума в замовленні з Direct не збігалася б із
+     тією, яку покупець бачив у кошику. Код зберігається в
+     замовленні: без нього незрозуміло, звідки взялася знижка,
+     і статистика використань промокоду не сходиться. */
+
+  let noPromoDoc = null;    // завантажений документ промокоду
+  let noPromoFor = '';      // для якого саме коду він завантажений
+  let noPromoAuto = 0;      // яку знижку підставив код (щоб не затирати ручну)
+  let noPromoTimer = null;
+
+  function noPromoItems() {
+    return noFilledRows().map((r) => {
+      const p = productById(r.pid) || {};
+      return {
+        id: r.pid,
+        category: p.category,
+        categories: p.categories,
+        sale: !!p.sale,
+        price: Number(r.price) || 0,
+        qty: Number(r.qty) || 0
+      };
+    });
+  }
+
+  function setPromoHint(cls, text) {
+    const el = $id('noPromoHint');
+    el.className = 'field__hint' + (cls ? ' ' + cls : '');
+    el.innerHTML = text || '';
+    el.hidden = !text;
+  }
+
+  /* force — код щойно змінили руками, знижку перебиваємо завжди.
+     Без force чіпаємо поле, лише поки в ньому наша ж сума: якщо
+     адмін вписав свою знижку, перерахунок кошика її не з'їсть. */
+  function applyNoPromo(force) {
+    const code = R.promoNormalize($id('noPromo').value);
+    const field = $id('noDiscount');
+    const cur = Number(field.value) || 0;
+    const own = force || !cur || cur === noPromoAuto;
+
+    if (!code) {
+      if (own && noPromoAuto) { field.value = ''; noPromoAuto = 0; }
+      setPromoHint('', '');
+      renderNoTotal();
+      return;
+    }
+
+    if (noPromoFor !== code) return;          // ще вантажиться
+
+    if (!noPromoDoc) {
+      if (own) { field.value = ''; noPromoAuto = 0; }
+      setPromoHint('is-bad', 'Такого промокоду немає в базі');
+      renderNoTotal();
+      return;
+    }
+
+    // Персональний код перевіряємо на пошту замовлення, а не на
+    // пошту адміна — інакше рушій відхилив би будь-який чужий код
+    const promo = Object.assign({}, noPromoDoc);
+    const owner = String(promo.email || '').toLowerCase();
+    delete promo.email;
+
+    const res = R.promoCheck(promo, noPromoItems());
+    const terms = R.promoTerms ? R.promoTerms(noPromoDoc) : '';
+    const whose = owner
+      ? '<br>Персональний код: <b>' + esc(noPromoDoc.email) + '</b>' +
+        ($id('noEmail').value.trim().toLowerCase() === owner
+          ? ''
+          : ' — пошта замовлення інша')
+      : '';
+
+    if (res.ok) {
+      if (own) { field.value = res.discount; noPromoAuto = res.discount; }
+      // Знижку могли вписати руками — тоді чесно кажемо, що код
+      // дає інше число, і нічого не перебиваємо
+      const now = Number(field.value) || 0;
+      const manual = now !== res.discount;
+      setPromoHint(manual ? 'is-warn' : 'is-ok',
+        (manual
+          ? 'Код дає ' + fmt(res.discount) + ' грн, у замовленні — ' + fmt(now) + ' грн'
+          : 'Знижка ' + fmt(res.discount) + ' грн') +
+        (terms ? ' · ' + esc(terms) : '') + whose);
+    } else {
+      if (own) { field.value = ''; noPromoAuto = 0; }
+      setPromoHint('is-warn', esc(R.promoMessage(res, noPromoDoc)) + whose);
+    }
+    renderNoTotal();
+  }
+
+  async function loadNoPromo(force) {
+    const code = R.promoNormalize($id('noPromo').value);
+    if (!code) { noPromoDoc = null; noPromoFor = ''; applyNoPromo(force); return; }
+    if (noPromoFor === code) { applyNoPromo(force); return; }
+
+    setPromoHint('is-wait', 'Перевіряємо код…');
+    const doc = await R.promoFetch(code);
+    if (R.promoNormalize($id('noPromo').value) !== code) return;  // встигли перебити
+    noPromoDoc = doc;
+    noPromoFor = code;
+    applyNoPromo(force);
+  }
+
+  function resetNoPromo(code) {
+    clearTimeout(noPromoTimer);
+    noPromoDoc = null;
+    noPromoFor = '';
+    noPromoAuto = 0;
+    $id('noPromo').value = code || '';
+    setPromoHint('', '');
   }
 
   function addNoRow() {
@@ -3250,6 +3374,7 @@
     $id('noKnown').hidden = true;
     $id('noDiscount').value = Number(order.discount) || '';
     $id('noShipping').value = Number(order.shipping) || '';
+    resetNoPromo(order.promoCode || '');
     $id('noSource').value = order.source || 'Інше';
     $id('noStatus').value = order.status || 'new';
     $id('noStatus').disabled = true;   // статус міняють кнопками картки
@@ -3257,6 +3382,8 @@
     $id('noStatusMsg').hidden = true;
 
     renderNoItems();
+    // Збережену знижку не чіпаємо — лише показуємо стан коду
+    if (order.promoCode) loadNoPromo(false);
     noModal().hidden = false;
     R.lockBg();
     setTimeout(() => $id('noName').focus(), 60);
@@ -3278,6 +3405,7 @@
     $id('noKnown').innerHTML = '';
     $id('noDiscount').value = '';
     $id('noShipping').value = '';
+    resetNoPromo('');
     $id('noStatus').value = 'new';
     $id('noNotify').checked = false;
     $id('noStatusMsg').hidden = true;
@@ -3297,7 +3425,10 @@
         i.qty + ' шт · ' + fmt(i.price * i.qty) + ' грн');
     });
     lines.push('');
-    if (order.discount) lines.push('Знижка: −' + fmt(order.discount) + ' грн');
+    if (order.discount) {
+      lines.push('Знижка' + (order.promoCode ? ' (' + order.promoCode + ')' : '') +
+        ': −' + fmt(order.discount) + ' грн');
+    }
     if (order.shipping) lines.push('Доставка: +' + fmt(order.shipping) + ' грн');
     lines.push('Разом: ' + fmt(order.total) + ' грн');
     lines.push('');
@@ -3345,6 +3476,9 @@
 
     const discount = Number($id('noDiscount').value) || 0;
     const shipping = Number($id('noShipping').value) || 0;
+    // Код зберігаємо лише разом зі знижкою: код без знижки
+    // зіпсував би статистику використань промокоду
+    const promoCode = discount ? R.promoNormalize($id('noPromo').value) : '';
     const status = $id('noStatus').value;
 
     const customer = Object.assign({
@@ -3365,6 +3499,7 @@
       const updated = Object.assign({}, prev, {
         items: items,
         discount: discount,
+        promoCode: promoCode,
         shipping: shipping,
         total: total,
         customer: customer,
@@ -3385,6 +3520,7 @@
         batch.update(R.fb.db.collection('orders').doc(prev._id), {
           items: updated.items,
           discount: updated.discount,
+          promoCode: updated.promoCode,
           shipping: updated.shipping,
           total: updated.total,
           customer: updated.customer,
@@ -3411,6 +3547,7 @@
       date: new Date().toISOString(),
       items: items,
       discount: discount,
+      promoCode: promoCode,
       shipping: shipping,
       total: total,
       customer: customer,
@@ -4882,10 +5019,15 @@
       }
 
       if (['noDiscount', 'noShipping'].includes(e.target.id)) renderNoTotal();
+      if (e.target.id === 'noPromo') { clearTimeout(noPromoTimer); loadNoPromo(true); }
     });
 
     noModal().addEventListener('input', (e) => {
       if (['noDiscount', 'noShipping'].includes(e.target.id)) renderNoTotal();
+      if (e.target.id === 'noPromo') {
+        clearTimeout(noPromoTimer);
+        noPromoTimer = setTimeout(() => loadNoPromo(true), 400);
+      }
       if (e.target.id === 'noPhone') {
         clearTimeout(knownTimer);
         knownTimer = setTimeout(renderKnownCustomer, 300);
@@ -5103,9 +5245,16 @@
       } else if (e.target.closest('[data-print-one]')) {
         printOrders([order]);
       } else if (e.target.closest('[data-del]')) {
+        // Попередження про склад доречне лише поки товар справді
+        // списаний. У скасованому замовленні залишки вже повернуті,
+        // і лякати ним при видаленні немає сенсу.
         const okDel = await R.confirmAsk(
-          'Видалити замовлення №' + order.num + '?\n\nСписаний товар автоматично НЕ повернеться ' +
-          'на склад — спершу переведіть замовлення у «Скасовано», якщо потрібне повернення залишків.',
+          'Видалити замовлення №' + order.num + '?' +
+          (order.stockApplied
+            ? '\n\nТовар за цим замовленням списаний зі складу. При видаленні ' +
+              'він автоматично НЕ повернеться — спершу переведіть замовлення ' +
+              'у «Скасовано», якщо потрібне повернення залишків.'
+            : '\n\nДію не можна скасувати.'),
           { title: 'Видалення замовлення', okText: 'Видалити', danger: true });
         if (okDel) {
           try {

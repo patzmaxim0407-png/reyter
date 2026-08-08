@@ -248,6 +248,10 @@
     const c = order.customer || {};
     const money = (n) => (R.uah ? R.uah(n) : R.fmt ? R.fmt(n) + ' грн' : n + ' грн');
     const discount = Number(order.discount) || 0;
+    const shipping = Number(order.shipping) || 0;
+    // Замовлення з адмінки не має поля subtotal — рахуємо з позицій
+    const subtotal = Number(order.subtotal) ||
+      (order.items || []).reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.qty) || 0), 0);
 
     return {
       to_email: c.email || '',
@@ -264,7 +268,9 @@
         sum: money(i.price * i.qty)
       })),
       order_total: money(order.total),
+      order_subtotal: money(subtotal),
       order_discount: discount ? money(discount) : '',
+      order_shipping: shipping ? money(shipping) : '',
       order_promo: order.promoCode || '',
       order_comment: c.comment || '',
       order_confirm: R.confirmLine ? R.confirmLine(c) : '',
@@ -283,7 +289,9 @@
       orderNum: params.order_num,
       items: params.items_list || [],
       total: params.order_total,
+      subtotal: params.order_subtotal,
       discount: params.order_discount,
+      shipping: params.order_shipping,
       promoCode: params.order_promo,
       delivery: params.order_delivery,
       comment: params.order_comment,
@@ -316,10 +324,14 @@
     if (params.order_confirm) L.push('☎️ Підтвердити: ' + params.order_confirm);
 
     L.push('', params.order_items, '');
+    if (params.order_discount || params.order_shipping) {
+      L.push('Товари: ' + params.order_subtotal);
+    }
     if (params.order_discount) {
       L.push('Знижка' + (params.order_promo ? ' (' + params.order_promo + ')' : '') +
         ': −' + params.order_discount);
     }
+    if (params.order_shipping) L.push('Доставка: ' + params.order_shipping);
     L.push('💰 Разом: ' + params.order_total);
     if (params.order_comment) L.push('', '💬 ' + params.order_comment);
 

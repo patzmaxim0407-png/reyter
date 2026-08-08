@@ -297,7 +297,36 @@
   box-shadow: var(--shadow-hover);
 }
 
+/* Стрічка кадрів: гортається пальцем, коліщатком із Shift або
+   стрілками. scroll-snap ловить слайд рівно по краю, щоб банер
+   ніколи не завмирав на половині кадру. */
+.fclub__strip {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.fclub__strip::-webkit-scrollbar { display: none; }
+
+.fclub__strip:focus-visible {
+  outline: 3px solid var(--c-blue);
+  outline-offset: -3px;
+}
+
+.fclub__slide {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.fclub__media,
 .fclub__photo {
+  display: block;
   width: 100%;
   aspect-ratio: 21 / 10;
   object-fit: cover;
@@ -314,6 +343,77 @@
   padding: clamp(1.2rem, 4vw, 2.6rem);
   background: linear-gradient(to top, rgba(6, 27, 60, 0.72) 0%, rgba(6, 27, 60, 0.25) 45%, transparent 70%);
   color: #fff;
+  /* Градієнт лежить поверх стрічки — але не має ловити свайп */
+  pointer-events: none;
+}
+
+.fclub__overlay .btn {
+  pointer-events: auto;
+}
+
+/* Стрілки — для миші: пальцем гортають, а на десктопі має бути
+   за що вхопитися */
+.fclub__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--c-ink);
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(6, 27, 60, 0.22);
+  transition: background var(--t-fast), opacity var(--t-fast);
+}
+
+.fclub__nav::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+}
+
+.fclub__nav--prev { left: clamp(0.6rem, 2vw, 1.1rem); }
+.fclub__nav--next { right: clamp(0.6rem, 2vw, 1.1rem); }
+.fclub__nav--prev::before { transform: rotate(-135deg) translate(-2px, -2px); }
+.fclub__nav--next::before { transform: rotate(45deg) translate(-2px, -2px); }
+
+.fclub__nav:hover { background: #fff; }
+.fclub__nav[disabled] { opacity: 0.35; cursor: default; }
+
+/* На сенсорних екранах стрілки лише заважають */
+@media (hover: none) {
+  .fclub__nav { display: none; }
+}
+
+.fclub__dots {
+  position: absolute;
+  right: clamp(1rem, 3vw, 2rem);
+  bottom: clamp(1rem, 3vw, 1.8rem);
+  display: flex;
+  gap: 0.4rem;
+}
+
+.fclub__dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: background var(--t-fast), width var(--t-fast);
+}
+
+.fclub__dot.is-on {
+  width: 22px;
+  border-radius: 999px;
+  background: #fff;
 }
 
 .fclub__title {
@@ -329,8 +429,17 @@
 }
 
 @media (max-width: 640px) {
+  /* 16:9 — рівно під відео: у вужчій рамці обрізало б написи
+     «REYTER» і «SUMMER» по краях кадру */
+  .fclub__media,
   .fclub__photo {
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 16 / 9;
+  }
+
+  /* Фото ширше за 16:9 не влазить по висоті — зсуваємо кадр
+     угору, щоб рядок «Стань частиною» не різало навпіл */
+  img.fclub__media {
+    object-position: center 12%;
   }
 
   /* На телефоні банер лишає тільки кнопку: заголовок і підпис
@@ -339,6 +448,10 @@
   .fclub__lead {
     display: none;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fclub__strip { scroll-behavior: auto; }
 }
 
 /* ---------- Розмірна сітка ---------- */

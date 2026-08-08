@@ -235,6 +235,127 @@
     });
   }
 
+  /* ---------- Стрічка кадрів Friendly Club ----------
+     Горизонтальна прокрутка з крапками, стрілками і клавішами.
+     Відео вантажиться лише коли доїжджає до екрана: файл важить
+     кілька мегабайтів, і качати його всім підряд немає сенсу. */
+
+  function initFclubStrip() {
+    const strip = document.getElementById('fcStrip');
+    if (!strip) return;
+
+    const slides = Array.from(strip.children);
+    const dotsBox = document.getElementById('fcDots');
+    const navs = Array.from(document.querySelectorAll('[data-fc-nav]'));
+    if (slides.length < 2) {
+      if (dotsBox) dotsBox.hidden = true;
+      return;
+    }
+
+    /* ---- крапки ---- */
+    const dots = slides.map((_, i) => {
+      const d = document.createElement('button');
+      d.type = 'button';
+      d.className = 'fclub__dot' + (i ? '' : ' is-on');
+      d.setAttribute('role', 'tab');
+      d.setAttribute('aria-label', 'Кадр ' + (i + 1));
+      d.addEventListener('click', () => goTo(i));
+      dotsBox.appendChild(d);
+      return d;
+    });
+
+    navs.forEach((b) => {
+      b.hidden = false;
+      b.addEventListener('click', () => goTo(current() + Number(b.dataset.fcNav)));
+    });
+
+    function current() {
+      return Math.round(strip.scrollLeft / strip.clientWidth);
+    }
+
+    function goTo(i) {
+      const n = Math.max(0, Math.min(slides.length - 1, i));
+      strip.scrollTo({ left: n * strip.clientWidth, behavior: 'smooth' });
+    }
+
+    function sync() {
+      const n = current();
+      dots.forEach((d, i) => {
+        d.classList.toggle('is-on', i === n);
+        d.setAttribute('aria-selected', i === n ? 'true' : 'false');
+      });
+      navs.forEach((b) => {
+        b.disabled = Number(b.dataset.fcNav) < 0 ? n === 0 : n === slides.length - 1;
+      });
+    }
+
+    // Раз на кадр анімації: слухач скролу без throttle помітно
+    // смикає банер на слабких машинах
+    let ticking = false;
+    strip.addEventListener('scroll', () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => { ticking = false; sync(); });
+    }, { passive: true });
+
+    strip.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') { e.preventDefault(); goTo(current() + 1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(current() - 1); }
+    });
+
+    sync();
+    initFclubVideo(strip);
+  }
+
+  /* Відео: джерело підставляємо за шириною екрана, вмикаємо, коли
+     кадр видно, і зупиняємо, щойно він поїхав — фонове відео за
+     межами екрана даремно гріє процесор */
+  function initFclubVideo(strip) {
+    const video = strip.querySelector('video[data-src]');
+    if (!video) return;
+
+    const slow = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (slow) video.controls = true;
+
+    let loaded = false;
+    function load() {
+      if (loaded) return;
+      loaded = true;
+      const small = window.matchMedia('(max-width: 640px)').matches;
+      video.src = (small && video.dataset.srcSm) || video.dataset.src;
+    }
+
+    if (!('IntersectionObserver' in window)) { load(); return; }
+
+    // root — сама стрічка: так ловимо саме горизонтальний виїзд
+    // слайда, а не вертикальне положення банера на сторінці
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.intersectionRatio > 0.6) {
+          load();
+          if (!slow) video.play().catch(() => { /* автогра заборонена */ });
+        } else if (!video.paused) {
+          video.pause();
+        }
+      });
+    }, { root: strip, threshold: [0, 0.6] });
+
+    io.observe(video);
+
+    // Банер поїхав із екрана по вертикалі — відео теж на паузу
+    const pageIo = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting && !video.paused) video.pause();
+        else if (entry.isIntersecting && loaded && !slow &&
+                 video.paused && strip.scrollLeft > strip.clientWidth * 0.6) {
+          video.play().catch(() => {});
+        }
+      });
+    }, { threshold: 0 });
+
+    pageIo.observe(strip);
+  }
+
   /* ---------- Зум зображень (розмірна сітка тощо) ---------- */
 
   function initZoomables() {
@@ -251,6 +372,7 @@
     initToTop();
     initReadMore();
     initFriendlyClub();
+    initFclubStrip();
     initZoomables();
   };
 })();

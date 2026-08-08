@@ -43,6 +43,7 @@ function letterHTML(d) {
     hi: 'Hello',
     got: 'We have received your order — thank you 💙',
     items: 'Your order', total: 'Total', delivery: 'Delivery',
+    goods: 'Items', discount: 'Discount', shippingCost: 'Shipping',
     next: 'Our manager will contact you shortly to confirm the order. You can track its status in your account.',
     confirm: 'We will contact you via',
     track: 'Track my order', slogan: 'Character is REYTER!'
@@ -50,6 +51,7 @@ function letterHTML(d) {
     hi: 'Вітаємо',
     got: 'Ми отримали ваше замовлення — дякуємо 💙',
     items: 'Ваше замовлення', total: 'Разом', delivery: 'Доставка',
+    goods: 'Товари', discount: 'Знижка', shippingCost: 'Доставка',
     next: 'Найближчим часом менеджер звʼяжеться з вами для підтвердження. Статус замовлення можна відстежувати у своєму кабінеті.',
     confirm: 'Звʼяжемось із вами через',
     track: 'Відстежити замовлення', slogan: 'Характер — це REYTER!'
@@ -68,6 +70,36 @@ function letterHTML(d) {
         'text-align:right;white-space:nowrap;color:#171b26">' + esc(clip(i.sum, 40)) + '</td>' +
     '</tr>'
   ).join('');
+
+  /* Розклад суми. Показуємо лише коли є що пояснювати: без знижки
+     й доставки рядок «Товари» просто дублював би «Разом». */
+  const sumRow = (label, value) =>
+    '<tr>' +
+      '<td style="padding:7px 0 0;font-size:14px;color:#6e6a5e">' + label + '</td>' +
+      '<td style="padding:7px 0 0;font-size:14px;text-align:right;white-space:nowrap;color:#6e6a5e">' +
+        value + '</td>' +
+    '</tr>';
+
+  const hasBreakdown = !!(d.discount || d.shipping);
+
+  const sums =
+    (hasBreakdown
+      ? sumRow(T.goods, esc(clip(d.subtotal || d.total, 40))) +
+        (d.discount
+          ? sumRow(
+              T.discount +
+                (d.promoCode ? ' · <strong>' + esc(clip(d.promoCode, 30)) + '</strong>' : ''),
+              '−' + esc(clip(d.discount, 30)))
+          : '') +
+        (d.shipping ? sumRow(T.shippingCost, esc(clip(d.shipping, 30))) : '')
+      : '') +
+    '<tr>' +
+      '<td style="padding:12px 0 0;' + (hasBreakdown ? 'border-top:1px solid #eeeeee;' : '') +
+        'font-size:16px;font-weight:800;color:' + INK + '">' + T.total + '</td>' +
+      '<td style="padding:12px 0 0;' + (hasBreakdown ? 'border-top:1px solid #eeeeee;' : '') +
+        'font-size:18px;font-weight:800;text-align:right;white-space:nowrap;color:' + INK + '">' +
+        esc(clip(d.total, 40)) + '</td>' +
+    '</tr>';
 
   return (
     '<div style="margin:0;padding:24px 12px;background:#fcf8f0;font-family:Helvetica,Arial,sans-serif">' +
@@ -93,11 +125,9 @@ function letterHTML(d) {
           '<p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.08em;' +
             'text-transform:uppercase;color:#6e6a5e">' + T.items + '</p>' +
           '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">' + rows + '</table>' +
-          '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>' +
-            '<td style="padding:14px 0 0;font-size:16px;font-weight:800;color:' + INK + '">' + T.total + '</td>' +
-            '<td style="padding:14px 0 0;font-size:18px;font-weight:800;text-align:right;color:' + INK + '">' +
-              esc(clip(d.total, 40)) + '</td>' +
-          '</tr></table>' +
+          '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">' +
+            sums +
+          '</table>' +
         '</td></tr>' +
 
         (d.delivery || d.confirm
@@ -301,10 +331,12 @@ function orderText(d) {
   });
 
   L.push('');
+  if (d.discount || d.shipping) L.push('Товари: ' + clip(d.subtotal || d.total, 40));
   if (d.discount) {
     L.push('Знижка' + (d.promoCode ? ' (' + clip(d.promoCode, 30) + ')' : '') +
       ': −' + clip(d.discount, 30));
   }
+  if (d.shipping) L.push('Доставка: ' + clip(d.shipping, 30));
   L.push('💰 Разом: ' + clip(d.total, 40));
 
   if (d.comment) L.push('', '💬 ' + clip(d.comment, 500));
