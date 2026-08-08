@@ -1,0 +1,37 @@
+// ============================================================
+// REYTER — правила Firebase Storage (фото товарів)
+// ------------------------------------------------------------
+// Куди вставити: Firebase Console → Build → Storage →
+// вкладка «Rules» → замінити все на цей текст → Publish.
+//
+// Фото каталогу читаються публічно (їх і так бачить кожен
+// відвідувач сайту), а заливати можуть лише адміністратори —
+// ті самі, що в правилах Firestore: двоє постійних плюс
+// колекція admins/.
+// ============================================================
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && (
+          request.auth.token.email == 'kostia.movchanovskyi@gmail.com'
+          || request.auth.token.email == 'reyter.store1@gmail.com'
+          || firestore.exists(/databases/(default)/documents/admins/$(request.auth.token.email))
+        );
+    }
+
+    match /products/{allPaths=**} {
+      allow read: if true;
+      // лише зображення й не більше 4 МБ: адмінка й так стискає
+      // все у WebP ~200–400 КБ, ліміт — запобіжник
+      allow write: if isAdmin()
+        && request.resource.size < 4 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

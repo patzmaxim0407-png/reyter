@@ -204,7 +204,8 @@
         </div>
 
         <div class="field">
-          <label for="fImages">Фото (по одному шляху в рядку) *</label>
+          <span class="field__label">Фото *</span>
+          <div class="a-photos" id="fPhotos"></div>
 
           <div class="a-upload">
             <label class="btn btn--ghost btn--sm a-upload__btn">
@@ -213,13 +214,10 @@
             </label>
             <span class="a-upload__status" id="fUploadStatus"></span>
           </div>
-
-          <textarea id="fImages" rows="4" placeholder="../assets/images/boxers/bl5.webp"></textarea>
           <p class="field__hint">
-            Найпростіше — кнопка «Завантажити фото»: файли зменшуються, переганяються
-            у WebP і лягають у репозиторій сайту, а шляхи додаються сюди самі.
-            Можна й вписати шлях руками, якщо фото вже в <code>assets/images/…</code>.
-            Перше фото — обкладинка, друге — показується при наведенні.
+            Фото зберігаються у хмарному сховищі й самі стискаються у WebP.
+            Перше — обкладинка картки, друге показується при наведенні;
+            порядок міняється стрілками на мініатюрах.
           </p>
         </div>
 

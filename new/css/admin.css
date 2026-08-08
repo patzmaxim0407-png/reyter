@@ -3407,3 +3407,116 @@ label.a-promo-product i {
 .a-pub__sched .a-linklike {
   margin-top: 0.4rem;
 }
+
+/* ---------- Фото товару: мініатюри у редакторі ---------- */
+
+.a-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.a-photos__empty {
+  grid-column: 1 / -1;
+  font-size: 0.85rem;
+  color: var(--c-muted);
+  background: var(--c-cream);
+  border: 1.5px dashed var(--c-line);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  text-align: center;
+}
+
+.a-photo {
+  position: relative;
+  margin: 0;
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--c-cream-dark);
+}
+
+.a-photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+
+.a-photo figcaption {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(6, 27, 60, 0.72);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+}
+
+.a-photo__tools {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  background: linear-gradient(transparent, rgba(6, 27, 60, 0.55));
+}
+
+.a-photo__tools button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--c-ink);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.a-photo__tools button.danger {
+  color: var(--c-red);
+}
+
+@media (max-width: 620px) {
+  .a-photo__tools button {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Селект привʼязки товару в рядку кольору */
+.a-color select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--c-ink);
+  background: var(--c-paper);
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-sm);
+}
+
+/* Прогрес разового перенесення фото у сховище */
+.a-migbar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 2600;
+  max-width: calc(100vw - 2rem);
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  background: var(--c-blue-ink);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  box-shadow: 0 12px 30px rgba(6, 27, 60, 0.35);
+}

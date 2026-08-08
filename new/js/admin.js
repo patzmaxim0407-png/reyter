@@ -458,9 +458,6 @@
       .join('');
   }
 
-  /* Колір + необовʼязкове посилання на картку того самого
-     товару в цьому кольорі: на сайті клієнт перемикає колір
-     і потрапляє саме на неї. */
   /* Кольори у двох форматах: старий рядок і новий {hex, id} */
   function adminColors(p) {
     return ((p && p.colors) || []).map((c) =>
@@ -468,23 +465,39 @@
     ).filter((c) => c.hex);
   }
 
+  /* Колір + картка того самого товару в цьому кольорі.
+     Вибір — звичайний випадаючий список: спершу товари
+     головної категорії редагованого товару, нижче — решта. */
+  function colorLinkOptions(selectedId) {
+    const mainCat = $('fCategory').value;
+    const cur = $('fId').value.trim();
+
+    const cats = state.categories
+      .slice()
+      .sort((a, b) => (a.id === mainCat ? -1 : 0) - (b.id === mainCat ? -1 : 0));
+
+    return '<option value="">— без привʼязки —</option>' +
+      cats.map((c) => {
+        const items = state.products.filter((x) => x.category === c.id && x.id !== cur);
+        if (!items.length) return '';
+        return '<optgroup label="' + esc(c.title) + '">' +
+          items.map((x) =>
+            '<option value="' + esc(x.id) + '"' + (x.id === selectedId ? ' selected' : '') + '>' +
+              esc(x.name) + ' · ' + esc(x.id) +
+            '</option>'
+          ).join('') +
+        '</optgroup>';
+      }).join('');
+  }
+
   function addColorRow(value) {
     const c = typeof value === 'string' ? { hex: value, id: '' } : (value || {});
-    const linked = c.id ? state.products.find((x) => x.id === c.id) : null;
 
     const row = document.createElement('div');
     row.className = 'a-color';
     row.innerHTML =
       '<input type="color" value="' + esc(c.hex || '#014AAD') + '">' +
-      '<div class="acombo a-colorlink">' +
-        '<div class="acombo__box">' +
-          '<input data-color-pid value="' + esc(linked ? linked.name : '') + '" ' +
-            'placeholder="товар цього кольору (необовʼязково)" autocomplete="off" ' +
-            'spellcheck="false" role="combobox" data-ref="' + esc(c.id || '') + '">' +
-          '<span class="acombo__spin" hidden></span>' +
-          '<ul class="acombo__list" role="listbox" hidden></ul>' +
-        '</div>' +
-      '</div>' +
+      '<select data-color-pid>' + colorLinkOptions(c.id || '') + '</select>' +
       '<button type="button" class="a-color__del" title="Прибрати колір" aria-label="Прибрати колір">✕</button>';
 
     row.querySelector('.a-color__del').addEventListener('click', () => {
@@ -493,36 +506,14 @@
     });
 
     $('fColors').appendChild(row);
-    bindColorLink(row.querySelector('[data-color-pid]'));
   }
 
-  /* Пошук товару для прив'язки — той самий список, що й
-     у ручному замовленні, але без залишків */
-  function bindColorLink(input) {
-    if (!input || !R.attachCombo) return;
-    R.attachCombo(input, {
-      minChars: 0,
-      openOnFocus: true,
-      load: (q) => {
-        const needle = q.trim().toLowerCase();
-        return state.products
-          .filter((x) => x.id !== $('fId').value.trim())
-          .filter((x) => !needle ||
-            x.name.toLowerCase().includes(needle) ||
-            x.id.toLowerCase().includes(needle));
-      },
-      render: (x) => ({
-        html:
-          '<img class="a-pick__img" src="' + esc((x.images && x.images[0]) || '') + '" alt="" ' +
-            'loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
-          '<span class="a-pick__body"><b>' + esc(x.name) + '</b>' +
-          '<i>' + esc(x.id) + ' · ' + catTitle(x.category) + '</i></span>',
-        cls: 'a-pick',
-        value: x.name,
-        ref: x.id
-      }),
-      onPick: updatePreview,
-      empty: 'admin.noProduct'
+  /* Головна категорія змінилась — перебудовуємо списки
+     привʼязок, зберігаючи вибране */
+  function refreshColorLinks() {
+    document.querySelectorAll('#fColors [data-color-pid]').forEach((sel) => {
+      const chosen = sel.value;
+      sel.innerHTML = colorLinkOptions(chosen);
     });
   }
 
@@ -553,7 +544,8 @@
     $('fModel').value = p.model || '';
     $('fColors').innerHTML = '';
     (p.colors || []).forEach(addColorRow);
-    $('fImages').value = (p.images || []).join('\n');
+    editImages = (p.images || []).slice();
+    renderPhotos();
     $('fNotes').value = (p.notes || []).join('\n');
     $('fCharacteristics').value = (p.characteristics || []).join('\n');
     $('fCare').value = (p.care || []).join('\n');
@@ -604,7 +596,7 @@
       (row) => {
         const hex = row.querySelector('input[type="color"]').value;
         const link = row.querySelector('[data-color-pid]');
-        const id = link ? (link.dataset.ref || '') : '';
+        const id = link ? (link.value || '') : '';
         // без прив'язки лишаємо простий рядок — так data.js
         // не роздувається обʼєктами там, де вони не потрібні
         return id ? { hex: hex, id: id } : hex;
@@ -612,7 +604,7 @@
     );
     if (colors.length) p.colors = colors;
 
-    p.images = lines($('fImages').value);
+    p.images = editImages.slice();
     const notes = lines($('fNotes').value);
     if (notes.length) p.notes = notes;
     const chars = lines($('fCharacteristics').value);
@@ -623,30 +615,41 @@
     return p;
   }
 
-  /* ---------- Завантаження фото ----------
-     Фото їдуть у той самий репозиторій, що й сайт, і роздає їх
-     GitHub Pages — тобто безкоштовно й без окремого сховища.
-     Перед відправкою зменшуємо й переганяємо у WebP: оригінали
-     з телефона важать по 4–6 МБ, а в репозиторії це назавжди. */
+  /* ---------- Фото: Firebase Storage ----------
+     Фото живуть у хмарному сховищі проєкту (Firebase Storage),
+     а не в репозиторії. Перед відправкою зменшуємо й переганяємо
+     у WebP: оригінали з телефона важать по 4–6 МБ.
+     Заливаємо простим REST-запитом з токеном адміна — правила
+     сховища (new/storage.rules) пускають на запис лише адмінів. */
 
-  const UPLOAD_DIR = 'assets/images/products';
+  const STORAGE_BUCKET = 'reyter-18d2c.firebasestorage.app';
   const MAX_SIDE = 1600;
 
-  function fileToImage(file) {
+  /* Фото товару, який зараз у редакторі. Порядок важливий:
+     перше — обкладинка, друге показується при наведенні. */
+  let editImages = [];
+
+  function fileToImage(src) {
     return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
+      const url = typeof src === 'string' ? src : URL.createObjectURL(src);
       const img = new Image();
-      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Не вдалося прочитати файл')); };
+      img.onload = () => {
+        if (typeof src !== 'string') URL.revokeObjectURL(url);
+        resolve(img);
+      };
+      img.onerror = () => {
+        if (typeof src !== 'string') URL.revokeObjectURL(url);
+        reject(new Error('Не вдалося прочитати зображення'));
+      };
       img.src = url;
     });
   }
 
-  async function toWebp(file) {
-    const img = await fileToImage(file);
+  async function toWebp(src) {
+    const img = await fileToImage(src);
     const scale = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
-    const w = Math.round(img.width * scale);
-    const h = Math.round(img.height * scale);
+    const w = Math.round(img.width * scale) || 1;
+    const h = Math.round(img.height * scale) || 1;
 
     const canvas = document.createElement('canvas');
     canvas.width = w;
@@ -655,12 +658,7 @@
 
     const blob = await new Promise((res) => canvas.toBlob(res, 'image/webp', 0.82));
     if (!blob) throw new Error('Браузер не вміє WebP');
-
-    const buf = await blob.arrayBuffer();
-    let bin = '';
-    const bytes = new Uint8Array(buf);
-    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    return { base64: btoa(bin), size: blob.size, w: w, h: h };
+    return blob;
   }
 
   function slugFile(name) {
@@ -675,6 +673,40 @@
     return (localStorage.getItem(KEY_TOKEN) || '').trim();
   }
 
+  /* Заливає blob у Storage і повертає публічний URL.
+     Читання за правилами відкрите, тож токен у посиланні
+     не потрібен — URL стабільний і чистий. */
+  async function storageUpload(path, blob) {
+    const user = R.fb.auth.currentUser;
+    if (!user) throw new Error('Увійдіть акаунтом адміністратора');
+    const idToken = await user.getIdToken();
+
+    const res = await fetch(
+      'https://firebasestorage.googleapis.com/v0/b/' + STORAGE_BUCKET +
+        '/o?name=' + encodeURIComponent(path),
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Firebase ' + idToken,
+          'Content-Type': 'image/webp'
+        },
+        body: blob
+      }
+    );
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('Сховище не пускає: вставте правила з файлу new/storage.rules у Firebase Console → Storage → Rules');
+    }
+    if (!res.ok) throw new Error('Сховище відповіло кодом ' + res.status);
+
+    return 'https://firebasestorage.googleapis.com/v0/b/' + STORAGE_BUCKET +
+      '/o/' + encodeURIComponent(path) + '?alt=media';
+  }
+
+  function storagePath(article, n, name) {
+    const dir = (article || 'misc').toLowerCase().replace(/[^a-z0-9-]/g, '') || 'misc';
+    return 'products/' + dir + '/' + Date.now() + '-' + n + '-' + slugFile(name) + '.webp';
+  }
+
   function setUploadStatus(cls, text) {
     const el = $('fUploadStatus');
     if (!el) return;
@@ -682,83 +714,141 @@
     el.textContent = text || '';
   }
 
+  /* ---------- Мініатюри в редакторі ---------- */
+
+  function renderPhotos() {
+    const box = $('fPhotos');
+    if (!box) return;
+
+    box.innerHTML = editImages.length
+      ? editImages.map((src, i) =>
+          '<figure class="a-photo" data-i="' + i + '">' +
+            '<img src="' + esc(src) + '" alt="" loading="lazy" ' +
+              'onerror="this.style.visibility=\'hidden\'">' +
+            (i === 0 ? '<figcaption>обкладинка</figcaption>' : '') +
+            (i === 1 ? '<figcaption>при наведенні</figcaption>' : '') +
+            '<span class="a-photo__tools">' +
+              (i > 0 ? '<button type="button" data-ph="left" title="Пересунути вліво" aria-label="Пересунути вліво">←</button>' : '') +
+              (i < editImages.length - 1 ? '<button type="button" data-ph="right" title="Пересунути вправо" aria-label="Пересунути вправо">→</button>' : '') +
+              '<button type="button" data-ph="del" class="danger" title="Прибрати фото" aria-label="Прибрати фото">✕</button>' +
+            '</span>' +
+          '</figure>'
+        ).join('')
+      : '<p class="a-photos__empty">Фото ще немає — завантажте перше.</p>';
+  }
+
   async function uploadPhotos(files) {
     if (!files.length) return;
-
-    let token = ghToken();
-    if (!token) {
-      token = (prompt(
-        'Фото зберігаються в репозиторії сайту (GitHub Pages роздає їх безкоштовно).\n\n' +
-        'Вставте GitHub-токен із дозволом Contents: Read and write — той самий, ' +
-        'що для «Резервної копії». Він збережеться в цьому браузері.'
-      ) || '').trim();
-      if (!token) return;
-      localStorage.setItem(KEY_TOKEN, token);
-    }
-
-    const article = ($('fId').value.trim() || 'misc').toLowerCase();
-    const dir = UPLOAD_DIR + '/' + article.replace(/[^a-z0-9-]/g, '');
-    const stamp = Date.now();
-    const added = [];
+    const article = $('fId').value.trim();
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       setUploadStatus('wait', 'Готуємо ' + (i + 1) + ' з ' + files.length + '…');
 
-      let img;
+      let blob;
       try {
-        img = await toWebp(file);
+        blob = await toWebp(file);
       } catch (e) {
         setUploadStatus('err', 'Не вдалося обробити «' + file.name + '»');
         return;
       }
 
-      const path = dir + '/' + stamp + '-' + (i + 1) + '-' + slugFile(file.name) + '.webp';
       setUploadStatus('wait', 'Вивантажуємо ' + (i + 1) + ' з ' + files.length +
-        ' (' + Math.round(img.size / 1024) + ' КБ)…');
+        ' (' + Math.round(blob.size / 1024) + ' КБ)…');
 
       try {
-        const res = await fetch(
-          'https://api.github.com/repos/' + GH.owner + '/' + GH.repo + '/contents/' + path,
-          {
-            method: 'PUT',
-            headers: {
-              Authorization: 'Bearer ' + token,
-              Accept: 'application/vnd.github+json'
-            },
-            body: JSON.stringify({
-              message: 'Фото товару ' + article,
-              content: img.base64,
-              branch: GH.branch
-            })
-          }
-        );
-
-        if (res.status === 401 || res.status === 403) {
-          localStorage.removeItem(KEY_TOKEN);
-          setUploadStatus('err', 'Токен не має доступу до репозиторію. Потрібен дозвіл Contents: Read and write');
-          return;
-        }
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          setUploadStatus('err', 'GitHub відмовив: ' + (err.message || res.status));
-          return;
-        }
+        const url = await storageUpload(storagePath(article, i + 1, file.name), blob);
+        editImages.push(url);
+        renderPhotos();
+        updatePreview();
       } catch (e) {
-        setUploadStatus('err', 'Немає звʼязку з GitHub');
+        setUploadStatus('err', e.message || 'Не вдалося завантажити');
         return;
       }
-
-      added.push('../' + path);
     }
 
-    const box = $('fImages');
-    const lines = box.value.split('\n').map((l) => l.trim()).filter(Boolean);
-    box.value = lines.concat(added).join('\n');
-    updatePreview();
+    setUploadStatus('ok', 'Додано фото: ' + files.length + ' ✓');
+  }
 
-    setUploadStatus('ok', 'Додано фото: ' + added.length +
-      ' ✓ Зʼявляться на сайті за хвилину-дві, коли GitHub Pages перебудує сторінку');
+  /* ---------- Разова міграція старих фото у сховище ----------
+     Наявні картки посилаються на файли репозиторію
+     (../assets/…). Тягнемо кожне з сайту, переганяємо у WebP,
+     заливаємо у Storage і оновлюємо ЧЕРНЕТКУ — сайт побачить
+     нові адреси після публікації, а до того працює як працював. */
+
+  async function migratePhotos() {
+    if (!seeded) return;
+
+    const mig = await R.fb.db.collection('settings').doc('migrations').get()
+      .catch(() => null);
+    if (mig && mig.exists && mig.data().photosToStorage) return;
+
+    const isOld = (src) => !/^https?:/i.test(String(src || ''));
+    const todo = state.products.filter((p) => (p.images || []).some(isOld));
+
+    if (!todo.length) {
+      await R.fb.db.collection('settings').doc('migrations')
+        .set({ photosToStorage: true }, { merge: true });
+      return;
+    }
+
+    const total = todo.reduce((n, p) => n + p.images.filter(isOld).length, 0);
+    let done = 0;
+    let failed = 0;
+
+    const bar = document.createElement('div');
+    bar.className = 'a-migbar';
+    bar.textContent = 'Переносимо фото у хмарне сховище… 0 з ' + total;
+    document.body.appendChild(bar);
+
+    const batch = R.fb.db.batch();
+    const changedIds = [];
+
+    for (const p of todo) {
+      const fresh = [];
+      let touched = false;
+
+      for (let i = 0; i < p.images.length; i++) {
+        const src = p.images[i];
+        if (!isOld(src)) { fresh.push(src); continue; }
+        try {
+          const blob = await toWebp(src);
+          const url = await storageUpload(storagePath(p.id, i + 1, src.split('/').pop() || 'photo'), blob);
+          fresh.push(url);
+          touched = true;
+        } catch (e) {
+          fresh.push(src); // не вдалося — лишаємо старий шлях
+          failed++;
+        }
+        done++;
+        bar.textContent = 'Переносимо фото у хмарне сховище… ' + done + ' з ' + total;
+      }
+
+      if (touched) {
+        p.images = fresh;
+        batch.update(prodCol().doc(p.id), { images: fresh });
+        changedIds.push(p.id);
+      }
+    }
+
+    bar.remove();
+
+    if (changedIds.length) {
+      await batch.commit();
+      render();
+    }
+
+    if (failed) {
+      toast('Фото перенесено частково (' + failed + ' не вдалося) — спробуємо докінчити наступного разу');
+      return; // маркер не ставимо, щоб доробити решту
+    }
+
+    await R.fb.db.collection('settings').doc('migrations')
+      .set({ photosToStorage: true }, { merge: true });
+
+    if (changedIds.length) {
+      toast('Фото перенесено у хмарне сховище ✓ Опублікуйте зміни', 'success');
+    }
   }
 
   function updatePreview() {
@@ -975,7 +1065,12 @@
       }
 
       await migrateStructure();
-    } catch (e) { /* без прав чи правил — нічого не ламаємо */ }
+      await migratePhotos();
+    } catch (e) {
+      // не ламаємо адмінку, але і не мовчимо — інакше причину
+      // не знайти (typово: правила бази ще не оновлені)
+      if (window.console) console.warn('Прибирання при вході не завершилось:', e);
+    }
     refreshPublishBadge();
   }
 
@@ -1284,6 +1379,22 @@
       });
     }
 
+    $('fPhotos').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-ph]');
+      if (!btn) return;
+      const i = Number(btn.closest('.a-photo').dataset.i);
+      if (btn.dataset.ph === 'del') {
+        editImages.splice(i, 1);
+      } else {
+        const j = btn.dataset.ph === 'left' ? i - 1 : i + 1;
+        const t = editImages[i];
+        editImages[i] = editImages[j];
+        editImages[j] = t;
+      }
+      renderPhotos();
+      updatePreview();
+    });
+
     $('addProductBtn').addEventListener('click', () => {
       if (!state.categories.length) {
         toast('Спершу створіть категорію');
@@ -1307,6 +1418,7 @@
       // Головна категорія не має дублюватись у «показувати також»
       if (e.target.id === 'fCategory') {
         renderExtraCats(e.target.value, pickedExtraCats());
+        refreshColorLinks();
       }
       updatePreview();
     });
