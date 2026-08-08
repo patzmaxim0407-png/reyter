@@ -3019,6 +3019,94 @@
     renderNoItems();
   }
 
+  /* ---------- Постійний клієнт за телефоном ----------
+     Адмін вводить номер — шукаємо його в минулих замовленнях
+     і пропонуємо підставити пошту, ПІБ та адресу, щоб не
+     передруковувати їх із листування. */
+
+  let knownTimer = null;
+
+  function normPhone(v) {
+    const digits = String(v || '').replace(/\D/g, '');
+    return digits.slice(-9); // без коду країни та нулів
+  }
+
+  function findKnownCustomer(phone) {
+    const key = normPhone(phone);
+    if (key.length < 9) return null;
+
+    const mine = ordersCache
+      .filter((o) => normPhone((o.customer || {}).phone) === key)
+      .sort((a, b) => orderDate(b) - orderDate(a));
+    if (!mine.length) return null;
+
+    // найсвіжіші дані клієнта + скільки разів замовляв
+    const c = mine[0].customer || {};
+    return { customer: c, orders: mine.length };
+  }
+
+  function renderKnownCustomer() {
+    const box = $id('noKnown');
+    if (!box) return;
+    const known = findKnownCustomer($id('noPhone').value);
+
+    if (!known) {
+      box.hidden = true;
+      box.innerHTML = '';
+      return;
+    }
+
+    const c = known.customer;
+    const bits = [c.email, R.addressLine(c)].filter(Boolean).join(' · ');
+    box.hidden = false;
+    box.innerHTML =
+      '↺ Цей номер уже замовляв: <b>' + esc(c.name || 'без імені') + '</b>' +
+      (bits ? ' · ' + esc(bits) : '') +
+      ' <i>(замовлень: ' + known.orders + ')</i> ' +
+      '<button type="button" class="a-linklike" data-known-fill>Підставити дані</button>';
+  }
+
+  function applyKnownCustomer() {
+    const known = findKnownCustomer($id('noPhone').value);
+    if (!known) return;
+    const c = known.customer;
+
+    if (!$id('noName').value.trim() && c.name) $id('noName').value = c.name;
+    if (!$id('noEmail').value.trim() && c.email) $id('noEmail').value = c.email;
+
+    // Адресу підставляємо, лише якщо її ще не почали вводити
+    const carrierSel = $id('noCarrier');
+    if (carrierSel) {
+      const intl = c.intl && (c.intl.country || c.intl.zip || c.intl.street);
+      if (intl && !$id('noIntlCity').value.trim() && !$id('noStreet').value.trim()) {
+        carrierSel.value = 'intl';
+        carrierSel.dispatchEvent(new Event('change', { bubbles: true }));
+        const cc = R.COUNTRIES.some((x) => x.code === c.intl.countryCode)
+          ? c.intl.countryCode : 'other';
+        const country = $id('noCountry');
+        country.value = cc;
+        country.dispatchEvent(new Event('change', { bubbles: true }));
+        if (cc === 'other') $id('noCountryOther').value = c.intl.country || '';
+        $id('noIntlCity').value = c.intl.city || '';
+        $id('noState').value = c.intl.state || '';
+        $id('noStreet').value = c.intl.street || '';
+        $id('noExtra').value = c.intl.extra || '';
+        $id('noZip').value = c.intl.zip || '';
+      } else if (!intl && !$id('noCity').value.trim()) {
+        carrierSel.value = 'np';
+        carrierSel.dispatchEvent(new Event('change', { bubbles: true }));
+        $id('noCity').value = c.city || '';
+        $id('noCity').dataset.ref = c.cityRef || '';
+        $id('noBranch').value = c.branch || '';
+        $id('noBranch').dataset.ref = c.branchRef || '';
+      }
+    }
+
+    const box = $id('noKnown');
+    box.innerHTML = '✓ Дані клієнта підставлено — перевірте адресу перед створенням';
+    setTimeout(() => { box.hidden = true; }, 4000);
+  }
+
   function openNewOrder() {
     noRows = [];
     noSeq = 0;
@@ -3027,6 +3115,8 @@
     // (обраний перевізник, реф міста), який треба скинути
     $id('noAddress').innerHTML = R.addressField('no', {});
     R.initAddress('no');
+    $id('noKnown').hidden = true;
+    $id('noKnown').innerHTML = '';
     $id('noDiscount').value = '';
     $id('noShipping').value = '';
     $id('noStatus').value = 'new';
@@ -4371,6 +4461,14 @@
 
     noModal().addEventListener('input', (e) => {
       if (['noDiscount', 'noShipping'].includes(e.target.id)) renderNoTotal();
+      if (e.target.id === 'noPhone') {
+        clearTimeout(knownTimer);
+        knownTimer = setTimeout(renderKnownCustomer, 300);
+      }
+    });
+
+    noModal().addEventListener('click', (e) => {
+      if (e.target.closest('[data-known-fill]')) applyKnownCustomer();
     });
 
     /* ---- налаштування ---- */

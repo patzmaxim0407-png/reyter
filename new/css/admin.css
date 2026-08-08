@@ -2306,6 +2306,11 @@ label.a-promo-product i {
     height: 40px;
   }
 
+  .a-cat__grip {
+    width: 40px;
+    height: 44px;
+  }
+
   .a-toolbar {
     flex-wrap: wrap;
   }
@@ -3662,4 +3667,28 @@ label.a-promo-product i {
 .ao-restock-form__row .a-rstpick {
   flex: 1 1 260px;
   min-width: 0;
+}
+
+/* Підказка «постійний клієнт» у ручному замовленні */
+.ao-known {
+  background: rgba(1, 74, 173, 0.07);
+  border: 1px solid rgba(1, 74, 173, 0.18);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.9rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.ao-known[hidden] {
+  display: none;
+}
+
+.ao-known i {
+  font-style: normal;
+  color: var(--c-muted);
+}
+
+.ao-known .a-linklike {
+  padding: 0.15rem 0;
 }

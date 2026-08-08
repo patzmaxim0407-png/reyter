@@ -260,6 +260,12 @@
       switchable.filter((c) => c.id !== current.id)
     );
 
+    /* Порядок зразків однаковий на всіх картках родини — як у
+       каталозі. Інакше поточний колір щоразу стрибав на перше
+       місце, і після перемикання зразки мінялись місцями. */
+    const pos = (id) => R.products.findIndex((x) => x.id === id);
+    list.sort((a, b) => pos(a.id) - pos(b.id));
+
     el.colorsBlock.hidden = false;
     el.colors.innerHTML = list.map((c) => {
       const target = c.id === current.id ? current : R.getProduct(c.id);
