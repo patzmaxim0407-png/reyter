@@ -408,6 +408,7 @@
   }
 
   function closeModal(el) {
+    closeColorDrop();
     el.hidden = true;
     R.unlockBg();
   }
@@ -466,28 +467,21 @@
   }
 
   /* Колір + картка того самого товару в цьому кольорі.
-     Вибір — звичайний випадаючий список: спершу товари
-     головної категорії редагованого товару, нижче — решта. */
-  function colorLinkOptions(selectedId) {
-    const mainCat = $('fCategory').value;
-    const cur = $('fId').value.trim();
+     Вибір — власний випадаючий список із фото: нативний select
+     зображень не вміє. У списку лише товари ГОЛОВНОЇ категорії
+     редагованого товару. Панель позиціонується фіксовано, тож
+     прокрутка модалки її не обрізає. */
 
-    const cats = state.categories
-      .slice()
-      .sort((a, b) => (a.id === mainCat ? -1 : 0) - (b.id === mainCat ? -1 : 0));
-
-    return '<option value="">— без привʼязки —</option>' +
-      cats.map((c) => {
-        const items = state.products.filter((x) => x.category === c.id && x.id !== cur);
-        if (!items.length) return '';
-        return '<optgroup label="' + esc(c.title) + '">' +
-          items.map((x) =>
-            '<option value="' + esc(x.id) + '"' + (x.id === selectedId ? ' selected' : '') + '>' +
-              esc(x.name) + ' · ' + esc(x.id) +
-            '</option>'
-          ).join('') +
-        '</optgroup>';
-      }).join('');
+  function colorTriggerHTML(id) {
+    const p = id ? state.products.find((x) => x.id === id) : null;
+    if (!p) {
+      return '<span class="a-colorpick__ph">— без привʼязки —</span>' +
+        '<i class="a-colorpick__caret">▾</i>';
+    }
+    return '<img src="' + esc((p.images && p.images[0]) || '') + '" alt="" loading="lazy"' +
+        ' onerror="this.style.visibility=\'hidden\'">' +
+      '<span><b>' + esc(p.name) + '</b><em>' + esc(p.id) + '</em></span>' +
+      '<i class="a-colorpick__caret">▾</i>';
   }
 
   function addColorRow(value) {
@@ -497,10 +491,12 @@
     row.className = 'a-color';
     row.innerHTML =
       '<input type="color" value="' + esc(c.hex || '#014AAD') + '">' +
-      '<select data-color-pid>' + colorLinkOptions(c.id || '') + '</select>' +
+      '<button type="button" class="a-colorpick" data-color-pid data-ref="' + esc(c.id || '') + '" ' +
+        'aria-haspopup="listbox">' + colorTriggerHTML(c.id || '') + '</button>' +
       '<button type="button" class="a-color__del" title="Прибрати колір" aria-label="Прибрати колір">✕</button>';
 
     row.querySelector('.a-color__del').addEventListener('click', () => {
+      closeColorDrop();
       row.remove();
       updatePreview();
     });
@@ -508,13 +504,81 @@
     $('fColors').appendChild(row);
   }
 
-  /* Головна категорія змінилась — перебудовуємо списки
-     привʼязок, зберігаючи вибране */
-  function refreshColorLinks() {
-    document.querySelectorAll('#fColors [data-color-pid]').forEach((sel) => {
-      const chosen = sel.value;
-      sel.innerHTML = colorLinkOptions(chosen);
+  /* ---------- Випадаюча панель ---------- */
+
+  let colorDropFor = null; // тригер, для якого відкрито список
+
+  function colorDropEl() {
+    let el = document.getElementById('colorDropdown');
+    if (el) return el;
+
+    el = document.createElement('div');
+    el.id = 'colorDropdown';
+    el.className = 'a-colordrop';
+    el.hidden = true;
+    document.body.appendChild(el);
+
+    // mousedown, а не click — інакше blur/клік повз встигають
+    // закрити панель до вибору
+    el.addEventListener('mousedown', (e) => {
+      const opt = e.target.closest('[data-pick-id]');
+      if (!opt) return;
+      e.preventDefault();
+      if (colorDropFor) {
+        colorDropFor.dataset.ref = opt.dataset.pickId;
+        colorDropFor.innerHTML = colorTriggerHTML(opt.dataset.pickId);
+        updatePreview();
+      }
+      closeColorDrop();
     });
+
+    return el;
+  }
+
+  function closeColorDrop() {
+    const el = document.getElementById('colorDropdown');
+    if (el) el.hidden = true;
+    colorDropFor = null;
+  }
+
+  function openColorDrop(trigger) {
+    const el = colorDropEl();
+    const mainCat = $('fCategory').value;
+    const cur = $('fId').value.trim();
+
+    const items = state.products.filter((x) => x.id !== cur && inCat(x, mainCat));
+
+    el.innerHTML =
+      '<button type="button" class="a-colordrop__none" data-pick-id="">— без привʼязки —</button>' +
+      (items.length
+        ? items.map((x) =>
+            '<button type="button" class="a-colordrop__opt' +
+              (trigger.dataset.ref === x.id ? ' is-active' : '') + '" ' +
+              'data-pick-id="' + esc(x.id) + '">' +
+              '<img src="' + esc((x.images && x.images[0]) || '') + '" alt="" loading="lazy"' +
+                ' onerror="this.style.visibility=\'hidden\'">' +
+              '<span><b>' + esc(x.name) + '</b>' +
+                '<em>' + esc(x.id) + ' · ' + fmt(x.price) + ' грн</em></span>' +
+            '</button>').join('')
+        : '<p class="a-colordrop__empty">У категорії «' + esc(catTitle(mainCat)) +
+            '» немає інших товарів.</p>');
+
+    // панель фіксована: рахуємо місце від тригера, вниз чи вгору
+    const r = trigger.getBoundingClientRect();
+    const below = window.innerHeight - r.bottom;
+    el.hidden = false;
+    el.style.left = r.left + 'px';
+    el.style.width = r.width + 'px';
+    if (below > 220 || below >= r.top) {
+      el.style.top = (r.bottom + 4) + 'px';
+      el.style.bottom = 'auto';
+      el.style.maxHeight = Math.max(160, Math.min(340, below - 12)) + 'px';
+    } else {
+      el.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+      el.style.top = 'auto';
+      el.style.maxHeight = Math.max(160, Math.min(340, r.top - 12)) + 'px';
+    }
+    colorDropFor = trigger;
   }
 
   function openEditor(product) {
@@ -596,7 +660,7 @@
       (row) => {
         const hex = row.querySelector('input[type="color"]').value;
         const link = row.querySelector('[data-color-pid]');
-        const id = link ? (link.value || '') : '';
+        const id = link ? (link.dataset.ref || '') : '';
         // без прив'язки лишаємо простий рядок — так data.js
         // не роздувається обʼєктами там, де вони не потрібні
         return id ? { hex: hex, id: id } : hex;
@@ -1379,6 +1443,35 @@
       });
     }
 
+    $('fColors').addEventListener('click', (e) => {
+      const t = e.target.closest('.a-colorpick');
+      if (!t) return;
+      if (colorDropFor === t) closeColorDrop();
+      else openColorDrop(t);
+    });
+
+    document.addEventListener('click', (e) => {
+      if (colorDropFor &&
+          !e.target.closest('#colorDropdown') &&
+          !e.target.closest('.a-colorpick')) {
+        closeColorDrop();
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeColorDrop();
+    });
+
+    // прокрутка зсуває тригер під фіксованою панеллю — закриваємо;
+    // власна прокрутка панелі не рахується
+    document.addEventListener('scroll', (e) => {
+      if (!colorDropFor) return;
+      const drop = document.getElementById('colorDropdown');
+      if (drop && e.target !== drop && !(e.target.nodeType === 1 && drop.contains(e.target))) {
+        closeColorDrop();
+      }
+    }, true);
+
     $('fPhotos').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-ph]');
       if (!btn) return;
@@ -1418,7 +1511,7 @@
       // Головна категорія не має дублюватись у «показувати також»
       if (e.target.id === 'fCategory') {
         renderExtraCats(e.target.value, pickedExtraCats());
-        refreshColorLinks();
+        closeColorDrop();
       }
       updatePreview();
     });
