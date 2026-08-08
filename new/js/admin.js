@@ -931,6 +931,7 @@
 
   const TRACK_URLS = {
     'Нова Пошта': 'https://novaposhta.ua/tracking/?cargo_number=',
+    // старі замовлення можуть мати перевізників, які вже не пропонуються
     'Укрпошта': 'https://track.ukrposhta.ua/tracking_UA.aspx?barcode=',
     'Meest': 'https://meest.com/ua/tracking/?code='
   };
@@ -1587,7 +1588,7 @@
       ? d.toLocaleString('uk-UA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
       : '';
     const c = o.customer || {};
-    const delivery = [c.carrier, c.city, c.branch].filter(Boolean).join(', ');
+    const delivery = R.addressLine(c);
     const units = (o.items || []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
 
     const isOpen = expanded.has(o._id);
@@ -1853,7 +1854,7 @@
     }
 
     const head = ['Номер', 'Дата', 'Статус', 'Клієнт', 'Телефон', 'Email',
-                  'Перевізник', 'Місто', 'Відділення', 'Підтвердження',
+                  'Перевізник', 'Місто', 'Відділення / вулиця', 'Індекс', 'Штат / область', 'Підтвердження',
                   'ТТН', 'Товари', 'Кількість', 'Сума, грн', 'Нотатка'];
     const rows = list.map((o) => {
       const c = o.customer || {};
@@ -1865,7 +1866,8 @@
         orderDate(o).toLocaleString('uk-UA'),
         statusInfo(o.status || 'new').title,
         c.name || '', c.phone || '', c.email || o.email || '',
-        c.carrier || '', c.city || '', c.branch || '', confirmText(c),
+        c.carrier || '', c.city || '', c.branch || '',
+        (c.intl && c.intl.zip) || '', (c.intl && c.intl.state) || '', confirmText(c),
         o.ttn || '', items, units, o.total || 0, o.note || ''
       ].map(csvCell).join(',');
     });
@@ -1904,7 +1906,7 @@
             ' · ' + esc(statusInfo(o.status || 'new').title) + '</p>' +
           '<p><b>' + esc(c.name || '') + '</b><br>' + esc(c.phone || '') +
             (c.email ? '<br>' + esc(c.email) : '') + '</p>' +
-          '<p>' + esc([c.carrier, c.city, c.branch].filter(Boolean).join(', ')) +
+          '<p>' + esc(R.addressLine(c)) +
             (confirmText(c) ? '<br>Підтвердження: ' + esc(confirmText(c)) : '') +
             (o.ttn ? '<br>ТТН: <b>' + esc(o.ttn) + '</b>' : '') + '</p>' +
           (c.comment ? '<p><i>' + esc(c.comment) + '</i></p>' : '') +
@@ -2054,7 +2056,11 @@
   function openNewOrder() {
     noRows = [];
     noSeq = 0;
-    ['noName', 'noPhone', 'noEmail', 'noCity', 'noBranch', 'noComment'].forEach((id) => { $id(id).value = ''; });
+    ['noName', 'noPhone', 'noEmail', 'noComment'].forEach((id) => { $id(id).value = ''; });
+    // Блок адреси малюємо щоразу заново: у нього свій стан
+    // (обраний перевізник, реф міста), який треба скинути
+    $id('noAddress').innerHTML = R.addressField('no', {});
+    R.initAddress('no');
     $id('noDiscount').value = '';
     $id('noShipping').value = '';
     $id('noStatus').value = 'new';
@@ -2082,8 +2088,7 @@
     lines.push('');
     lines.push('👤 ' + order.customer.name);
     lines.push('📞 ' + order.customer.phone);
-    const delivery = [order.customer.carrier, order.customer.city, order.customer.branch]
-      .filter(Boolean).join(', ');
+    const delivery = R.addressLine(order.customer);
     if (delivery) lines.push('🚚 ' + delivery);
     if (order.customer.comment) lines.push('💬 ' + order.customer.comment);
     return lines.join('\n');
@@ -2127,15 +2132,13 @@
     const shipping = Number($id('noShipping').value) || 0;
     const status = $id('noStatus').value;
 
-    const customer = {
+    const customer = Object.assign({
       name: name,
       phone: phone,
-      email: $id('noEmail').value.trim(),
-      carrier: $id('noCarrier').value,
-      city: $id('noCity').value.trim(),
-      branch: $id('noBranch').value.trim(),
+      email: $id('noEmail').value.trim()
+    }, R.addressValue('no'), {
       comment: $id('noComment').value.trim()
-    };
+    });
 
     const order = {
       num: orderNumber(),

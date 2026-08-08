@@ -269,7 +269,7 @@
       order_comment: c.comment || '',
       order_confirm: R.confirmLine ? R.confirmLine(c) : '',
       order_source: order.source || 'Сайт',
-      order_delivery: [c.carrier, c.city, c.branch].filter(Boolean).join(', ')
+      order_delivery: R.addressLine ? R.addressLine(c) : [c.carrier, c.city, c.branch].filter(Boolean).join(', ')
     };
   }
 

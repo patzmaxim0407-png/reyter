@@ -11,7 +11,6 @@
 
   const R = window.REYTER;
 
-  const CARRIERS = ['Нова Пошта', 'Укрпошта', 'Meest', 'Міжнародна доставка'];
 
   let tab = 'profile';    // profile | promos | orders
   let authMode = 'login'; // login | register
@@ -135,20 +134,10 @@
   function profileFormHTML(p) {
     return (
       '<form class="form-grid" id="profileForm" novalidate>' +
-        fieldHTML('prName', R.t('acc.name'), p.name, 'autocomplete="name"') +
+        fieldHTML('prName', R.t('acc.name'), p.name,
+          'autocomplete="name" placeholder="' + R.esc(R.t('acc.namePh')) + '"') +
         fieldHTML('prPhone', R.t('acc.phone'), p.phone, 'type="tel" autocomplete="tel" placeholder="+380..."') +
-        '<div class="form-row">' +
-          '<div class="field">' +
-            '<label for="prCarrier">' + R.t('cart.delivery') + '</label>' +
-            '<select id="prCarrier">' +
-              CARRIERS.map((c) =>
-                '<option' + (p.carrier === c ? ' selected' : '') + '>' + c + '</option>'
-              ).join('') +
-            '</select>' +
-          '</div>' +
-          fieldHTML('prCity', R.t('cart.city'), p.city, 'autocomplete="address-level2"') +
-        '</div>' +
-        fieldHTML('prBranch', R.t('cart.branch'), p.branch, '') +
+        R.addressField('pr', p) +
         '<button class="btn btn--primary" data-save type="button">' + R.t('acc.save') + '</button>' +
       '</form>'
     );
@@ -164,7 +153,7 @@
 
     if (signedIn()) {
       const u = R.fb.user;
-      body().innerHTML =
+      const authUserHTML = () =>
         '<div class="auth-user">' +
           '<div class="auth-user__avatar">' + R.esc((u.email || 'R')[0].toUpperCase()) + '</div>' +
           '<div class="auth-user__info">' +
@@ -172,43 +161,42 @@
             '<span>' + R.esc(u.email || '') + '</span>' +
           '</div>' +
           '<button class="btn btn--ghost btn--sm" data-logout type="button">' + R.t('acc.logout') + '</button>' +
-        '</div>' +
+        '</div>';
+
+      body().innerHTML =
+        authUserHTML() +
         '<p class="account-note">' + R.t('acc.profileNote') + '</p>' +
         profileFormHTML(local);
 
-      // Підтягуємо хмарний профіль і оновлюємо форму, якщо він свіжіший
+      R.initAddress('pr');
+
+      // Підтягуємо хмарний профіль і перемальовуємо форму, якщо він свіжіший
       const cloud = await R.fb.loadCloudProfile();
       if (cloud && document.getElementById('prName')) {
         const merged = Object.assign({}, local, cloud);
-        R.saveProfile({
-          name: merged.name || '',
-          phone: merged.phone || '',
-          carrier: merged.carrier || CARRIERS[0],
-          city: merged.city || '',
-          branch: merged.branch || ''
-        });
-        document.getElementById('prName').value = merged.name || '';
-        document.getElementById('prPhone').value = merged.phone || '';
-        document.getElementById('prCarrier').value = merged.carrier || CARRIERS[0];
-        document.getElementById('prCity').value = merged.city || '';
-        document.getElementById('prBranch').value = merged.branch || '';
+        R.saveProfile(merged);
+        // Блок адреси має власний стан (реф міста, тип доставки),
+        // тож перемальовуємо його цілком, а не по полю
+        body().innerHTML =
+          authUserHTML() +
+          '<p class="account-note">' + R.t('acc.profileNote') + '</p>' +
+          profileFormHTML(merged);
+        R.initAddress('pr');
       }
     } else {
       // Firebase недоступний — локальний режим
       body().innerHTML =
         '<p class="account-note">' + R.t('acc.profileNoteLocal') + '</p>' +
         profileFormHTML(local);
+      R.initAddress('pr');
     }
   }
 
   function saveProfileFromForm() {
-    const profile = {
+    const profile = Object.assign({
       name: document.getElementById('prName').value.trim(),
-      phone: document.getElementById('prPhone').value.trim(),
-      carrier: document.getElementById('prCarrier').value,
-      city: document.getElementById('prCity').value.trim(),
-      branch: document.getElementById('prBranch').value.trim()
-    };
+      phone: document.getElementById('prPhone').value.trim()
+    }, R.addressValue('pr'));
     R.saveProfile(profile);
     if (signedIn()) R.fb.saveCloudProfile(profile);
     R.toast(R.t('acc.saved'), 'success');

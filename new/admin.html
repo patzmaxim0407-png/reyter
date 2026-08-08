@@ -257,7 +257,7 @@
       <h5 class="ao-sub">Клієнт</h5>
       <div class="a-grid-3">
         <div class="field">
-          <label for="noName">Імʼя та прізвище *</label>
+          <label for="noName">ПІБ отримувача *</label>
           <input id="noName" autocomplete="off" placeholder="Олег Петренко">
         </div>
         <div class="field">
@@ -271,26 +271,7 @@
       </div>
 
       <h5 class="ao-sub">Доставка</h5>
-      <div class="a-grid-3">
-        <div class="field">
-          <label for="noCarrier">Перевізник</label>
-          <select id="noCarrier">
-            <option>Нова Пошта</option>
-            <option>Укрпошта</option>
-            <option>Meest</option>
-            <option>Міжнародна доставка</option>
-            <option>Самовивіз</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="noCity">Місто</label>
-          <input id="noCity" autocomplete="off" placeholder="Київ">
-        </div>
-        <div class="field">
-          <label for="noBranch">Відділення / адреса</label>
-          <input id="noBranch" autocomplete="off" placeholder="Відділення №12">
-        </div>
-      </div>
+      <div id="noAddress"></div>
 
       <h5 class="ao-sub">Товари</h5>
       <div id="noItems"></div>
@@ -617,6 +598,7 @@
 
 <script src="js/data.js"></script>
 <script src="js/i18n.js"></script>
+<script src="js/address.js"></script>
 <script src="js/firebase.js"></script>
 <script src="js/notify.js"></script>
 <script src="js/promo.js"></script>

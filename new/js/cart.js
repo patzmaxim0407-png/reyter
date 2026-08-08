@@ -13,8 +13,6 @@
   const KEY_ORDERS = 'reyter:orders';
   const KEY_PROFILE = 'reyter:profile';
 
-  const CARRIERS = ['Нова Пошта', 'Укрпошта', 'Meest', 'Міжнародна доставка'];
-
   let mode = 'cart'; // cart | checkout | done
   let lastOrder = null;
   let promo = null;      // свіжий документ промокоду з бази
@@ -501,27 +499,19 @@
         '<div class="sum"><span>' + R.t('cart.total') + '</span><span>' + R.uah(sum) + '</span></div>' +
       '</div>' +
       '<form class="form-grid" id="checkoutForm" novalidate>' +
-        fieldHTML('coName', R.t('cart.name'), profile.name, 'autocomplete="name" required') +
+        fieldHTML('coName', R.t('cart.name'), profile.name,
+          'autocomplete="name" required placeholder="' + R.esc(R.t('cart.namePh')) + '"') +
         fieldHTML('coPhone', R.t('cart.phone'), profile.phone, 'type="tel" autocomplete="tel" placeholder="+380..." required') +
         fieldHTML('coEmail', R.t('cart.email'), defaultEmail, 'type="email" autocomplete="email" placeholder="you@example.com"') +
-        '<div class="form-row">' +
-          '<div class="field">' +
-            '<label for="coCarrier">' + R.t('cart.delivery') + '</label>' +
-            '<select id="coCarrier">' +
-              CARRIERS.map((c) =>
-                '<option' + (profile.carrier === c ? ' selected' : '') + '>' + c + '</option>'
-              ).join('') +
-            '</select>' +
-          '</div>' +
-          fieldHTML('coCity', R.t('cart.city'), profile.city, 'autocomplete="address-level2"') +
-        '</div>' +
-        fieldHTML('coBranch', R.t('cart.branch'), profile.branch, '') +
+        R.addressField('co', profile) +
         confirmHTML(profile) +
         '<div class="field">' +
           '<label for="coComment">' + R.t('cart.comment') + '</label>' +
           '<textarea id="coComment" placeholder="' + R.t('cart.commentPh') + '"></textarea>' +
         '</div>' +
       '</form>';
+
+    R.initAddress('co');
 
     foot().innerHTML =
       '<button class="btn btn--primary" data-submit type="button">' + R.t('cart.submit') + '</button>' +
@@ -545,8 +535,7 @@
     lines.push('');
     lines.push('👤 ' + order.customer.name);
     lines.push('📞 ' + order.customer.phone);
-    const delivery = [order.customer.carrier, order.customer.city, order.customer.branch]
-      .filter(Boolean).join(', ');
+    const delivery = R.addressLine(order.customer);
     if (delivery) lines.push('🚚 ' + delivery);
     const confirmLine = R.confirmLine(order.customer);
     if (confirmLine) lines.push('☎️ Підтвердження: ' + confirmLine);
@@ -576,27 +565,24 @@
       return;
     }
 
-    const customer = {
+    const addr = R.addressCheck('co');
+    if (!addr.ok) {
+      R.toast(addr.text);
+      if (addr.focus) addr.focus.focus();
+      return;
+    }
+
+    const customer = Object.assign({
       name: name.value.trim(),
       phone: phone.value.trim(),
-      email: emailVal,
-      carrier: document.getElementById('coCarrier').value,
-      city: document.getElementById('coCity').value.trim(),
-      branch: document.getElementById('coBranch').value.trim(),
+      email: emailVal
+    }, R.addressValue('co'), {
       comment: document.getElementById('coComment').value.trim(),
       confirm: collectConfirm()
-    };
+    });
 
     // Профіль запамʼятовуємо для наступних замовлень
-    R.saveProfile({
-      name: customer.name,
-      phone: customer.phone,
-      email: customer.email,
-      carrier: customer.carrier,
-      city: customer.city,
-      branch: customer.branch,
-      confirm: customer.confirm
-    });
+    R.saveProfile(Object.assign({}, customer, { comment: '' }));
 
     const now = new Date();
     const num =
@@ -639,15 +625,7 @@
       R.fb.saveCloudOrder(order);
     }
     if (R.fb && R.fb.enabled && R.fb.user) {
-      R.fb.saveCloudProfile({
-        name: customer.name,
-        phone: customer.phone,
-        email: customer.email,
-        carrier: customer.carrier,
-        city: customer.city,
-        branch: customer.branch,
-        confirm: customer.confirm
-      });
+      R.fb.saveCloudProfile(Object.assign({}, customer, { comment: '' }));
     }
 
     // Сповіщення: Telegram власнику + email-підтвердження покупцю
