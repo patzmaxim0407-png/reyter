@@ -23,9 +23,11 @@
     calc((100% - var(--container)) / 2 + clamp(1rem, 4vw, 2rem))
   );
   margin-bottom: clamp(1.4rem, 3vw, 2.4rem);
-  background: color-mix(in srgb, var(--c-cream) 88%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  /* Без backdrop-filter: розмиття на липкому елементі — головне
+     джерело мерехтіння під час прокрутки. Щільний фон виглядає
+     майже так само, а перемальовок не провокує. */
+  background: color-mix(in srgb, var(--c-cream) 97%, transparent);
+  transform: translateZ(0); /* власний шар композитора */
   border-block: 1px solid var(--c-line);
   scrollbar-width: none;
 }

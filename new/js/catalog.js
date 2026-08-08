@@ -207,6 +207,14 @@
       Array.prototype.forEach.call(grid.children, (card, i) => {
         card.classList.add('reveal');
         card.style.transitionDelay = Math.min(i % 4, 3) * 35 + 'ms';
+        // Затримка потрібна лише каскаду появи. Якщо її лишити,
+        // вона відкладає і hover-переходи — картки «блимають»
+        // під курсором під час прокрутки.
+        card.addEventListener('transitionend', function clear(e) {
+          if (e.propertyName !== 'opacity') return;
+          card.style.transitionDelay = '';
+          card.removeEventListener('transitionend', clear);
+        });
       });
     });
 
