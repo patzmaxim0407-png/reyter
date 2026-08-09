@@ -91,6 +91,21 @@ const html = await (await fetch(BASE + '/admin')).text();
 ok('сервер не віддає вміст каталогу', !/catalog_products|a-item__name|productList/.test(html));
 ok('адмінка закрита від пошуковиків', /noindex/.test(html), (html.match(/noindex[^"]*/) || [''])[0]);
 
+/* Кожен розділ так само закритий: гість не має побачити ні
+   замовлень, ні залишків, ні промокодів */
+for (const path of ['/admin/orders', '/admin/stock', '/admin/promos']) {
+  await go(BASE + path);
+  ok(`${path} — гостю показано вхід`,
+     (await ev('!!document.querySelector(".a-gate-screen")')) &&
+       !(await ev('!!document.querySelector(".ao-card, .ao-stockrow, .a-promo")')));
+
+  const body = await (await fetch(BASE + path)).text();
+  ok(`${path} — сервер не віддає даних`,
+     !/ao-card|ao-stockrow|a-promo__code|"orders"/.test(body));
+}
+
+await go(BASE + '/admin');
+
 /* ---------- Стилі адмінки підключені ---------- */
 
 ok(

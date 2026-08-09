@@ -1,14 +1,18 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { ORDER_STATUSES, statusInfo } from '@/lib/account';
-import { t } from '@/lib/i18n';
-import type { AdminOrder } from './OrderCard';
+import { STATUSES, statusInfo } from '@/lib/admin/orders';
+import type {
+  AdminOrder,
+  OrderFilters as Filters,
+  PeriodId,
+  SortId
+} from '@/lib/admin/orders';
 
 /* Смуги фільтрів над списком замовлень. Розмітка й класи ті самі,
    що в старій панелі. */
 
-export const PERIODS: [string, string][] = [
+export const PERIODS: [PeriodId, string][] = [
   ['today', 'Сьогодні'],
   ['yesterday', 'Вчора'],
   ['7d', '7 днів'],
@@ -18,21 +22,16 @@ export const PERIODS: [string, string][] = [
   ['custom', 'Свій період']
 ];
 
-export const SORTS: [string, string][] = [
+export const SORTS: [SortId, string][] = [
   ['new', 'Спершу нові'],
   ['old', 'Спершу старі'],
   ['sum', 'Сума ↓'],
   ['sumAsc', 'Сума ↑']
 ];
 
-export interface Filters {
-  period: string;
-  from: string;
-  to: string;
-  status: string;
-  search: string;
-  sort: string;
-}
+/* Тип фільтрів живе там, де вони застосовуються (lib/admin/orders.ts):
+   розійтись їм не можна — за ними ж рахуються й лічильники. */
+export type { OrderFilters as Filters } from '@/lib/admin/orders';
 
 /* Після перемальовки стрічка фільтрів починається з нуля —
    повертаємо в поле зору те, що обране зараз. Рухаємо саме
@@ -108,14 +107,14 @@ export function StatusBar({
   return (
     <div className="ao-filterbar">
       <div className="ao-chips" ref={strip}>
-        {(['all', ...ORDER_STATUSES] as string[]).map((id) => (
+        {(['all', ...STATUSES.map((x) => x.id)] as string[]).map((id) => (
           <button
             key={id}
             type="button"
             className={'ao-chip' + (f.status === id ? ' is-active' : '')}
             onClick={() => set({ status: id })}
           >
-            {id === 'all' ? 'Всі' : statusInfo(id, t).title} <i>{count(id)}</i>
+            {id === 'all' ? 'Всі' : statusInfo(id).title} <i>{count(id)}</i>
           </button>
         ))}
       </div>
@@ -127,7 +126,7 @@ export function StatusBar({
         onChange={(e) => set({ search: e.target.value })}
       />
 
-      <select className="ao-sort" value={f.sort} onChange={(e) => set({ sort: e.target.value })}>
+      <select className="ao-sort" value={f.sort} onChange={(e) => set({ sort: e.target.value as SortId })}>
         {SORTS.map(([id, title]) => (
           <option value={id} key={id}>
             {title}
@@ -176,14 +175,14 @@ export function BulkBar({
         <b>{selected}</b>
       </label>
       <span className="ao-bulk__actions">
-        {ORDER_STATUSES.map((id) => (
+        {STATUSES.map((x) => (
           <button
-            key={id}
+            key={x.id}
             className="btn btn--ghost btn--sm"
             type="button"
-            onClick={() => onBulkStatus(id)}
+            onClick={() => onBulkStatus(x.id)}
           >
-            {statusInfo(id, t).title}
+            {x.title}
           </button>
         ))}
         <button className="btn btn--ghost btn--sm" type="button" onClick={onExport}>

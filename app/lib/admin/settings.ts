@@ -455,7 +455,8 @@ export async function checkWorker(
    ============================================================ */
 
 export function tgErrorHint(description: string | null | undefined): string {
-  const d = String(description || '').toLowerCase();
+  const text = String(description || '');
+  const d = text.toLowerCase();
 
   if (d.includes('tg_token')) {
     return 'У воркері немає змінної TG_TOKEN: Cloudflare → ваш воркер → Settings → ' +
@@ -472,7 +473,7 @@ export function tgErrorHint(description: string | null | undefined): string {
     return 'Код воркера застарілий — замініть його вмістом new/worker/worker.js і натисніть Deploy';
   }
   // Помилки самого воркера вже українською — переказувати нічого
-  if (d.includes('воркер')) return description as string;
+  if (d.includes('воркер')) return text;
   if (d.includes("bots can't send messages to bots") || d.includes('bot can')) {
     return 'У TG_CHAT вказано ID бота замість вашого. Натисніть «Показати Chat ID» — там правильні значення';
   }
@@ -485,5 +486,5 @@ export function tgErrorHint(description: string | null | undefined): string {
   if (d.includes('blocked')) {
     return 'Бот заблокований у вашому Telegram — розблокуйте його';
   }
-  return description || 'Перевірте змінні TG_TOKEN і TG_CHAT у воркері';
+  return text || 'Перевірте змінні TG_TOKEN і TG_CHAT у воркері';
 }
