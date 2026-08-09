@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import type { Catalogue } from '@/lib/catalog';
 import { availability, productColors, uah } from '@/lib/catalog';
-import type { Product } from '@/lib/types';
+import { t, tf, tx } from '@/lib/i18n';
+import type { Lang, Product } from '@/lib/types';
 
 /* Картка товару. На відміну від старого сайту це посилання, а не
    кнопка з модалкою: у товару зʼявилась власна адреса, тож його
@@ -9,12 +10,18 @@ import type { Product } from '@/lib/types';
 export default function ProductCard({
   c,
   p,
-  eager = false
+  eager = false,
+  lang = 'uk'
 }: {
   c: Catalogue;
   p: Product;
   eager?: boolean;
+  lang?: Lang;
 }) {
+  /* Англійських назв у базі немає — їх складає словник tx().
+     Тому мова потрібна вже на сервері: інакше картка приїхала б
+     українською й перемалювалась уже в браузері. */
+  const name = tf(p, 'name', lang);
   const av = availability(c, p);
   const colors = productColors(c, p);
 
@@ -27,11 +34,15 @@ export default function ProductCard({
     .join(' ');
 
   return (
-    <Link className={cls} href={`/p/${encodeURIComponent(p.id)}`} prefetch={false}>
+    <Link
+      className={cls}
+      href={(lang === 'en' ? '/en' : '') + `/p/${encodeURIComponent(p.id)}`}
+      prefetch={false}
+    >
       <span className="pcard__media">
         <img
           src={p.images[0]}
-          alt={p.name}
+          alt={name}
           /* Перші картки вантажимо одразу: поки їх зображення
              «ліниві», на початку каталогу видно порожні прямокутники */
           {...(eager
@@ -44,7 +55,7 @@ export default function ProductCard({
 
         {av.soldOut ? (
           <span className="pcard__badges">
-            <span className="badge badge--sold">Продано</span>
+            <span className="badge badge--sold">{t('p.soldOut', lang)}</span>
           </span>
         ) : p.sale ? (
           <span className="pcard__badges">
@@ -54,26 +65,30 @@ export default function ProductCard({
 
         {!av.soldOut && av.low.length ? (
           <span className="pcard__badges pcard__badges--low">
-            <span className="badge badge--low">Закінчується {av.low.join(', ')}</span>
+            <span className="badge badge--low">
+              {t('p.lowStock', lang)} {av.low.map((x) => tx(x, lang)).join(', ')}
+            </span>
           </span>
         ) : null}
       </span>
 
       <span className="pcard__body">
         <span className="pcard__title">
-          {p.name}
+          {name}
           {colors.map((col, i) => (
             <span key={i} className="dot" style={{ backgroundColor: col.hex }} />
           ))}
         </span>
 
         <span className="pcard__price">
-          <span className="price__now">{uah(p.price)}</span>
-          {p.oldPrice ? <del className="price__old">{uah(p.oldPrice)}</del> : null}
+          <span className="price__now">{uah(p.price, lang)}</span>
+          {p.oldPrice ? <del className="price__old">{uah(p.oldPrice, lang)}</del> : null}
           {p.priceUsd ? <span className="price__usd">≈ {p.priceUsd} $</span> : null}
         </span>
 
-        {p.saleNote ? <span className="pcard__salenote">{p.saleNote}</span> : null}
+        {p.saleNote ? (
+          <span className="pcard__salenote">{tf(p, 'saleNote', lang)}</span>
+        ) : null}
       </span>
     </Link>
   );

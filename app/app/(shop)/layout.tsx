@@ -1,6 +1,7 @@
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import CartProvider from '@/components/CartProvider';
+import LangProvider from '@/components/LangProvider';
 import CartDrawer from '@/components/CartDrawer';
 import { loadCatalog, loadStock } from '@/lib/firestore';
 import { cartCatalogue } from '@/lib/catalog';
@@ -29,12 +30,14 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
         </div>
       </div>
 
-      <CartProvider c={c}>
-        <SiteHeader />
-        <main id="top">{children}</main>
-        <SiteFooter />
-        <CartDrawer />
-      </CartProvider>
+      <LangProvider>
+        <CartProvider c={c}>
+          <SiteHeader />
+          <main id="top">{children}</main>
+          <SiteFooter />
+          <CartDrawer />
+        </CartProvider>
+      </LangProvider>
     </>
   );
 }

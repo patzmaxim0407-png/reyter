@@ -1,9 +1,9 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useLang } from './LangProvider';
 import { promoNormalize, type Promo } from '@/lib/promo';
 import { uah } from '@/lib/catalog';
-import { t } from '@/lib/i18n';
 
 /* Поле промокоду.
 
@@ -29,6 +29,7 @@ export default function PromoField({
   onApply(code: string): void;
   onDrop(): void;
 }) {
+  const { t, lang } = useLang();
   const [code, setCode] = useState('');
   const input = useRef<HTMLInputElement>(null);
 
@@ -40,7 +41,7 @@ export default function PromoField({
             <b>{promo.code}</b>
             <span>{t('promo.applied')}</span>
           </div>
-          <span className="promo__sum">−{uah(discount)}</span>
+          <span className="promo__sum">−{uah(discount, lang)}</span>
           <button
             className="promo__remove"
             type="button"

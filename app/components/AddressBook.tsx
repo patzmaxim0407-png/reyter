@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useLang } from './LangProvider';
 import AddressFields, { focusAddressField } from './AddressFields';
 import { useToast } from './Toasts';
 import * as cart from '@/lib/cart';
@@ -15,7 +16,6 @@ import {
   type AddressForm,
   type SavedAddress
 } from '@/lib/address';
-import { t } from '@/lib/i18n';
 
 /* Адресна книга профілю.
 
@@ -23,6 +23,7 @@ import { t } from '@/lib/i18n';
    Тут їх зберігають, а в оформленні обирають зі списку. */
 
 export default function AddressBook() {
+  const { t } = useLang();
   /* Хмара оновлюється лише для залогінених: писати профіль
      анонімного покупця нікуди — і нікому потім не віддати */
   const book = useMemo(

@@ -5,12 +5,14 @@ import { useCart } from './CartProvider';
 import {
   ALL_SIZES,
   availability,
+  uah,
   isSet,
   isSized,
   setParts,
   type Catalogue
 } from '@/lib/catalog';
-import type { Product } from '@/lib/types';
+import { t, tx } from '@/lib/i18n';
+import type { Lang, Product } from '@/lib/types';
 
 /* Єдиний інтерактивний острівець на сторінці товару.
    Решта сторінки — статичний HTML із сервера: так вона зʼявляється
@@ -19,7 +21,15 @@ import type { Product } from '@/lib/types';
 
 type PartPick = { id: string; size: string | null };
 
-export default function AddToCart({ c, p }: { c: Catalogue; p: Product }) {
+export default function AddToCart({
+  c,
+  p,
+  lang = 'uk'
+}: {
+  c: Catalogue;
+  p: Product;
+  lang?: Lang;
+}) {
   const cart = useCart();
   const av = useMemo(() => availability(c, p), [c, p]);
   const parts = useMemo(() => setParts(c, p), [c, p]);
@@ -96,11 +106,11 @@ export default function AddToCart({ c, p }: { c: Catalogue; p: Product }) {
       {isComplect ? (
         <div className="pinfo__sizes">
           <div className="pinfo__sizes-head">
-            <span>Складники комплекту</span>
+            <span>{t('p.setParts', lang)}</span>
           </div>
           <div className={'sizes sizes--set' + (shake ? ' shake' : '')}>
             <p className="setsizes__note">
-              Оберіть розмір для кожної речі — комплект збереться саме під вас.
+              {t('p.setNote', lang)}
             </p>
             {parts.map((part, n) => {
               const pav = availability(c, part);
@@ -112,7 +122,7 @@ export default function AddToCart({ c, p }: { c: Catalogue; p: Product }) {
                     <img src={part.images[0]} alt="" loading="lazy" />
                     <span>
                       <b>{part.name}</b>
-                      <em>{pav.soldOut ? 'Продано' : part.id}</em>
+                      <em>{pav.soldOut ? t('p.soldOut', lang) : part.id}</em>
                     </span>
                   </div>
                   <div className="sizes">
@@ -138,7 +148,7 @@ export default function AddToCart({ c, p }: { c: Catalogue; p: Product }) {
                             onChange={() => pick(part.id, s)}
                           />
                           <label htmlFor={`part-${n}-${s || 'one'}`}>
-                            {s || 'один розмір'}
+                            {s ? tx(s, lang) : t('p.onePiece', lang)}
                           </label>
                         </span>
                       );
@@ -152,7 +162,7 @@ export default function AddToCart({ c, p }: { c: Catalogue; p: Product }) {
       ) : isSized(p) || p.volume ? (
         <div className="pinfo__sizes">
           <div className="pinfo__sizes-head">
-            <span>{p.volume ? 'Обʼєм' : 'Розмір'}</span>
+            <span>{t(p.volume ? 'p.volume' : 'p.size', lang)}</span>
           </div>
           <div className={'sizes' + (shake ? ' shake' : '')}>
             {(p.volume ? [p.volume] : ALL_SIZES).map((s) => {
@@ -174,7 +184,7 @@ export default function AddToCart({ c, p }: { c: Catalogue; p: Product }) {
                     checked={size === s}
                     onChange={() => setSize(s)}
                   />
-                  <label htmlFor={`size-${s}`}>{s}</label>
+                  <label htmlFor={`size-${s}`}>{tx(s, lang)}</label>
                 </span>
               );
             })}
@@ -184,7 +194,7 @@ export default function AddToCart({ c, p }: { c: Catalogue; p: Product }) {
 
       <div className="pinfo__cta">
         <span className="pinfo__cta-price" aria-hidden="true">
-          {p.price.toLocaleString('uk-UA')} грн
+          {uah(p.price, lang)}
         </span>
 
         {inCart > 0 && !added ? (
@@ -192,7 +202,7 @@ export default function AddToCart({ c, p }: { c: Catalogue; p: Product }) {
             <span className="qty qty--lg">
               <button
                 type="button"
-                aria-label="Менше"
+                aria-label={t('cart.less', lang)}
                 onClick={() => cart.setQtyOf(p.id, size, isComplect ? picks : undefined, inCart - 1)}
               >
                 −
@@ -200,14 +210,14 @@ export default function AddToCart({ c, p }: { c: Catalogue; p: Product }) {
               <span>{inCart}</span>
               <button
                 type="button"
-                aria-label="Більше"
+                aria-label={t('cart.more', lang)}
                 onClick={() => cart.setQtyOf(p.id, size, isComplect ? picks : undefined, inCart + 1)}
               >
                 +
               </button>
             </span>
             <button className="btn btn--ghost" type="button" onClick={cart.open}>
-              Перейти в кошик
+              {t('p.goCart', lang)}
             </button>
           </div>
         ) : (
@@ -217,13 +227,13 @@ export default function AddToCart({ c, p }: { c: Catalogue; p: Product }) {
             disabled={av.soldOut}
             onClick={handleAdd}
           >
-            {av.soldOut ? 'Продано' : added ? 'Додано ✓' : 'Додати в кошик'}
+            {av.soldOut ? t('p.soldOut', lang) : added ? t('p.added', lang) : t('p.addToCart', lang)}
           </button>
         )}
       </div>
 
       {!av.soldOut && low ? (
-        <p className="pinfo__sale-note">Залишилось мало — устигніть забрати</p>
+        <p className="pinfo__sale-note">{t('p.fewLeft', lang)}</p>
       ) : null}
     </>
   );

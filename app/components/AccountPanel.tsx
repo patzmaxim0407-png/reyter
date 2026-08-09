@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLang } from './LangProvider';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import ProfileTab from './ProfileTab';
@@ -9,7 +10,6 @@ import OrdersTab from './OrdersTab';
 import AuthPanel from './AuthPanel';
 import * as fb from '@/lib/firebase';
 import type { Catalogue } from '@/lib/catalog';
-import { t } from '@/lib/i18n';
 
 /* ============================================================
    Кабінет
@@ -30,6 +30,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id'];
 
 export default function AccountPanel({ c }: { c: Catalogue }) {
+  const { t } = useLang();
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();

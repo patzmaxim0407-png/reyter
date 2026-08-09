@@ -1,12 +1,13 @@
 'use client';
 
 import { useCart } from './CartProvider';
-import { t } from '@/lib/i18n';
+import { useLang } from './LangProvider';
 
 /* Кнопка кошика в шапці. До гідратації лічильник схований:
    сервер про вміст кошика не знає, і будь-яке число тут
    розійшлося б із розміткою. */
 export default function CartButton() {
+  const { t } = useLang();
   const { count, open } = useCart();
 
   return (

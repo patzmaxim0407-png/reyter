@@ -305,6 +305,36 @@ ok('неіснуючий код зі сховища не малює знижку
    'бейджа немає');
 
 
+/* --- 10. Мова --- */
+
+await go(BASE + '/');
+ok('перемикач мови є', await evalJs('!!document.querySelector(".lang-switch")'));
+ok('українська активна',
+   (await evalJs(`document.querySelector('.lang-btn.is-active')?.textContent`)) === 'UA');
+
+await evalJs(`[...document.querySelectorAll('.lang-btn')].find(x => x.textContent === 'EN')?.click()`);
+await wait(1500);
+ok('перемикач веде на /en',
+   (await evalJs('location.pathname')) === '/en', await evalJs('location.pathname'));
+ok('заголовок англійською',
+   /Character/.test(await evalJs('document.querySelector(".hero__title")?.textContent || ""')),
+   await evalJs('document.querySelector(".hero__title")?.textContent || ""'));
+ok('ціни у форматі UAH',
+   /UAH/.test(await evalJs('document.querySelector(".price__now")?.textContent || ""')),
+   await evalJs('document.querySelector(".price__now")?.textContent || ""'));
+
+/* Товар відкривається в тій самій мові */
+const enHref = await evalJs('document.querySelector(".pgrid a[href]")?.getAttribute("href")');
+ok('картка веде в межах мови', String(enHref).startsWith('/en/p/'), String(enHref));
+
+await go(BASE + enHref);
+ok('сторінка товару англійською',
+   /SKU|Size|Add to cart/i.test(await evalJs('document.body.textContent')),
+   (await evalJs('document.body.textContent')).slice(0, 0) || '');
+ok('назад на українську веде на /p/',
+   (await evalJs(`[...document.querySelectorAll('.lang-btn')].find(x => x.textContent === 'UA')?.getAttribute('href')`))?.startsWith('/p/'),
+   await evalJs(`[...document.querySelectorAll('.lang-btn')].find(x => x.textContent === 'UA')?.getAttribute('href')`));
+
 console.log('\nПомилки в консолі: ' + (errors.length ? '\n' + errors.join('\n') : 'немає'));
 
 ws.close();

@@ -1,6 +1,7 @@
 'use client';
 
 import Combobox from './Combobox';
+import { useLang } from './LangProvider';
 import {
   CARRIERS,
   COUNTRIES,
@@ -11,7 +12,6 @@ import {
   type AddressForm,
   type CarrierId
 } from '@/lib/address';
-import { t, tf } from '@/lib/i18n';
 
 /* Поля доставки. Розмітка й класи ті самі, що в address.js:
    стилі перенесені як є, і дописувати CSS тут нема потреби. */
@@ -52,6 +52,7 @@ export default function AddressFields({
      тому полю, а браузер підставляв би збережене не туди. */
   prefix?: string;
 }) {
+  const { t, tf } = useLang();
   const intl = v.carrier === 'intl';
   const at = (name: string) => prefix + name;
 

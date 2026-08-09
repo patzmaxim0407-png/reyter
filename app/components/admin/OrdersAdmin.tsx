@@ -26,18 +26,9 @@ import {
   periodOrders,
   type AdminOrder,
   type OrderDialogs,
-  type OrderFilters,
-  type StockOps
+  type OrderFilters
 } from '@/lib/admin/orders';
-import {
-  adjustOrderStock,
-  collectStock,
-  logMoves,
-  stockShortage,
-  writeStock,
-  todayISO,
-  type StockState
-} from '@/lib/admin/stock';
+import { todayISO } from '@/lib/admin/stock';
 import { watchInventory } from '@/lib/admin/live';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { fmt } from '@/lib/catalog';
@@ -48,9 +39,10 @@ import type { OrderStatus, Stock } from '@/lib/types';
    ------------------------------------------------------------
    Перехід статусу — найтонше місце всієї адмінки: він зачіпає
    залишки, публічне відстеження й сповіщення покупцю. Уся ця
-   логіка живе в lib/admin/orders.ts; сюди вона приходить із
-   двома залежностями — складом і діалогами, — щоб її можна було
-   прогнати без браузера.
+   логіка живе в lib/admin/orders.ts, а склад вона бере з
+   lib/admin/stock.ts сама. Звідси приходять лише каталог із
+   залишками, час і діалоги — щоб її можна було прогнати без
+   браузера.
    ============================================================ */
 
 export default function OrdersAdmin() {
@@ -82,11 +74,6 @@ export default function OrdersAdmin() {
     () => ({ products: draft.products, stock: inv, categories: draft.categories }),
     [draft, inv]
   );
-  const s: StockState = useMemo(
-    () => ({ products: draft.products, inv }),
-    [draft.products, inv]
-  );
-
   const now = new Date();
   const scope = useMemo(
     () => periodOrders(orders, f, now).filter((o) => matchesSearch(o, f.search)),
@@ -113,36 +100,6 @@ export default function OrdersAdmin() {
   }, [list]);
 
   /* ---------- Залежності для зміни статусу ---------- */
-
-  /* Замовлення накопичують зміни залишків у спільну мапу, а
-     журнал руху пишуть одразу — саме на це розраховує applyStatus.
-     Модуль складу натомість збирає обидва в один план, тож моста
-     між ними будуємо тут: групи віддаємо викликачу, а рухи
-     кладемо в пакет тієї ж миті. */
-  const stockOps: StockOps = useMemo(() => {
-    const w = () => {
-      const d = db();
-      return d ? { db: d, by: user.email ?? '' } : null;
-    };
-    return {
-      stockShortage: (order) => stockShortage(s, order),
-      collectStock: (batch, order, direction, into, reason, refText) => {
-        const writer = w();
-        if (!writer) return;
-        const plan = { groups: into, moves: [] };
-        collectStock(s, order, direction, plan, reason as never, refText);
-        logMoves(writer, batch, plan.moves);
-      },
-      writeStock: (batch, grouped) => {
-        const writer = w();
-        if (writer) writeStock(writer, batch, grouped);
-      },
-      adjustOrderStock: (batch, order, direction, reason) => {
-        const writer = w();
-        if (writer) adjustOrderStock(writer, batch, s, order, direction, reason as never);
-      }
-    };
-  }, [s, user]);
 
   const dialogs: OrderDialogs = useMemo(
     () => ({
@@ -175,7 +132,10 @@ export default function OrdersAdmin() {
       toast('Немає звʼязку з базою');
       return null;
     }
-    return { db: d, stock: stockOps, ask: dialogs, now: new Date(), by: user.email ?? '', silent };
+    /* Каталог іде разом із залишками: за ним applyStatus рахує
+       нестачу й списує товар — саме тим самим кодом, що й
+       сторінка складу. */
+    return { db: d, c, ask: dialogs, now: new Date(), by: user.email ?? '', silent };
   }
 
   async function onStatus(o: AdminOrder, next: string) {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLang } from './LangProvider';
 import { useRouter } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import AuthPanel from './AuthPanel';
@@ -13,7 +14,6 @@ import * as cart from '@/lib/cart';
 import * as fb from '@/lib/firebase';
 import { repeatOrder } from '@/lib/account';
 import type { Catalogue } from '@/lib/catalog';
-import { t } from '@/lib/i18n';
 import type { OrderItem } from '@/lib/types';
 
 /* ============================================================
@@ -49,12 +49,18 @@ function toRow(o: Record<string, unknown>): Row {
 
 /* Один шлях копіювання на всі кнопки: підтверджуємо лише те,
    що справді сталося */
-async function copy(text: string, toast: (m: string, k?: 'plain' | 'success') => void) {
+async function copy(
+  text: string,
+  toast: (m: string, k?: 'plain' | 'success') => void,
+  t: (k: string) => string
+) {
   const done = await copyText(text);
   toast(t(done ? 'cart.copied' : 'cart.copyFail'), done ? 'success' : 'plain');
 }
 
-const EmptyState = () => (
+const EmptyState = () => {
+  const { t } = useLang();
+  return (
   <div className="empty-state">
     <svg
       viewBox="0 0 24 24"
@@ -71,7 +77,8 @@ const EmptyState = () => (
     <strong>{t('acc.noOrders')}</strong>
     {t('acc.noOrdersNote')}
   </div>
-);
+  );
+};
 
 export default function OrdersTab({
   c,
@@ -82,6 +89,7 @@ export default function OrdersTab({
   user: User | null | undefined;
   online: boolean;
 }) {
+  const { t } = useLang();
   const router = useRouter();
   const toast = useToast();
   const { open } = useCart();
@@ -178,8 +186,8 @@ export default function OrdersTab({
             o={o}
             showStatus={mode === 'cloud'}
             onRepeat={() => repeat(o)}
-            onCopy={o.message ? () => void copy(o.message ?? '', toast) : undefined}
-            onCopyTtn={() => void copy(o.ttn ?? '', toast)}
+            onCopy={o.message ? () => void copy(o.message ?? '', toast, t) : undefined}
+            onCopyTtn={() => void copy(o.ttn ?? '', toast, t)}
           />
         ))
       ) : (

@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useLang } from './LangProvider';
 import * as fb from '@/lib/firebase';
 import { useToast } from './Toasts';
-import { t } from '@/lib/i18n';
 
 /* Вхід і реєстрація. Розмітка й класи ті самі, що в account.js.
 
@@ -11,6 +11,7 @@ import { t } from '@/lib/i18n';
    саме ним, а пароль — це ще одне, що треба памʼятати. */
 
 export default function AuthPanel({ note = true }: { note?: boolean }) {
+  const { t } = useLang();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');

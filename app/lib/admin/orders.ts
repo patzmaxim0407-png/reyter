@@ -17,13 +17,13 @@
    як чіпати склад.
 
    Дві речі приходять ззовні навмисно:
-   • СКЛАД. Списання й повернення живуть у stock.ts — сюди вони
-     потрапляють через StockOps. Інакше довелося б тримати
-     другий примірник тих самих правил, а розійтись їм не можна:
-     одна помилка — і залишки перестають збігатися з фактом.
+   • СКЛАД. Списання, повернення й журнал руху живуть у stock.ts
+     і викликаються звідси напряму. Другого примірника тих
+     правил тут немає й бути не може: одна розбіжність — і
+     залишки перестають збігатися з фактом.
    • ПИТАННЯ АДМІНУ. «Повернути товар на склад?» — це діалог,
      тобто DOM. Текст питання лишається тут (він частина
-     поведінки), а показує його викликач через StatusDialogs.
+     поведінки), а показує його викликач через OrderDialogs.
 
    Час і випадковість теж аргументи: без цього ні номер
    замовлення, ні запис у журналі не перевірити.
@@ -37,8 +37,7 @@ import {
   writeBatch,
   type FieldValue,
   type Firestore,
-  type Timestamp,
-  type WriteBatch
+  type Timestamp
 } from 'firebase/firestore';
 
 import { addressLine, type Address } from '../address';
@@ -56,6 +55,18 @@ import {
 import { SITE_CONFIG } from '../site-config';
 import { phoneTail, trackCreate, trackDelete, trackKey, trackUpdate } from '../track';
 import type { OrderItem, OrderStatus } from '../types';
+import {
+  adjustOrderStock,
+  applyStockPlan,
+  collectStock,
+  consumesStock,
+  emptyPlan,
+  stockShortage,
+  writeoffTitle,
+  WRITEOFF_REASONS,
+  type StockState,
+  type StockWriter
+} from './stock';
 
 /* Номер замовлення рахує order.ts — той самий, що й на сайті.
    Формат «R-РРММДД-NNN» зашитий у ключ відстеження і в очі
@@ -88,8 +99,9 @@ export function statusInfo(id: string | null | undefined): AdminStatus {
   return STATUSES.find((s) => s.id === id) ?? STATUSES[0];
 }
 
-/** Статуси, за яких товар вважається списаним зі складу. */
-export const CONSUMING: readonly OrderStatus[] = ['confirmed', 'shipped', 'done'];
+/* Які статуси списують товар — знає stock.ts (consumesStock).
+   Тут цього переліку немає навмисно: списання й перехід статусу
+   мусять відповідати на це питання однаково. */
 
 /** Наступний крок у життєвому циклі — для кнопки швидкої дії.
  *  У 'done' і 'cancelled' наступного кроку немає: шлях скінчився. */
@@ -103,24 +115,6 @@ export const NEXT_STEP: Partial<Record<OrderStatus, { id: OrderStatus; label: st
 export const PAGE_SIZE = 25;
 /** Розмір порції для масових дій. */
 export const BULK_CHUNK = 20;
-
-export interface WriteoffReason {
-  id: string;
-  title: string;
-}
-
-/* Списання: чому товар пішов зі складу поза продажем.
-   Причина потрапляє в журнал руху — потім видно, скільки
-   втрачено на браку, а скільки просто загубилось. */
-export const WRITEOFF_REASONS: readonly WriteoffReason[] = [
-  { id: 'damaged', title: 'Зіпсувався' },
-  { id: 'defect', title: 'Брак від виробника' },
-  { id: 'lost', title: 'Загубився / недостача' },
-  { id: 'supplier', title: 'Повернуто постачальнику' },
-  { id: 'gift', title: 'Подарунок / зразок' },
-  { id: 'recount', title: 'Перерахунок' },
-  { id: 'other', title: 'Інше' }
-];
 
 /* ============================================================
    ЗАМОВЛЕННЯ ТАК, ЯК ВОНО ЛЕЖИТЬ У БАЗІ
@@ -481,44 +475,15 @@ export function orderMismatch(o: AdminOrder): string {
 }
 
 /* ============================================================
-   СКЛАД І ПИТАННЯ АДМІНУ — ЩО ПРИХОДИТЬ ЗЗОВНІ
+   СКЛАД І ПИТАННЯ АДМІНУ
    ============================================================ */
 
-/** Накопичені зміни залишків: артикул → скільки додати. */
-export interface StockGroup {
-  sizes: Record<string, number>;
-  qty: number;
-}
-export type StockGrouped = Record<string, StockGroup>;
-
-/** Замовлення очима складу: більше йому нічого не треба. */
-export interface StockOrder {
-  num?: string;
-  items?: OrderItem[];
-}
-
-/** Дії зі складом — їх виконує stock.ts. Імена ті самі, що в
- *  старому модулі, тож туди можна передати сам модуль складу,
- *  не збираючи перехідник. */
-export interface StockOps {
-  /** Чого не вистачає, готовими рядками для попередження. */
-  stockShortage(order: StockOrder): string[];
-  /** Накопичує зміни в спільну мапу і пише журнал руху. */
-  collectStock(
-    batch: WriteBatch,
-    order: StockOrder,
-    direction: number,
-    into: StockGrouped,
-    reason?: string,
-    refText?: string
-  ): void;
-  writeStock(batch: WriteBatch, grouped: StockGrouped): void;
-  adjustOrderStock(
-    batch: WriteBatch,
-    order: StockOrder,
-    direction: number,
-    reason?: string
-  ): void;
+/* Складу потрібні ті самі дані, тільки під іншим кутом: товари
+   й залишки, категорії — ні. Складаємо його стан із каталогу,
+   щоб адмінка не тримала двох списків товарів, які можуть
+   розʼїхатись. */
+function stockState(c: Catalogue): StockState {
+  return { products: c.products, inv: c.stock };
 }
 
 /** Питання адміну. Текст складається тут — він частина
@@ -534,7 +499,8 @@ export interface Question {
 }
 
 export interface WriteoffQuestion extends Question {
-  reasons: readonly WriteoffReason[];
+  /** Перелік для випадайки — той самий, що на сторінці складу. */
+  reasons: readonly { id: string; title: string }[];
   /** Причина, обрана в списку спершу. */
   reason: string;
   label: string;
@@ -617,7 +583,7 @@ export function planStatusChange(
   at: { now: Date; by: string }
 ): StatusPlan {
   const wasApplied = !!order.stockApplied;
-  const willConsume = CONSUMING.includes(next);
+  const willConsume = consumesStock(next);
 
   const entry = statusLogEntry(next, at.now, at.by);
   const update: StatusUpdate = { status: next };
@@ -638,7 +604,7 @@ export function planStatusChange(
       stock = { kind: 'return', reason: back };
       toast = { text: 'Статус оновлено, товар повернено на склад ✓', success: true };
     } else if (lost) {
-      const title = WRITEOFF_REASONS.find((r) => r.id === lost.reason)?.title || 'Списання';
+      const title = writeoffTitle(lost.reason);
       stock = {
         kind: 'writeoff',
         reason: back,
@@ -670,11 +636,12 @@ export function planStatusChange(
 
 export interface StatusChangeDeps {
   db: Firestore;
-  stock: StockOps;
+  /** Каталог і живі залишки: за ними рахується нестача й списання. */
+  c: Catalogue;
   ask: OrderDialogs;
   /** Момент зміни: один і той самий у журналі та в записі списання. */
   now: Date;
-  /** Пошта адміністратора. */
+  /** Пошта адміністратора — вона підписує і статус, і журнал руху. */
   by: string;
   /** true — масова зміна: не питаємо нічого й не показуємо тостів. */
   silent?: boolean;
@@ -699,11 +666,13 @@ export async function applyStatus(
 
   const silent = !!deps.silent;
   const wasApplied = !!order.stockApplied;
-  const willConsume = CONSUMING.includes(next);
+  const willConsume = consumesStock(next);
+  const s = stockState(deps.c);
+  const w: StockWriter = { db: deps.db, by: deps.by };
 
   // Попередження про нестачу лише при першому списанні
   if (willConsume && !wasApplied && !silent) {
-    const short = deps.stock.stockShortage(order);
+    const short = stockShortage(s, order);
     if (short.length) {
       const ok = await deps.ask.confirmAsk({
         title: 'Нестача на складі',
@@ -749,6 +718,7 @@ export async function applyStatus(
        замовлення», якого вже не існує. */
     if (!putBack) {
       lost = await deps.ask.askWriteoff({
+        // перелік причин — той самий, що на сторінці складу
         title: 'Що сталося з товаром',
         text:
           'Товар (' +
@@ -772,17 +742,17 @@ export async function applyStatus(
     const batch = writeBatch(deps.db);
 
     if (plan.stock.kind === 'consume') {
-      deps.stock.adjustOrderStock(batch, order, -1);
+      adjustOrderStock(w, batch, s, order, -1);
     } else if (plan.stock.kind === 'return') {
-      deps.stock.adjustOrderStock(batch, order, +1, plan.stock.reason);
+      adjustOrderStock(w, batch, s, order, +1, plan.stock.reason);
     } else if (plan.stock.kind === 'writeoff') {
       /* Повертаємо й одразу списуємо: у залишках нічого не
          змінюється (нетто нуль, документ inventory навіть не
          чіпається), зате журнал розповідає повну історію. */
-      const grouped: StockGrouped = {};
-      deps.stock.collectStock(batch, order, +1, grouped, plan.stock.reason);
-      deps.stock.collectStock(batch, order, -1, grouped, 'writeoff', plan.stock.ref);
-      deps.stock.writeStock(batch, grouped);
+      const moved = emptyPlan();
+      collectStock(s, order, +1, moved, plan.stock.reason);
+      collectStock(s, order, -1, moved, 'writeoff', plan.stock.ref);
+      applyStockPlan(w, batch, moved);
     }
 
     batch.update(doc(deps.db, ORDER_COL, order._id), {
@@ -1470,7 +1440,6 @@ export interface OrderDoc {
 
 export interface ManualDeps {
   db: Firestore;
-  stock: StockOps;
   ask: OrderDialogs;
   now: Date;
   /** Випадкове число для номера замовлення. */
@@ -1510,6 +1479,9 @@ export async function createManualOrder(
   const plan = planManualOrder(form, rows, c);
   if (!plan.ok) return { ok: false, kind: 'invalid', message: plan.message };
   const d = plan.draft;
+
+  const s = stockState(c);
+  const w: StockWriter = { db: deps.db, by: deps.by };
 
   if (deps.editing) {
     const prev = deps.editing;
@@ -1553,10 +1525,10 @@ export async function createManualOrder(
            операцією: Firestore не любить двох записів в один
            документ у межах одного batch, та й розміри, які не
            змінилися, взагалі не треба чіпати. */
-        const moved: StockGrouped = {};
-        deps.stock.collectStock(batch, prev, 1, moved);
-        deps.stock.collectStock(batch, updated, -1, moved);
-        deps.stock.writeStock(batch, moved);
+        const moved = emptyPlan();
+        collectStock(s, prev, 1, moved);
+        collectStock(s, updated, -1, moved);
+        applyStockPlan(w, batch, moved);
       }
       batch.update(doc(deps.db, ORDER_COL, prev._id), {
         items: updated.items,
@@ -1613,8 +1585,8 @@ export async function createManualOrder(
   order.message = buildOrderMessage(order, c);
 
   // Попередження про нестачу, якщо одразу підтверджуємо
-  if (CONSUMING.includes(deps.status)) {
-    const short = deps.stock.stockShortage(order);
+  if (consumesStock(deps.status)) {
+    const short = stockShortage(s, order);
     if (short.length) {
       const ok = await deps.ask.confirmAsk({
         title: 'Нестача на складі',
@@ -1635,9 +1607,9 @@ export async function createManualOrder(
     const batch = writeBatch(deps.db);
     const ref = doc(collection(deps.db, ORDER_COL));
 
-    if (CONSUMING.includes(deps.status)) {
+    if (consumesStock(deps.status)) {
       order.stockApplied = true;
-      deps.stock.adjustOrderStock(batch, order, -1);
+      adjustOrderStock(w, batch, s, order, -1);
     }
 
     batch.set(ref, order);

@@ -1,15 +1,16 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useLang } from './LangProvider';
 import Link from 'next/link';
 import { useCart } from './CartProvider';
 import { catTitle, getProduct, uah, FREE_DELIVERY_FROM } from '@/lib/catalog';
-import { t } from '@/lib/i18n';
 
 /* Панель кошика. Розмітка й класи ті самі, що в index.html
    старого сайту, — стилі підходять без правок. */
 
 export default function CartDrawer() {
+  const { t, lang } = useLang();
   const { c, lines, subtotal, isOpen, close, setQty, remove } = useCart();
 
   /* Поріг рахуємо від суми товарів: знижку тут ще не знають,
@@ -74,7 +75,7 @@ export default function CartDrawer() {
               const cat = catTitle(c, i.p.category);
               return (
                 <div className="cart-item" key={i.idx}>
-                  <Link href={`/p/${encodeURIComponent(i.p.id)}`} onClick={close}>
+                  <Link href={(lang === 'en' ? '/en' : '') + `/p/${encodeURIComponent(i.p.id)}`} onClick={close}>
                     <img className="cart-item__img" src={i.p.images[0]} alt={i.p.name} />
                   </Link>
                   <div>
@@ -101,7 +102,7 @@ export default function CartDrawer() {
                       </ul>
                     ) : null}
 
-                    <div className="cart-item__price">{uah(i.sum)}</div>
+                    <div className="cart-item__price">{uah(i.sum, lang)}</div>
                   </div>
 
                   <div className="cart-item__col">
@@ -133,7 +134,7 @@ export default function CartDrawer() {
 
         <footer className="drawer__foot">
           {lines.length === 0 ? (
-            <Link className="btn btn--primary" href="/#catalog" onClick={close}>
+            <Link className="btn btn--primary" href={(lang === 'en' ? '/en' : '') + '/#catalog'} onClick={close}>
               {t('cart.goCatalog')}
             </Link>
           ) : (
@@ -143,7 +144,7 @@ export default function CartDrawer() {
               <div className="free-ship">
                 {left > 0 ? (
                   <>
-                    <span dangerouslySetInnerHTML={{ __html: t('cart.freeLeft') }} /> {uah(left)}
+                    <span dangerouslySetInnerHTML={{ __html: t('cart.freeLeft') }} /> {uah(left, lang)}
                   </>
                 ) : (
                   <span dangerouslySetInnerHTML={{ __html: t('cart.freeDone') }} />
@@ -158,9 +159,9 @@ export default function CartDrawer() {
                   після підтвердження */}
               <div className="cart-total">
                 <span>{t('cart.total')}</span>
-                <span className="cart-total__sum">{uah(subtotal)}</span>
+                <span className="cart-total__sum">{uah(subtotal, lang)}</span>
               </div>
-              <Link className="btn btn--primary" href="/checkout" onClick={close}>
+              <Link className="btn btn--primary" href={(lang === 'en' ? '/en' : '') + '/checkout'} onClick={close}>
                 {t('cart.checkout')}
               </Link>
             </>

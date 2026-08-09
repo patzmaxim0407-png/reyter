@@ -1,17 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLang } from './LangProvider';
 import type { User } from 'firebase/auth';
 import AddressBook from './AddressBook';
 import { useToast } from './Toasts';
 import * as cart from '@/lib/cart';
 import * as fb from '@/lib/firebase';
-import { t } from '@/lib/i18n';
 
 /* Профіль: імʼя й телефон. Адреси живуть в окремій книзі —
    у покупця їх зазвичай кілька, і в одному полі вони не тримались. */
 
 export default function ProfileTab({ user, online }: { user: User | null; online: boolean }) {
+  const { t } = useLang();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const toast = useToast();

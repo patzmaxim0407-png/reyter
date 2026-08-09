@@ -1,12 +1,13 @@
 'use client';
 
 import { trackerHint, trackerSteps } from '@/lib/account';
-import { t } from '@/lib/i18n';
+import { useLang } from './LangProvider';
 
 /* Крокомір доставки. Порожній список кроків означає скасоване
    замовлення: шлях обірвався, і замість нього — один рядок. */
 
 export default function Tracker({ status }: { status?: string | null }) {
+  const { t } = useLang();
   const steps = trackerSteps(status, t);
   const hint = trackerHint(status, t);
 

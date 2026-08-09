@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLang } from './LangProvider';
 import type { User } from 'firebase/auth';
 import AuthPanel from './AuthPanel';
 import { useToast } from './Toasts';
@@ -9,7 +10,6 @@ import * as fb from '@/lib/firebase';
 import { promoSaveCode, type Promo } from '@/lib/promo';
 import { promoCard, sortMyPromos } from '@/lib/account';
 import { catTitle, type Catalogue } from '@/lib/catalog';
-import { t } from '@/lib/i18n';
 
 /* Персональні знижки покупця.
 
@@ -18,6 +18,7 @@ import { t } from '@/lib/i18n';
    означало б пообіцяти знижку, якої вже немає. */
 
 export default function PromosTab({ c, user }: { c: Catalogue; user: User | null }) {
+  const { t, lang } = useLang();
   const [list, setList] = useState<Promo[] | null>(null);
   const toast = useToast();
 

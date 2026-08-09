@@ -1,9 +1,9 @@
 'use client';
 
 import Tracker from './Tracker';
+import { useLang } from './LangProvider';
 import { statusInfo } from '@/lib/account';
 import { uah } from '@/lib/catalog';
-import { t } from '@/lib/i18n';
 import type { OrderItem } from '@/lib/types';
 
 /* Картка замовлення — одна на кабінет і на відстеження.
@@ -22,11 +22,15 @@ export interface OrderView {
   where?: string;
 }
 
-function human(date?: string) {
+function human(date: string | undefined, lang: string) {
   if (!date) return '';
   const d = new Date(date);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' });
+  return d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'uk-UA', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
 }
 
 export default function OrderCard({
@@ -45,8 +49,9 @@ export default function OrderCard({
   onCopy?: () => void;
   onCopyTtn?: () => void;
 }) {
+  const { t, lang } = useLang();
   const st = o.status || 'new';
-  const date = human(o.date);
+  const date = human(o.date, lang);
 
   const lines =
     o.itemLines ??
@@ -114,7 +119,7 @@ export default function OrderCard({
       {o.where ? <div className="order-card__items">🚚 {o.where}</div> : null}
 
       <div className="order-card__total">
-        {t('cart.total')}: {uah(o.total)}
+        {t('cart.total')}: {uah(o.total, lang)}
       </div>
 
       {onRepeat || onCopy ? (

@@ -1,21 +1,22 @@
 'use client';
 
 import Link from 'next/link';
+import { useLang } from './LangProvider';
 import { useEffect, useState } from 'react';
 import * as fb from '@/lib/firebase';
-import { t } from '@/lib/i18n';
 
 /* Кнопка кабінету. Позначку «увійшов» вішаємо лише після
    гідратації: сервер про акаунт не знає, і намальована наперед
    вона блимнула б у того, хто насправді гість. */
 export default function AccountButton() {
+  const { t, lang } = useLang();
   const [authed, setAuthed] = useState(false);
   useEffect(() => fb.watchAuth((u) => setAuthed(!!u)), []);
 
   return (
     <Link
       className={'hbtn' + (authed ? ' hbtn--authed' : '')}
-      href="/account"
+      href={(lang === 'en' ? '/en' : '') + '/account'}
       aria-label={t('nav.account')}
     >
       <svg

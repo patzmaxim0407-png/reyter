@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { t } from '@/lib/i18n';
+import { useLang } from './LangProvider';
 
 /* ============================================================
    Поле з підказками (місто, відділення)
@@ -49,6 +49,7 @@ export default function Combobox(props: {
   onPick(item: ComboItem): void;
   onType(value: string): void;
 }) {
+  const { t } = useLang();
   const {
     id,
     label,

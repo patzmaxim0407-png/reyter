@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useLang } from './LangProvider';
 import OrderCard, { type OrderView } from './OrderCard';
 import { useToast } from './Toasts';
 import { copyText } from '@/lib/copy';
 import { trackFind, type TrackFailReason } from '@/lib/track';
-import { t } from '@/lib/i18n';
 
 /* Відстеження без акаунта.
 
@@ -30,6 +30,7 @@ export default function TrackForm({
    *  руками — саме те місце, де люди помиляються. */
   initialNum?: string;
 }) {
+  const { t, lang } = useLang();
   const [num, setNum] = useState(initialNum);
   const [phone, setPhone] = useState('');
   const [state, setState] = useState<'idle' | 'busy' | 'found' | 'fail'>('idle');

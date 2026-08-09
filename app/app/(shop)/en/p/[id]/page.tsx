@@ -16,10 +16,10 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  return productMetadata(id, 'uk');
+  return productMetadata(id, 'en');
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <ProductView id={id} lang="uk" />;
+  return <ProductView id={id} lang="en" />;
 }

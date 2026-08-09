@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLang } from './LangProvider';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart } from './CartProvider';
@@ -22,7 +23,6 @@ import {
 } from '@/lib/address';
 import { buildOrder, checkCustomer, MESSENGERS, type Confirm, type Customer } from '@/lib/order';
 import { orderPlaced } from '@/lib/notify';
-import { t } from '@/lib/i18n';
 import { promoCheck, promoMessage, promoSaveCode, promoSavedCode, type Promo } from '@/lib/promo';
 
 /* ============================================================
@@ -44,6 +44,7 @@ const EMPTY_CONFIRM: Confirm = {
 };
 
 export default function CheckoutForm() {
+  const { t, lang } = useLang();
   const { c, lines, subtotal, clear } = useCart();
   const router = useRouter();
 
@@ -387,7 +388,7 @@ export default function CheckoutForm() {
               {i.cat ? <em className="checkout-parts">{i.cat}</em> : null}
               {i.parts.length ? <em className="checkout-parts">{i.parts.join(' · ')}</em> : null}
             </span>
-            <span>{uah(i.sum)}</span>
+            <span>{uah(i.sum, lang)}</span>
           </div>
         ))}
 
@@ -395,18 +396,18 @@ export default function CheckoutForm() {
           <>
             <div>
               <span>{t('cart.subtotal')}</span>
-              <span>{uah(subtotal)}</span>
+              <span>{uah(subtotal, lang)}</span>
             </div>
             <div className="is-off">
               <span>{t('cart.discount')} · {promo?.code}</span>
-              <span>−{uah(discount)}</span>
+              <span>−{uah(discount, lang)}</span>
             </div>
           </>
         ) : null}
 
         <div className="sum">
           <span>{t('cart.total')}</span>
-          <span>{uah(total)}</span>
+          <span>{uah(total, lang)}</span>
         </div>
       </div>
 
