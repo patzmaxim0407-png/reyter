@@ -78,11 +78,19 @@
       date: String(order.date || ''),
       status: order.status || 'new',
       total: Number(order.total) || 0,
-      items: (order.items || []).slice(0, 50).map((i) => ({
-        name: String(i.name || ''),
-        size: String(i.size || ''),
-        qty: Number(i.qty) || 1
-      })),
+      items: (order.items || []).slice(0, 50).map((i) => {
+        const out = {
+          name: String(i.name || ''),
+          size: String(i.size || ''),
+          qty: Number(i.qty) || 1
+        };
+        // комплект: покупець має впізнати свої розміри
+        if (i.parts && i.parts.length) {
+          out.parts = i.parts.slice(0, 10).map((x) =>
+            String(x.name || x.id || '') + (x.size ? ' · ' + x.size : ''));
+        }
+        return out;
+      }),
       ttn: order.ttn || '',
       carrier: c.carrier || '',
       city: c.city || c.intlCity || '',

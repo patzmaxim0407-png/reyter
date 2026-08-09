@@ -381,7 +381,15 @@
     });
     const items = (o.items || [])
       .map((i) =>
-        '<div>' + R.esc(R.tx(i.name)) + (i.size ? ' · ' + R.esc(R.tx(i.size)) : '') + ' × ' + i.qty + '</div>'
+        '<div>' + R.esc(R.tx(i.name)) + (i.size ? ' · ' + R.esc(R.tx(i.size)) : '') + ' × ' + i.qty +
+          // склад комплекту: покупець має бачити свої розміри
+          ((i.parts || []).length
+            ? '<span class="order-card__parts">' +
+                i.parts.map((x) => R.esc(R.tx(x.name || x.id)) +
+                  (x.size ? ' · ' + R.esc(R.tx(x.size)) : '')).join('<br>') +
+              '</span>'
+            : '') +
+        '</div>'
       )
       .join('');
     const st = o.status || 'new';
@@ -443,7 +451,12 @@
       : '';
     const items = (o.items || [])
       .map((i) =>
-        '<div>' + R.esc(R.tx(i.name)) + (i.size ? ' · ' + R.esc(R.tx(i.size)) : '') + ' × ' + (i.qty || 1) + '</div>')
+        '<div>' + R.esc(R.tx(i.name)) + (i.size ? ' · ' + R.esc(R.tx(i.size)) : '') + ' × ' + (i.qty || 1) +
+          ((i.parts || []).length
+            ? '<span class="order-card__parts">' +
+                i.parts.map((x) => R.esc(R.tx(String(x)))).join('<br>') + '</span>'
+            : '') +
+        '</div>')
       .join('');
     const st = o.status || 'new';
     const where = [o.carrier, o.city].filter(Boolean).join(', ');
@@ -553,7 +566,9 @@
     let added = 0;
     (order.items || []).forEach((i) => {
       if (R.getProduct(i.id)) {
-        for (let n = 0; n < i.qty; n++) R.cart.add(i.id, i.size);
+        // Комплект повторюємо з тими самими розмірами складників
+        const parts = (i.parts || []).map((x) => ({ id: x.id, size: x.size || null }));
+        for (let n = 0; n < i.qty; n++) R.cart.add(i.id, i.size, parts);
         added++;
       }
     });

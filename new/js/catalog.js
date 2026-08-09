@@ -86,6 +86,104 @@
     return html;
   };
 
+  /* ============================================================
+     КОМПЛЕКТИ
+     ------------------------------------------------------------
+     Комплект — товар, зібраний з інших товарів каталогу
+     (поле set: масив артикулів). Власних залишків він не має:
+     скільки комплектів можна зібрати — рахується зі складників.
+     Розміру «комплекту» теж не існує: покупець обирає розмір
+     кожного складника окремо, бо верх і низ у людей різні.
+     ============================================================ */
+
+  R.isSet = function (p) {
+    return !!(p && Array.isArray(p.set) && p.set.length);
+  };
+
+  /* Складники з каталогу.
+     Схований складник ЛИШАЄТЬСЯ у комплекті: «сховати з сайту»
+     означає «не продавати окремо», а не «вийняти з комплекту».
+     Якби ми його відкидали, покупець платив би за комплект, а
+     отримував менше — і залишок цієї речі не списувався б.
+     Відкидаємо лише те, чого справді немає: видалений товар і
+     складник, який сам став комплектом (це була б рекурсія). */
+  R.setParts = function (p) {
+    if (!R.isSet(p)) return [];
+    return p.set
+      .map((id) => R.getProduct(id))
+      .filter((x) => x && !R.isSet(x));
+  };
+
+  /* Комплект, з якого зник складник, зібрати неможливо —
+     продавати його не можна навіть за наявності решти */
+  R.setBroken = function (p) {
+    return R.isSet(p) && R.setParts(p).length !== p.set.length;
+  };
+
+  /* Чи має товар розмірну сітку (свічки й аромати її не мають) */
+  R.isSized = function (p) {
+    return !!(p && !p.volume && p.sizes && p.sizes.length);
+  };
+
+  /* Скільки штук цього товару в цьому розмірі. Без живих залишків
+     орієнтуємось на статичні поля: точного числа там немає, тож
+     повертаємо умовно «достатньо». */
+  R.stockQty = function (p, size) {
+    if (!p) return 0;
+    const s = R.stock && R.stock[p.id];
+    const sized = R.isSized(p);
+
+    if (!s) {
+      if (p.status === 'sold-out') return 0;
+      if (!sized) return 99;
+      return (p.sizes || []).includes(size) ? 99 : 0;
+    }
+    if (!sized) return Number(s.qty) || 0;
+    return Number((s.sizes || {})[size]) || 0;
+  };
+
+  /* Скільки комплектів одного розміру можна зібрати: обмежує
+     найдефіцитніший складник. Складник без розмірів (свічка)
+     рахується за загальною кількістю. */
+  R.setQty = function (p, size) {
+    const parts = R.setParts(p);
+    if (!parts.length) return 0;
+    return parts.reduce(
+      (min, x) => Math.min(min, R.stockQty(x, R.isSized(x) ? size : null)),
+      Infinity
+    ) || 0;
+  };
+
+  function setAvailability(p) {
+    const parts = R.setParts(p);
+    if (!parts.length) return null;   // складників не лишилось зовсім
+
+    const avs = parts.map((x) => R.availability(x));
+
+    // Немає бодай одного складника — комплект не зібрати ніяк.
+    // Так само, якщо частину складників видалили з каталогу.
+    const soldOut = R.setBroken(p) || avs.some((a) => a.soldOut);
+
+    /* Розміри, у яких комплект збирається «весь одного розміру».
+       Це для бейджів на картці та для складу; у самій картці
+       товару покупець бачить сітку кожного складника окремо
+       й може змішувати розміри. */
+    const sizes = R.config.allSizes.filter((s) =>
+      parts.every((x) => !R.isSized(x) || R.stockQty(x, s) > 0));
+
+    const low = sizes.filter((s) => R.setQty(p, s) <= R.LOW_STOCK_AT);
+    const total = sizes.reduce((n, s) => n + R.setQty(p, s), 0);
+
+    return {
+      live: avs.some((a) => a.live),
+      isSet: true,
+      soldOut: soldOut,
+      sizes: soldOut ? [] : sizes,
+      low: soldOut ? [] : low,
+      total: total
+    };
+  }
+
   /* ---------- Доступність товару ----------
      Якщо з Firestore завантажено складські залишки (R.stock) —
      статус, розміри та «закінчується» рахуються з них.
@@ -95,6 +193,11 @@
   R.LOW_STOCK_AT = 2; // «закінчується», коли лишилось стільки або менше
 
   R.availability = function (p) {
+    if (R.isSet(p)) {
+      const set = setAvailability(p);
+      if (set) return set;
+    }
+
     const s = R.stock && R.stock[p.id];
 
     if (s) {

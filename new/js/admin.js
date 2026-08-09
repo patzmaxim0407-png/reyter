@@ -289,6 +289,7 @@
         if (p.status === 'sold-out') tags.push('<span class="a-item__tag a-item__tag--sold">Продано</span>');
         if (p.sale) tags.push('<span class="a-item__tag a-item__tag--sale">Sale</span>');
         if (p.hidden) tags.push('<span class="a-item__tag a-item__tag--hidden">Сховано</span>');
+        if (isSetProduct(p)) tags.push('<span class="a-item__tag a-item__tag--set">Комплект</span>');
         return (
           '<div class="a-item' + (p.hidden ? ' is-hidden-product' : '') + '" data-id="' + esc(p.id) + '">' +
             '<img class="a-item__img" src="' + esc((p.images && p.images[0]) || '') + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
@@ -296,7 +297,13 @@
               '<div class="a-item__name">' + esc(p.name) + tags.join('') + '</div>' +
               '<div class="a-item__meta">' + esc(p.id) + ' · ' +
                 prodCats(p).map(catTitle).join(' + ') + ' · ' + fmt(p.price) + ' грн' +
-                (p.sizes && p.sizes.length ? ' · ' + p.sizes.join(', ') : '') +
+                // у комплекту показуємо не розміри, а склад
+                (isSetProduct(p)
+                  ? ' · ' + p.set.map((id) => {
+                      const x = state.products.find((y) => y.id === id);
+                      return esc(x ? x.name : id + ' (немає)');
+                    }).join(' + ')
+                  : (p.sizes && p.sizes.length ? ' · ' + p.sizes.join(', ') : '')) +
               '</div>' +
             '</div>' +
             '<div class="a-item__actions">' +
@@ -669,6 +676,132 @@
     $('fColors').appendChild(row);
   }
 
+  /* ============================================================
+     КОМПЛЕКТ
+     ------------------------------------------------------------
+     Комплект — товар, зібраний з інших товарів каталогу.
+     Власних розмірів і залишків він не має: покупець обирає
+     розмір кожного складника, а кількість комплектів на складі
+     рахується за найдефіцитнішим із них.
+     ============================================================ */
+
+  function isSetProduct(p) {
+    return !!(p && Array.isArray(p.set) && p.set.length);
+  }
+
+  function setChipHTML(p) {
+    if (!p) return '';
+    return (
+      '<span class="a-pick__chip">' +
+        '<img src="' + esc((p.images && p.images[0]) || '') + '" alt="" loading="lazy"' +
+          ' onerror="this.style.visibility=\'hidden\'">' +
+        '<span><b>' + esc(p.name) + '</b><i>' + esc(p.id) + ' · ' +
+          esc(catTitle(p.category)) + ' · ' + fmt(p.price) + ' грн</i></span>' +
+      '</span>'
+    );
+  }
+
+  function addSetRow(pid) {
+    const p = pid ? state.products.find((x) => x.id === pid) : null;
+
+    const row = document.createElement('div');
+    row.className = 'a-setitem';
+    row.dataset.pid = p ? p.id : '';
+    row.innerHTML =
+      '<div class="acombo a-nopick">' +
+        '<div class="acombo__box">' +
+          setChipHTML(p) +
+          '<input data-set-pid value="' + esc(p ? p.name : '') + '" ' +
+            'placeholder="назва або артикул" autocomplete="off" spellcheck="false" ' +
+            'role="combobox" aria-expanded="false" data-ref="' + esc(pid || '') + '">' +
+          '<span class="acombo__spin" hidden></span>' +
+          '<ul class="acombo__list" role="listbox" hidden></ul>' +
+        '</div>' +
+      '</div>' +
+      '<button type="button" class="a-color__del" title="Прибрати зі складу комплекту" ' +
+        'aria-label="Прибрати зі складу комплекту">✕</button>';
+
+    row.querySelector('.a-color__del').addEventListener('click', () => {
+      row.remove();
+      updatePreview();
+    });
+
+    $('fSetList').appendChild(row);
+    bindSetPicker(row.querySelector('[data-set-pid]'));
+  }
+
+  /* Складники шукаємо серед УСІХ категорій — комплект може
+     поєднувати бріфи з майкою. Виключаємо сам товар (щоб не
+     містив себе) і інші комплекти (щоб не було рекурсії). */
+  function bindSetPicker(input) {
+    if (!R.attachCombo) return;
+    R.attachCombo(input, {
+      minChars: 0,
+      openOnFocus: true,
+      load: (q) => {
+        const needle = q.trim().toLowerCase();
+        const self = $('fId').value.trim();
+        return state.products.filter((x) =>
+          x.id !== self &&
+          !isSetProduct(x) &&
+          (!needle ||
+            x.name.toLowerCase().includes(needle) ||
+            x.id.toLowerCase().includes(needle) ||
+            catTitle(x.category).toLowerCase().includes(needle)));
+      },
+      render: (x) => ({
+        html:
+          '<img class="a-pick__img" src="' + esc((x.images && x.images[0]) || '') + '" alt="" ' +
+            'loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
+          '<span class="a-pick__body">' +
+            '<b>' + esc(x.name) + '</b>' +
+            '<i>' + esc(x.id) + ' · ' + esc(catTitle(x.category)) + ' · ' + fmt(x.price) + ' грн</i>' +
+          '</span>',
+        cls: 'a-pick',
+        value: x.name,
+        ref: x.id
+      }),
+      onPick: (x) => {
+        const box = input.closest('.acombo__box');
+        const old = box.querySelector('.a-pick__chip');
+        if (old) old.remove();
+        box.insertAdjacentHTML('afterbegin', setChipHTML(x));
+        input.closest('.a-setitem').dataset.pid = x.id;
+        updatePreview();
+      },
+      empty: 'admin.noProduct'
+    });
+
+    /* Правку тексту комбо трактує як «вибір скасовано» і чистить
+       data-ref. Дзеркалимо це на рядку й прибираємо чіп — інакше
+       на екрані лишався б обраний товар, якого вже немає у виборі. */
+    input.addEventListener('input', () => {
+      const row = input.closest('.a-setitem');
+      if (!row.dataset.pid) return;
+      row.dataset.pid = '';
+      const chip = row.querySelector('.a-pick__chip');
+      if (chip) chip.remove();
+      updatePreview();
+    });
+  }
+
+  function pickedSet() {
+    return Array.prototype.map
+      .call(document.querySelectorAll('#fSetList .a-setitem'), (r) => r.dataset.pid || '')
+      .filter(Boolean)
+      .filter((id, n, list) => list.indexOf(id) === n);   // без дублікатів
+  }
+
+  /* Комплект не має власних розмірів — ховаємо блок, щоб адмін
+     не заповнював поле, яке нікуди не піде */
+  function syncSetUI() {
+    const on = $('fIsSet').checked;
+    $('fSetBox').hidden = !on;
+    const sizes = $('fSizesField');
+    if (sizes) sizes.hidden = on;
+    if (on && !$('fSetList').children.length) addSetRow('');
+  }
+
   /* ---------- Випадаюча панель ---------- */
 
   let colorDropFor = null; // тригер, для якого відкрито список
@@ -774,6 +907,10 @@
     $('fStatus').value = p.status || 'in-stock';
     $('fLowStock').value = (p.lowStock || []).join(', ');
     renderSizeChecks(p.sizes);
+    $('fIsSet').checked = isSetProduct(p);
+    $('fSetList').innerHTML = '';
+    (p.set || []).forEach(addSetRow);
+    syncSetUI();
     $('fSale').checked = !!p.sale;
     $('fHidden').checked = !!p.hidden;
     $('fSaleNote').value = p.saleNote || '';
@@ -820,10 +957,23 @@
     if ($('fHidden').checked) p.hidden = true;
     if ($('fSaleNote').value.trim()) p.saleNote = $('fSaleNote').value.trim();
 
-    p.sizes = Array.prototype.map.call(
-      document.querySelectorAll('#fSizes input:checked'),
-      (i) => i.value
-    );
+    /* Комплект власних розмірів не має: розміри бере зі складників.
+       Старі розміри лишаємо в базі — якщо галочку знімуть, товар
+       повернеться до звичайного вигляду без повторного заповнення. */
+    if ($('fIsSet').checked) {
+      const set = pickedSet();
+      if (set.length) p.set = set;
+      /* Документ перезаписується цілком, тож старі розміри треба
+         перенести явно: інакше зняття галочки залишить товар
+         без сітки, і її довелося б заповнювати заново */
+      const was = editingId ? state.products.find((x) => x.id === editingId) : null;
+      if (was && was.sizes && was.sizes.length) p.sizes = was.sizes.slice();
+    } else {
+      p.sizes = Array.prototype.map.call(
+        document.querySelectorAll('#fSizes input:checked'),
+        (i) => i.value
+      );
+    }
 
     if ($('fFabric').value.trim()) p.fabric = $('fFabric').value.trim();
     if ($('fMaterial').value.trim()) p.material = $('fMaterial').value.trim();
@@ -1209,6 +1359,28 @@
     const clash = state.products.find((x) => x.id === p.id && x.id !== editingId);
     if (clash) return toast('Артикул ' + p.id + ' вже використовується');
 
+    /* Комплект без складників на сайті виглядав би як товар без
+       розмірів — краще не дати зберегти, ніж отримати таке в каталозі */
+    if ($('fIsSet').checked) {
+      if (!p.set || p.set.length < 2) {
+        return toast('У комплекті має бути щонайменше два товари');
+      }
+      const bad = p.set.filter((id) => {
+        const x = state.products.find((y) => y.id === id);
+        return !x || isSetProduct(x);
+      });
+      if (bad.length) return toast('Складник ' + bad[0] + ' не знайдено або він сам є комплектом');
+      if (p.set.includes(p.id)) return toast('Комплект не може містити сам себе');
+
+      /* Зворотна рекурсія: товар, який уже входить у чийсь комплект,
+         не можна робити комплектом — вийшов би комплект у комплекті */
+      const parents = setsWith(editingId || p.id);
+      if (parents.length) {
+        return toast('Цей товар входить у комплект «' + parents[0].name +
+          '» — спершу приберіть його звідти');
+      }
+    }
+
     const existing = editingId ? state.products.find((x) => x.id === editingId) : null;
     p.order = existing ? (Number(existing.order) || 0) : maxOrder(state.products) + 10;
 
@@ -1218,11 +1390,23 @@
       existing ? editingId : ''
     );
 
+    /* Артикул змінили — переносимо посилання на нього в комплектах
+       інших товарів, інакше ті комплекти мовчки розваляться */
+    const setFixes = {};
+    if (existing && editingId !== p.id) {
+      setsWith(editingId).forEach((x) => {
+        setFixes[x.id] = x.set.map((id) => (id === editingId ? p.id : id));
+      });
+    }
+
     try {
       const batch = R.fb.db.batch();
       if (existing && editingId !== p.id) {
         batch.delete(prodCol().doc(editingId)); // артикул змінено
       }
+      Object.keys(setFixes).forEach((id) => {
+        batch.update(prodCol().doc(id), { set: setFixes[id] });
+      });
       batch.set(prodCol().doc(p.id), prodDocData(p));
       Object.keys(sideUpdates).forEach((id) => {
         batch.update(prodCol().doc(id), { colors: packColors(sideUpdates[id]) });
@@ -1237,6 +1421,10 @@
       Object.keys(sideUpdates).forEach((id) => {
         const t = state.products.find((x) => x.id === id);
         if (t) t.colors = packColors(sideUpdates[id]);
+      });
+      Object.keys(setFixes).forEach((id) => {
+        const t = state.products.find((x) => x.id === id);
+        if (t) t.set = setFixes[id];
       });
 
       render();
@@ -1693,7 +1881,16 @@
           toast('Немає прав');
         }
       } else if (btn.dataset.act === 'del') {
-        R.confirmAsk('Видалити товар «' + p.name + '» (' + p.id + ')?', {
+        /* Товар може бути складником комплекту — тоді видалення
+           тихо зробить той комплект таким, що його не зібрати */
+        const parents = setsWith(p.id);
+        R.confirmAsk('Видалити товар «' + p.name + '» (' + p.id + ')?' +
+          (parents.length
+            ? '\n\nВін входить у комплект' + (parents.length > 1 ? 'и' : '') + ': ' +
+              parents.map((x) => '«' + x.name + '»').join(', ') +
+              '. Без нього ' + (parents.length > 1 ? 'вони перестануть' : 'він перестане') +
+              ' продаватися, поки ви не поправите склад комплекту.'
+            : ''), {
           title: 'Видалення товару', okText: 'Видалити', danger: true
         }).then(async (ok) => {
           if (!ok) return;
@@ -1779,6 +1976,7 @@
       addColorRow();
       updatePreview();
     });
+    $('addSetItemBtn').addEventListener('click', () => addSetRow(''));
     $('productForm').addEventListener('input', updatePreview);
     $('productForm').addEventListener('change', (e) => {
       // Головна категорія не має дублюватись у «показувати також»
@@ -1786,6 +1984,7 @@
         renderExtraCats(e.target.value, pickedExtraCats());
         closeColorDrop();
       }
+      if (e.target.id === 'fIsSet') syncSetUI();
       updatePreview();
     });
     $('productForm').addEventListener('submit', (e) => {
@@ -2237,19 +2436,45 @@
 
   function adjustOrderStock(batch, order, direction) {
     const grouped = {};
+
+    /* Комплект власних залишків не має — списуємо його складники.
+       Одна одиниця комплекту = по одній одиниці кожного складника
+       в обраному покупцем розмірі. */
+    const units = [];
     (order.items || []).forEach((item) => {
+      const qty = Number(item.qty) || 0;
+      if (!qty) return;
+      if (item.parts && item.parts.length) {
+        item.parts.forEach((x) => {
+          units.push({
+            id: x.id,
+            name: (x.name || x.id) + ' (у складі «' + (item.name || item.id) + '»)',
+            size: x.size || null,
+            qty: qty
+          });
+        });
+      } else {
+        units.push({ id: item.id, name: item.name || item.id, size: item.size || null, qty: qty });
+      }
+    });
+
+    units.forEach((item) => {
       const p = productById(item.id);
-      const delta = direction * (Number(item.qty) || 0);
+      const delta = direction * item.qty;
       if (!delta) return;
+
+      /* Товар міг зникнути з каталогу після замовлення — тоді
+         спираємось на ознаку, збережену в самій позиції */
+      const sized = p ? isSized(p) : !item.volume && !!item.size;
       if (!grouped[item.id]) grouped[item.id] = { sizes: {}, qty: 0 };
-      if (p && !isSized(p)) {
+      if (!sized) {
         grouped[item.id].qty += delta;
       } else if (item.size) {
         grouped[item.id].sizes[item.size] = (grouped[item.id].sizes[item.size] || 0) + delta;
       }
       logMove(batch, {
         productId: item.id,
-        productName: item.name || item.id,
+        productName: item.name,
         size: item.size || null,
         delta: delta,
         reason: direction < 0 ? 'order' : 'order-cancel',
@@ -2258,9 +2483,12 @@
     });
 
     Object.keys(grouped).forEach((pid) => {
+      const g = grouped[pid];
+      // нічого не змінюється — не створюємо порожній документ складу
+      if (!g.qty && !Object.keys(g.sizes).length) return;
+
       const ref = R.fb.db.collection('inventory').doc(pid);
       const upd = { updated: firebase.firestore.FieldValue.serverTimestamp() };
-      const g = grouped[pid];
       if (g.qty) upd.qty = firebase.firestore.FieldValue.increment(g.qty);
       const sizeKeys = Object.keys(g.sizes);
       if (sizeKeys.length) {
@@ -2276,13 +2504,47 @@
   /* Чи вистачає залишків на замовлення (попередження перед підтвердженням) */
   function stockShortage(order) {
     const short = [];
+
+    // Комплект перевіряємо по складниках — власних залишків у нього немає
+    const units = [];
     (order.items || []).forEach((item) => {
+      if (item.parts && item.parts.length) {
+        item.parts.forEach((x) => units.push({
+          id: x.id,
+          name: (x.name || x.id) + ' — у складі «' + (item.name || item.id) + '»',
+          size: x.size || null,
+          qty: Number(item.qty) || 0
+        }));
+      } else {
+        units.push(item);
+      }
+    });
+
+    /* Один товар може стояти в кількох позиціях — окремо й у
+       складі комплекту. Рахуємо сумарну потребу, інакше
+       попередження не спрацює й залишок мовчки піде в мінус. */
+    const need = {};
+    units.forEach((item) => {
       const p = productById(item.id);
       if (!p || !hasInvDoc(item.id)) return; // облік не ведеться — не перевіряємо
-      const have = (p && !isSized(p)) ? unitQty(item.id) : sizeQty(item.id, item.size);
-      if (have < item.qty) {
-        short.push(item.name + (item.size ? ' (' + item.size + ')' : '') +
-          ': потрібно ' + item.qty + ', на складі ' + have);
+      const key = item.id + '|' + (item.size || '');
+      if (!need[key]) {
+        need[key] = {
+          id: item.id,
+          size: isSized(p) ? item.size : null,
+          name: p.name,
+          qty: 0
+        };
+      }
+      need[key].qty += Number(item.qty) || 0;
+    });
+
+    Object.keys(need).forEach((key) => {
+      const it = need[key];
+      const have = it.size ? sizeQty(it.id, it.size) : unitQty(it.id);
+      if (have < it.qty) {
+        short.push(it.name + (it.size ? ' (' + it.size + ')' : '') +
+          ': потрібно ' + it.qty + ', на складі ' + have);
       }
     });
     return short;
@@ -2658,7 +2920,15 @@
     const items = (o.items || [])
       .map((i) =>
         '<div class="ao-line">' +
-          '<span>' + esc(i.name) + (i.size ? ' · <b>' + esc(i.size) + '</b>' : '') + '</span>' +
+          '<span>' + esc(i.name) + (i.size ? ' · <b>' + esc(i.size) + '</b>' : '') +
+            // склад комплекту: саме за цими розмірами збирати замовлення
+            ((i.parts || []).length
+              ? '<span class="ao-line__parts">' +
+                  i.parts.map((x) => '· ' + esc(x.name || x.id) +
+                    (x.size ? ' <b>' + esc(x.size) + '</b>' : '')).join('<br>') +
+                '</span>'
+              : '') +
+          '</span>' +
           '<span>' + i.qty + ' × ' + fmt(i.price) + ' = <b>' + fmt(i.price * i.qty) + ' грн</b></span>' +
         '</div>'
       ).join('');
@@ -2968,7 +3238,12 @@
     const rows = list.map((o) => {
       const c = o.customer || {};
       const items = (o.items || [])
-        .map((i) => i.name + (i.size ? ' (' + i.size + ')' : '') + ' ×' + i.qty).join('; ');
+        .map((i) => i.name + (i.size ? ' (' + i.size + ')' : '') +
+          // склад комплекту: інакше з вивантаження не зрозуміти, що пакувати
+          ((i.parts || []).length
+            ? ' [' + i.parts.map((x) => (x.name || x.id) + (x.size ? ' ' + x.size : '')).join(' + ') + ']'
+            : '') +
+          ' ×' + i.qty).join('; ');
       const units = (o.items || []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
       return [
         o.num,
@@ -3007,6 +3282,11 @@
       const c = o.customer || {};
       const items = (o.items || [])
         .map((i) => '<tr><td>' + esc(i.name) + (i.size ? ' (' + esc(i.size) + ')' : '') +
+          // за цим аркушем комплектують посилку — склад комплекту обовʼязковий
+          ((i.parts || []).length
+            ? '<br><small>' + i.parts.map((x) => '· ' + esc(x.name || x.id) +
+                (x.size ? ' ' + esc(x.size) : '')).join('<br>') + '</small>'
+            : '') +
           '</td><td>' + i.qty + '</td><td>' + fmt(i.price * i.qty) + ' грн</td></tr>').join('');
       return (
         '<section>' +
@@ -3095,6 +3375,40 @@
     );
   }
 
+  /* Складники комплекту, які реально є в каталозі. Дзеркалить
+     catalog.js: схований складник і складник-комплект відкидаємо. */
+  function setPartsOf(p) {
+    if (!p || !Array.isArray(p.set)) return [];
+    // Схований складник лишається у комплекті — див. catalog.js
+    return p.set
+      .map((id) => productById(id))
+      .filter((x) => x && !(Array.isArray(x.set) && x.set.length));
+  }
+
+  /* Товар входить у чийсь комплект — його не можна ні видалити,
+     ні перетворити на комплект, не поламавши той, інший */
+  function setsWith(pid) {
+    return state.products.filter((x) =>
+      Array.isArray(x.set) && x.set.includes(pid));
+  }
+
+  function isSetOf(p) {
+    return setPartsOf(p).length > 0;
+  }
+
+  /* Скільки комплектів такого розміру можна зібрати */
+  function setSizeQty(p, size) {
+    const parts = setPartsOf(p);
+    if (!parts.length) return 0;
+    // Складник без обліку не має перетворюватись на вигадане число:
+    // повертаємо null, і сторінка складу покаже «—»
+    if (parts.some((x) => !hasInvDoc(x.id))) return null;
+    return parts.reduce((min, x) => {
+      const have = isSized(x) ? sizeQty(x.id, size) : unitQty(x.id);
+      return Math.min(min, have);
+    }, Infinity) || 0;
+  }
+
   function noRowHTML(row) {
     const p = productById(row.pid);
     const all = products();
@@ -3117,7 +3431,31 @@
       '</div>';
 
     let sizeSelect;
-    if (!p) {
+    if (p && isSetOf(p)) {
+      /* Комплект — це кілька товарів, і розмір у кожного свій.
+         Один select тут не годиться: показуємо по одному на складник. */
+      sizeSelect = '<span class="a-norow__set">' +
+        setPartsOf(p).map((part) => {
+          /* Шукаємо за артикулом, а не за номером у списку: склад
+             комплекту могли змінити після створення замовлення, і
+             зіставлення «по порядку» підставило б чужі розміри */
+          const chosen = ((row.parts || []).find((x) => x.id === part.id) || {}).size || '';
+          const sizes = isSized(part) ? availableSizes(part) : [part.volume || '—'];
+          return '<label class="a-norow__setrow">' +
+            '<span>' + esc(part.name) + '</span>' +
+            '<select data-no-part="' + esc(part.id) + '">' +
+              (sizes.length
+                ? sizes.map((sz) => {
+                    const have = isSized(part) && hasInvDoc(part.id) ? sizeQty(part.id, sz) : null;
+                    return '<option value="' + esc(sz) + '"' + (sz === chosen ? ' selected' : '') + '>' +
+                      esc(sz) + (have === null ? '' : ' (' + have + ' шт)') + '</option>';
+                  }).join('')
+                : '<option value="">немає розмірів</option>') +
+            '</select>' +
+          '</label>';
+        }).join('') +
+      '</span>';
+    } else if (!p) {
       sizeSelect = '<select data-no-size disabled><option>—</option></select>';
     } else if (!isSized(p)) {
       sizeSelect = '<select data-no-size><option value="' + esc(p.volume) + '">' + esc(p.volume) + '</option></select>';
@@ -3135,7 +3473,14 @@
         '</select>';
     }
 
-    const short = p && isSized(p) && hasInvDoc(p.id) && row.size && sizeQty(p.id, row.size) < row.qty;
+    const short = p && isSetOf(p)
+      ? setPartsOf(p).some((part) => {
+          if (!hasInvDoc(part.id)) return false;
+          const sz = ((row.parts || []).find((x) => x.id === part.id) || {}).size;
+          const have = isSized(part) ? sizeQty(part.id, sz) : unitQty(part.id);
+          return sz && have < row.qty;
+        })
+      : p && isSized(p) && hasInvDoc(p.id) && row.size && sizeQty(p.id, row.size) < row.qty;
 
     return (
       '<div class="a-norow' + (short ? ' is-short' : '') + '" data-row="' + row.uid + '">' +
@@ -3147,7 +3492,13 @@
           '" data-no-price placeholder="Ціна" aria-label="Ціна за штуку"> грн</span>' +
         '<span class="a-norow__sum">Разом: ' + fmt((row.price || 0) * row.qty) + ' грн</span>' +
         '<button class="a-norow__del" data-no-del type="button" title="Прибрати">✕</button>' +
-        (short ? '<span class="a-norow__warn">На складі лише ' + sizeQty(p.id, row.size) + ' шт — залишок піде в мінус</span>' : '') +
+        (short
+          ? '<span class="a-norow__warn">' +
+              (isSetOf(p)
+                ? 'Складників не вистачає — залишок піде в мінус'
+                : 'На складі лише ' + sizeQty(p.id, row.size) + ' шт — залишок піде в мінус') +
+            '</span>'
+          : '') +
       '</div>'
     );
   }
@@ -3204,8 +3555,19 @@
           if (!row) return;
           row.pid = x.id;
           row.price = x.price;
-          const sizes = availableSizes(x);
-          row.size = !isSized(x) ? x.volume : (sizes[0] || '');
+
+          if (isSetOf(x)) {
+            // у комплекту свого розміру немає — готуємо по складнику
+            row.size = '';
+            row.parts = setPartsOf(x).map((part) => ({
+              id: part.id,
+              size: isSized(part) ? (availableSizes(part)[0] || '') : (part.volume || '')
+            }));
+          } else {
+            row.parts = null;
+            const sizes = availableSizes(x);
+            row.size = !isSized(x) ? x.volume : (sizes[0] || '');
+          }
           renderNoItems();
         },
         empty: 'admin.noProduct'
@@ -3449,7 +3811,9 @@
       pid: i.id,
       size: i.size || '',
       qty: Number(i.qty) || 1,
-      price: Number(i.price) || 0
+      price: Number(i.price) || 0,
+      // розміри складників комплекту редагуються так само, як усе інше
+      parts: (i.parts || []).map((x) => ({ id: x.id, size: x.size || '' }))
     }));
     if (!noRows.length) noRows = [{ uid: 'r' + (++noSeq), pid: '', size: '', qty: 1, price: 0 }];
 
@@ -3514,6 +3878,9 @@
       lines.push(n + 1 + '. ' + i.name + ' (' + i.id + ')');
       lines.push('   ' + (i.size ? (i.volume ? 'обʼєм ' : 'розмір ') + i.size + ' · ' : '') +
         i.qty + ' шт · ' + fmt(i.price * i.qty) + ' грн');
+      (i.parts || []).forEach((x) => {
+        lines.push('      – ' + (x.name || x.id) + (x.size ? ' · ' + x.size : ''));
+      });
     });
     lines.push('');
     if (order.discount) {
@@ -3549,18 +3916,40 @@
     for (const row of noRows) {
       const p = productById(row.pid);
       if (!p) continue;
-      if (isSized(p) && !row.size) {
+
+      const setParts = setPartsOf(p);
+      const partSize = (part) =>
+        ((row.parts || []).find((x) => x.id === part.id) || {}).size || '';
+
+      if (setParts.length) {
+        const missing = setParts.find((part) => isSized(part) && !partSize(part));
+        if (missing) {
+          return setNoStatus('err', 'Оберіть розмір для «' + missing.name + '» у комплекті «' + p.name + '»');
+        }
+      } else if (isSized(p) && !row.size) {
         return setNoStatus('err', 'Оберіть розмір для «' + p.name + '»');
       }
+
       const qty = Math.max(1, Math.trunc(Number(row.qty) || 1));
-      items.push({
+      const item = {
         id: p.id,
         name: p.name,
-        size: row.size || null,
+        size: setParts.length ? null : (row.size || null),
         qty: qty,
         price: Math.max(0, Math.trunc(Number(row.price) || 0)),
         volume: !!p.volume
-      });
+      };
+      if (setParts.length) {
+        item.parts = setParts.map((part) => ({
+          id: part.id,
+          name: part.name,
+          size: partSize(part) || null,
+          // обʼєм фіксуємо в замовленні: якщо товар зникне з
+          // каталогу, списувати треба буде все одно правильно
+          volume: !!part.volume
+        }));
+      }
+      items.push(item);
     }
 
     if (!items.length) return setNoStatus('err', 'Додайте хоча б один товар');
@@ -4173,6 +4562,24 @@
   }
 
   function productRowState(p) {
+    if (isSetOf(p)) {
+      /* Комплект живе складниками. Стан рахуємо за тим, чи можна
+         його взагалі продати: покупець змішує розміри, тож
+         «немає жодного розміру, спільного для всіх» ще не означає
+         «не зібрати». Не зібрати — лише коли якогось складника
+         немає зовсім або він випав із каталогу. */
+      const parts = setPartsOf(p);
+      if (!parts.length || parts.length !== (p.set || []).length) {
+        return { cls: 'is-out', label: 'складник відсутній' };
+      }
+      const tracked = parts.filter((x) => hasInvDoc(x.id));
+      if (!tracked.length) return { cls: '', label: 'не ведеться' };
+
+      const least = tracked.reduce((min, x) => Math.min(min, totalQty(x)), Infinity);
+      if (least <= 0) return { cls: 'is-out', label: 'не зібрати' };
+      if (least <= LOW_AT) return { cls: 'is-low', label: 'закінчується' };
+      return { cls: 'is-ok', label: 'можна зібрати' };
+    }
     const total = totalQty(p);
     if (!hasInvDoc(p.id)) return { cls: '', label: 'не ведеться' };
     if (total <= 0) return { cls: 'is-out', label: 'немає' };
@@ -4198,7 +4605,44 @@
       .map((s) => ({ size: s, stray: !carded.includes(s) }));
   }
 
+  /* Рядок комплекту: залишків у нього немає, тому кількості
+     не редагуються, а рахуються за складниками. Показуємо, з чого
+     саме вийшло число, — інакше «3 шт» виглядають як магія. */
+  function setStockRowHTML(p) {
+    const parts = setPartsOf(p);
+    const sizes = R.config.allSizes.filter((sz) =>
+      parts.some((x) => isSized(x)) &&
+      parts.every((x) => !isSized(x) || stockSizes(x).some((it) => it.size === sz)));
+
+    const cells = (sizes.length ? sizes : ['—']).map((sz) => {
+      const n = sz === '—' ? null : setSizeQty(p, sz);
+      const text = n === null ? '—' : String(n);
+      return '<label class="ao-qty is-calc' + (n !== null && n <= 0 ? ' is-zero' : '') + '" ' +
+        'title="Рахується за складниками комплекту">' +
+        '<span>' + esc(sz) + '</span><b>' + text + '</b></label>';
+    }).join('');
+
+    const total = sizes.reduce((n, sz) => n + (setSizeQty(p, sz) || 0), 0);
+
+    return (
+      '<div class="ao-stockrow ao-stockrow--set ' +
+        (total > 0 ? 'is-ok' : 'is-out') + '">' +
+        '<img src="' + esc((p.images && p.images[0]) || '') + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
+        '<div class="ao-stockrow__info">' +
+          '<b>' + esc(p.name) + ' <i class="ao-tag">комплект</i>' +
+            (p.hidden ? ' <i class="ao-tag">сховано з сайту</i>' : '') + '</b>' +
+          '<span>' + esc(p.id) + ' · ' + fmt(p.price) + ' грн · ' +
+            parts.map((x) => esc(x.name)).join(' + ') + '</span>' +
+        '</div>' +
+        '<div class="ao-stockrow__qty">' + cells + '</div>' +
+        '<div class="ao-stockrow__total"><b>' + fmt(total) + '</b><span>шт</span></div>' +
+      '</div>'
+    );
+  }
+
   function stockRowHTML(p) {
+    if (isSetOf(p)) return setStockRowHTML(p);
+
     const state = productRowState(p);
     const total = totalQty(p);
     const inputs = isSized(p)
@@ -4263,9 +4707,13 @@
     let low = 0;
     let out = 0;
     all.forEach((p) => {
-      const t = totalQty(p);
-      units += t;
-      value += t * (Number(p.price) || 0);
+      // Комплект у підсумок не додаємо: його одиниці вже пораховані
+      // у складниках, інакше той самий товар лічився б двічі
+      if (!isSetOf(p)) {
+        const t = totalQty(p);
+        units += t;
+        value += t * (Number(p.price) || 0);
+      }
       const st = productRowState(p);
       if (st.cls === 'is-low') low++;
       if (st.cls === 'is-out') out++;
@@ -4503,11 +4951,13 @@
         openOnFocus: true,
         load: (q) => {
           const needle = q.trim().toLowerCase();
+          // Комплект не приходить на склад: приходять його складники
           return products().filter((x) =>
-            !needle ||
-            x.name.toLowerCase().includes(needle) ||
-            x.id.toLowerCase().includes(needle) ||
-            catName(x.category).toLowerCase().includes(needle));
+            !isSetOf(x) && (
+              !needle ||
+              x.name.toLowerCase().includes(needle) ||
+              x.id.toLowerCase().includes(needle) ||
+              catName(x.category).toLowerCase().includes(needle)));
         },
         render: (x) => ({
           html: productOptionHTML(x),
@@ -4703,9 +5153,80 @@
       }
       if (sent) toast('Підписникам надіслано листи: ' + sent + ' ✓', 'success');
     } catch (e) { /* воркер не налаштований — тихо */ }
+
+    // Прихід складника міг «зібрати» комплект — тим, хто чекав
+    // на комплект, теж треба написати
+    await notifySetAlerts(pid, sizesBackInStock);
+  }
+
+  /* Комплекти, до складу яких входить товар pid і які після
+     цього приходу знову можна зібрати */
+  async function notifySetAlerts(pid, sizes) {
+    const sets = products().filter((x) =>
+      isSetOf(x) && (x.set || []).includes(pid));
+    if (!sets.length) return;
+
+    for (const set of sets) {
+      /* Кеш inv оновиться знімком із бази лише за мить, тож про
+         щойно оприбуткований складник питати його не можна.
+         Він за визначенням у наявності — перевіряємо решту. */
+      const others = setPartsOf(set).filter((x) => x.id !== pid);
+      const back = (sizes && sizes.length ? sizes : R.config.allSizes)
+        .filter((sz) => others.every((x) => {
+          if (!hasInvDoc(x.id)) return true;   // облік не ведеться
+          return (isSized(x) ? sizeQty(x.id, sz) : unitQty(x.id)) > 0;
+        }));
+      if (!back.length) continue;
+      await notifyStockAlertsFor(set, back);
+    }
+  }
+
+  /* Та сама розсилка, але без повторного заходу в комплекти —
+     інакше два комплекти з одним складником зациклили б одне одного */
+  async function notifyStockAlertsFor(p, sizesBackInStock) {
+    try {
+      const snap = await R.fb.db.collection('stock_alerts')
+        .where('productId', '==', p.id)
+        .where('notified', '==', false)
+        .limit(50)
+        .get();
+      if (snap.empty) return;
+
+      const hits = snap.docs.filter((d) => {
+        const a = d.data();
+        return !a.size || sizesBackInStock.includes(a.size);
+      });
+
+      let sent = 0;
+      for (const d of hits) {
+        const a = d.data();
+        const ok = await R.notify.stockAlert({
+          to: a.email,
+          product: a.productName || p.name,
+          size: a.size || '',
+          image: (p.images && p.images[0]) || '',
+          url: 'https://reyter.men/new/#p/' + encodeURIComponent(p.id),
+          lang: a.lang || 'uk'
+        });
+        if (ok) {
+          await d.ref.update({
+            notified: true,
+            notifiedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          sent++;
+        }
+      }
+      if (sent) toast('Підписникам комплекту «' + p.name + '» надіслано: ' + sent + ' ✓', 'success');
+    } catch (e) { /* тихо */ }
   }
 
   async function receiveRestock(r) {
+    // Товар міг стати комплектом після створення приходу —
+    // власного складу в нього більше немає
+    if (isSetOf(productById(r.productId))) {
+      toast('«' + (productById(r.productId) || {}).name + '» тепер комплект — прихід оприбутковують по складниках');
+      return;
+    }
     const p = productById(r.productId);
     try {
       const batch = R.fb.db.batch();
@@ -5131,6 +5652,13 @@
         if (!row) return;
 
         if (e.target.matches('[data-no-size]')) row.size = e.target.value;
+        if (e.target.matches('[data-no-part]')) {
+          const pid = e.target.dataset.noPart;
+          row.parts = row.parts || [];
+          const part = row.parts.find((x) => x.id === pid);
+          if (part) part.size = e.target.value;
+          else row.parts.push({ id: pid, size: e.target.value });
+        }
         if (e.target.matches('[data-no-qty]')) row.qty = Math.max(1, Math.trunc(Number(e.target.value) || 1));
         if (e.target.matches('[data-no-price]')) row.price = Math.max(0, Math.trunc(Number(e.target.value) || 0));
         renderNoItems();

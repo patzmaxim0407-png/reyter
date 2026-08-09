@@ -529,6 +529,7 @@ html {
 .a-item__tag--sold { background: var(--c-red-soft); color: var(--c-red); }
 .a-item__tag--sale { background: var(--c-green-soft); color: var(--c-green); }
 .a-item__tag--hidden { background: rgba(23, 27, 38, 0.08); color: var(--c-muted); }
+.a-item__tag--set { background: rgba(1, 74, 173, 0.1); color: var(--c-blue); }
 
 .a-item__actions {
   display: flex;
@@ -3934,4 +3935,75 @@ label.a-promo-product i {
     width: 100%;
     min-height: 44px;
   }
+}
+
+/* ---------- Комплект у редакторі товару ---------- */
+.a-setfield .a-check {
+  margin-bottom: 0.6rem;
+}
+
+.a-setlist {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.a-setitem {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  /* Хрестик тримаємо на рівні поля вводу, а не мітки над ним:
+     висота чіпа з назвою товару плаває */
+  align-items: end;
+}
+
+/* Розміри складників у рядку ручного замовлення */
+.a-norow__set {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.a-norow__setrow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem;
+  align-items: center;
+  font-size: 0.78rem;
+  color: var(--c-muted);
+}
+
+.a-norow__setrow > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Склад комплекту в картці замовлення */
+.ao-line__parts {
+  display: block;
+  margin-top: 0.2rem;
+  padding-left: 0.7rem;
+  border-left: 2px solid var(--c-line);
+  font-size: 0.78rem;
+  color: var(--c-muted);
+}
+
+/* Рядок складу для комплекту: кількості не редагуються */
+.ao-stockrow--set .ao-qty.is-calc {
+  display: grid;
+  place-items: center;
+  gap: 0.1rem;
+  min-width: 54px;
+  padding: 0.3rem 0.4rem;
+  border: 1.5px dashed var(--c-line);
+  border-radius: var(--radius-sm);
+  background: var(--c-cream);
+}
+
+.ao-stockrow--set .ao-qty.is-calc b {
+  font-size: 1rem;
+}
+
+.ao-stockrow--set .ao-qty.is-calc.is-zero b {
+  color: var(--c-red);
 }

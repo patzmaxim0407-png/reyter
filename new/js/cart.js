@@ -35,20 +35,58 @@
     } catch (e) { /* приватний режим — ігноруємо */ }
   }
 
+  /* Ключ позиції кошика.
+     У комплекті розміри складників — частина ідентичності: той
+     самий комплект із бріфами M і з бріфами L це різні позиції,
+     і зливати їх в одну не можна. */
+  function lineKey(id, size, parts) {
+    /* Сортуємо й серіалізуємо: порядок складників не має робити
+       з тієї самої комбінації дві різні позиції, а роздільники
+       в артикулах не мають ламати ключ. */
+    const list = (parts || [])
+      .map((x) => [String(x.id), x.size == null ? '' : String(x.size)])
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    return JSON.stringify([id, size || '', list]);
+  }
+
+  function itemKey(i) {
+    return lineKey(i.id, i.size, i.parts);
+  }
+
+  R.cartLineKey = lineKey;
+
   const cart = {
     items() {
-      // прибираємо позиції, яких більше немає в каталозі
-      return read(KEY_CART, []).filter((i) => R.getProduct(i.id));
+      return read(KEY_CART, []).filter((i) => {
+        const p = R.getProduct(i.id);
+        if (!p) return false;   // товару більше немає в каталозі
+
+        /* Склад комплекту могли змінити в адмінці, поки кошик
+           лежав у браузері. Стара позиція зібрала б не той товар
+           і списала б не ті залишки — прибираємо її. */
+        if (R.isSet(p)) {
+          const want = R.setParts(p).map((x) => x.id).sort().join(',');
+          const have = (i.parts || []).map((x) => x.id).sort().join(',');
+          return !!want && want === have;
+        }
+        // товар перестав бути комплектом — стара позиція теж не годиться
+        return !(i.parts && i.parts.length);
+      });
     },
     save(items) {
       write(KEY_CART, items);
       updateBadge();
     },
-    add(id, size) {
+    add(id, size, parts) {
       const items = cart.items();
-      const found = items.find((i) => i.id === id && i.size === size);
+      const key = lineKey(id, size, parts);
+      const found = items.find((i) => itemKey(i) === key);
       if (found) found.qty += 1;
-      else items.push({ id: id, size: size || null, qty: 1 });
+      else {
+        const line = { id: id, size: size || null, qty: 1 };
+        if (parts && parts.length) line.parts = parts.map((x) => ({ id: x.id, size: x.size || null }));
+        items.push(line);
+      }
       cart.save(items);
     },
     setQty(idx, qty) {
@@ -58,18 +96,24 @@
       cart.save(items);
     },
     /* Скільки саме цього товару в цьому розмірі вже в кошику */
-    qtyOf(id, size) {
-      const found = cart.items().find((i) => i.id === id && i.size === (size || null));
+    qtyOf(id, size, parts) {
+      const key = lineKey(id, size, parts);
+      const found = cart.items().find((i) => itemKey(i) === key);
       return found ? found.qty : 0;
     },
     /* Встановити кількість; 0 — прибрати позицію з кошика */
-    setQtyOf(id, size, qty) {
+    setQtyOf(id, size, parts, qty) {
       const items = cart.items();
-      const idx = items.findIndex((i) => i.id === id && i.size === (size || null));
+      const key = lineKey(id, size, parts);
+      const idx = items.findIndex((i) => itemKey(i) === key);
       const next = Math.max(0, Math.min(99, qty));
 
       if (idx < 0) {
-        if (next > 0) items.push({ id: id, size: size || null, qty: next });
+        if (next > 0) {
+          const line = { id: id, size: size || null, qty: next };
+          if (parts && parts.length) line.parts = parts.map((x) => ({ id: x.id, size: x.size || null }));
+          items.push(line);
+        }
       } else if (next === 0) {
         items.splice(idx, 1);
       } else {
@@ -130,6 +174,19 @@
   R.saveOrders = function (orders) {
     write(KEY_ORDERS, orders);
   };
+
+  /* Склад комплекту в рядку кошика: без нього покупець не бачить,
+     які саме розміри він обрав, і не може себе перевірити */
+  function partsHTML(item) {
+    if (!item.parts || !item.parts.length) return '';
+    return '<ul class="cart-item__parts">' +
+      item.parts.map((x) => {
+        const sp = R.getProduct(x.id);
+        return '<li>' + R.esc(sp ? R.tf(sp, 'name') : x.id) +
+          (x.size ? ' · <b>' + R.esc(R.tx(x.size)) + '</b>' : '') + '</li>';
+      }).join('') +
+    '</ul>';
+  }
 
   /* ---------- Лічильник у шапці ---------- */
 
@@ -290,6 +347,7 @@
                 (item.size ? (p.volume ? R.t('p.volume') : R.t('p.size')) + ': ' + R.esc(R.tx(item.size)) + ' · ' : '') +
                 R.t('p.article') + ': ' + R.esc(p.id) +
               '</div>' +
+              partsHTML(item) +
               '<div class="cart-item__price">' + R.uah(p.price * item.qty) + '</div>' +
             '</div>' +
             '<div class="cart-item__col">' +
@@ -595,6 +653,9 @@
     order.items.forEach((i, n) => {
       lines.push(n + 1 + '. ' + i.name + ' (' + i.id + ')');
       lines.push('   ' + (i.size ? (i.volume ? 'обʼєм ' : 'розмір ') + i.size + ' · ' : '') + i.qty + ' шт · ' + R.fmt(i.price * i.qty) + ' грн');
+      (i.parts || []).forEach((x) => {
+        lines.push('      – ' + x.name + (x.size ? ' · ' + x.size : ''));
+      });
     });
     lines.push('');
     if (order.discount) {
@@ -698,7 +759,7 @@
       date: now.toISOString(),
       items: cart.items().map((i) => {
         const p = R.getProduct(i.id);
-        return {
+        const item = {
           id: p.id,
           name: p.name,
           size: i.size,
@@ -706,6 +767,21 @@
           price: p.price,
           volume: !!p.volume
         };
+        /* Назви складників кладемо в замовлення, а не тільки
+           артикули: лист, Telegram і адмінка мають показати склад
+           комплекту навіть тоді, коли каталог уже змінився */
+        if (i.parts && i.parts.length) {
+          item.parts = i.parts.map((x) => {
+            const sp = R.getProduct(x.id);
+            return {
+              id: x.id,
+              name: sp ? sp.name : x.id,
+              size: x.size || null,
+              volume: !!(sp && sp.volume)
+            };
+          });
+        }
+        return item;
       }),
       subtotal: cart.subtotal(),
       discount: discount(),

@@ -2276,3 +2276,22 @@
   text-underline-offset: 3px;
   cursor: pointer;
 }
+
+/* Склад комплекту в кошику, кабінеті й відстеженні */
+.cart-item__parts,
+.order-card__parts {
+  display: block;
+  margin-top: 0.25rem;
+  padding-left: 0.7rem;
+  border-left: 2px solid var(--c-line);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--c-muted);
+  list-style: none;
+}
+
+.cart-item__parts b,
+.order-card__parts b {
+  color: var(--c-ink);
+  font-weight: 600;
+}

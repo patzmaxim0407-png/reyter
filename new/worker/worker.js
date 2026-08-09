@@ -64,6 +64,12 @@ function letterHTML(d) {
       '<td style="padding:10px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#171b26">' +
         esc(clip(i.name, 120)) +
         (i.size ? ' <span style="color:#6e6a5e">· ' + esc(clip(i.size, 20)) + '</span>' : '') +
+        // склад комплекту: що саме й у яких розмірах
+        ((i.parts || []).length
+          ? '<br><span style="color:#6e6a5e;font-size:12px">' +
+              i.parts.slice(0, 10).map((x) => '· ' + esc(clip(x, 80))).join('<br>') +
+            '</span>'
+          : '') +
         '<br><span style="color:#6e6a5e;font-size:12px">× ' + (Number(i.qty) || 1) + '</span>' +
       '</td>' +
       '<td style="padding:10px 0;border-bottom:1px solid #eeeeee;font-size:14px;font-weight:700;' +
@@ -328,6 +334,7 @@ function orderText(d) {
       (i.size ? ' (' + clip(i.size, 20) + ')' : '') +
       ' × ' + (Number(i.qty) || 1) +
       ' — ' + clip(i.sum, 40));
+    (i.parts || []).slice(0, 10).forEach((x) => L.push('    – ' + clip(x, 80)));
   });
 
   L.push('');

@@ -14,6 +14,9 @@
   let images = [];
   let index = 0;
   let selectedSize = null;
+  /* Для комплекту — обраний розмір кожного складника:
+     [{ id, size }]. У звичайного товару лишається null. */
+  let selectedParts = null;
 
   const el = {};
 
@@ -67,7 +70,23 @@
   function refreshStatus() {
     if (currentAv.soldOut) {
       setStatus('no', R.t('p.soldOut'));
-    } else if (selectedSize && currentAv.low.includes(selectedSize)) {
+      return;
+    }
+
+    /* Для комплекту наявність визначає найдефіцитніший складник
+       саме в обраних розмірах — загальні цифри тут ні про що */
+    if (selectedParts) {
+      const left = selectedParts.reduce((min, x) => {
+        const part = R.getProduct(x.id);
+        if (!part || x.size == null) return min;
+        return Math.min(min, R.stockQty(part, R.isSized(part) ? x.size : null));
+      }, Infinity);
+      setStatus(left <= R.LOW_STOCK_AT ? 'low' : 'ok',
+        R.t(left <= R.LOW_STOCK_AT ? 'p.lowStock' : 'p.inStock'));
+      return;
+    }
+
+    if (selectedSize && currentAv.low.includes(selectedSize)) {
       setStatus('low', R.t('p.lowStock'));
     } else {
       setStatus('ok', R.t('p.inStock'));
@@ -106,22 +125,95 @@
 
   /* ---------- Розміри ---------- */
 
+  /* group — у комплекті кожен складник має власну групу радіо,
+     інакше вибір розміру для майки скидав би вибір для бріфів */
   function sizePillHTML(size, opts) {
-    const id = 'size-' + String(size).toLowerCase().replace(/[^a-zа-яіїє0-9]/gi, '');
+    const group = opts.group || 'pm-size';
+    const label = opts.label || size;
+    const id = group + '-' + String(size || 'one').toLowerCase().replace(/[^a-zа-яіїє0-9]/gi, '');
     return (
       '<span class="size-pill' + (opts.low ? ' size-pill--low' : '') +
         (opts.disabled ? ' size-pill--out' : '') + '" data-size="' + R.esc(size) + '">' +
-        '<input type="radio" name="pm-size" value="' + R.esc(size) + '" id="' + id + '"' +
+        '<input type="radio" name="' + group + '" value="' + R.esc(size) + '" id="' + id + '"' +
         (opts.disabled ? ' disabled' : '') + (opts.checked ? ' checked' : '') + '>' +
-        '<label for="' + id + '">' + R.esc(size) + '</label>' +
+        '<label for="' + id + '">' + R.esc(label) + '</label>' +
       '</span>'
     );
+  }
+
+  /* Розмірна сітка комплекту: по рядку на кожен складник.
+     Комплект не має «свого» розміру — верх і низ у людей різні,
+     тож покупець складає його сам. */
+  function renderSetSizes() {
+    const parts = R.setParts(current);
+    selectedParts = [];
+
+    el.sizesTitle.textContent = R.t('p.setSizes');
+    el.sizeLink.hidden = false;
+    el.sizesBlock.hidden = false;
+    toggleSizeChart(false);
+
+    el.sizes.innerHTML =
+      '<p class="setsizes__note">' + R.t('p.setNote') + '</p>' +
+      parts.map((part, n) => {
+        const av = R.availability(part);
+        const group = 'pm-part-' + n;
+        let chosen = null;
+
+        /* Складник без розмірної сітки (свічка, аромат) усе одно
+           має бути «обраним», інакше комплект не покласти в кошик.
+           Значення пілюлі й записаний розмір мусять збігатися —
+           з них будується ключ позиції. */
+        const one = part.volume || '';
+
+        const pills = R.isSized(part)
+          ? R.config.allSizes.map((size) => {
+              const has = av.sizes.includes(size);
+              const checked = has && !chosen;
+              if (checked) chosen = size;
+              return sizePillHTML(size, {
+                group: group,
+                disabled: !has,
+                checked: checked,
+                low: has && av.low.includes(size)
+              });
+            }).join('')
+          : sizePillHTML(one, {
+              group: group,
+              label: part.volume || R.t('p.onePiece'),
+              checked: !av.soldOut,
+              disabled: av.soldOut
+            });
+
+        if (!R.isSized(part)) chosen = av.soldOut ? null : one;
+        selectedParts.push({ id: part.id, size: chosen });
+
+        return (
+          '<div class="setpart' + (av.soldOut ? ' is-out' : '') + '" data-part="' + R.esc(part.id) + '">' +
+            '<div class="setpart__head">' +
+              '<img src="' + R.esc((part.images || [])[0] || '') + '" alt="" loading="lazy"' +
+                ' onerror="this.style.visibility=\'hidden\'">' +
+              '<span>' +
+                '<b>' + R.esc(R.tf(part, 'name')) + '</b>' +
+                '<em>' + (av.soldOut ? R.t('p.soldOut') : R.esc(part.id)) + '</em>' +
+              '</span>' +
+            '</div>' +
+            '<div class="sizes">' + pills + '</div>' +
+          '</div>'
+        );
+      }).join('');
   }
 
   function renderSizes() {
     const p = current;
     const av = currentAv;
     selectedSize = null;
+    selectedParts = null;
+
+    if (R.isSet(p) && R.setParts(p).length) {
+      renderSetSizes();
+      return;
+    }
 
     if (p.volume) {
       el.sizesTitle.textContent = R.t('p.volume');
@@ -192,12 +284,15 @@
   }
 
   /* Показ блоку для конкретного розміру або товару загалом */
-  function showEta(size) {
+  let etaProduct = null;   // для якого товару показано блок (складник комплекту)
+
+  function showEta(size, product) {
     if (!el.eta) return;
     etaFor = size || null;
+    etaProduct = product || current;
     const soldAll = currentAv.soldOut;
 
-    fetchEta(current.id).then((eta) => {
+    fetchEta(etaProduct.id).then((eta) => {
       if (!current) return;
       const iso = eta
         ? (size ? (eta.sizes || {})[size] || eta.any : eta.any)
@@ -212,7 +307,8 @@
         text = size ? R.t('eta.noDate') : R.t('eta.noDateAll');
       }
 
-      el.etaText.textContent = text;
+      // У комплекті одразу кажемо, якого саме складника чекати
+      el.etaText.textContent = (etaProduct !== current ? R.tf(etaProduct, 'name') + ': ' : '') + text;
       el.etaDone.hidden = true;
       el.etaForm.hidden = false;
       el.etaEmail.value = (R.fb && R.fb.user && R.fb.user.email) || el.etaEmail.value || '';
@@ -227,6 +323,7 @@
     if (!el.eta) return;
     el.eta.hidden = true;
     etaFor = null;
+    etaProduct = null;
   }
 
   /* Після рендера розмірів: товар повністю проданий — блок
@@ -245,9 +342,10 @@
       return;
     }
     try {
+      const target = etaProduct || current;
       await R.fb.db.collection('stock_alerts').add({
-        productId: current.id,
-        productName: R.tf(current, 'name'),
+        productId: target.id,
+        productName: R.tf(target, 'name'),
         size: etaFor || null,
         email: email,
         lang: R.lang ? R.lang() : 'uk',
@@ -398,19 +496,25 @@
     el.addCartLabel.textContent = soldOut ? R.t('p.soldOut') : R.t('p.addToCart');
 
     // Якщо товар уже в кошику — одразу показуємо лічильник
-    showInCart(!soldOut && R.cart.qtyOf(current.id, selectedSize) > 0);
+    showInCart(!soldOut && inCartQty() > 0);
+  }
+
+  /* Кількість саме цієї комбінації: для комплекту вона залежить
+     від обраних розмірів складників, а не від одного розміру */
+  function inCartQty() {
+    return R.cart.qtyOf(current.id, selectedSize, selectedParts);
   }
 
   /* Перемикання «Додати в кошик» ⇄ лічильник кількості */
   function showInCart(on) {
     el.addCart.hidden = on;
     el.inCart.hidden = !on;
-    if (on) el.qtyValue.textContent = R.cart.qtyOf(current.id, selectedSize);
+    if (on) el.qtyValue.textContent = inCartQty();
   }
 
   function changeQty(delta) {
-    const now = R.cart.qtyOf(current.id, selectedSize);
-    const next = R.cart.setQtyOf(current.id, selectedSize, now + delta);
+    const now = inCartQty();
+    const next = R.cart.setQtyOf(current.id, selectedSize, selectedParts, now + delta);
     if (next === 0) {
       showInCart(false);            // прибрали з кошика — знову «Додати»
       el.addCart.classList.remove('is-added');
@@ -603,6 +707,14 @@
         selectedSize = e.target.value;
         refreshStatus();
         refreshCta();   // кількість рахується для кожного розміру окремо
+        return;
+      }
+      // Складник комплекту: у кожного своя група радіо
+      const m = /^pm-part-(\d+)$/.exec(e.target.name || '');
+      if (m && selectedParts && selectedParts[Number(m[1])]) {
+        selectedParts[Number(m[1])].size = e.target.value;
+        refreshStatus();
+        refreshCta();
       }
     });
 
@@ -631,7 +743,10 @@
     el.sizes.addEventListener('click', (e) => {
       const pill = e.target.closest('.size-pill--out');
       if (!pill) return;
-      showEta(pill.dataset.size);
+      // У комплекті чекаємо не «комплект», а конкретний складник
+      const row = e.target.closest('[data-part]');
+      const part = row ? R.getProduct(row.dataset.part) : null;
+      showEta(pill.dataset.size, part);
       el.eta.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
 
@@ -652,14 +767,27 @@
       // Клік по зеленому «Додано» — це та сама покупка, а не ще одна.
       // CSS уже вимикає pointer-events, але клавіатура їх не питає.
       if (el.addCart.classList.contains('is-added')) return;
-      if (!current.volume && !selectedSize) {
-        R.toast(R.t('p.chooseSize'));
+      const shake = () => {
         el.sizes.classList.remove('shake');
         void el.sizes.offsetWidth; // перезапуск анімації
         el.sizes.classList.add('shake');
+      };
+
+      if (selectedParts) {
+        // Комплект збирається тільки повністю: не можна покласти
+        // в кошик половину, а другу «дообрати потім»
+        if (selectedParts.some((x) => x.size == null)) {
+          R.toast(R.t('p.chooseSetSizes'));
+          shake();
+          return;
+        }
+      } else if (!current.volume && !selectedSize) {
+        R.toast(R.t('p.chooseSize'));
+        shake();
         return;
       }
-      R.cart.add(current.id, selectedSize);
+
+      R.cart.add(current.id, selectedSize, selectedParts);
       confirmAdded();
     });
 
