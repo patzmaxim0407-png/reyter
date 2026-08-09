@@ -4007,3 +4007,31 @@ label.a-promo-product i {
 .ao-stockrow--set .ao-qty.is-calc.is-zero b {
   color: var(--c-red);
 }
+
+/* Роздільник категорії у списку «Всі товари» */
+.a-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--c-blue-ink);
+  margin: 1.4rem 0 0.2rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1.5px solid var(--c-line);
+}
+
+.a-group:first-child {
+  margin-top: 0;
+}
+
+.a-group span {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--c-blue);
+  background: rgba(1, 74, 173, 0.09);
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+}

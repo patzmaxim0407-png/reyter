@@ -283,40 +283,70 @@
       return;
     }
 
-    root.innerHTML = seedBanner + items
-      .map((p) => {
-        const tags = [];
-        if (p.status === 'sold-out') tags.push('<span class="a-item__tag a-item__tag--sold">Продано</span>');
-        if (p.sale) tags.push('<span class="a-item__tag a-item__tag--sale">Sale</span>');
-        if (p.hidden) tags.push('<span class="a-item__tag a-item__tag--hidden">Сховано</span>');
-        if (isSetProduct(p)) tags.push('<span class="a-item__tag a-item__tag--set">Комплект</span>');
-        return (
-          '<div class="a-item' + (p.hidden ? ' is-hidden-product' : '') + '" data-id="' + esc(p.id) + '">' +
-            '<img class="a-item__img" src="' + esc((p.images && p.images[0]) || '') + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
-            '<div>' +
-              '<div class="a-item__name">' + esc(p.name) + tags.join('') + '</div>' +
-              '<div class="a-item__meta">' + esc(p.id) + ' · ' +
-                prodCats(p).map(catTitle).join(' + ') + ' · ' + fmt(p.price) + ' грн' +
-                // у комплекту показуємо не розміри, а склад
-                (isSetProduct(p)
-                  ? ' · ' + p.set.map((id) => {
-                      const x = state.products.find((y) => y.id === id);
-                      return esc(x ? x.name : id + ' (немає)');
-                    }).join(' + ')
-                  : (p.sizes && p.sizes.length ? ' · ' + p.sizes.join(', ') : '')) +
-              '</div>' +
+    const itemHTML = (p) => {
+      const tags = [];
+      if (p.status === 'sold-out') tags.push('<span class="a-item__tag a-item__tag--sold">Продано</span>');
+      if (p.sale) tags.push('<span class="a-item__tag a-item__tag--sale">Sale</span>');
+      if (p.hidden) tags.push('<span class="a-item__tag a-item__tag--hidden">Сховано</span>');
+      if (isSetProduct(p)) tags.push('<span class="a-item__tag a-item__tag--set">Комплект</span>');
+      return (
+        '<div class="a-item' + (p.hidden ? ' is-hidden-product' : '') + '" data-id="' + esc(p.id) + '">' +
+          '<img class="a-item__img" src="' + esc((p.images && p.images[0]) || '') + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
+          '<div>' +
+            '<div class="a-item__name">' + esc(p.name) + tags.join('') + '</div>' +
+            '<div class="a-item__meta">' + esc(p.id) + ' · ' +
+              prodCats(p).map(catTitle).join(' + ') + ' · ' + fmt(p.price) + ' грн' +
+              // у комплекту показуємо не розміри, а склад
+              (isSetProduct(p)
+                ? ' · ' + p.set.map((id) => {
+                    const x = state.products.find((y) => y.id === id);
+                    return esc(x ? x.name : id + ' (немає)');
+                  }).join(' + ')
+                : (p.sizes && p.sizes.length ? ' · ' + p.sizes.join(', ') : '')) +
             '</div>' +
-            '<div class="a-item__actions">' +
-              '<button data-act="edit" title="Редагувати" aria-label="Редагувати товар">✎</button>' +
-              '<button data-act="dup" title="Дублювати" aria-label="Дублювати товар">⧉</button>' +
-              '<button data-act="toggle" title="' + (p.hidden ? 'Показати' : 'Сховати') +
-                '" aria-label="' + (p.hidden ? 'Показати товар на сайті' : 'Сховати товар із сайту') + '">' +
-                (p.hidden ? '🙈' : '👁') + '</button>' +
-              '<button data-act="del" class="danger" title="Видалити" aria-label="Видалити товар">✕</button>' +
-            '</div>' +
-          '</div>'
-        );
-      })
+          '</div>' +
+          '<div class="a-item__actions">' +
+            '<button data-act="edit" title="Редагувати" aria-label="Редагувати товар">✎</button>' +
+            '<button data-act="dup" title="Дублювати" aria-label="Дублювати товар">⧉</button>' +
+            '<button data-act="toggle" title="' + (p.hidden ? 'Показати' : 'Сховати') +
+              '" aria-label="' + (p.hidden ? 'Показати товар на сайті' : 'Сховати товар із сайту') + '">' +
+              (p.hidden ? '🙈' : '👁') + '</button>' +
+            '<button data-act="del" class="danger" title="Видалити" aria-label="Видалити товар">✕</button>' +
+          '</div>' +
+        '</div>'
+      );
+    };
+
+    /* «Всі товари» — довгий суцільний список, у якому легко
+       загубитися. Групуємо за головною категорією в тому ж
+       порядку, що й ліва колонка; товар із кількох категорій
+       показуємо один раз — там, де він числиться головним.
+       Категорію, якої вже немає, не ховаємо: інакше товар зник
+       би зі списку зовсім. */
+    if (currentCat !== 'all') {
+      root.innerHTML = seedBanner + items.map(itemHTML).join('');
+      return;
+    }
+
+    const groups = state.categories.map((c) => ({
+      id: c.id,
+      title: c.title,
+      list: items.filter((p) => p.category === c.id)
+    }));
+
+    const known = state.categories.map((c) => c.id);
+    const orphans = items.filter((p) => !known.includes(p.category));
+    if (orphans.length) {
+      groups.push({ id: '', title: 'Без категорії', list: orphans });
+    }
+
+    root.innerHTML = seedBanner + groups
+      .filter((g) => g.list.length)
+      .map((g) =>
+        '<h3 class="a-group">' + esc(g.title) +
+          '<span>' + g.list.length + '</span>' +
+        '</h3>' + g.list.map(itemHTML).join('')
+      )
       .join('');
   }
 
