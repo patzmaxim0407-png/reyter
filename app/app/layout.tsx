@@ -3,6 +3,7 @@ import '../styles/base.css';
 import '../styles/layout.css';
 import '../styles/components.css';
 import '../styles/modal.css';
+import '../styles/app.css';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import CartProvider from '@/components/CartProvider';

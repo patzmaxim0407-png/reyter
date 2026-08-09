@@ -180,6 +180,36 @@ ok('у повідомленні є коментар', msg.includes('💬 Под�
 const nums = new Set(Array.from({ length: 50 }, () => orderNumber(new Date())));
 ok('номери не повторюються', nums.size > 40, `унікальних: ${nums.size} з 50`);
 
+/* ---------- Знижка проти правил бази ----------
+   Правило звіряє знижку з `subtotal * value / 100`, порахованим
+   ЦІЛОЧИСЕЛЬНО. Якщо клієнт дасть хоч на гривню більше, увесь
+   запис буде відхилено — і замовлення просто не створиться. */
+
+const { promoCheck } = await import('../lib/promo.ts');
+
+function ruleAllows(subtotal: number, percent: number): number {
+  // те саме ділення, що в Firestore Rules: цілі числа, дріб відкидається
+  return Math.trunc((subtotal * percent) / 100);
+}
+
+let overRule = 0;
+let worst = '';
+for (const percent of [5, 7, 10, 15, 20, 33]) {
+  for (let sub = 101; sub <= 4000; sub += 7) {
+    const res = promoCheck(
+      { code: 'X', type: 'percent', value: percent, scope: 'all' },
+      [{ id: 'A', category: 'c', categories: ['c'], price: sub, qty: 1, sale: false }]
+    );
+    const mine = res.discount ?? 0;
+    if (mine > ruleAllows(sub, percent)) {
+      overRule++;
+      if (!worst) worst = `${percent}% від ${sub} грн: клієнт ${mine}, правило ${ruleAllows(sub, percent)}`;
+    }
+  }
+}
+ok('відсоткова знижка ніколи не більша за дозволену правилом', overRule === 0,
+   overRule ? `перевищень: ${overRule}, напр. ${worst}` : 'перевірено 3336 комбінацій');
+
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
 console.log('\n--- повідомлення в Telegram ---\n' + msg);
 process.exit(failed ? 1 : 0);

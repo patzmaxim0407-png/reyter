@@ -21,6 +21,7 @@ import {
   signInWithRedirect,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
   GoogleAuthProvider,
@@ -113,7 +114,20 @@ export async function loginEmail(email: string, pass: string) {
 export async function registerEmail(email: string, pass: string) {
   const a = auth();
   if (!a) throw new Error('offline');
-  return (await createUserWithEmailAndPassword(a, email, pass)).user;
+  const user = (await createUserWithEmailAndPassword(a, email, pass)).user;
+
+  /* Лист із підтвердженням обовʼязковий, хоч Firebase його й не
+     вимагає. Правила бази пускають до замовлень, оформлених до
+     реєстрації, і до персональних промокодів лише за
+     email_verified — без цього листа акаунт «пошта + пароль»
+     назавжди лишається непідтвердженим і не бачить нічого свого.
+     Вхід через Google підтверджує пошту сам. */
+  try {
+    await sendEmailVerification(user);
+  } catch {
+    /* лист не пішов — акаунт усе одно створено */
+  }
+  return user;
 }
 
 export async function resetPassword(email: string) {
@@ -277,6 +291,32 @@ export async function createOrder(
   }
 }
 
+/** Замовлення без власника, оформлені на цю пошту, робимо своїми.
+ *  Правила дозволяють змінити рівно поле uid і лише тому, чия
+ *  пошта збігається, — чуже замовлення так не забрати. Тихо:
+ *  покупцеві ця технічна деталь не потрібна.
+ *
+ *  Без цього замовлення лишається доступним тільки пошуком за
+ *  поштою, а він у правилах вимагає підтвердженої адреси. */
+function claimGuestOrders(orders: Record<string, unknown>[], uid: string, email: string) {
+  const d = db();
+  if (!d || !email) return;
+  orders
+    .filter((o) => !o.uid && o.email === email)
+    .slice(0, 20)
+    .forEach((o) => {
+      const id = String(o._id ?? '');
+      if (!id) return;
+      updateDoc(doc(d, 'orders', id), { uid })
+        .then(() => {
+          o.uid = uid;
+        })
+        .catch(() => {
+          /* лишиться пошуку за поштою */
+        });
+    });
+}
+
 /** Замовлення кабінету: шукаємо і за uid, і за поштою. Другий
  *  запит потрібен, бо покупець міг оформити замовлення гостем,
  *  а зареєструватися пізніше — такі замовлення uid не мають. */
@@ -302,9 +342,11 @@ export async function loadMyOrders(uid: string, email: string) {
   await Promise.all(jobs);
   if (failed === jobs.length) return null;
 
-  return [...byId.values()].sort((a, b) =>
+  const list = [...byId.values()].sort((a, b) =>
     String(b.date ?? '').localeCompare(String(a.date ?? ''))
   );
+  claimGuestOrders(list, uid, email);
+  return list;
 }
 
 /** Публічні налаштування сповіщень: адреса воркера. Секретів

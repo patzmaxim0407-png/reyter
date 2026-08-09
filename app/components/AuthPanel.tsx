@@ -15,6 +15,7 @@ export default function AuthPanel({ note = true }: { note?: boolean }) {
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [busy, setBusy] = useState(false);
+  const [sentVerify, setSentVerify] = useState(false);
   const toast = useToast();
 
   const isLogin = mode === 'login';
@@ -26,9 +27,17 @@ export default function AuthPanel({ note = true }: { note?: boolean }) {
     }
     setBusy(true);
     try {
-      if (isLogin) await fb.loginEmail(email.trim(), pass);
-      else await fb.registerEmail(email.trim(), pass);
-      toast(isLogin ? t('acc.welcome') : t('acc.created'), 'success');
+      if (isLogin) {
+        await fb.loginEmail(email.trim(), pass);
+        toast(t('acc.welcome'), 'success');
+      } else {
+        await fb.registerEmail(email.trim(), pass);
+        toast(t('acc.created'), 'success');
+        /* Без підтвердженої пошти правила бази не покажуть ні
+           гостьових замовлень, ні персональних знижок — і людина
+           не здогадається, чому кабінет порожній */
+        setSentVerify(true);
+      }
     } catch (err) {
       toast(fb.authError(err));
     } finally {
@@ -66,6 +75,7 @@ export default function AuthPanel({ note = true }: { note?: boolean }) {
   return (
     <>
       {note ? <p className="account-note">{t('acc.authNote')}</p> : null}
+      {sentVerify ? <p className="account-note account-note--warn">{t('acc.verify')}</p> : null}
 
       <button className="btn btn--ghost auth-google" type="button" disabled={busy} onClick={google}>
         <svg width="18" height="18" viewBox="0 0 48 48">
