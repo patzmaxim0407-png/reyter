@@ -68,7 +68,11 @@
         R.stock = inv;
         if (!sameStock) changed = true;
       }
-      if (changed) R.refreshCatalog();
+      if (changed) {
+        R.refreshCatalog();
+        // свіжий каталог міг прибрати позиції з кошика
+        if (R.refreshCartBadge) R.refreshCartBadge();
+      }
 
       // Є запланована публікація — вмикаємо її точно в час,
       // навіть якщо вкладку відкрили заздалегідь

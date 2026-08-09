@@ -565,12 +565,25 @@
   function repeatOrder(order) {
     let added = 0;
     (order.items || []).forEach((i) => {
-      if (R.getProduct(i.id)) {
-        // Комплект повторюємо з тими самими розмірами складників
-        const parts = (i.parts || []).map((x) => ({ id: x.id, size: x.size || null }));
-        for (let n = 0; n < i.qty; n++) R.cart.add(i.id, i.size, parts);
-        added++;
+      const p = R.getProduct(i.id);
+      if (!p) return;
+
+      const parts = (i.parts || []).map((x) => ({ id: x.id, size: x.size || null }));
+
+      /* Комплект повторюємо з тими самими розмірами складників.
+         Якщо склад комплекту з того часу змінили, така позиція
+         в кошику не втримається — краще чесно її пропустити,
+         ніж відрапортувати успіх і відкрити порожній кошик. */
+      if (R.isSet(p)) {
+        const want = R.setParts(p).map((x) => x.id).sort().join(',');
+        const have = parts.map((x) => x.id).sort().join(',');
+        if (!want || want !== have) return;
+      } else if (parts.length) {
+        return;   // товар більше не комплект
       }
+
+      for (let n = 0; n < i.qty; n++) R.cart.add(i.id, i.size, parts);
+      added++;
     });
     if (!added) {
       R.toast(R.t('acc.gone'));

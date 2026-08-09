@@ -2295,3 +2295,13 @@
   color: var(--c-ink);
   font-weight: 600;
 }
+
+/* Склад комплекту в зведенні на екрані оформлення */
+.checkout-parts {
+  display: block;
+  font-style: normal;
+  font-size: 0.74rem;
+  color: var(--c-muted);
+  line-height: 1.4;
+  margin-top: 0.15rem;
+}

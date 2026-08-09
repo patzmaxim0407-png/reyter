@@ -689,6 +689,14 @@
     return !!(p && Array.isArray(p.set) && p.set.length);
   }
 
+  /* Товар входить у чийсь комплект — його не можна ні видалити,
+     ні перетворити на комплект, не поламавши той, інший.
+     Живе саме тут: state з каталогом є лише в цьому модулі. */
+  function setsWith(pid) {
+    return state.products.filter((x) =>
+      Array.isArray(x.set) && x.set.includes(pid));
+  }
+
   function setChipHTML(p) {
     if (!p) return '';
     return (
@@ -1362,8 +1370,12 @@
     /* Комплект без складників на сайті виглядав би як товар без
        розмірів — краще не дати зберегти, ніж отримати таке в каталозі */
     if ($('fIsSet').checked) {
+      const rows = document.querySelectorAll('#fSetList .a-setitem[data-pid]:not([data-pid=""])').length;
       if (!p.set || p.set.length < 2) {
         return toast('У комплекті має бути щонайменше два товари');
+      }
+      if (rows > p.set.length) {
+        return toast('Один і той самий товар доданий у комплект двічі');
       }
       const bad = p.set.filter((id) => {
         const x = state.products.find((y) => y.id === id);
@@ -2560,6 +2572,17 @@
       need[key].qty += Number(item.qty) || 0;
     });
 
+    /* Товар міг стати комплектом уже після замовлення: розмірів
+       складників у такій позиції немає, і списати їх нема з чого */
+    (order.items || []).forEach((item) => {
+      if (item.parts && item.parts.length) return;
+      const p = productById(item.id);
+      if (p && isSetOf(p)) {
+        short.push(item.name + ': товар став комплектом після замовлення — ' +
+          'складники доведеться списати вручну');
+      }
+    });
+
     Object.keys(need).forEach((key) => {
       const it = need[key];
       const have = it.size ? sizeQty(it.id, it.size) : unitQty(it.id);
@@ -3406,12 +3429,6 @@
       .filter((x) => x && !(Array.isArray(x.set) && x.set.length));
   }
 
-  /* Товар входить у чийсь комплект — його не можна ні видалити,
-     ні перетворити на комплект, не поламавши той, інший */
-  function setsWith(pid) {
-    return state.products.filter((x) =>
-      Array.isArray(x.set) && x.set.includes(pid));
-  }
 
   function isSetOf(p) {
     return setPartsOf(p).length > 0;
@@ -3539,7 +3556,32 @@
     return Math.max(0, noItemsTotal() - discount + shipping);
   }
 
+  /* Склад комплекту міг змінитися після створення замовлення.
+     Приводимо рядок до поточного складу: збережені розміри
+     лишаємо, для нових складників беремо перший доступний.
+     Без цього форма показує розмір, а перевірка каже «оберіть
+     розмір» — бо в даних рядка цього складника немає. */
+  function normalizeSetRows() {
+    noRows.forEach((row) => {
+      const p = productById(row.pid);
+      const parts = setPartsOf(p);
+      if (!parts.length) {
+        if (row.parts) row.parts = null;
+        return;
+      }
+      const was = row.parts || [];
+      row.parts = parts.map((part) => {
+        const old = was.find((x) => x.id === part.id);
+        const sizes = isSized(part) ? availableSizes(part) : [part.volume || ''];
+        const keep = old && old.size && sizes.includes(old.size) ? old.size : '';
+        return { id: part.id, size: keep || sizes[0] || '' };
+      });
+      row.size = '';
+    });
+  }
+
   function renderNoItems() {
+    normalizeSetRows();
     $id('noItems').innerHTML = noRows.length
       ? noRows.map(noRowHTML).join('')
       : '<div class="a-empty">Додайте хоча б одну позицію.</div>';
@@ -4637,32 +4679,49 @@
      саме вийшло число, — інакше «3 шт» виглядають як магія. */
   function setStockRowHTML(p) {
     const parts = setPartsOf(p);
-    const sizes = R.config.allSizes.filter((sz) =>
-      parts.some((x) => isSized(x)) &&
-      parts.every((x) => !isSized(x) || stockSizes(x).some((it) => it.size === sz)));
+    const tracked = parts.length && parts.every((x) => hasInvDoc(x.id));
+    const sized = parts.some(isSized);
 
-    const cells = (sizes.length ? sizes : ['—']).map((sz) => {
-      const n = sz === '—' ? null : setSizeQty(p, sz);
-      const text = n === null ? '—' : String(n);
-      return '<label class="ao-qty is-calc' + (n !== null && n <= 0 ? ' is-zero' : '') + '" ' +
+    /* Скільки комплектів можна зібрати взагалі — обмежує
+       найдефіцитніший складник за всіма своїми розмірами.
+       Саме це число, а не сума по розмірах: складник без сітки
+       (свічка) інакше порахувався б у кожному розмірі окремо. */
+    const total = tracked
+      ? parts.reduce((min, x) => Math.min(min, totalQty(x)), Infinity)
+      : null;
+
+    const num = (n) => (n === null ? '—' : String(n));
+
+    let cells;
+    if (!sized) {
+      cells = '<label class="ao-qty is-calc' + (total !== null && total <= 0 ? ' is-zero' : '') + '" ' +
         'title="Рахується за складниками комплекту">' +
-        '<span>' + esc(sz) + '</span><b>' + text + '</b></label>';
-    }).join('');
+        '<span>шт</span><b>' + num(total) + '</b></label>';
+    } else {
+      const sizes = R.config.allSizes.filter((sz) =>
+        parts.every((x) => !isSized(x) || stockSizes(x).some((it) => it.size === sz)));
+      cells = (sizes.length ? sizes : ['—']).map((sz) => {
+        const n = sz === '—' ? null : setSizeQty(p, sz);
+        return '<label class="ao-qty is-calc' + (n !== null && n <= 0 ? ' is-zero' : '') + '" ' +
+          'title="Скільки комплектів цього розміру можна зібрати">' +
+          '<span>' + esc(sz) + '</span><b>' + num(n) + '</b></label>';
+      }).join('');
+    }
 
-    const total = sizes.reduce((n, sz) => n + (setSizeQty(p, sz) || 0), 0);
+    const state = productRowState(p);
 
     return (
-      '<div class="ao-stockrow ao-stockrow--set ' +
-        (total > 0 ? 'is-ok' : 'is-out') + '">' +
+      '<div class="ao-stockrow ao-stockrow--set ' + state.cls + '">' +
         '<img src="' + esc((p.images && p.images[0]) || '') + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
         '<div class="ao-stockrow__info">' +
           '<b>' + esc(p.name) + ' <i class="ao-tag">комплект</i>' +
             (p.hidden ? ' <i class="ao-tag">сховано з сайту</i>' : '') + '</b>' +
           '<span>' + esc(p.id) + ' · ' + fmt(p.price) + ' грн · ' +
-            parts.map((x) => esc(x.name)).join(' + ') + '</span>' +
+            parts.map((x) => esc(x.name)).join(' + ') +
+            ' · <em class="ao-state">' + state.label + '</em></span>' +
         '</div>' +
         '<div class="ao-stockrow__qty">' + cells + '</div>' +
-        '<div class="ao-stockrow__total"><b>' + fmt(total) + '</b><span>шт</span></div>' +
+        '<div class="ao-stockrow__total"><b>' + num(total) + '</b><span>шт</span></div>' +
       '</div>'
     );
   }

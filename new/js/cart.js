@@ -190,6 +190,13 @@
 
   /* ---------- Лічильник у шапці ---------- */
 
+  /* Каталог приходить із бази вже після першого рендеру, і разом
+     із ним можуть відпасти позиції (зниклий товар, змінений склад
+     комплекту). Лічильник у шапці має це побачити. */
+  R.refreshCartBadge = function () {
+    updateBadge();
+  };
+
   function updateBadge() {
     const badge = document.getElementById('cartCount');
     if (!badge) return;
@@ -609,7 +616,15 @@
     const summary = items
       .map((i) => {
         const p = R.getProduct(i.id);
+        // склад комплекту: дві різні комбінації інакше виглядають
+        // однаковими рядками, і покупець підтверджує наосліп
+        const parts = (i.parts || [])
+          .map((x) => {
+            const sp = R.getProduct(x.id);
+            return (sp ? R.tf(sp, 'name') : x.id) + (x.size ? ' · ' + R.tx(x.size) : '');
+          });
         return '<div><span>' + R.esc(R.tf(p, 'name')) + (i.size ? ' (' + R.esc(R.tx(i.size)) + ')' : '') + ' × ' + i.qty +
+               (parts.length ? '<em class="checkout-parts">' + R.esc(parts.join(' · ')) + '</em>' : '') +
                '</span><span>' + R.uah(p.price * i.qty) + '</span></div>';
       })
       .join('');
