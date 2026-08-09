@@ -26,7 +26,10 @@ export async function onRequest(context) {
   let target = null;
 
   if (path === '/' || path === '') {
-    target = '/new/admin.html';
+    /* Без .html: Pages сам нормалізує розширення й віддає 308 на
+       «чистий» шлях. Той редирект долітає до браузера і міняє
+       адресу на /new/admin — саме тому ціль одразу без .html. */
+    target = '/new/admin';
   } else if (path.startsWith('/css/') || path.startsWith('/js/')) {
     // Стилі й скрипти адмінки лежать у папці сайту
     target = '/new' + path;
