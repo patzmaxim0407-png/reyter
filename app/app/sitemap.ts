@@ -8,7 +8,10 @@ export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const { products, categories } = await loadCatalog();
-  const base = 'https://reyter.men';
+  /* Магазин живе на шляху /new, поки в корені попередній сайт.
+     У карті мають бути справжні адреси, інакше пошуковик піде
+     на сторінки, яких там немає. */
+  const base = 'https://reyter.men/new';
 
   /* Обидві мови — це різні сторінки з різними адресами, і кожна
      має бути в карті. alternates каже пошуковику, що це та сама

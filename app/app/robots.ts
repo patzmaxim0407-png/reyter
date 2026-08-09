@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
       // але хай і за старою адресою не потрапляє в індекс
       disallow: ['/admin']
     },
-    sitemap: 'https://reyter.men/sitemap.xml'
+    sitemap: 'https://reyter.men/new/sitemap.xml'
   };
 }

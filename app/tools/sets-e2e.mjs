@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
    під'єднується до Chrome попереднього запуску — з його кошиком
    у localStorage, і тести «падають» на чужих даних. */
 const PROFILE = '/tmp/reyter-test-' + process.pid + '-' + Date.now();
-const BASE = process.argv[2] || 'http://localhost:3000';
+const BASE = (process.argv[2] || 'http://localhost:3000').replace(/\/+$/, '');
 const chrome=spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
  ['--headless=new','--remote-debugging-port=0','--user-data-dir=' + PROFILE,'--no-first-run','about:blank']);
 await wait(2500);

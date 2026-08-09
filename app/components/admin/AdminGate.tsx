@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { User } from 'firebase/auth';
 import * as fb from '@/lib/firebase';
 import { gateMessage, isAdminUser, type GateState } from '@/lib/admin/access';
+import { SHOP_URL } from './AdminBar';
 
 /* Екран входу в адмінку. Розмітка й класи ті самі, що в
    admin.html, тож admin.css підходить без правок.
@@ -71,7 +72,7 @@ export default function AdminGate({ children }: { children: ReactNode }) {
           </button>
         ) : null}
 
-        <a className="a-gate-screen__back" href="/">
+        <a className="a-gate-screen__back" href={SHOP_URL}>
           ← Повернутися на сайт
         </a>
       </div>

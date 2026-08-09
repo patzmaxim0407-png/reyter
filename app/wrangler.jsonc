@@ -17,7 +17,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "reyter-site",
-  "main": ".open-next/worker.js",
+  // власний вхід: він переписує шлях для admin.* ще до Next
+  "main": "worker-entry.ts",
   "compatibility_date": "2026-08-01",
   // nodejs_compat потрібен самому Next; global_fetch_strictly_public
   // забороняє воркеру ходити сам у себе в обхід мережі
@@ -26,6 +27,16 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  /* Маршрути.
+     У корені reyter.men лишається попередній сайт — його роздає
+     проєкт Pages. Воркер бере лише /new* і весь адмінський домен.
+     Маршрут за шляхом має перевагу над кастомним доменом Pages,
+     тож обидва живуть на одному хості. */
+  "routes": [
+    { "pattern": "reyter.men/new*", "zone_name": "reyter.men" },
+    { "pattern": "www.reyter.men/new*", "zone_name": "reyter.men" },
+    { "pattern": "admin.reyter.men", "custom_domain": true }
+  ],
   "observability": {
     "enabled": true
   }

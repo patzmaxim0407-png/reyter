@@ -13,6 +13,9 @@ import * as fb from '@/lib/firebase';
    справжні адреси: кожен розділ можна відкрити в новій вкладці,
    а «назад» працює. */
 
+/** Магазин живе на шляху /new, поки в корені попередній сайт. */
+export const SHOP_URL = 'https://reyter.men/new';
+
 const TABS = [
   { href: '/admin', title: 'Каталог' },
   { href: '/admin/orders', title: 'Замовлення' },
@@ -72,7 +75,9 @@ export default function AdminBar({
 
         <div className="abar__drop" hidden={!open}>
           <span className="abar__user">{user.email}</span>
-          <a className="btn btn--ghost btn--sm" href="/" target="_blank" rel="noopener">
+          {/* Абсолютне посилання: на адмінському домені корінь —
+              це сама адмінка, і відносне вело б у нікуди */}
+          <a className="btn btn--ghost btn--sm" href={SHOP_URL} target="_blank" rel="noopener">
             Сайт
           </a>
           {onSettings ? (

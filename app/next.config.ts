@@ -24,6 +24,10 @@ const firebaseBrowserBuilds = {
 };
 
 const nextConfig: NextConfig = {
+  /* Магазин живе на шляху /new: у корені reyter.men лишається
+     попередній сайт, і поки він там, новий не може займати
+     кореневі адреси — інакше вони зіткнулися б. */
+  basePath: '/new',
   turbopack: {
     resolveAlias: firebaseBrowserBuilds
   }

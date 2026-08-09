@@ -12,11 +12,15 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { readFileSync } from 'node:fs';
 
 const PROFILE = '/tmp/reyter-test-' + process.pid + '-' + Date.now();
-const BASE = process.argv[2] || 'http://localhost:3000';
+/* Перший аргумент — КОРІНЬ адмінки. На бойових це
+   https://admin.reyter.men, локально — http://localhost:8787/new/admin:
+   адмінка живе там, куди її кладе домен, і тест не має цього
+   вгадувати. */
+const BASE = (process.argv[2] || 'http://localhost:3000/admin').replace(/\/+$/, '');
 /* Магазин може жити на іншому домені: на бойових адмінка стоїть
    на admin.reyter.men, і корінь там — теж адмінка. Без окремої
    адреси перевірка «магазин цілий» падала б на порожньому місці. */
-const SHOP = process.argv[3] || BASE;
+const SHOP = (process.argv[3] || BASE).replace(/\/+$/, '');
 
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
   '--headless=new',
@@ -80,7 +84,7 @@ const go = async (url) => {
 
 /* ---------- Гейт ---------- */
 
-await go(BASE + '/admin');
+await go(BASE + '/');
 ok('адмінка відкривається', await ev('!!document.querySelector(".a-gate-screen")'));
 ok(
   'гостю показано вхід, а не каталог',
@@ -91,13 +95,13 @@ ok('є кнопка входу', await ev(`!!document.body.textContent.includes(
 
 /* Найважливіше: у розмітці, яку віддає сервер, не має бути
    нічого з чернетки — ні товарів, ні категорій */
-const html = await (await fetch(BASE + '/admin')).text();
+const html = await (await fetch(BASE + '/')).text();
 ok('сервер не віддає вміст каталогу', !/catalog_products|a-item__name|productList/.test(html));
 ok('адмінка закрита від пошуковиків', /noindex/.test(html), (html.match(/noindex[^"]*/) || [''])[0]);
 
 /* Кожен розділ так само закритий: гість не має побачити ні
    замовлень, ні залишків, ні промокодів */
-for (const path of ['/admin/orders', '/admin/stock', '/admin/promos']) {
+for (const path of ['/orders', '/stock', '/promos']) {
   await go(BASE + path);
   ok(`${path} — гостю показано вхід`,
      (await ev('!!document.querySelector(".a-gate-screen")')) &&
@@ -108,7 +112,7 @@ for (const path of ['/admin/orders', '/admin/stock', '/admin/promos']) {
      !/ao-card|ao-stockrow|a-promo__code|"orders"/.test(body));
 }
 
-await go(BASE + '/admin');
+await go(BASE + '/');
 
 /* ---------- Стилі адмінки підключені ---------- */
 

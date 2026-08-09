@@ -9,7 +9,11 @@ import { readFileSync } from 'node:fs';
    у localStorage, і тести «падають» на чужих даних. */
 const PROFILE = '/tmp/reyter-test-' + process.pid + '-' + Date.now();
 
-const BASE = process.argv[2] || 'http://localhost:3000';
+const BASE = (process.argv[2] || 'http://localhost:3000').replace(/\/+$/, '');
+/* Магазин може стояти не в корені (зараз це /new), тож усі
+   очікування шляхів рахуються від нього, а не від '/'. */
+const PREFIX = new URL(BASE).pathname.replace(/\/+$/, '');
+const at = (path) => PREFIX + path;
 const CHROME =
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
@@ -98,12 +102,12 @@ const setId = await evalJs(`(async () => {
 
 /* Беремо перший товар з каталогу */
 const firstHref = await evalJs(
-  'document.querySelector(".pgrid a[href^=\\"/p/\\"]")?.getAttribute("href")'
+  'document.querySelector(".pgrid a[href*=\\"/p/\\"]")?.getAttribute("href")'
 );
 ok('картка веде на власну сторінку', !!firstHref, firstHref || '');
 
 /* --- 3. Сторінка товару: додаємо в кошик --- */
-await go(BASE + firstHref);
+await go(new URL(firstHref, BASE).href);
 ok('є блок розмірів або кнопка', await evalJs('!!document.querySelector(".btn--order")'));
 
 const sizeInfo = await evalJs(`(() => {
@@ -139,7 +143,7 @@ const drawer = await evalJs(`(() => {
     name: document.querySelector('.cart-item__name')?.textContent || '',
     meta: document.querySelector('.cart-item__meta')?.textContent || '',
     total: document.querySelector('.cart-total__sum')?.textContent || '',
-    checkout: document.querySelector('.drawer__foot a[href="/checkout"]') ? true : false
+    checkout: !!document.querySelector('.drawer__foot a[href$="/checkout"]')
   };
 })()`);
 ok('панель відкрилась', drawer.open);
@@ -315,7 +319,7 @@ ok('українська активна',
 await evalJs(`[...document.querySelectorAll('.lang-btn')].find(x => x.textContent === 'EN')?.click()`);
 await wait(1500);
 ok('перемикач веде на /en',
-   (await evalJs('location.pathname')) === '/en', await evalJs('location.pathname'));
+   (await evalJs('location.pathname')) === at('/en'), await evalJs('location.pathname'));
 ok('заголовок англійською',
    /Character/.test(await evalJs('document.querySelector(".hero__title")?.textContent || ""')),
    await evalJs('document.querySelector(".hero__title")?.textContent || ""'));
@@ -325,14 +329,14 @@ ok('ціни у форматі UAH',
 
 /* Товар відкривається в тій самій мові */
 const enHref = await evalJs('document.querySelector(".pgrid a[href]")?.getAttribute("href")');
-ok('картка веде в межах мови', String(enHref).startsWith('/en/p/'), String(enHref));
+ok('картка веде в межах мови', String(enHref).startsWith(at('/en/p/')), String(enHref));
 
-await go(BASE + enHref);
+await go(new URL(enHref, BASE).href);
 ok('сторінка товару англійською',
    /SKU|Size|Add to cart/i.test(await evalJs('document.body.textContent')),
    (await evalJs('document.body.textContent')).slice(0, 0) || '');
 ok('назад на українську веде на /p/',
-   (await evalJs(`[...document.querySelectorAll('.lang-btn')].find(x => x.textContent === 'UA')?.getAttribute('href')`))?.startsWith('/p/'),
+   (await evalJs(`[...document.querySelectorAll('.lang-btn')].find(x => x.textContent === 'UA')?.getAttribute('href')`))?.startsWith(at('/p/')),
    await evalJs(`[...document.querySelectorAll('.lang-btn')].find(x => x.textContent === 'UA')?.getAttribute('href')`));
 
 console.log('\nПомилки в консолі: ' + (errors.length ? '\n' + errors.join('\n') : 'немає'));

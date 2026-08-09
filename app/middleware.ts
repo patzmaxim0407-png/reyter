@@ -3,42 +3,26 @@ import { NextResponse, type NextRequest } from 'next/server';
 /* ============================================================
    REYTER — маршрутизація за доменом
    ------------------------------------------------------------
-   Один застосунок на два домени:
+   Адмінка має власний домен, і на магазинному їй робити нічого:
+   ведемо туди, де в неї свій вхід.
 
-     reyter.men        → магазин
-     admin.reyter.men  → адмінка з кореня
-
-   Це переписування, а не перенаправлення: адреса в браузері
-   лишається adminʼською. Перенаправлення показувало б покупцеві
-   /admin у рядку, а закладки на адмінку — стрибали б.
-
-   Зворотне теж потрібне: на адмінському домені сторінкам магазину
-   робити нічого, і навпаки — /admin на reyter.men краще віддати
-   адмінському домену, ніж тримати дві адреси на одне.
+   Саме переписування шляху для admin.* робить не цей файл, а
+   worker-entry.ts: застосунок зібраний із basePath, а Next
+   відкидає все, що не починається з нього, ДО middleware.
    ============================================================ */
-
-function isAdminHost(host: string): boolean {
-  return host.startsWith('admin.');
-}
 
 export function middleware(req: NextRequest) {
   const host = req.headers.get('host') ?? '';
   const { pathname } = req.nextUrl;
 
-  if (isAdminHost(host)) {
-    // усе, що не адмінка, на цьому домені — теж адмінка
-    if (pathname === '/' || !pathname.startsWith('/admin')) {
-      const url = req.nextUrl.clone();
-      url.pathname = '/admin' + (pathname === '/' ? '' : pathname);
-      return NextResponse.rewrite(url);
-    }
-    return NextResponse.next();
-  }
+  // на адмінському домені все вже переписано входом воркера
+  if (host.startsWith('admin.')) return NextResponse.next();
 
-  /* На магазинному домені адмінку не ховаємо зовсім — лише
-     ведемо на її власний домен: там свій вхід і свої правила
-     кешування. Якщо піддомену немає (локально), лишаємо як є. */
-  if (pathname.startsWith('/admin') && host.includes('.') && !host.startsWith('localhost')) {
+  /* Локально піддомену немає — там адмінка лишається на
+     тому самому хості, інакше перевіряти її було б ніде. */
+  const canRedirect = host.includes('.') && !host.startsWith('localhost');
+
+  if (pathname.startsWith('/admin') && canRedirect) {
     const url = req.nextUrl.clone();
     url.host = 'admin.' + host.replace(/^www\./, '');
     url.pathname = pathname.replace(/^\/admin/, '') || '/';

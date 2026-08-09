@@ -12,7 +12,7 @@ import Toasts from '@/components/Toasts';
    зайві дані. */
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://reyter.men'),
+  metadataBase: new URL('https://reyter.men/new'),
   title: {
     default: 'REYTER — Чоловіча білизна українського бренду',
     template: '%s — REYTER'
