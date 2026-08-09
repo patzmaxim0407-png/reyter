@@ -252,6 +252,15 @@
       return;
     }
 
+    const PHOTO_MS = 5000;   // скільки тримаємо фотокадр
+    const slow = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const video = strip.querySelector('video[data-src]');
+
+    let timer = null;
+    let held = false;      // палець або курсор на банері
+    let onScreen = true;   // банер у полі зору
+    let videoOk = true;    // відео справді грає (не заборонено браузером)
+
     /* ---- крапки ---- */
     const dots = slides.map((_, i) => {
       const d = document.createElement('button');
@@ -264,6 +273,8 @@
       return d;
     });
 
+    // Прокрутка циклічна, тож стрілки не вимикаються ніколи:
+    // з останнього кадру «далі» веде на перший
     navs.forEach((b) => {
       b.hidden = false;
       b.addEventListener('click', () => goTo(current() + Number(b.dataset.fcNav)));
@@ -274,7 +285,7 @@
     }
 
     function goTo(i) {
-      const n = Math.max(0, Math.min(slides.length - 1, i));
+      const n = (i % slides.length + slides.length) % slides.length;
       strip.scrollTo({ left: n * strip.clientWidth, behavior: 'smooth' });
     }
 
@@ -284,18 +295,71 @@
         d.classList.toggle('is-on', i === n);
         d.setAttribute('aria-selected', i === n ? 'true' : 'false');
       });
-      navs.forEach((b) => {
-        b.disabled = Number(b.dataset.fcNav) < 0 ? n === 0 : n === slides.length - 1;
-      });
     }
+
+    /* ---- автоматична прокрутка ----
+       Фото тримаємо 5 секунд, відео — рівно доти, доки не догралось
+       (далі рушає слухач ended). Якщо браузер заборонив автогру —
+       відео не має підвісити карусель, тож ставимо звичайний
+       таймер і на нього. */
+
+    function stopTimer() {
+      clearTimeout(timer);
+      timer = null;
+    }
+
+    function plan() {
+      stopTimer();
+      if (slow || held || !onScreen) return;
+
+      const v = slides[current()].querySelector('video');
+
+      if (v && videoOk && !v.ended) {
+        // Далі рушає слухач ended. Довгий запобіжник — на випадок,
+        // коли відео так і не догралось через повільну мережу:
+        // банер не має застигнути на ньому назавжди
+        timer = setTimeout(() => goTo(current() + 1), 20000);
+        return;
+      }
+
+      // Кадр, що вже догрався (наприклад, поки курсор тримав паузу),
+      // не тримаємо ще пʼять секунд
+      timer = setTimeout(() => goTo(current() + 1), v && v.ended ? 700 : PHOTO_MS);
+    }
+
+    if (video) {
+      video.addEventListener('ended', () => {
+        if (!slow && !held && onScreen) goTo(current() + 1);
+      });
+      // Кожен показ — з початку: інакше кадр підхоплюється там,
+      // де його зупинили, і банер виглядає зламаним
+      video.addEventListener('play', () => { videoOk = true; plan(); });
+    }
+
+    /* ---- пауза, поки людина дивиться сама ---- */
+
+    const hold = () => { held = true; stopTimer(); };
+    const release = () => { held = false; plan(); };
+
+    strip.addEventListener('pointerenter', hold);
+    strip.addEventListener('pointerleave', release);
+    strip.addEventListener('touchstart', hold, { passive: true });
+    strip.addEventListener('touchend', release, { passive: true });
+    strip.addEventListener('focusin', hold);
+    strip.addEventListener('focusout', release);
 
     // Раз на кадр анімації: слухач скролу без throttle помітно
     // смикає банер на слабких машинах
     let ticking = false;
+    let settle = null;
     strip.addEventListener('scroll', () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => { ticking = false; sync(); });
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(() => { ticking = false; sync(); });
+      }
+      // прокрутка вщухла — плануємо наступний кадр від нової позиції
+      clearTimeout(settle);
+      settle = setTimeout(plan, 160);
     }, { passive: true });
 
     strip.addEventListener('keydown', (e) => {
@@ -303,19 +367,36 @@
       if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(current() - 1); }
     });
 
+    // Банер поїхав із екрана — карусель і відео зупиняються:
+    // крутити те, чого не видно, немає сенсу
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          onScreen = entry.isIntersecting;
+          if (onScreen) plan();
+          else stopTimer();
+        });
+      }, { threshold: 0 }).observe(strip);
+    }
+
     sync();
-    initFclubVideo(strip);
+    initFclubVideo(strip, {
+      slow: slow,
+      onBlocked: () => { videoOk = false; plan(); },
+      onScreen: () => onScreen
+    });
+    plan();
   }
 
   /* Відео: джерело підставляємо за шириною екрана, вмикаємо, коли
      кадр видно, і зупиняємо, щойно він поїхав — фонове відео за
      межами екрана даремно гріє процесор */
-  function initFclubVideo(strip) {
+  function initFclubVideo(strip, opts) {
     const video = strip.querySelector('video[data-src]');
     if (!video) return;
 
-    const slow = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (slow) video.controls = true;
+    const playBtn = strip.querySelector('[data-fc-play]');
+    if (opts.slow && playBtn) playBtn.hidden = false;
 
     let loaded = false;
     function load() {
@@ -325,35 +406,54 @@
       video.src = (small && video.dataset.srcSm) || video.dataset.src;
     }
 
+    /* Автогру блокують у режимі енергозбереження та за деяких
+       налаштувань браузера. Тоді показуємо кнопку відтворення —
+       мовчазний нерухомий постер виглядав би як поламане відео. */
+    function start() {
+      if (opts.slow) return;
+      load();
+      video.currentTime = 0;
+      const p = video.play();
+      if (p && p.catch) {
+        p.then(() => { if (playBtn) playBtn.hidden = true; })
+         .catch(() => {
+           if (playBtn) playBtn.hidden = false;
+           opts.onBlocked();
+         });
+      }
+    }
+
+    if (playBtn) {
+      playBtn.addEventListener('click', () => {
+        load();
+        video.play().then(() => { playBtn.hidden = true; }).catch(() => {});
+      });
+    }
+
     if (!('IntersectionObserver' in window)) { load(); return; }
 
     // root — сама стрічка: так ловимо саме горизонтальний виїзд
     // слайда, а не вертикальне положення банера на сторінці
-    const io = new IntersectionObserver((entries) => {
+    new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.intersectionRatio > 0.6) {
-          load();
-          if (!slow) video.play().catch(() => { /* автогра заборонена */ });
+          if (opts.onScreen()) start();
         } else if (!video.paused) {
           video.pause();
         }
       });
-    }, { root: strip, threshold: [0, 0.6] });
-
-    io.observe(video);
+    }, { root: strip, threshold: [0, 0.6] }).observe(video);
 
     // Банер поїхав із екрана по вертикалі — відео теж на паузу
-    const pageIo = new IntersectionObserver((entries) => {
+    new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
-        if (!entry.isIntersecting && !video.paused) video.pause();
-        else if (entry.isIntersecting && loaded && !slow &&
-                 video.paused && strip.scrollLeft > strip.clientWidth * 0.6) {
-          video.play().catch(() => {});
+        if (!entry.isIntersecting) {
+          if (!video.paused) video.pause();
+        } else if (loaded && strip.scrollLeft > strip.clientWidth * 0.6) {
+          start();
         }
       });
-    }, { threshold: 0 });
-
-    pageIo.observe(strip);
+    }, { threshold: 0 }).observe(strip);
   }
 
   /* ---------- Зум зображень (розмірна сітка тощо) ---------- */
