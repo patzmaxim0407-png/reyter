@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import ColorPicker from './ColorPicker';
 import { ALL_SIZES } from '@/lib/catalog';
 import {
   adminColors,
   lines,
   normalizeHex,
   packColors,
+  pickedSet,
   planProductSave,
   slugify,
   type CheckField
@@ -125,7 +127,11 @@ export default function ProductEditor({
           .filter(Boolean),
         // комплект власних розмірів не має — вони в складниках
         sizes: isSetOn ? [] : (p.sizes ?? []),
-        set: isSetOn ? setRows.filter(Boolean) : undefined
+        /* Порожні рядки прибираємо, повтори зливаємо. Сирі рядки
+           їдуть окремо: саме за різницею довжин планувальник
+           помічає, що товар додали двічі, — інакше склад мовчки
+           вийшов би коротшим за задуманий. */
+        set: isSetOn ? pickedSet(setRows) : undefined
       },
       isSetOn,
       setRows
@@ -483,22 +489,16 @@ export default function ProductEditor({
                         )
                       }
                     />
-                    <select
-                      className="a-colorpick"
+                    <ColorPicker
                       value={c.id}
-                      onChange={(e) =>
-                        setColors((list) =>
-                          list.map((x, k) => (k === i ? { ...x, id: e.target.value } : x))
-                        )
+                      choices={colorChoices}
+                      emptyNote={`У категорії «${
+                        categories.find((x) => x.id === p.category)?.title ?? p.category
+                      }» немає інших товарів.`}
+                      onPick={(id) =>
+                        setColors((list) => list.map((x, k) => (k === i ? { ...x, id } : x)))
                       }
-                    >
-                      <option value="">— без привʼязки —</option>
-                      {colorChoices.map((x) => (
-                        <option value={x.id} key={x.id}>
-                          {x.name} · {x.id}
-                        </option>
-                      ))}
-                    </select>
+                    />
                     <button
                       type="button"
                       className="a-color__del"

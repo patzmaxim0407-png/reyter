@@ -19,15 +19,14 @@ import {
   deleteCategory,
   maxOrder,
   planProductSave,
-  prodDocData,
   renameCategory,
   reorderCategories,
   persistCatOrder,
   saveProduct
 } from '@/lib/admin/draft';
-import { loadPublished, type PublishedDoc, type ScheduledDoc } from '@/lib/admin/publish';
+import { draftDiffers, loadPublished, type PublishedDoc, type ScheduledDoc } from '@/lib/admin/publish';
 import { uploadPhotos } from '@/lib/admin/photos';
-import { doc, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import type { Category, Product } from '@/lib/types';
 
 /* ============================================================
@@ -239,36 +238,6 @@ export default function CatalogAdmin() {
     }
   }
 
-  /* ---------- Первинний імпорт ---------- */
-
-  async function seed() {
-    const d = need();
-    if (!d) return;
-    const yes = await ask({
-      title: 'Імпортувати каталог у базу?',
-      text: 'Поточний вміст резервного файлу стане чернеткою. Покупці цього ще не побачать.',
-      okText: 'Імпортувати'
-    });
-    if (yes !== true) return;
-
-    setBusy(true);
-    try {
-      await Promise.all([
-        ...draft.categories.map((c, i) =>
-          setDoc(doc(d, 'catalog_categories', c.id), { title: c.title, order: i * 10 })
-        ),
-        ...draft.products.map((p, i) =>
-          setDoc(doc(d, 'catalog_products', p.id), prodDocData({ ...p, order: i * 10 }))
-        )
-      ]);
-      toast('Каталог імпортовано в чернетку ✓', 'success');
-    } catch {
-      toast('Не вдалося імпортувати — увійдіть акаунтом адміністратора');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   /* ---------- Фото ---------- */
 
   const onUpload = useCallback(
@@ -290,7 +259,9 @@ export default function CatalogAdmin() {
     [user, toast]
   );
 
-  const hasDraft = !!scheduled || (draft.seeded && !!published);
+  /* Крапка на кнопці означає «є що публікувати», а не «щось
+     колись публікували» — інакше вона світилася б завжди */
+  const hasDraft = !!scheduled || draftDiffers(draft, published, draft.seeded);
 
   return (
     <>
@@ -326,21 +297,6 @@ export default function CatalogAdmin() {
           </div>
 
           <div className="a-list">
-            {!draft.seeded && draft.products.length ? (
-              <div className="a-seed">
-                <b>Каталог ще не в базі даних.</b> Натисніть, щоб імпортувати його — після
-                цього всі зміни зберігатимуться миттєво.
-                <button
-                  className="btn btn--primary btn--sm"
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void seed()}
-                >
-                  Імпортувати каталог у базу
-                </button>
-              </div>
-            ) : null}
-
             <ProductList
               categories={draft.categories}
               products={draft.products}
