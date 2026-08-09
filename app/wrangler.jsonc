@@ -1,0 +1,28 @@
+/**
+ * REYTER — розгортання на Cloudflare Workers
+ *
+ * Сайт зібраний Next.js: сторінки товарів статичні, але каталог
+ * перечитується раз на хвилину — саме тому потрібен воркер,
+ * а не просто тека з файлами. Публікація з адмінки доходить до
+ * покупця сама, без перезбірки.
+ *
+ * Збірка:   npm run cf:build
+ * Перегляд: npm run cf:preview   (локально, як у Cloudflare)
+ * Викладка: npm run cf:deploy
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "reyter",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-01",
+  // nodejs_compat потрібен самому Next; global_fetch_strictly_public
+  // забороняє воркеру ходити сам у себе в обхід мережі
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

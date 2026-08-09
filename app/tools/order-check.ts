@@ -210,6 +210,27 @@ for (const percent of [5, 7, 10, 15, 20, 33]) {
 ok('відсоткова знижка ніколи не більша за дозволену правилом', overRule === 0,
    overRule ? `перевищень: ${overRule}, напр. ${worst}` : 'перевірено 3336 комбінацій');
 
+/* ---------- Набір полів проти правил бази ----------
+   Правило orderKeysOk() пускає лише перелічені ключі. Зайвий —
+   і ВЕСЬ запис відхиляється: замовлення просто не створиться. */
+
+const ALLOWED_ORDER_KEYS = [
+  'num', 'date', 'items', 'subtotal', 'discount', 'promoCode',
+  'shipping', 'total', 'customer', 'message', 'status', 'uid',
+  'email', 'source', 'lang', 'trackKey', 'created',
+  'createdBy', 'statusLog', 'stockApplied', 'note', 'ttn'
+];
+
+/* Те саме, що складає lib/firebase.ts → createOrder */
+const SITE_ORDER_KEYS = [
+  'num', 'date', 'items', 'subtotal', 'discount', 'promoCode',
+  'total', 'customer', 'message', 'status', 'uid', 'email',
+  'source', 'lang', 'trackKey', 'created'
+];
+
+const extraKeys = SITE_ORDER_KEYS.filter((k) => !ALLOWED_ORDER_KEYS.includes(k));
+ok('сайт не пише полів поза правилами', !extraKeys.length, extraKeys.join(', ') || 'зайвих немає');
+
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
 console.log('\n--- повідомлення в Telegram ---\n' + msg);
 process.exit(failed ? 1 : 0);

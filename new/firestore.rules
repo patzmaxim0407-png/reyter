@@ -9,6 +9,13 @@
 //   reyter.store1@gmail.com
 // Додаткових адмінів вони додають прямо з адмінки сайту
 // (створюється документ у колекції admins/{email}).
+//
+// Що саме тут перевіряється на СЕРВЕРІ, а не лише в браузері:
+//   • знижка — існування коду, його стан, строки дії, мінімальна
+//     сума й максимальний розмір;
+//   • набір полів замовлення — дописати службовий прапорець або
+//     підроблену дату не вийде;
+//   • пошта замовлення в залогіненого покупця — лише його власна.
 // ============================================================
 
 rules_version = '2';
@@ -60,10 +67,35 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/promos/$(code)).data;
     }
 
+    // Поля читаємо через 'in': найперші коди створювались без type
+    // і без value, а звернення до відсутнього ключа в Rules — це
+    // помилка обчислення, тобто ВІДМОВА в записі всього замовлення.
+    function promoValue(p) {
+      return ('value' in p) ? p.value : 0;
+    }
+
+    function promoIsFixed(p) {
+      return ('type' in p) && p.type == 'fixed';
+    }
+
+    // Скільки максимум дозволено списати.
+    //
+    // Ділення цілих у Rules ВІДКИДАЄ дріб, а клієнт округлює —
+    // старий сайт угору, новий униз. Тому запас в одну гривню:
+    // без нього 10% від 465 грн (клієнт 47, правило 46) відхиляло
+    // б усе замовлення мовчки, і покупець просто не міг би його
+    // оформити. Одна гривня тут дешевша за втрачений продаж.
     function maxDiscount(code, subtotal) {
-      return promoDoc(code).type == 'fixed'
-        ? promoDoc(code).value
-        : subtotal * promoDoc(code).value / 100;
+      let p = promoDoc(code);
+      return promoIsFixed(p)
+        ? promoValue(p)
+        : subtotal * promoValue(p) / 100 + 1;
+    }
+
+    // Мінімальна сума кошика, якщо вона задана
+    function promoMinTotalOk(code, subtotal) {
+      let p = promoDoc(code);
+      return !('minTotal' in p) || p.minTotal == 0 || subtotal >= p.minTotal;
     }
 
     // Ліміт використань: 0 (або поле відсутнє) — без обмежень
@@ -91,18 +123,48 @@ service cloud.firestore {
             && exists(/databases/$(database)/documents/promos/$(d.promoCode))
             && promoDoc(d.promoCode).active != false
             && promoHasUsesLeft(d.promoCode)
+            // строки дії перевіряються й тут, а не лише в браузері:
+            // інакше вчорашній код працював би вічно
+            && promoInDateRange(d.promoCode)
+            && promoMinTotalOk(d.promoCode, d.subtotal)
             && d.discount <= maxDiscount(d.promoCode, d.subtotal)
           );
+    }
+
+    // Набір полів замовлення. Без нього в документ можна дописати
+    // що завгодно — від службових прапорців до підробленої дати —
+    // і воно потрапить в адмінку як справжнє.
+    function orderKeysOk() {
+      return request.resource.data.keys().hasOnly([
+        'num', 'date', 'items', 'subtotal', 'discount', 'promoCode',
+        'shipping', 'total', 'customer', 'message', 'status', 'uid',
+        'email', 'source', 'lang', 'trackKey', 'created',
+        // дописує адмінка при ручному створенні
+        'createdBy', 'statusLog', 'stockApplied', 'note', 'ttn'
+      ]);
+    }
+
+    // Пошта в замовленні. Залогінений покупець може вказати лише
+    // свою: інакше він поклав би замовлення в чужий кабінет — воно
+    // читається саме за поштою.
+    function orderEmailOk() {
+      let d = request.resource.data;
+      return d.email is string && d.email.size() < 120
+        && (!signedIn() || d.email == '' || d.email == userEmail());
     }
 
     function validNewOrder() {
       let d = request.resource.data;
       return d.status == 'new'
+        && orderKeysOk()
+        && orderEmailOk()
+        && d.num is string && d.num.size() > 0 && d.num.size() < 40
         && d.total is number && d.total >= 0 && d.total < 1000000
         && d.subtotal is number && d.subtotal >= 0 && d.subtotal < 1000000
         && d.discount is number && d.discount >= 0
         && d.total == d.subtotal - d.discount
-        && d.items.size() > 0 && d.items.size() <= 50
+        && d.items is list && d.items.size() > 0 && d.items.size() <= 50
+        && d.customer is map
         && discountAllowed();
     }
 
@@ -245,11 +307,24 @@ service cloud.firestore {
       // лічильник використань рівно на одиницю і більше нічого
       // не чіпає. Обнулити чи «розширити» код так неможливо,
       // а без цього ліміт не працював би взагалі.
+      // Збільшити можна рівно на одиницю, рівно це поле і лише
+      // поки код узагалі діє. Обнулити чи «розширити» ліміт так
+      // неможливо.
+      //
+      // ЗАЛИШКОВИЙ РИЗИК: виклик не привʼязаний до замовлення, тож
+      // той, хто знає публічний код, може крутити лічильник і
+      // вичерпати його. Грошей це не дає — лише псує акцію.
+      // Правильне місце для лічильника — Cloudflare Worker, який
+      // і так отримує кожне замовлення; тут він лишається, поки
+      // цього не зробили, бо без нього ліміт не працює зовсім.
       function onlyUsedCountBumped() {
+        let before = ('usedCount' in resource.data) ? resource.data.usedCount : 0;
         return request.resource.data.diff(resource.data)
                  .affectedKeys().hasOnly(['usedCount'])
-          && request.resource.data.usedCount ==
-             (('usedCount' in resource.data) ? resource.data.usedCount : 0) + 1;
+          && request.resource.data.usedCount == before + 1
+          && resource.data.active != false
+          && (!('usageLimit' in resource.data) || resource.data.usageLimit == 0
+              || before < resource.data.usageLimit);
       }
 
       allow create, delete: if isAdmin();
