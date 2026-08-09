@@ -351,6 +351,9 @@
             '<div>' +
               '<div class="cart-item__name">' + R.esc(R.tf(p, 'name')) + '</div>' +
               '<div class="cart-item__meta">' +
+                // категорія допомагає впізнати позицію: назви
+                // в каталозі повторюються («Бріфи classic» двічі)
+                (R.categoryTitle(p.category) ? R.esc(R.categoryTitle(p.category)) + ' · ' : '') +
                 (item.size ? (p.volume ? R.t('p.volume') : R.t('p.size')) + ': ' + R.esc(R.tx(item.size)) + ' · ' : '') +
                 R.t('p.article') + ': ' + R.esc(p.id) +
               '</div>' +
@@ -623,7 +626,9 @@
             const sp = R.getProduct(x.id);
             return (sp ? R.tf(sp, 'name') : x.id) + (x.size ? ' · ' + R.tx(x.size) : '');
           });
+        const cat = R.categoryTitle(p.category);
         return '<div><span>' + R.esc(R.tf(p, 'name')) + (i.size ? ' (' + R.esc(R.tx(i.size)) + ')' : '') + ' × ' + i.qty +
+               (cat ? '<em class="checkout-parts">' + R.esc(cat) + '</em>' : '') +
                (parts.length ? '<em class="checkout-parts">' + R.esc(parts.join(' · ')) + '</em>' : '') +
                '</span><span>' + R.uah(p.price * i.qty) + '</span></div>';
       })
@@ -666,7 +671,7 @@
     lines.push('🛍 Замовлення №' + order.num + ' — reyter.men');
     lines.push('');
     order.items.forEach((i, n) => {
-      lines.push(n + 1 + '. ' + i.name + ' (' + i.id + ')');
+      lines.push(n + 1 + '. ' + i.name + (i.category ? ' — ' + i.category : '') + ' (' + i.id + ')');
       lines.push('   ' + (i.size ? (i.volume ? 'обʼєм ' : 'розмір ') + i.size + ' · ' : '') + i.qty + ' шт · ' + R.fmt(i.price * i.qty) + ' грн');
       (i.parts || []).forEach((x) => {
         lines.push('      – ' + x.name + (x.size ? ' · ' + x.size : ''));
@@ -777,6 +782,9 @@
         const item = {
           id: p.id,
           name: p.name,
+          // назву категорії зберігаємо в замовленні: лист і адмінка
+          // малюють із цих даних, а каталог до того часу може змінитись
+          category: R.categoryTitle(p.category) || '',
           size: i.size,
           qty: i.qty,
           price: p.price,

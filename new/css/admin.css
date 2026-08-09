@@ -4035,3 +4035,10 @@ label.a-promo-product i {
   border-radius: 999px;
   padding: 0.1rem 0.55rem;
 }
+
+/* Категорія позиції в картці замовлення */
+.ao-line__cat {
+  font-style: normal;
+  font-size: 0.78rem;
+  color: var(--c-muted);
+}

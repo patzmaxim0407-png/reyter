@@ -64,6 +64,10 @@ function letterHTML(d) {
       '<td style="padding:10px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#171b26">' +
         esc(clip(i.name, 120)) +
         (i.size ? ' <span style="color:#6e6a5e">· ' + esc(clip(i.size, 20)) + '</span>' : '') +
+        // категорія: у каталозі трапляються однакові назви
+        (i.category
+          ? '<br><span style="color:#6e6a5e;font-size:12px">' + esc(clip(i.category, 60)) + '</span>'
+          : '') +
         // склад комплекту: що саме й у яких розмірах
         ((i.parts || []).length
           ? '<br><span style="color:#6e6a5e;font-size:12px">' +
@@ -331,6 +335,7 @@ function orderText(d) {
   L.push('');
   (d.items || []).slice(0, 50).forEach((i) => {
     L.push('• ' + clip(i.name, 120) +
+      (i.category ? ' — ' + clip(i.category, 60) : '') +
       (i.size ? ' (' + clip(i.size, 20) + ')' : '') +
       ' × ' + (Number(i.qty) || 1) +
       ' — ' + clip(i.sum, 40));

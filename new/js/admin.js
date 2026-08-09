@@ -2977,6 +2977,14 @@
         esc(label) + '</a></span>';
   }
 
+  /* Категорія позиції: у нових замовленнях вона збережена разом
+     із назвою, у старих — беремо з каталогу, якщо товар ще там */
+  function itemCat(i) {
+    if (i.category) return i.category;
+    const p = productById(i.id);
+    return p ? catName(p.category) : '';
+  }
+
   function orderCardHTML(o) {
     const st = o.status || 'new';
     const mismatch = orderMismatch(o);
@@ -2994,7 +3002,11 @@
     const items = (o.items || [])
       .map((i) =>
         '<div class="ao-line">' +
-          '<span>' + esc(i.name) + (i.size ? ' · <b>' + esc(i.size) + '</b>' : '') +
+          '<span>' + esc(i.name) +
+            // категорію беремо з позиції, а якщо замовлення старе —
+            // підглядаємо в каталог
+            (itemCat(i) ? ' <em class="ao-line__cat">' + esc(itemCat(i)) + '</em>' : '') +
+            (i.size ? ' · <b>' + esc(i.size) + '</b>' : '') +
             // склад комплекту: саме за цими розмірами збирати замовлення
             ((i.parts || []).length
               ? '<span class="ao-line__parts">' +
@@ -3355,7 +3367,9 @@
     const body = list.map((o) => {
       const c = o.customer || {};
       const items = (o.items || [])
-        .map((i) => '<tr><td>' + esc(i.name) + (i.size ? ' (' + esc(i.size) + ')' : '') +
+        .map((i) => '<tr><td>' + esc(i.name) +
+          (itemCat(i) ? ' <small>' + esc(itemCat(i)) + '</small>' : '') +
+          (i.size ? ' (' + esc(i.size) + ')' : '') +
           // за цим аркушем комплектують посилку — склад комплекту обовʼязковий
           ((i.parts || []).length
             ? '<br><small>' + i.parts.map((x) => '· ' + esc(x.name || x.id) +
@@ -3968,7 +3982,7 @@
     lines.push('🛍 Замовлення №' + order.num + ' — reyter.men');
     lines.push('');
     order.items.forEach((i, n) => {
-      lines.push(n + 1 + '. ' + i.name + ' (' + i.id + ')');
+      lines.push(n + 1 + '. ' + i.name + (itemCat(i) ? ' — ' + itemCat(i) : '') + ' (' + i.id + ')');
       lines.push('   ' + (i.size ? (i.volume ? 'обʼєм ' : 'розмір ') + i.size + ' · ' : '') +
         i.qty + ' шт · ' + fmt(i.price * i.qty) + ' грн');
       (i.parts || []).forEach((x) => {
@@ -4027,6 +4041,7 @@
       const item = {
         id: p.id,
         name: p.name,
+        category: catName(p.category) || '',
         size: setParts.length ? null : (row.size || null),
         qty: qty,
         price: Math.max(0, Math.trunc(Number(row.price) || 0)),

@@ -259,11 +259,13 @@
       to_phone: c.phone || '',
       order_num: order.num,
       order_items: (order.items || [])
-        .map((i) => '• ' + i.name + (i.size ? ' (' + i.size + ')' : '') + ' × ' + i.qty + ' — ' + money(i.price * i.qty) +
+        .map((i) => '• ' + i.name + (i.category ? ' — ' + i.category : '') +
+          (i.size ? ' (' + i.size + ')' : '') + ' × ' + i.qty + ' — ' + money(i.price * i.qty) +
           (i.parts || []).map((x) => '\n    – ' + (x.name || x.id) + (x.size ? ' · ' + x.size : '')).join(''))
         .join('\n'),
       items_list: (order.items || []).map((i) => ({
         name: i.name,
+        category: i.category || '',
         size: i.size || '',
         qty: i.qty,
         sum: money(i.price * i.qty),
