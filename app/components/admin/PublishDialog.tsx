@@ -263,7 +263,10 @@ export default function PublishDialog({
           <button
             className="btn btn--primary"
             type="button"
-            disabled={busy}
+            /* Публікувати те саме вдруге нема сенсу: змінилася б
+               лише дата публікації, а резервна копія пішла б
+               у GitHub іще раз */
+            disabled={busy || (!differs && !scheduled)}
             onClick={() => void run(() => publishNow(draft, deps))}
           >
             Опублікувати зараз

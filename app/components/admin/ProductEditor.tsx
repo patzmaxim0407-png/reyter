@@ -5,6 +5,7 @@ import ColorPicker from './ColorPicker';
 import { ALL_SIZES } from '@/lib/catalog';
 import {
   adminColors,
+  inCat,
   lines,
   normalizeHex,
   packColors,
@@ -102,10 +103,12 @@ export default function ProductEditor({
     [products, p.id]
   );
 
-  /* Прив'язка кольору веде на картку того самого товару в іншому
-     кольорі — а такі лежать у тій самій головній категорії */
+  /* Привʼязка кольору веде на картку того самого товару в іншому
+     відтінку. Кандидата шукаємо за БУДЬ-ЯКОЮ його категорією:
+     товар, для якого ця категорія додаткова, теж належить родині,
+     а за головною він би зі списку зник. */
   const colorChoices = useMemo(
-    () => products.filter((x) => x.category === p.category && x.id !== p.id),
+    () => products.filter((x) => x.id !== p.id && inCat(x, p.category)),
     [products, p.category, p.id]
   );
 
@@ -183,7 +186,11 @@ export default function ProductEditor({
                   placeholder="ABC-001"
                   autoComplete="off"
                   value={p.id}
-                  onChange={(e) => set('id', e.target.value.trim().toUpperCase())}
+                  /* Регістр не чіпаємо: у наявного товару з малими
+                     літерами будь-яка правка виглядала б для
+                     planProductSave як перейменування артикулу —
+                     зі зміною id документа й правкою комплектів */
+                  onChange={(e) => set('id', e.target.value.trim())}
                 />
               </div>
               <div className="field">
@@ -498,9 +505,17 @@ export default function ProductEditor({
                       emptyNote={`У категорії «${
                         categories.find((x) => x.id === p.category)?.title ?? p.category
                       }» немає інших товарів.`}
-                      onPick={(id) =>
-                        setColors((list) => list.map((x, k) => (k === i ? { ...x, id } : x)))
-                      }
+                      onPick={(id) => {
+                        /* Підтягуємо відтінок самого товару: інакше
+                           в родину кольорів поїхав би дефолтний
+                           синій, і syncColorLinks рознесе його по
+                           всіх картках. Немає кольорів — не чіпаємо. */
+                        const target = products.find((x) => x.id === id);
+                        const hex = target ? normalizeHex(adminColors(target)[0]?.hex ?? '') : '';
+                        setColors((list) =>
+                          list.map((x, k) => (k === i ? { ...x, id, hex: hex || x.hex } : x))
+                        );
+                      }}
                     />
                     <button
                       type="button"
