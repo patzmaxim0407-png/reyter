@@ -385,7 +385,9 @@
           // склад комплекту: покупець має бачити свої розміри
           ((i.parts || []).length
             ? '<span class="order-card__parts">' +
-                i.parts.map((x) => R.esc(R.tx(x.name || x.id)) +
+                i.parts.map((x) =>
+                  (x.category ? R.esc(R.tx(x.category)) + ' · ' : '') +
+                  R.esc(R.tx(x.name || x.id)) +
                   (x.size ? ' · ' + R.esc(R.tx(x.size)) : '')).join('<br>') +
               '</span>'
             : '') +

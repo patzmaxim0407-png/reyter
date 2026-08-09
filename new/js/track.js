@@ -87,6 +87,7 @@
         // комплект: покупець має впізнати свої розміри
         if (i.parts && i.parts.length) {
           out.parts = i.parts.slice(0, 10).map((x) =>
+            (x.category ? x.category + ' · ' : '') +
             String(x.name || x.id || '') + (x.size ? ' · ' + x.size : ''));
         }
         return out;

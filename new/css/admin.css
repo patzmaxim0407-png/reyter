@@ -4052,3 +4052,169 @@ label.a-promo-product i {
   font-size: 0.78rem;
   color: var(--c-muted);
 }
+
+/* ---------- Журнал руху ---------- */
+.ao-moves__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+
+.ao-moves__bar .ao-chips {
+  flex: 1 1 auto;
+}
+
+.ao-moves__bar .ao-search {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.ao-moves__sum {
+  margin-bottom: 0.6rem;
+}
+
+.ao-moves__sum b.is-plus { color: var(--c-green); }
+.ao-moves__sum b.is-minus { color: var(--c-red); }
+
+.ao-day {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--c-muted);
+  background: var(--c-cream);
+  padding: 0.5rem 0 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.ao-day:first-child {
+  margin-top: 0;
+}
+
+.ao-move__size {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--c-blue);
+  background: rgba(1, 74, 173, 0.09);
+  border-radius: 6px;
+  padding: 0.05rem 0.4rem;
+  vertical-align: middle;
+}
+
+.ao-move__info span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+
+.ao-move__tag {
+  font-style: normal;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.08rem 0.5rem;
+}
+
+.ao-move__tag.is-in { background: var(--c-green-soft); color: var(--c-green); }
+.ao-move__tag.is-out { background: rgba(23, 27, 38, 0.07); color: var(--c-muted); }
+.ao-move__tag.is-back { background: var(--c-amber-soft); color: var(--c-amber); }
+.ao-move__tag.is-manual { background: rgba(1, 74, 173, 0.08); color: var(--c-blue); }
+.ao-move__tag.is-off { background: var(--c-red-soft); color: var(--c-red); }
+
+.ao-move__ref,
+.ao-move__who {
+  font-style: normal;
+  font-size: 0.72rem;
+  color: var(--c-muted);
+}
+
+.ao-move__ref {
+  font-variant-numeric: tabular-nums;
+}
+
+.ao-move__who::before {
+  content: '· ';
+}
+
+/* ---------- Сторінки ---------- */
+.ao-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  margin-top: 1rem;
+}
+
+.ao-pager__num,
+.ao-pager__nav {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 0.5rem;
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  background: var(--c-paper);
+  color: var(--c-ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.ao-pager__num:hover:not(.is-active),
+.ao-pager__nav:hover:not([disabled]) {
+  border-color: var(--c-blue);
+  color: var(--c-blue);
+}
+
+.ao-pager__num.is-active {
+  background: var(--c-blue);
+  border-color: var(--c-blue);
+  color: #fff;
+  cursor: default;
+}
+
+.ao-pager__nav[disabled] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ao-pager__gap {
+  padding: 0 0.2rem;
+  color: var(--c-muted);
+}
+
+/* Форма приходу / списання */
+.ao-restock-form__head {
+  margin-bottom: 0.2rem;
+}
+
+.ao-restock-form.is-writeoff {
+  border-color: rgba(200, 30, 30, 0.35);
+  background: linear-gradient(var(--c-red-soft), var(--c-red-soft)) padding-box,
+              var(--c-paper);
+  background-blend-mode: normal;
+}
+
+.ao-restock-form.is-writeoff .ao-note {
+  color: var(--c-red);
+}
+
+.ao-restock-form .ao-qty.is-zero span {
+  color: var(--c-muted);
+}
+
+.ao-restock-form select {
+  min-width: 0;
+}

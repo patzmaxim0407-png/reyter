@@ -530,6 +530,24 @@
     okBtn.className = 'btn ' + (opts.danger ? 'btn--danger' : 'btn--primary');
     cancelBtn.textContent = opts.cancelText || 'Скасувати';
 
+    /* Третя кнопка — для питань із двома різними «так»
+       (напр. скасувати замовлення з поверненням на склад і без).
+       Повертає рядок 'alt', щоб виклик міг їх розрізнити. */
+    let altBtn = document.getElementById('askAlt');
+    if (opts.altText) {
+      if (!altBtn) {
+        altBtn = document.createElement('button');
+        altBtn.id = 'askAlt';
+        altBtn.type = 'button';
+        cancelBtn.after(altBtn);
+      }
+      altBtn.className = 'btn btn--ghost';
+      altBtn.textContent = opts.altText;
+      altBtn.hidden = false;
+    } else if (altBtn) {
+      altBtn.hidden = true;
+    }
+
     modal.hidden = false;
     R.lockBg();
     setTimeout(() => (wantsInput ? inputEl : okBtn).focus(), 60);
@@ -545,6 +563,7 @@
       }
       function onClick(e) {
         if (e.target.closest('[data-ask-cancel]') || e.target === cancelBtn) return close(null);
+        if (altBtn && e.target === altBtn) return close('alt');
         if (e.target === okBtn) {
           const val = wantsInput ? inputEl.value.trim() : true;
           if (wantsInput && !val) { inputEl.focus(); return; }
@@ -2144,8 +2163,23 @@
     manual: 'Ручне коригування',
     order: 'Списання під замовлення',
     'order-cancel': 'Повернення (скасування)',
-    restock: 'Прихід товару'
+    'order-return': 'Повернення від покупця',
+    restock: 'Прихід товару',
+    writeoff: 'Списання'
   };
+
+  /* Списання: чому товар пішов зі складу поза продажем.
+     Причина потрапляє в журнал руху — потім видно, скільки
+     втрачено на браку, а скільки просто загубилось. */
+  const WRITEOFF_REASONS = [
+    { id: 'damaged', title: 'Зіпсувався' },
+    { id: 'defect', title: 'Брак від виробника' },
+    { id: 'lost', title: 'Загубився / недостача' },
+    { id: 'supplier', title: 'Повернуто постачальнику' },
+    { id: 'gift', title: 'Подарунок / зразок' },
+    { id: 'recount', title: 'Перерахунок' },
+    { id: 'other', title: 'Інше' }
+  ];
 
   const TRACK_URLS = {
     'Нова Пошта': 'https://novaposhta.ua/tracking/?cargo_number=',
@@ -2512,7 +2546,7 @@
      руху. Мапа спільна навмисно: при редагуванні замовлення ми
      повертаємо старий склад і списуємо новий, і той самий товар
      має отримати РІВНО ОДИН запис у документі inventory. */
-  function collectStock(batch, order, direction, into) {
+  function collectStock(batch, order, direction, into, reason) {
     stockUnits(order).forEach((item) => {
       const p = productById(item.id);
       const delta = direction * item.qty;
@@ -2533,7 +2567,7 @@
         productName: item.name,
         size: item.size || null,
         delta: delta,
-        reason: direction < 0 ? 'order' : 'order-cancel',
+        reason: reason || (direction < 0 ? 'order' : 'order-cancel'),
         ref: order.num || ''
       });
     });
@@ -2559,9 +2593,9 @@
     });
   }
 
-  function adjustOrderStock(batch, order, direction) {
+  function adjustOrderStock(batch, order, direction, reason) {
     const grouped = {};
-    collectStock(batch, order, direction, grouped);
+    collectStock(batch, order, direction, grouped, reason);
     writeStock(batch, grouped);
   }
 
@@ -2985,6 +3019,12 @@
     return p ? catName(p.category) : '';
   }
 
+  /* Складник комплекту в одному рядку: категорія, назва, розмір */
+  function partLine(x) {
+    const cat = itemCat(x);
+    return (cat ? cat + ' · ' : '') + (x.name || x.id) + (x.size ? ' · ' + x.size : '');
+  }
+
   function orderCardHTML(o) {
     const st = o.status || 'new';
     const mismatch = orderMismatch(o);
@@ -3010,8 +3050,9 @@
             // склад комплекту: саме за цими розмірами збирати замовлення
             ((i.parts || []).length
               ? '<span class="ao-line__parts">' +
-                  i.parts.map((x) => '· ' + esc(x.name || x.id) +
-                    (x.size ? ' <b>' + esc(x.size) + '</b>' : '')).join('<br>') +
+                  i.parts.map((x) => '· ' + esc(itemCat(x) ? itemCat(x) + ' · ' : '') +
+                    esc(x.name || x.id) +
+                    (x.size ? ' · <b>' + esc(x.size) + '</b>' : '')).join('<br>') +
                 '</span>'
               : '') +
           '</span>' +
@@ -3230,6 +3271,25 @@
       }
     }
 
+    /* Товар був списаний, а замовлення відкочують — питаємо, чи
+       повертати речі на склад. Не завжди повертають: посилку
+       могли не забрати й вона їде назад тижнями, річ могла
+       повернутись пошкодженою або не повернутись зовсім. */
+    let putBack = true;
+    if (!willConsume && wasApplied && !opts.silent) {
+      const units = (order.items || []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
+      const answer = await R.ask({
+        title: next === 'cancelled' ? 'Скасування замовлення' : 'Повернення статусу',
+        text: 'Замовлення №' + order.num + ' — товар (' + units + ' шт) уже списаний зі складу.' +
+          '\n\nПовернути його в залишки? Якщо річ не повернулась або повернулась зіпсованою — ' +
+          'оберіть «Не повертати», а потім спишіть її окремо на вкладці «Прихід».',
+        okText: 'Повернути на склад',
+        altText: 'Не повертати'
+      });
+      if (answer === null) return false;      // передумали
+      putBack = answer !== 'alt';
+    }
+
     try {
       const batch = R.fb.db.batch();
       const upd = {
@@ -3242,8 +3302,14 @@
         upd.stockApplied = true;
       }
       if (!willConsume && wasApplied) {
-        adjustOrderStock(batch, order, +1);
+        // Не повертаємо на склад — товар просто лишається списаним,
+        // і замовлення більше не тримає його за собою
+        if (putBack) {
+          adjustOrderStock(batch, order, +1,
+            next === 'cancelled' ? 'order-cancel' : 'order-return');
+        }
         upd.stockApplied = false;
+        upd.stockReturned = putBack;
       }
 
       batch.update(R.fb.db.collection('orders').doc(order._id), upd);
@@ -3260,7 +3326,11 @@
 
       if (!opts.silent) {
         if (upd.stockApplied === true) toast('Статус оновлено, товар списано зі складу ✓', 'success');
-        else if (upd.stockApplied === false) toast('Статус оновлено, товар повернено на склад ✓', 'success');
+        else if (upd.stockApplied === false) {
+          toast(putBack
+            ? 'Статус оновлено, товар повернено на склад ✓'
+            : 'Статус оновлено. Товар на склад НЕ повернуто', putBack ? 'success' : '');
+        }
         else toast('Статус: ' + statusInfo(next).title + ' ✓', 'success');
       }
       return true;
@@ -3327,7 +3397,7 @@
         .map((i) => i.name + (i.size ? ' (' + i.size + ')' : '') +
           // склад комплекту: інакше з вивантаження не зрозуміти, що пакувати
           ((i.parts || []).length
-            ? ' [' + i.parts.map((x) => (x.name || x.id) + (x.size ? ' ' + x.size : '')).join(' + ') + ']'
+            ? ' [' + i.parts.map(partLine).join(' + ') + ']'
             : '') +
           ' ×' + i.qty).join('; ');
       const units = (o.items || []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
@@ -3372,8 +3442,7 @@
           (i.size ? ' (' + esc(i.size) + ')' : '') +
           // за цим аркушем комплектують посилку — склад комплекту обовʼязковий
           ((i.parts || []).length
-            ? '<br><small>' + i.parts.map((x) => '· ' + esc(x.name || x.id) +
-                (x.size ? ' ' + esc(x.size) : '')).join('<br>') + '</small>'
+            ? '<br><small>' + i.parts.map((x) => '· ' + esc(partLine(x))).join('<br>') + '</small>'
             : '') +
           '</td><td>' + i.qty + '</td><td>' + fmt(i.price * i.qty) + ' грн</td></tr>').join('');
       return (
@@ -3986,7 +4055,7 @@
       lines.push('   ' + (i.size ? (i.volume ? 'обʼєм ' : 'розмір ') + i.size + ' · ' : '') +
         i.qty + ' шт · ' + fmt(i.price * i.qty) + ' грн');
       (i.parts || []).forEach((x) => {
-        lines.push('      – ' + (x.name || x.id) + (x.size ? ' · ' + x.size : ''));
+        lines.push('      – ' + partLine(x));
       });
     });
     lines.push('');
@@ -4051,6 +4120,7 @@
         item.parts = setParts.map((part) => ({
           id: part.id,
           name: part.name,
+          category: catName(part.category) || '',
           size: partSize(part) || null,
           // обʼєм фіксуємо в замовленні: якщо товар зникне з
           // каталогу, списувати треба буде все одно правильно
@@ -4615,6 +4685,10 @@
   let stockFilter = 'all';
   let restocksCache = [];
   let movesCache = [];
+  let movesPage = 1;
+  let movesReason = 'all';
+  let movesSearch = '';
+  const MOVES_PER_PAGE = 25;
   let restockProductId = '';
 
   function stockBody() {
@@ -4669,7 +4743,7 @@
 
   async function loadMoves() {
     try {
-      const snap = await R.fb.db.collection('stock_moves').orderBy('ts', 'desc').limit(80).get();
+      const snap = await R.fb.db.collection('stock_moves').orderBy('ts', 'desc').limit(400).get();
       movesCache = snap.docs.map((d) => d.data());
       if (stockTab === 'moves') renderStockUI();
     } catch (e) { /* порожній список */ }
@@ -4858,20 +4932,50 @@
     );
   }
 
+  /* Одна форма на два напрямки: прихід кладе товар на склад,
+     списання знімає. Списання діє одразу — чекати нема чого,
+     річ уже зіпсувалась. Прихід лишається в очікуванні, поки
+     його не оприбуткують. */
+  let rstMode = 'in';   // in | off
+  let rstWriteoff = 'damaged';
+
   function restockFormHTML() {
-    const all = products();
     const selected = productById(restockProductId) || null;
+    const off = rstMode === 'off';
+
     const qtyInputs = !selected
       ? '<p class="ao-note">Оберіть товар, щоб вказати кількість.</p>'
       : (isSized(selected)
-          ? (selected.sizes && selected.sizes.length ? selected.sizes : R.config.allSizes).map((s) =>
-              '<label class="ao-qty"><span>' + s + '</span><input type="number" min="0" value="0" data-rst-size="' + s + '"></label>'
-            ).join('')
-          : '<label class="ao-qty"><span>шт</span><input type="number" min="0" value="0" data-rst-qty></label>');
+          ? stockSizes(selected).map((it) => {
+              const have = hasInvDoc(selected.id) ? sizeQty(selected.id, it.size) : null;
+              return '<label class="ao-qty' + (off && have === 0 ? ' is-zero' : '') + '">' +
+                '<span>' + it.size + (have === null ? '' : ' · ' + have) + '</span>' +
+                '<input type="number" min="0"' + (off && have !== null ? ' max="' + Math.max(0, have) + '"' : '') +
+                  ' value="0" data-rst-size="' + it.size + '">' +
+              '</label>';
+            }).join('')
+          : '<label class="ao-qty"><span>шт' +
+              (hasInvDoc(selected.id) ? ' · ' + unitQty(selected.id) : '') + '</span>' +
+              '<input type="number" min="0" value="0" data-rst-qty></label>');
+
+    const tab = (id, title) =>
+      '<button class="ao-chip' + (rstMode === id ? ' is-active' : '') + '" ' +
+        'data-rst-mode="' + id + '" type="button">' + title + '</button>';
 
     return (
-      '<form class="ao-restock-form" id="restockForm">' +
-        '<h5>Новий прихід</h5>' +
+      '<form class="ao-restock-form' + (off ? ' is-writeoff' : '') + '" id="restockForm">' +
+        '<div class="ao-restock-form__head">' +
+          '<div class="ao-chips">' + tab('in', '↓ Прихід') + tab('off', '↑ Списання') + '</div>' +
+        '</div>' +
+
+        '<p class="ao-note">' +
+          (off
+            ? 'Товар зникає зі складу одразу. Причина потрапляє в журнал руху — ' +
+              'потім видно, скільки втрачено на браку, а скільки просто загубилось.'
+            : 'Прихід стає в чергу очікування. Коли товар фізично приїде — ' +
+              'натисніть «Оприбуткувати», і залишки зростуть.') +
+        '</p>' +
+
         '<div class="ao-restock-form__row">' +
           '<div class="acombo a-nopick a-rstpick">' +
             '<div class="acombo__box">' +
@@ -4883,11 +4987,22 @@
               '<ul class="acombo__list" role="listbox" hidden></ul>' +
             '</div>' +
           '</div>' +
-          '<input type="date" id="rstDate" value="' + todayISO() + '" title="Очікувана дата приходу">' +
+          (off
+            ? '<select id="rstReason" title="Причина списання">' +
+                WRITEOFF_REASONS.map((r) =>
+                  '<option value="' + r.id + '"' + (rstWriteoff === r.id ? ' selected' : '') + '>' +
+                    r.title + '</option>').join('') +
+              '</select>'
+            : '<input type="date" id="rstDate" value="' + todayISO() + '" title="Очікувана дата приходу">') +
         '</div>' +
+
         '<div class="ao-restock-form__qty" id="rstQtyBox">' + qtyInputs + '</div>' +
-        '<input id="rstNote" placeholder="Нотатка: постачальник, партія тощо (необовʼязково)">' +
-        '<button class="btn btn--primary btn--sm" type="submit">Додати прихід</button>' +
+        '<input id="rstNote" placeholder="' +
+          (off ? 'Нотатка: що саме сталося (необовʼязково)' : 'Нотатка: постачальник, партія тощо (необовʼязково)') +
+        '">' +
+        '<button class="btn ' + (off ? 'btn--danger' : 'btn--primary') + ' btn--sm" type="submit">' +
+          (off ? 'Списати зі складу' : 'Додати прихід') +
+        '</button>' +
       '</form>'
     );
   }
@@ -5011,29 +5126,170 @@
     );
   }
 
-  function movesHTML() {
-    if (!movesCache.length) {
-      return '<div class="a-empty">Журнал руху порожній. Тут фіксується кожна зміна залишків: списання під замовлення, приходи та ручні коригування.</div>';
-    }
+  /* Журнал руху — це стрічка на сотні записів. Читати її суцільним
+     списком неможливо, тому: фільтр за причиною, пошук по товару,
+     групування за днями і сторінки по 25. */
+
+  const MOVE_TAGS = {
+    restock: { title: 'Прихід', cls: 'is-in' },
+    order: { title: 'Замовлення', cls: 'is-out' },
+    'order-cancel': { title: 'Повернення', cls: 'is-back' },
+    manual: { title: 'Коригування', cls: 'is-manual' },
+    'order-return': { title: 'Повернення від покупця', cls: 'is-back' },
+    writeoff: { title: 'Списання', cls: 'is-off' }
+  };
+
+  function filteredMoves() {
+    const q = movesSearch.trim().toLowerCase();
+    return movesCache.filter((m) => {
+      if (movesReason !== 'all' && m.reason !== movesReason) return false;
+      if (!q) return true;
+      return (
+        String(m.productName || '').toLowerCase().includes(q) ||
+        String(m.productId || '').toLowerCase().includes(q) ||
+        String(m.ref || '').toLowerCase().includes(q)
+      );
+    });
+  }
+
+  function moveDate(m) {
+    return m.ts && m.ts.toDate ? m.ts.toDate() : null;
+  }
+
+  /* Заголовок дня: «Сьогодні», «Вчора» або дата з днем тижня */
+  function dayTitle(d) {
+    const today = new Date();
+    const same = (a, b) =>
+      a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    const yest = new Date(today);
+    yest.setDate(today.getDate() - 1);
+
+    if (same(d, today)) return 'Сьогодні';
+    if (same(d, yest)) return 'Вчора';
+    return d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', weekday: 'long' });
+  }
+
+  function moveRowHTML(m) {
+    const d = moveDate(m);
+    const delta = Number(m.delta) || 0;
+    const tag = MOVE_TAGS[m.reason] || { title: m.reason || '—', cls: 'is-manual' };
+    const who = String(m.by || '').split('@')[0];
+
     return (
-      '<div class="ao-moves">' +
-        movesCache.map((m) => {
-          const d = m.ts && m.ts.toDate
-            ? m.ts.toDate().toLocaleString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-            : '';
-          const delta = Number(m.delta) || 0;
-          return (
-            '<div class="ao-move">' +
-              '<span class="ao-move__delta ' + (delta >= 0 ? 'is-plus' : 'is-minus') + '">' + (delta > 0 ? '+' : '') + delta + '</span>' +
-              '<div class="ao-move__info">' +
-                '<b>' + esc(m.productName || m.productId) + (m.size ? ' · ' + esc(m.size) : '') + '</b>' +
-                '<span>' + esc(MOVE_REASONS[m.reason] || m.reason) + (m.ref ? ' · ' + esc(m.ref) : '') + (m.by ? ' · ' + esc(m.by) : '') + '</span>' +
-              '</div>' +
-              '<span class="ao-move__date">' + esc(d) + '</span>' +
-            '</div>'
-          );
-        }).join('') +
+      '<div class="ao-move">' +
+        '<span class="ao-move__delta ' + (delta >= 0 ? 'is-plus' : 'is-minus') + '">' +
+          (delta > 0 ? '+' : '') + delta +
+        '</span>' +
+        '<div class="ao-move__info">' +
+          '<b>' + esc(m.productName || m.productId) +
+            (m.size ? '<i class="ao-move__size">' + esc(m.size) + '</i>' : '') +
+          '</b>' +
+          '<span>' +
+            '<i class="ao-move__tag ' + tag.cls + '">' + esc(tag.title) + '</i>' +
+            (m.ref ? '<i class="ao-move__ref">' + esc(m.ref) + '</i>' : '') +
+            (who ? '<i class="ao-move__who" title="' + esc(m.by) + '">' + esc(who) + '</i>' : '') +
+          '</span>' +
+        '</div>' +
+        '<span class="ao-move__date">' +
+          (d ? esc(d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })) : '') +
+        '</span>' +
       '</div>'
+    );
+  }
+
+  function movesListHTML() {
+    const list = filteredMoves();
+
+    if (!list.length) {
+      return '<div class="a-empty">' +
+        (movesCache.length
+          ? 'За цим фільтром рухів немає.'
+          : 'Журнал руху порожній. Тут фіксується кожна зміна залишків: ' +
+            'прихід, списання під замовлення та повернення при скасуванні.') +
+        '</div>';
+    }
+
+    const pages = Math.max(1, Math.ceil(list.length / MOVES_PER_PAGE));
+    const page = Math.min(movesPage, pages);
+    const from = (page - 1) * MOVES_PER_PAGE;
+    const shown = list.slice(from, from + MOVES_PER_PAGE);
+
+    // Підсумок саме за фільтром, а не за сторінкою: скільки
+    // одиниць прийшло і скільки пішло
+    const plus = list.reduce((n, m) => n + Math.max(0, Number(m.delta) || 0), 0);
+    const minus = list.reduce((n, m) => n + Math.min(0, Number(m.delta) || 0), 0);
+
+    /* Групуємо за днями: у журналі важливо бачити межу доби,
+       інакше вчорашній прихід зливається із сьогоднішнім */
+    let html = '';
+    let lastDay = '';
+    shown.forEach((m) => {
+      const d = moveDate(m);
+      const key = d ? d.toDateString() : '';
+      if (key !== lastDay) {
+        lastDay = key;
+        html += '<h5 class="ao-day">' + (d ? esc(dayTitle(d)) : 'Без дати') + '</h5>';
+      }
+      html += moveRowHTML(m);
+    });
+
+    return (
+      '<p class="ao-note ao-moves__sum">' +
+        'Показано <b>' + (from + 1) + '–' + (from + shown.length) + '</b> із ' + list.length +
+        ' · надійшло <b class="is-plus">+' + plus + '</b>' +
+        ' · вибуло <b class="is-minus">' + minus + '</b>' +
+      '</p>' +
+      '<div class="ao-moves">' + html + '</div>' +
+      pagerHTML(page, pages)
+    );
+  }
+
+  /* Сторінки: перша, остання й вікно навколо поточної */
+  function pagerHTML(page, pages) {
+    if (pages < 2) return '';
+
+    const nums = [];
+    for (let i = 1; i <= pages; i++) {
+      if (i === 1 || i === pages || Math.abs(i - page) <= 1) nums.push(i);
+      else if (nums[nums.length - 1] !== '…') nums.push('…');
+    }
+
+    return (
+      '<nav class="ao-pager" aria-label="Сторінки журналу">' +
+        '<button class="ao-pager__nav" data-mv-page="' + (page - 1) + '" type="button"' +
+          (page === 1 ? ' disabled' : '') + ' aria-label="Попередня сторінка">←</button>' +
+        nums.map((n) =>
+          n === '…'
+            ? '<span class="ao-pager__gap">…</span>'
+            : '<button class="ao-pager__num' + (n === page ? ' is-active' : '') + '" ' +
+                'data-mv-page="' + n + '" type="button"' +
+                (n === page ? ' aria-current="page"' : '') + '>' + n + '</button>'
+        ).join('') +
+        '<button class="ao-pager__nav" data-mv-page="' + (page + 1) + '" type="button"' +
+          (page === pages ? ' disabled' : '') + ' aria-label="Наступна сторінка">→</button>' +
+      '</nav>'
+    );
+  }
+
+  function movesHTML() {
+    const chip = (id, title) =>
+      '<button class="ao-chip' + (movesReason === id ? ' is-active' : '') + '" ' +
+        'data-mv-reason="' + id + '" type="button">' + title + '</button>';
+
+    return (
+      '<div class="ao-moves__bar">' +
+        '<div class="ao-chips">' +
+          chip('all', 'Усі') +
+          chip('restock', 'Прихід') +
+          chip('order', 'Замовлення') +
+          chip('order-cancel', 'Повернення') +
+          chip('writeoff', 'Списання') +
+          chip('manual', 'Коригування') +
+        '</div>' +
+        '<input class="ao-search" id="mvSearch" placeholder="Пошук: товар, артикул або номер замовлення" ' +
+          'value="' + esc(movesSearch) + '" autocomplete="off">' +
+      '</div>' +
+      '<div id="movesList">' + movesListHTML() + '</div>'
     );
   }
 
@@ -5117,7 +5373,91 @@
      функції лишилась у git — якщо колись знадобиться корекція,
      її краще робити окремим приходом, а не тихим записом. */
 
+  /* Списання: знімаємо кількості одразу й пишемо в журнал руху
+     з причиною. Окремого документа приходу не створюємо — списання
+     не «очікується», воно вже сталося. */
+  async function createWriteoff() {
+    const pid = restockProductId;
+    const p = productById(pid);
+    if (!p) return toast('Оберіть товар');
+    if (isSetOf(p)) return toast('Комплект не списують — списують його складники');
+
+    const reason = $id('rstReason').value;
+    const title = (WRITEOFF_REASONS.find((r) => r.id === reason) || {}).title || 'Списання';
+    const note = $id('rstNote').value.trim();
+
+    const sizes = {};
+    let qty = 0;
+    let total = 0;
+
+    if (isSized(p)) {
+      document.querySelectorAll('#rstQtyBox [data-rst-size]').forEach((inp) => {
+        const v = Math.max(0, Math.trunc(Number(inp.value) || 0));
+        if (v > 0) { sizes[inp.dataset.rstSize] = v; total += v; }
+      });
+    } else {
+      qty = Math.max(0, Math.trunc(Number((document.querySelector('#rstQtyBox [data-rst-qty]') || {}).value) || 0));
+      total = qty;
+    }
+
+    if (!total) return toast('Вкажіть кількість для списання');
+
+    // Списати більше, ніж є, зазвичай означає помилку в цифрі
+    const over = isSized(p)
+      ? Object.keys(sizes).filter((s) => hasInvDoc(pid) && sizes[s] > sizeQty(pid, s))
+      : (hasInvDoc(pid) && qty > unitQty(pid) ? ['шт'] : []);
+
+    if (over.length) {
+      const ok = await R.confirmAsk(
+        'Списуєте більше, ніж є на складі: ' + over.join(', ') + '.\n\n' +
+        'Залишок піде в мінус — так буває, коли товар продали повз систему. Продовжити?',
+        { title: 'Більше, ніж є', okText: 'Все одно списати', danger: true });
+      if (!ok) return;
+    }
+
+    const ok = await R.confirmAsk(
+      'Списати ' + total + ' шт «' + p.name + '» зі складу?\n\nПричина: ' + title +
+      (note ? '\nНотатка: ' + note : ''),
+      { title: 'Списання зі складу', okText: 'Списати', danger: true });
+    if (!ok) return;
+
+    try {
+      const batch = R.fb.db.batch();
+      const grouped = {};
+      grouped[pid] = { sizes: {}, qty: 0 };
+
+      if (isSized(p)) {
+        Object.keys(sizes).forEach((sz) => {
+          grouped[pid].sizes[sz] = -sizes[sz];
+          logMove(batch, {
+            productId: pid, productName: p.name, size: sz,
+            delta: -sizes[sz], reason: 'writeoff',
+            ref: title + (note ? ' · ' + note : '')
+          });
+        });
+      } else {
+        grouped[pid].qty = -qty;
+        logMove(batch, {
+          productId: pid, productName: p.name, size: null,
+          delta: -qty, reason: 'writeoff',
+          ref: title + (note ? ' · ' + note : '')
+        });
+      }
+
+      writeStock(batch, grouped);
+      await batch.commit();
+
+      restockProductId = '';
+      renderStockUI();
+      toast('Списано ' + total + ' шт ✓', 'success');
+    } catch (e) {
+      toast('Не вдалося списати — перевірте права');
+    }
+  }
+
   async function createRestock() {
+    if (rstMode === 'off') return createWriteoff();
+
     const pid = restockProductId;
     const p = productById(pid);
     if (!p) {
@@ -6102,6 +6442,44 @@
           saveRestockEdit(r, restockEl);
         }
       }
+    });
+
+    /* Журнал руху: фільтр, пошук і сторінки перемальовують лише
+       список — інакше пошук губив би фокус на кожному символі */
+    stockBody().addEventListener('click', (e) => {
+      const mode = e.target.closest('[data-rst-mode]');
+      if (mode) {
+        rstMode = mode.dataset.rstMode;
+        renderStockUI();
+        return;
+      }
+
+      const r = e.target.closest('[data-mv-reason]');
+      if (r) {
+        movesReason = r.dataset.mvReason;
+        movesPage = 1;
+        renderStockUI();
+        return;
+      }
+      const pg = e.target.closest('[data-mv-page]');
+      if (pg && !pg.disabled) {
+        movesPage = Math.max(1, Number(pg.dataset.mvPage) || 1);
+        const box = $id('movesList');
+        if (box) box.innerHTML = movesListHTML();
+        stockBody().scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+    });
+
+    let mvTimer = null;
+    stockBody().addEventListener('input', (e) => {
+      if (e.target.id !== 'mvSearch') return;
+      movesSearch = e.target.value;
+      movesPage = 1;
+      clearTimeout(mvTimer);
+      mvTimer = setTimeout(() => {
+        const box = $id('movesList');
+        if (box) box.innerHTML = movesListHTML();
+      }, 200);
     });
 
     stockBody().addEventListener('submit', (e) => {

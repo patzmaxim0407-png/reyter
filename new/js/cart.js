@@ -182,8 +182,14 @@
     return '<ul class="cart-item__parts">' +
       item.parts.map((x) => {
         const sp = R.getProduct(x.id);
-        return '<li>' + R.esc(sp ? R.tf(sp, 'name') : x.id) +
-          (x.size ? ' · <b>' + R.esc(R.tx(x.size)) + '</b>' : '') + '</li>';
+        // категорія й тут: «Menthol» — це сліпи, а не майка,
+        // і за самою назвою цього не видно
+        const cat = sp ? R.categoryTitle(sp.category) : '';
+        return '<li>' +
+          (cat ? R.esc(cat) + ' · ' : '') +
+          R.esc(sp ? R.tf(sp, 'name') : x.id) +
+          (x.size ? ' · <b>' + R.esc(R.tx(x.size)) + '</b>' : '') +
+        '</li>';
       }).join('') +
     '</ul>';
   }
@@ -624,7 +630,9 @@
         const parts = (i.parts || [])
           .map((x) => {
             const sp = R.getProduct(x.id);
-            return (sp ? R.tf(sp, 'name') : x.id) + (x.size ? ' · ' + R.tx(x.size) : '');
+            const c = sp ? R.categoryTitle(sp.category) : '';
+            return (c ? c + ' · ' : '') + (sp ? R.tf(sp, 'name') : x.id) +
+              (x.size ? ' · ' + R.tx(x.size) : '');
           });
         const cat = R.categoryTitle(p.category);
         return '<div><span>' + R.esc(R.tf(p, 'name')) + (i.size ? ' (' + R.esc(R.tx(i.size)) + ')' : '') + ' × ' + i.qty +
@@ -674,7 +682,8 @@
       lines.push(n + 1 + '. ' + i.name + (i.category ? ' — ' + i.category : '') + ' (' + i.id + ')');
       lines.push('   ' + (i.size ? (i.volume ? 'обʼєм ' : 'розмір ') + i.size + ' · ' : '') + i.qty + ' шт · ' + R.fmt(i.price * i.qty) + ' грн');
       (i.parts || []).forEach((x) => {
-        lines.push('      – ' + x.name + (x.size ? ' · ' + x.size : ''));
+        lines.push('      – ' + (x.category ? x.category + ' · ' : '') + x.name +
+          (x.size ? ' · ' + x.size : ''));
       });
     });
     lines.push('');
@@ -799,6 +808,7 @@
             return {
               id: x.id,
               name: sp ? sp.name : x.id,
+              category: sp ? (R.categoryTitle(sp.category) || '') : '',
               size: x.size || null,
               volume: !!(sp && sp.volume)
             };
