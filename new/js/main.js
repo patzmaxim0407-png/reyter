@@ -9,7 +9,21 @@
   const R = window.REYTER;
 
   R.initI18n();          // мова (UA/EN) — до першого рендеру
-  R.renderCatalog();     // каталог із data.js
+
+  /* Перший рендер робимо з копії останнього опублікованого
+     каталогу, якщо вона є: інакше видно, як стрічка категорій
+     перебудовується, щойно відповість Firestore. data.js лишається
+     запасним варіантом для першого візиту. */
+  const online = R.fb && R.fb.enabled;
+  const cached = online && R.fb.cachedCatalog && R.fb.cachedCatalog();
+  const cachedStock = online && R.fb.cachedStock && R.fb.cachedStock();
+  if (cached) {
+    R.categories = cached.categories;
+    R.products = cached.products;
+  }
+  if (cachedStock) R.stock = cachedStock;
+
+  R.renderCatalog();
   R.initProductModal();  // модалка товару + лайтбокс
   R.initCart();          // кошик
   R.initAccount();       // кабінет користувача
@@ -38,13 +52,21 @@
       let changed = false;
 
       if (catalog && catalog.products.length) {
+        // З копії ми вже намалювали те саме — не перемальовуємо
+        // вітрину заради ідентичних даних: це зайве мерехтіння
+        const same = cached &&
+          JSON.stringify(cached.categories) === JSON.stringify(catalog.categories) &&
+          JSON.stringify(cached.products) === JSON.stringify(catalog.products);
+
         R.categories = catalog.categories;
         R.products = catalog.products;
-        changed = true;
+        if (!same) changed = true;
       }
       if (inv && Object.keys(inv).length) {
+        const sameStock = cachedStock &&
+          JSON.stringify(cachedStock) === JSON.stringify(inv);
         R.stock = inv;
-        changed = true;
+        if (!sameStock) changed = true;
       }
       if (changed) R.refreshCatalog();
 

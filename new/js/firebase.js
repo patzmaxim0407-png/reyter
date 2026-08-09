@@ -139,6 +139,35 @@
      версія лежить у published/next і набирає чинності сама,
      щойно годинник покупця перейде за publishAt. */
 
+  /* ---------- Копія опублікованого каталогу в браузері ----------
+     Firestore відповідає за кілька сотень мілісекунд, а до того
+     сайт малює резервний каталог із data.js — і покупець бачить,
+     як за секунду перебудовується стрічка категорій. Тримаємо
+     копію останньої побаченої версії: повторний візит малюється
+     одразу правильним, а відповідь із бази нічого не змінює. */
+
+  const CATALOG_KEY = 'reyter:catalog';
+
+  R.fb.cachedCatalog = function () {
+    try {
+      const raw = localStorage.getItem(CATALOG_KEY);
+      if (!raw) return null;
+      const c = JSON.parse(raw);
+      return (c && Array.isArray(c.products) && c.products.length) ? c : null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  function cacheCatalog(catalog) {
+    try {
+      localStorage.setItem(CATALOG_KEY, JSON.stringify({
+        categories: catalog.categories || [],
+        products: catalog.products || []
+      }));
+    } catch (e) { /* приватний режим або немає місця */ }
+  }
+
   R.fb.loadPublishedCatalog = async function () {
     try {
       const res = await Promise.all([
@@ -152,12 +181,14 @@
       const snap = due ? next : cur;
       if (!snap || !Array.isArray(snap.products) || !snap.products.length) return null;
 
-      return {
+      const catalog = {
         categories: snap.categories || [],
         products: snap.products,
         // коли набере чинності запланована версія — для таймера
         nextAt: !due && next && Number(next.publishAt) ? Number(next.publishAt) : null
       };
+      cacheCatalog(catalog);
+      return catalog;
     } catch (e) {
       return null;
     }
@@ -185,11 +216,32 @@
 
   /* ---------- Складські залишки (публічне читання) ---------- */
 
+  /* Залишки теж кешуємо — з тієї ж причини, що й каталог:
+     інакше картки малюються без даних складу, а за пів секунди
+     перемальовуються з бейджами «Продано» й «Закінчується».
+     Дані живуть недовго, тож копію тримаємо лише на добу. */
+
+  const STOCK_KEY = 'reyter:stock';
+  const STOCK_TTL = 24 * 3600 * 1000;
+
+  R.fb.cachedStock = function () {
+    try {
+      const c = JSON.parse(localStorage.getItem(STOCK_KEY) || 'null');
+      if (!c || !c.map || Date.now() - c.at > STOCK_TTL) return null;
+      return c.map;
+    } catch (e) {
+      return null;
+    }
+  };
+
   R.fb.loadInventory = async function () {
     try {
       const snap = await R.fb.db.collection('inventory').get();
       const map = {};
       snap.forEach((d) => { map[d.id] = d.data(); });
+      try {
+        localStorage.setItem(STOCK_KEY, JSON.stringify({ at: Date.now(), map: map }));
+      } catch (e) { /* немає місця — не критично */ }
       return map;
     } catch (e) {
       return null;

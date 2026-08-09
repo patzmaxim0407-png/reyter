@@ -119,17 +119,27 @@
 
   /* ---------- Картка товару ---------- */
 
+  /* Угорі — статус товару (Sale / Продано), унизу — попередження
+     про залишки: воно стосується конкретних розмірів і не має
+     сперечатися за увагу з головним бейджем */
   function badgesHTML(p, av) {
-    const badges = [];
+    let html = '';
+
     if (av.soldOut) {
-      badges.push('<span class="badge badge--sold">' + R.t('badge.sold') + '</span>');
+      html += '<span class="pcard__badges"><span class="badge badge--sold">' +
+        R.t('badge.sold') + '</span></span>';
     } else if (p.sale) {
-      badges.push('<span class="badge badge--sale">' + R.t('badge.sale') + '</span>');
+      html += '<span class="pcard__badges"><span class="badge badge--sale">' +
+        R.t('badge.sale') + '</span></span>';
     }
+
     if (!av.soldOut && av.low.length) {
-      badges.push('<span class="badge badge--low">' + R.t('badge.low') + ' ' + R.esc(av.low.join(', ')) + '</span>');
+      html += '<span class="pcard__badges pcard__badges--low">' +
+        '<span class="badge badge--low">' + R.t('badge.low') + ' ' +
+        R.esc(av.low.join(', ')) + '</span></span>';
     }
-    return badges.length ? '<span class="pcard__badges">' + badges.join('') + '</span>' : '';
+
+    return html;
   }
 
   /* Перші картки вантажимо одразу: поки їх зображення «ліниві»,

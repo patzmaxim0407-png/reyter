@@ -207,8 +207,14 @@
   text-transform: uppercase;
 }
 
+/* Попередження про залишки — при нижньому краї фото */
+.pcard__badges--low {
+  top: auto;
+  bottom: 10px;
+}
+
 .badge--sale {
-  background: var(--c-red);
+  background: var(--c-blue);
   color: #fff;
 }
 
@@ -264,7 +270,7 @@
 }
 
 .pcard--sale .price__now {
-  color: var(--c-red);
+  color: var(--c-blue);
 }
 
 .price__old {
