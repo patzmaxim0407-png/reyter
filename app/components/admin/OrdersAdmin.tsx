@@ -25,6 +25,7 @@ import {
   matchesSearch,
   orderStats,
   periodOrders,
+  printOrders,
   type AdminOrder,
   type OrderDialogs,
   type OrderFilters
@@ -33,6 +34,8 @@ import { todayISO } from '@/lib/admin/stock';
 import { watchInventory } from '@/lib/admin/live';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { fmt } from '@/lib/catalog';
+import { printSheet } from './printSheet';
+import { trackDelete, trackUpdate } from '@/lib/track';
 import type { OrderStatus, Stock } from '@/lib/types';
 
 /* ============================================================
@@ -88,7 +91,14 @@ export default function OrdersAdmin() {
     [orders, f]
   );
   const visible = list.slice(0, limit);
-  const stats = useMemo(() => orderStats(scope), [scope]);
+  /* Статистика — за ПЕРІОДОМ, не за пошуком: інакше виручка
+     й середній чек перераховувались би на кожен символ у полі,
+     і зрозуміти, скільки заробили за місяць, було б неможливо. */
+  const stats = useMemo(
+    () => orderStats(periodOrders(orders, f, now)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [orders, f.period, f.from, f.to]
+  );
 
   /* Вибір тримається за id, тож зниклі з фільтра позиції треба
      прибирати самим — інакше масова дія зачепила б те, чого
@@ -155,6 +165,25 @@ export default function OrdersAdmin() {
     if (res.kind === 'done' || res.kind === 'already') setSelection(new Set());
   }
 
+  /* Друкуємо окремим вікном: інакше на аркуш ішли б смуги
+     фільтрів, чіпи й кнопки, а зі згорнутої картки — жодної
+     позиції, і зібрати посилку за таким аркушем неможливо. */
+  const printPicked = useCallback(
+    (picked: AdminOrder[]) => {
+      if (!picked.length) return;
+      const w = window.open('', '_blank', 'width=780,height=900');
+      if (!w) {
+        toast('Браузер заблокував вікно друку — дозвольте спливаючі вікна');
+        return;
+      }
+      w.document.write(printSheet(printOrders(picked, c)));
+      w.document.close();
+      w.focus();
+      w.print();
+    },
+    [c, toast]
+  );
+
   const download = useCallback(
     (name: string, text: string, type: string) => {
       const url = URL.createObjectURL(new Blob([text], { type }));
@@ -207,7 +236,7 @@ export default function OrdersAdmin() {
                 'text/csv;charset=utf-8'
               )
             }
-            onPrint={() => window.print()}
+            onPrint={() => printPicked(exportList(list, selection))}
             onClear={() => setSelection(new Set())}
           />
 
@@ -218,6 +247,7 @@ export default function OrdersAdmin() {
               <OrderCard
                 key={o._id}
                 o={o as never}
+                c={c}
                 picked={selection.has(o._id)}
                 onPick={(on) =>
                   setSelection((sel) => {
@@ -233,22 +263,37 @@ export default function OrdersAdmin() {
                   if (!d) return;
                   try {
                     await updateDoc(doc(d, 'orders', o._id), { [field]: value });
+                    if (field === 'ttn') {
+                      /* Номер накладної має доїхати й до публічного
+                         запису — саме його читає гість у відстеженні.
+                         Без цього ТТН бачив би лише адмін. */
+                      void trackUpdate({ ...o, ttn: value } as never, { ttn: value });
+                      toast('ТТН збережено — покупець бачить його в кабінеті й у відстеженні ✓', 'success');
+                    } else {
+                      toast('Нотатку збережено ✓', 'success');
+                    }
                   } catch {
-                    toast('Не вдалося зберегти');
+                    toast(field === 'ttn' ? 'Не вдалося зберегти ТТН' : 'Не вдалося зберегти нотатку');
                   }
                 }}
                 onCopy={async () => {
                   const done = await copyText(o.message || buildOrderMessage(o as never, c));
                   toast(done ? 'Скопійовано ✓' : 'Не вдалося скопіювати', done ? 'success' : 'plain');
                 }}
-                onPrint={() => window.print()}
+                onPrint={() => printPicked([o])}
                 onDelete={async () => {
+                  /* Про списаний товар попереджаємо окремо: видалення
+                     його НЕ повертає, і після нього залишки вже
+                     нічим не полагодити — тільки руками. */
                   const yes = await askDialog({
                     title: 'Видалити замовлення?',
                     text:
-                      `№${o.num} зникне назавжди.\n\n` +
-                      'Якщо товар уже списано зі складу, залишки це не поверне — ' +
-                      'спершу скасуйте замовлення.',
+                      `№${o.num} зникне назавжди.` +
+                      (o.stockApplied
+                        ? '\n\nТовар за цим замовленням списаний зі складу. При видаленні ' +
+                          'він автоматично НЕ повернеться — спершу переведіть замовлення ' +
+                          'у «Скасовано», якщо потрібне повернення залишків.'
+                        : '\n\nДію не можна скасувати.'),
                     okText: 'Видалити',
                     danger: true
                   });
@@ -256,9 +301,16 @@ export default function OrdersAdmin() {
                   const d = db();
                   if (!d) return;
                   try {
+                    setSelection((sel) => {
+                      const next = new Set(sel);
+                      next.delete(o._id);
+                      return next;
+                    });
                     await deleteDoc(doc(d, 'orders', o._id));
+                    // разом із замовленням прибираємо й публічне відстеження
+                    if (o.trackKey) void trackDelete(o.trackKey);
                   } catch {
-                    toast('Не вдалося видалити');
+                    toast('Немає прав видаляти');
                   }
                 }}
               />

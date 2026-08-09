@@ -9,10 +9,12 @@ import RestockForm, { type RestockSubmit, type SizeCell } from './RestockForm';
 import { useAdminUser } from './AdminGate';
 import { useAsk } from './AskProvider';
 import { useToast } from '../Toasts';
-import { db } from '@/lib/firebase';
+import { db, loadNotifySettings } from '@/lib/firebase';
+import { sendBackInStock } from '@/lib/notify';
 import { EMPTY_DRAFT, watchDraft, type Draft } from '@/lib/admin/store';
 import { loadMoves, loadRestocks, watchInventory, type Doc } from '@/lib/admin/live';
 import {
+  MOVE_REASONS,
   WRITEOFF_REASONS,
   createRestock,
   createWriteoff,
@@ -25,6 +27,7 @@ import {
   movesPage,
   planReceive,
   planWriteoff,
+  notifyStockAlerts,
   receiveRestock,
   restockOverdue,
   restockTotal,
@@ -115,14 +118,21 @@ export default function StockAdmin() {
     let units = 0;
     let value = 0;
     let low = 0;
+    let out = 0;
     draft.products.forEach((p) => {
+      /* Комплект власних штук не має — у сумі й вартості складу
+         він рахувався б удруге, через складники. Але «закінчується»
+         й «немає» до нього стосуються: покупець бачить саме
+         комплект, а не його вміст. */
+      const cls = (isSetOf(s, p) ? setStockRow(s, p) : stockRow(s, p)).state.cls;
+      if (cls === 'is-low') low++;
+      if (cls === 'is-out') out++;
       if (isSetOf(s, p)) return;
       const n = totalQty(s, p);
       units += n;
       value += n * (Number(p.price) || 0);
-      if (stockRow(s, p).state.cls === 'is-low') low++;
     });
-    return { units, value, low };
+    return { units, value, low, out };
   }, [draft.products, s]);
 
   /* ---------- Прихід і списання ---------- */
@@ -212,6 +222,25 @@ export default function StockAdmin() {
       const res = await receiveRestock(w, s, restocks, r);
       if (!res.ok) return toast(res.message);
       toast('Оприбутковано ✓', 'success');
+
+      /* Товар повернувся в наявність — пишемо тим, хто на нього
+         чекав. Без цього підписка на розмір нічого не варта:
+         покупець так і не дізнається, що товар приїхав. */
+      if (plan.back !== null) {
+        const settings = await loadNotifySettings();
+        const sent = await notifyStockAlerts(
+          {
+            db: w.db,
+            send: (mail) => sendBackInStock(settings as { workerUrl?: string } | null, mail)
+          },
+          s,
+          r.productId,
+          plan.back
+        );
+        const n = sent.reduce((x, a) => x + a.sent, 0);
+        if (n) toast(`Сповіщено підписників: ${n} ✓`, 'success');
+      }
+
       await reload();
     } finally {
       setBusy(false);
@@ -249,6 +278,14 @@ export default function StockAdmin() {
             <div className="ao-stat">
               <b>{stats.low}</b>
               <span>закінчуються</span>
+            </div>
+            <div className="ao-stat">
+              <b>{stats.out}</b>
+              <span>немає в наявності</span>
+            </div>
+            <div className="ao-stat">
+              <b>{restocks.filter((r) => r.status !== 'received').length}</b>
+              <span>приходів у черзі</span>
             </div>
           </div>
 
@@ -378,14 +415,16 @@ export default function StockAdmin() {
                   .filter((r) => r.status !== 'received')
                   .map((r) => (
                     <div
-                      className={'ao-restock' + (restockOverdue(r, new Date()) ? ' is-late' : '')}
+                      className={'ao-restock' + (restockOverdue(r, new Date()) ? ' is-overdue' : '')}
                       key={r._id}
                     >
                       <div className="ao-restock__info">
                         <b>{r.productName || r.productId}</b>
                         <span>
                           {restockTotal(r)} шт
-                          {r.expected ? ' · до ' + r.expected : ''}
+                          {r.expected
+                            ? (restockOverdue(r, new Date()) ? ' · ⚠ очікувався ' : ' · до ') + r.expected
+                            : ''}
                           {r.note ? ' · ' + r.note : ''}
                         </span>
                       </div>
@@ -425,12 +464,54 @@ export default function StockAdmin() {
               ) : (
                 <div className="a-empty">Немає приходів у черзі.</div>
               )}
+
+              {/* Оприбутковані лишаються на очах: інакше не
+                  перевірити, коли й хто прийняв товар */}
+              {restocks.some((r) => r.status === 'received') ? (
+                <>
+                  <h5 className="ao-cat-title">Останні оприбутковані</h5>
+                  {restocks
+                    .filter((r) => r.status === 'received')
+                    .slice(0, 10)
+                    .map((r) => (
+                      <div className="ao-restock is-done" key={r._id}>
+                        <div className="ao-restock__info">
+                          <b>{r.productName || r.productId}</b>
+                          <span>
+                            {restockTotal(r)} шт
+                            {r.receivedAt?.toDate
+                              ? ' · ' + r.receivedAt.toDate().toLocaleDateString('uk-UA')
+                              : ''}
+                            {r.receivedBy ? ' · ' + r.receivedBy.split('@')[0] : ''}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                </>
+              ) : null}
             </>
           ) : null}
 
           {tab === 'moves' ? (
             <>
               <div className="ao-filterbar">
+                <div className="ao-chips">
+                  {[['all', 'Усі'] as [string, string]].concat(
+                    Object.entries(MOVE_REASONS)
+                  ).map(([id, title]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={'ao-chip' + (moveReason === id ? ' is-active' : '')}
+                      onClick={() => {
+                        setMoveReason(id);
+                        setMovesPageNo(1);
+                      }}
+                    >
+                      {title}
+                    </button>
+                  ))}
+                </div>
                 <input
                   className="ao-search"
                   placeholder="Пошук за товаром або замовленням"
@@ -440,6 +521,19 @@ export default function StockAdmin() {
                     setMovesPageNo(1);
                   }}
                 />
+              </div>
+
+              {/* Підсумки за фільтром, а не за сторінкою: скільки
+                  одиниць надійшло і скільки вибуло загалом */}
+              <div className="ao-stats">
+                <div className="ao-stat">
+                  <b>+{page.plus}</b>
+                  <span>надійшло</span>
+                </div>
+                <div className="ao-stat">
+                  <b>{page.minus}</b>
+                  <span>вибуло</span>
+                </div>
               </div>
 
               {page.days.length ? (

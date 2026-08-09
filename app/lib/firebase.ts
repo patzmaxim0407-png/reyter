@@ -354,6 +354,12 @@ export async function loadMyOrders(uid: string, email: string) {
  *  Кеш на вкладку: адреса змінюється раз на рік. */
 let settingsCache: Record<string, unknown> | null = null;
 
+/** Скинути кеш. Після запису налаштувань наступне читання має
+ *  побачити нову адресу воркера, а не стару з памʼяті. */
+export function forgetNotifySettings(): void {
+  settingsCache = null;
+}
+
 export async function loadNotifySettings(): Promise<Record<string, unknown> | null> {
   if (settingsCache) return settingsCache;
   const d = db();

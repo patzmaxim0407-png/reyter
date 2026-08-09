@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAsk } from './AskProvider';
 import { useToast } from '../Toasts';
 import { copyText } from '@/lib/copy';
-import { db } from '@/lib/firebase';
+import { db, forgetNotifySettings } from '@/lib/firebase';
 import {
   KEY_WORKER,
   FOUNDERS,
@@ -301,7 +301,10 @@ export default function SettingsDialog({
                       if (!d) return;
                       await run(async () => {
                         const res = await wipeLegacyTg(d);
-                        if (res.kind === 'ok') setLegacy(null);
+                        if (res.kind === 'ok') {
+                          forgetNotifySettings();
+                          setLegacy(null);
+                        }
                         return res;
                       });
                     }}
@@ -412,7 +415,11 @@ export default function SettingsDialog({
                   const d = db();
                   if (!d) return { kind: 'err' as const, text: 'Немає звʼязку з базою' };
                   const res = await saveSettings(d, form);
-                  if (res.kind === 'ok') toast('Налаштування збережено ✓', 'success');
+                  if (res.kind === 'ok') {
+                    // наступне читання має побачити нову адресу воркера
+                    forgetNotifySettings();
+                    toast('Налаштування збережено ✓', 'success');
+                  }
                   return res;
                 })
               }

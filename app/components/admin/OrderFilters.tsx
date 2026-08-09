@@ -70,7 +70,12 @@ export function PeriodBar({
             key={id}
             type="button"
             className={'ao-chip' + (f.period === id ? ' is-active' : '')}
-            onClick={() => set({ period: id })}
+            onClick={() =>
+              /* «Свій період» без меж пропускав би всі замовлення
+                 з кешу — тобто мовчки розширював вибірку замість
+                 звузити. Підставляємо сьогоднішній день. */
+              set(id === 'custom' && !f.from && !f.to ? { period: id, from: today, to: today } : { period: id })
+            }
           >
             {title}
           </button>

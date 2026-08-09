@@ -2,9 +2,8 @@
 
 import { useState } from 'react';
 import { addressLine } from '@/lib/address';
-import { fmt } from '@/lib/catalog';
-import { ORDER_STATUSES, statusInfo } from '@/lib/account';
-import { t } from '@/lib/i18n';
+import { fmt, type Catalogue } from '@/lib/catalog';
+import { NEXT_STEP, STATUSES, confirmText, itemCat, orderDate, statusInfo } from '@/lib/admin/orders';
 import type { OrderItem } from '@/lib/types';
 
 /* ============================================================
@@ -35,36 +34,13 @@ export interface AdminOrder {
   items?: OrderItem[];
   customer?: Record<string, unknown>;
   statusLog?: { status?: string; at?: string; by?: string }[];
-}
-
-/** Наступний крок за поточним статусом. Кнопка одна, і вона
- *  веде туди, куди замовлення йде в девʼяти випадках із десяти. */
-const NEXT_STEP: Record<string, { id: string; label: string }> = {
-  new: { id: 'confirmed', label: 'Підтвердити' },
-  confirmed: { id: 'shipped', label: 'Відправити' },
-  shipped: { id: 'done', label: 'Виконано' }
-};
-
-function itemCat(i: { category?: string }): string {
-  return i.category ?? '';
-}
-
-function confirmText(c: Record<string, unknown>): string {
-  const conf = c.confirm as
-    | { method?: string; messenger?: string; phoneMode?: string; altPhone?: string; telegram?: string }
-    | undefined;
-  if (!conf) return '';
-  const name = { telegram: 'Telegram', whatsapp: 'WhatsApp', viber: 'Viber' }[conf.messenger ?? ''] ?? '';
-  const how = conf.method === 'messenger' ? name || t('cart.byMessenger') : t('cart.byCall');
-  const phone = conf.phoneMode === 'other' && conf.altPhone ? conf.altPhone : String(c.phone ?? '');
-  const out = [how];
-  if (phone) out.push(phone);
-  if (conf.telegram) out.push('@' + conf.telegram);
-  return out.join(' · ');
+  writeoff?: { title?: string; note?: string; by?: string };
+  trackKey?: string;
 }
 
 export default function OrderCard({
   o,
+  c: catalog,
   picked,
   onPick,
   onStatus,
@@ -75,6 +51,9 @@ export default function OrderCard({
   onDelete
 }: {
   o: AdminOrder;
+  /** Каталог потрібен, щоб підставити категорію в старе
+   *  замовлення, де її в позиції ще не зберігали. */
+  c: Catalogue;
   picked?: boolean;
   onPick?(on: boolean): void;
   onStatus(next: string): void;
@@ -87,7 +66,7 @@ export default function OrderCard({
   const [open, setOpen] = useState(false);
   const st = o.status || 'new';
   const c = o.customer ?? {};
-  const next = NEXT_STEP[st];
+  const next = NEXT_STEP[st as keyof typeof NEXT_STEP];
 
   const delivery = addressLine(c as never);
   const units = (o.items ?? []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
@@ -95,15 +74,17 @@ export default function OrderCard({
   const disc = Number(o.discount) || 0;
   const ship = Number(o.shipping) || 0;
 
-  const d = o.date ? new Date(o.date) : null;
-  const dateFull =
-    d && d.getTime()
-      ? d.toLocaleString('uk-UA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
-      : '';
+  /* Той самий orderDate, що й у сортуванні списку: у найперших
+     замовленнях часу в date немає, він лежить у created — і без
+     цієї гілки картка показувала б порожню дату. */
+  const d = orderDate(o as never);
+  const dateFull = d.getTime()
+    ? d.toLocaleString('uk-UA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+    : '';
 
   const email = String(c.email ?? o.email ?? '');
   const phone = String(c.phone ?? '');
-  const confirm = confirmText(c);
+  const confirm = confirmText(c as never);
 
   return (
     <article className={'ao-card st-' + st + (open ? ' is-open' : '')}>
@@ -121,9 +102,9 @@ export default function OrderCard({
           value={st}
           onChange={(e) => onStatus(e.target.value)}
         >
-          {ORDER_STATUSES.map((id) => (
-            <option value={id} key={id}>
-              {statusInfo(id, t).title}
+          {STATUSES.map((x) => (
+            <option value={x.id} key={x.id}>
+              {x.title}
             </option>
           ))}
         </select>
@@ -198,7 +179,7 @@ export default function OrderCard({
               <div className="ao-line" key={n}>
                 <span>
                   {i.name}
-                  {itemCat(i) ? <em className="ao-line__cat">{itemCat(i)}</em> : null}
+                  {itemCat(catalog, i) ? <em className="ao-line__cat">{itemCat(catalog, i)}</em> : null}
                   {i.size ? (
                     <>
                       {' · '}
@@ -212,7 +193,7 @@ export default function OrderCard({
                     <span className="ao-line__parts">
                       {(i.parts ?? []).map((x, k) => (
                         <span key={k}>
-                          {k ? <br /> : null}· {itemCat(x) ? itemCat(x) + ' · ' : ''}
+                          {k ? <br /> : null}· {itemCat(catalog, x) ? itemCat(catalog, x) + ' · ' : ''}
                           {x.name || x.id}
                           {x.size ? (
                             <>
@@ -289,12 +270,28 @@ export default function OrderCard({
             </label>
           </div>
 
+          {/* Товар не повернули на склад — причина має бути видна
+              прямо в картці, інакше через тиждень її вже не знайти */}
+          {o.writeoff ? (
+            <div className="ao-card__hist">
+              <span className="ao-field__label">Списання при скасуванні</span>
+              <div className="ao-hist">
+                <div>
+                  {o.writeoff.title}
+                  {o.writeoff.note ? ' · ' + o.writeoff.note : ''}
+                  {o.writeoff.by ? ' · ' + o.writeoff.by : ''}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="ao-card__hist">
             <span className="ao-field__label">Історія статусів</span>
             <div className="ao-hist">
-              {(o.statusLog ?? []).map((h, n) => (
+              {/* Найновіше згори: читають саме останнє, а не перше */}
+              {(o.statusLog ?? []).slice().reverse().map((h, n) => (
                 <div key={n}>
-                  {statusInfo(h.status, t).title}
+                  {statusInfo(h.status).title}
                   {h.at ? ' · ' + new Date(h.at).toLocaleString('uk-UA') : ''}
                   {h.by ? ' · ' + h.by : ''}
                 </div>

@@ -158,3 +158,36 @@ export async function sendPromoLetter(
     return { ok: false, error: 'не вдалося звʼязатися з воркером' };
   }
 }
+
+/* ---------- Лист «товар знову в наявності» ----------
+   Покупець підписався на розмір, якого не було, і чекає. Лист
+   іде тим самим воркером; помилку тут ковтаємо — прихід через
+   неї скасовувати безглуздо. */
+
+export interface BackInStockMail {
+  to: string;
+  product: string;
+  size: string;
+  image: string;
+  url: string;
+  lang: string;
+}
+
+export async function sendBackInStock(
+  settings: NotifySettings | null,
+  mail: BackInStockMail
+): Promise<boolean> {
+  const url = normalizeUrl(settings?.workerUrl);
+  if (!url || !mail.to) return false;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'back-in-stock', ...mail })
+    });
+    const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
+    return !!data.ok;
+  } catch {
+    return false;
+  }
+}
