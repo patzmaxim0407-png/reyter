@@ -3988,8 +3988,8 @@ label.a-promo-product i {
   color: var(--c-muted);
 }
 
-/* Рядок складу для комплекту: кількості не редагуються */
-.ao-stockrow--set .ao-qty.is-calc {
+/* Залишки лише для читання: і в комплекті, і у звичайному товарі */
+.ao-qty.is-calc {
   display: grid;
   place-items: center;
   gap: 0.1rem;
@@ -4000,12 +4000,22 @@ label.a-promo-product i {
   background: var(--c-cream);
 }
 
-.ao-stockrow--set .ao-qty.is-calc b {
+.ao-qty.is-calc b {
   font-size: 1rem;
 }
 
-.ao-stockrow--set .ao-qty.is-calc.is-zero b {
+.ao-qty.is-calc.is-zero b {
+  color: var(--c-muted);
+}
+
+.ao-qty.is-calc.is-neg b {
   color: var(--c-red);
+}
+
+/* Розмір, якого немає в картці товару */
+.ao-qty.is-calc.is-stray {
+  border-style: dotted;
+  opacity: 0.75;
 }
 
 /* Роздільник категорії у списку «Всі товари» */

@@ -4776,25 +4776,22 @@
 
     const state = productRowState(p);
     const total = totalQty(p);
+    /* Залишки не редагуються руками: базу вже задано, далі склад
+       змінюють лише прихід і замовлення. Так у журналі «Рух»
+       лишається повна історія, а не мовчазні виправлення. */
+    const cell = (label, v, extraCls, hint) =>
+      '<span class="ao-qty is-calc' + (v < 0 ? ' is-neg' : '') +
+        (v === 0 ? ' is-zero' : '') + (extraCls || '') + '"' + (hint || '') + '>' +
+        '<span>' + label + '</span><b>' + v + '</b>' +
+      '</span>';
+
     const inputs = isSized(p)
-      ? stockSizes(p).map((it) => {
-          const s = it.size;
-          const v = sizeQty(p.id, s);
-          const cls = 'ao-qty' + (v < 0 ? ' is-neg' : '') + (it.stray ? ' is-stray' : '');
-          const hint = it.stray
-            ? ' title="Цього розміру немає в картці товару: спишіть залишок у нуль — і він зникне"'
-            : '';
-          return (
-            '<label class="' + cls + '"' + hint + '>' +
-              '<span>' + s + (it.stray ? '*' : '') + '</span>' +
-              '<input type="number" data-stk-pid="' + esc(p.id) + '" data-stk-size="' + s + '" value="' + v + '">' +
-            '</label>'
-          );
-        }).join('')
-      : '<label class="ao-qty' + (unitQty(p.id) < 0 ? ' is-neg' : '') + '">' +
-          '<span>шт</span>' +
-          '<input type="number" data-stk-pid="' + esc(p.id) + '" value="' + unitQty(p.id) + '">' +
-        '</label>';
+      ? stockSizes(p).map((it) =>
+          cell(it.size + (it.stray ? '*' : ''), sizeQty(p.id, it.size),
+            it.stray ? ' is-stray' : '',
+            it.stray ? ' title="Цього розміру немає в картці товару"' : '')
+        ).join('')
+      : cell('шт', unitQty(p.id), '', '');
 
     return (
       '<div class="ao-stockrow ' + state.cls + '">' +
@@ -5056,7 +5053,9 @@
           '</div>' +
           '<input class="ao-search" id="aoStockSearch" placeholder="Пошук: назва або артикул" value="' + esc(stockSearch) + '">' +
         '</div>' +
-        '<p class="ao-note">Змініть число — воно збережеться автоматично, а сайт одразу покаже «Продано» чи «Закінчується» (поріг — ' + LOW_AT + ' шт). Кожна зміна фіксується в журналі «Рух».</p>' +
+        '<p class="ao-note">Залишки рахуються самі: додає їх <b>прихід</b>, ' +
+          'віднімають підтверджені замовлення. Сайт одразу показує «Продано» ' +
+          'чи «Закінчується» (поріг — ' + LOW_AT + ' шт), а кожен рух видно у вкладці «Рух».</p>' +
         '<div class="ao-stocklist">' + stockListHTML() + '</div>';
     } else if (stockTab === 'restock') {
       content = restockFormHTML() + restockListHTML();
@@ -5113,38 +5112,10 @@
     }
   }
 
-  async function setStockValue(pid, size, value) {
-    const p = productById(pid);
-    const oldVal = size ? sizeQty(pid, size) : unitQty(pid);
-    const newVal = Math.trunc(Number(value) || 0);
-    if (newVal === oldVal) return;
-
-    try {
-      const batch = R.fb.db.batch();
-      const ref = R.fb.db.collection('inventory').doc(pid);
-      const upd = { updated: firebase.firestore.FieldValue.serverTimestamp() };
-      if (size) upd.sizes = { [size]: newVal };
-      else upd.qty = newVal;
-      batch.set(ref, upd, { merge: true });
-      logMove(batch, {
-        productId: pid,
-        productName: (p && p.name) || pid,
-        size: size || null,
-        delta: newVal - oldVal,
-        reason: 'manual',
-        ref: ''
-      });
-      await batch.commit();
-
-      // розмір щойно повернувся в наявність — сповіщаємо підписників
-      if (oldVal <= 0 && newVal > 0) {
-        notifyStockAlerts(pid, size ? [size] : []);
-      }
-    } catch (err) {
-      toast('Не вдалося зберегти залишок');
-      renderStockUI();
-    }
-  }
+  /* Ручне редагування залишків прибрано свідомо: базу задано,
+     далі склад рухають лише прихід і замовлення. Історія цієї
+     функції лишилась у git — якщо колись знадобиться корекція,
+     її краще робити окремим приходом, а не тихим записом. */
 
   async function createRestock() {
     const pid = restockProductId;
@@ -6130,13 +6101,6 @@
         } else if (e.target.closest('[data-rst-save]')) {
           saveRestockEdit(r, restockEl);
         }
-      }
-    });
-
-    stockBody().addEventListener('change', (e) => {
-      if (e.target.matches('[data-stk-pid]')) {
-        setStockValue(e.target.dataset.stkPid, e.target.dataset.stkSize || null, e.target.value);
-        return;
       }
     });
 
