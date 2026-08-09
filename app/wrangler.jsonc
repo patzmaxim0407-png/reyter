@@ -6,13 +6,17 @@
  * а не просто тека з файлами. Публікація з адмінки доходить до
  * покупця сама, без перезбірки.
  *
+ * Назва навмисно не «reyter»: в акаунті вже є проєкт Pages зі
+ * старим сайтом і воркер сповіщень, і в панелі Cloudflare вони
+ * лежать в одному списку — однакові назви там сплутати легко.
+ *
  * Збірка:   npm run cf:build
  * Перегляд: npm run cf:preview   (локально, як у Cloudflare)
  * Викладка: npm run cf:deploy
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "reyter",
+  "name": "reyter-site",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-08-01",
   // nodejs_compat потрібен самому Next; global_fetch_strictly_public
