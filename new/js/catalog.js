@@ -156,7 +156,13 @@
 
   function setAvailability(p) {
     const parts = R.setParts(p);
-    if (!parts.length) return null;   // складників не лишилось зовсім
+
+    // Складники зникли з каталогу — комплект не зібрати ні з чого.
+    // Не можна вдавати звичайний товар: він показався б «у наявності»
+    // і його поклали б у кошик.
+    if (!parts.length) {
+      return { live: false, isSet: true, soldOut: true, sizes: [], low: [], total: 0 };
+    }
 
     const avs = parts.map((x) => R.availability(x));
 
@@ -167,12 +173,20 @@
     /* Розміри, у яких комплект збирається «весь одного розміру».
        Це для бейджів на картці та для складу; у самій картці
        товару покупець бачить сітку кожного складника окремо
-       й може змішувати розміри. */
-    const sizes = R.config.allSizes.filter((s) =>
-      parts.every((x) => !R.isSized(x) || R.stockQty(x, s) > 0));
+       й може змішувати розміри.
+       Якщо жоден складник не має розмірної сітки (свічка + дифузор),
+       розмірів у комплекту немає — інакше бейдж «закінчується»
+       перелічував би всі розміри, яких не існує. */
+    const sized = parts.some(R.isSized);
+    const sizes = sized
+      ? R.config.allSizes.filter((s) =>
+          parts.every((x) => !R.isSized(x) || R.stockQty(x, s) > 0))
+      : [];
 
     const low = sizes.filter((s) => R.setQty(p, s) <= R.LOW_STOCK_AT);
-    const total = sizes.reduce((n, s) => n + R.setQty(p, s), 0);
+    const total = sized
+      ? sizes.reduce((n, s) => n + R.setQty(p, s), 0)
+      : R.setQty(p, null);
 
     return {
       live: avs.some((a) => a.live),

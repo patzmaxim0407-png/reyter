@@ -171,7 +171,9 @@
 
         const pills = R.isSized(part)
           ? R.config.allSizes.map((size) => {
-              const has = av.sizes.includes(size);
+              // av.sizes у статичному режимі перелічує розміри з картки
+              // навіть у проданого товару — звідси перевірка soldOut
+              const has = !av.soldOut && av.sizes.includes(size);
               const checked = has && !chosen;
               if (checked) chosen = size;
               return sizePillHTML(size, {
@@ -288,12 +290,17 @@
   }
 
   /* Показ блоку для конкретного розміру або товару загалом */
-  let etaProduct = null;   // для якого товару показано блок (складник комплекту)
+  /* etaProduct — чию дату приходу показуємо (складник комплекту),
+     etaSubject — на що саме підписуємо покупця. Для комплекту це
+     різні речі: дата є в складника, а чекає людина комплект. */
+  let etaProduct = null;
+  let etaSubject = null;
 
-  function showEta(size, product) {
+  function showEta(size, product, subject) {
     if (!el.eta) return;
     etaFor = size || null;
     etaProduct = product || current;
+    etaSubject = subject || product || current;
     const soldAll = currentAv.soldOut;
 
     fetchEta(etaProduct.id).then((eta) => {
@@ -328,6 +335,7 @@
     el.eta.hidden = true;
     etaFor = null;
     etaProduct = null;
+    etaSubject = null;
   }
 
   /* Після рендера розмірів: товар повністю проданий — блок
@@ -335,7 +343,15 @@
   function refreshEta() {
     hideEta();
     if (!R.fb || !R.fb.enabled) return;
-    if (currentAv.soldOut) showEta(null);
+    if (!currentAv.soldOut) return;
+
+    /* Комплект «немає» через конкретний складник — дату приходу
+       треба брати в нього. Сам комплект у restock_eta не потрапляє
+       ніколи: на склад приходять речі, а не комплекти. */
+    const blocker = R.isSet(current)
+      ? R.setParts(current).find((x) => R.availability(x).soldOut)
+      : null;
+    showEta(null, blocker || current, current);
   }
 
   async function submitEtaForm() {
@@ -346,7 +362,7 @@
       return;
     }
     try {
-      const target = etaProduct || current;
+      const target = etaSubject || current;
       await R.fb.db.collection('stock_alerts').add({
         productId: target.id,
         productName: R.tf(target, 'name'),
