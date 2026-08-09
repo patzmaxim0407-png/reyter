@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import AdminBar from './AdminBar';
+import SettingsDialog from './SettingsDialog';
 import PromoCard from './PromoCard';
 import PromoEditor from './PromoEditor';
 import { useAdminUser } from './AdminGate';
@@ -23,6 +24,10 @@ import {
   type PromoOrder
 } from '@/lib/admin/promos';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { sendPromoLetter } from '@/lib/notify';
+import { loadNotifySettings } from '@/lib/firebase';
+import { promoTerms } from '@/lib/promo';
+import { t } from '@/lib/i18n';
 import type { Promo } from '@/lib/promo';
 
 /* ============================================================
@@ -37,6 +42,7 @@ export default function PromosAdmin() {
   const user = useAdminUser();
   const ask = useAsk();
   const toast = useToast();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [promos, setPromos] = useState<Promo[]>([]);
   const [orders, setOrders] = useState<PromoOrder[]>([]);
@@ -98,7 +104,7 @@ export default function PromosAdmin() {
 
   return (
     <>
-      <AdminBar user={user} />
+      <AdminBar user={user} onSettings={() => setSettingsOpen(true)} />
 
       <div className="admin-wrap admin-wrap--wide">
         <main className="a-main">
@@ -158,6 +164,31 @@ export default function PromosAdmin() {
                   const done = await copyText(p.code ?? '');
                   toast(done ? 'Скопійовано ✓' : 'Не вдалося скопіювати', done ? 'success' : 'plain');
                 }}
+                onMail={
+                  p.email
+                    ? async () => {
+                        const settings = await loadNotifySettings();
+                        const res = await sendPromoLetter(settings as { workerUrl?: string } | null, {
+                          to: p.email ?? '',
+                          code: p.code ?? '',
+                          value: promoValueText(p),
+                          terms: promoTerms(p, {
+                            t,
+                            categoryTitle: (id) =>
+                              draft.categories.find((x) => x.id === id)?.title ?? id,
+                            productName: (id) =>
+                              draft.products.find((x) => x.id === id)?.name ?? id
+                          })
+                        });
+                        toast(
+                          res.ok
+                            ? `Лист із промокодом надіслано на ${p.email} ✓`
+                            : 'Не вдалося надіслати: ' + res.error,
+                          res.ok ? 'success' : 'plain'
+                        );
+                      }
+                    : undefined
+                }
                 onDelete={async () => {
                   const yes = await ask({
                     title: 'Видалити промокод?',
@@ -190,6 +221,11 @@ export default function PromosAdmin() {
         userEmail={user.email ?? ''}
         onClose={() => setEditing(null)}
         onSave={(f) => void onSave(f)}
+      />
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        user={user.email ?? ''}
       />
     </>
   );

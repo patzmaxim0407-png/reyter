@@ -117,3 +117,44 @@ export async function orderPlaced(
   };
   return out;
 }
+
+/* ---------- Лист із персональним промокодом ----------
+   Персональний код видають конкретній людині, і надіслати його
+   має магазин, а не сам покупець. Лист іде тим самим воркером,
+   що й підтвердження замовлення. */
+
+export interface PromoLetter {
+  to: string;
+  code: string;
+  /** «300 грн» або «10%» — уже готовий рядок. */
+  value: string;
+  /** Умови людською мовою. */
+  terms: string;
+}
+
+export async function sendPromoLetter(
+  settings: NotifySettings | null,
+  letter: PromoLetter,
+  lang: Lang = 'uk'
+): Promise<{ ok: boolean; error: string }> {
+  if (!letter.to) return { ok: false, error: 'У коду немає пошти отримувача' };
+
+  const url = normalizeUrl(settings?.workerUrl);
+  if (!url) return { ok: false, error: 'не вказано адресу Worker у налаштуваннях' };
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'promo', ...letter, lang })
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (data.ok) return { ok: true, error: '' };
+    return {
+      ok: false,
+      error: String(data.error ?? '') || 'воркер відповів кодом ' + res.status
+    };
+  } catch {
+    return { ok: false, error: 'не вдалося звʼязатися з воркером' };
+  }
+}

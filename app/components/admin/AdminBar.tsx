@@ -23,12 +23,14 @@ const TABS = [
 export default function AdminBar({
   user,
   hasDraft,
-  onPublish
+  onPublish,
+  onSettings
 }: {
   user: User;
   /** Є неопубліковані зміни або запланована публікація. */
   hasDraft?: boolean;
   onPublish?: () => void;
+  onSettings?: () => void;
 }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
@@ -73,6 +75,11 @@ export default function AdminBar({
           <a className="btn btn--ghost btn--sm" href="/" target="_blank" rel="noopener">
             Сайт
           </a>
+          {onSettings ? (
+            <button className="btn btn--ghost btn--sm" type="button" onClick={onSettings}>
+              Налаштування
+            </button>
+          ) : null}
           <button className="btn btn--ghost btn--sm" type="button" onClick={() => void fb.logout()}>
             Вийти
           </button>

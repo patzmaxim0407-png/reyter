@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminBar from './AdminBar';
+import SettingsDialog from './SettingsDialog';
 import StockRow from './StockRow';
 import MoveRow from './MoveRow';
 import RestockForm, { type RestockSubmit, type SizeCell } from './RestockForm';
@@ -55,6 +56,7 @@ export default function StockAdmin() {
   const user = useAdminUser();
   const ask = useAsk();
   const toast = useToast();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [inv, setInv] = useState<Stock>({});
@@ -231,7 +233,7 @@ export default function StockAdmin() {
 
   return (
     <>
-      <AdminBar user={user} />
+      <AdminBar user={user} onSettings={() => setSettingsOpen(true)} />
 
       <div className="admin-wrap admin-wrap--wide">
         <main className="a-main">
@@ -476,6 +478,11 @@ export default function StockAdmin() {
           ) : null}
         </main>
       </div>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        user={user.email ?? ''}
+      />
     </>
   );
 }

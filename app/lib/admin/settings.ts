@@ -45,7 +45,7 @@ import {
 
 import { normalizeUrl } from '../notify';
 import { FOUNDERS } from './access';
-import type { StatusLine } from './publish';
+import type { StatusKind, StatusLine } from './publish';
 
 /* Перелік постійних адміністраторів потрібен і екрану — він
    показує їх окремим блоком «постійний». Другий примірник тут
@@ -487,4 +487,161 @@ export function tgErrorHint(description: string | null | undefined): string {
     return 'Бот заблокований у вашому Telegram — розблокуйте його';
   }
   return text || 'Перевірте змінні TG_TOKEN і TG_CHAT у воркері';
+}
+
+/* ============================================================
+   ПЕРЕВІРКИ
+   ------------------------------------------------------------
+   Три кнопки в налаштуваннях, і кожна відповідає на своє
+   питання: чи бачить воркер Telegram, чи вміє слати листи, і
+   куди саме йдуть повідомлення.
+
+   Результат тут — не «ok / не ok», а готовий рядок стану:
+   різниця між «надіслано двом із трьох» і «нічого не пішло»
+   визначає, що робити далі, і губити її не можна.
+   ============================================================ */
+
+export interface TestResult {
+  kind: StatusKind;
+  text: string;
+}
+
+/** Ключ адміністратора воркера живе лише в браузері адміна —
+ *  у базу він не потрапляє навіть випадково. */
+export const KEY_WORKER = 'reyter:workerKey';
+
+async function callAdmin(
+  s: TestSettings,
+  body: Record<string, unknown>,
+  fetchImpl: typeof fetch = fetch
+): Promise<Record<string, unknown>> {
+  const url = normalizeUrl(s.workerUrl);
+  if (!url) return { ok: false, error: 'не вказано адресу Worker у налаштуваннях' };
+  try {
+    const res = await fetchImpl(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok && !data.error) data.error = 'воркер відповів кодом ' + res.status;
+    return data;
+  } catch {
+    return { ok: false, error: 'не вдалося звʼязатися з воркером — перевірте адресу' };
+  }
+}
+
+export interface DetectedChat {
+  id: string;
+  name: string;
+  isGroup: boolean;
+}
+
+export interface DetectChatsResult {
+  kind: StatusKind;
+  text: string;
+  chats: DetectedChat[];
+  /** Рівно те, що треба вписати у змінну TG_CHAT воркера:
+   *  id через кому з пробілом — саме в такому вигляді. */
+  value: string;
+}
+
+export async function detectChats(
+  s: TestSettings,
+  adminKey: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<DetectChatsResult> {
+  const res = await callAdmin(s, { type: 'tg-chats', key: adminKey }, fetchImpl);
+  const raw = Array.isArray(res.chats) ? (res.chats as Record<string, unknown>[]) : [];
+
+  if (!res.ok || !raw.length) {
+    return {
+      kind: 'err',
+      text: tgErrorHint(String(res.error ?? res.description ?? '')),
+      chats: [],
+      value: ''
+    };
+  }
+
+  const chats: DetectedChat[] = raw.map((c) => ({
+    id: String(c.id ?? ''),
+    // чат без назви теж треба показати — інакше його id виглядає нізвідки
+    name: String(c.name ?? '') || 'без назви',
+    isGroup: !!c.isGroup
+  }));
+
+  return {
+    kind: 'ok',
+    text: 'Впишіть це у змінну TG_CHAT вашого воркера й натисніть Deploy',
+    chats,
+    value: chats.map((c) => c.id).join(', ')
+  };
+}
+
+export async function testTelegram(
+  s: TestSettings,
+  adminKey: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<TestResult> {
+  const res = await callAdmin(s, { type: 'tg-test', key: adminKey }, fetchImpl);
+  const sent = Number(res.sent) || 0;
+  const total = Number(res.total) || 0;
+
+  if (sent > 0 && sent === total) {
+    return { kind: 'ok', text: `Надіслано отримувачам: ${sent} ✓ Перевірте Telegram` };
+  }
+  /* Часткова відправка — окремий випадок: половина команди
+     повідомлення отримає, половина ні, і мовчати про це не можна */
+  if (sent > 0) {
+    return {
+      kind: 'err',
+      text: `Надіслано ${sent} із ${total}. Не вдалося: ` +
+        tgErrorHint(String(res.error ?? res.description ?? ''))
+    };
+  }
+  return { kind: 'err', text: tgErrorHint(String(res.error ?? res.description ?? '')) };
+}
+
+export async function testEmail(
+  s: TestSettings,
+  to: string,
+  adminKey: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<TestResult> {
+  // питаємо ДО запиту: без отримувача воркеру нема куди слати
+  if (!to.trim()) return { kind: 'err', text: 'Вкажіть email для тесту' };
+
+  const res = await callAdmin(
+    s,
+    {
+      type: 'order',
+      silent: true,
+      key: adminKey,
+      to: to.trim(),
+      name: 'Тест',
+      phone: '+380000000000',
+      orderNum: 'R-TEST-000',
+      items: [{ name: 'Бріфи classic', size: 'M', qty: 1, sum: '550 грн' }],
+      total: '550 грн',
+      subtotal: '550 грн',
+      discount: '',
+      shipping: '',
+      promoCode: '',
+      delivery: 'Нова Пошта, Київ, Відділення №12',
+      comment: 'Це тестове замовлення — реагувати не потрібно',
+      confirm: 'Telegram · +380000000000 · @test',
+      source: 'Тест',
+      lang: 'uk'
+    },
+    fetchImpl
+  );
+
+  const email = (res.email ?? {}) as { ok?: boolean; error?: string };
+  if (email.ok) {
+    return { kind: 'ok', text: 'Фірмовий лист надіслано ✓ Перевірте пошту (і папку Спам)' };
+  }
+  return {
+    kind: 'err',
+    text: String(email.error ?? res.error ?? 'Не вдалося надіслати')
+  };
 }

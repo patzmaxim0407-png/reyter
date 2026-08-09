@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getStorage } from 'firebase/storage';
 import AdminBar from './AdminBar';
+import SettingsDialog from './SettingsDialog';
 import CategoryList from './CategoryList';
 import ProductList from './ProductList';
 import ProductEditor, { type EditorSave } from './ProductEditor';
@@ -48,6 +49,7 @@ export default function CatalogAdmin() {
   const user = useAdminUser();
   const ask = useAsk();
   const toast = useToast();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [current, setCurrent] = useState('all');
@@ -311,6 +313,7 @@ export default function CatalogAdmin() {
         /* Поки чернетка не приїхала, публікувати нічого: знімок
            порожнього каталогу стер би вітрину повністю */
         onPublish={draft.seeded ? () => setPubOpen(true) : undefined}
+        onSettings={() => setSettingsOpen(true)}
       />
 
       <div className="admin-wrap">
@@ -377,6 +380,11 @@ export default function CatalogAdmin() {
           if ('published' in next) setPublished(next.published ?? null);
           if ('scheduled' in next) setScheduled(next.scheduled ?? null);
         }}
+      />
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        user={user.email ?? ''}
       />
     </>
   );

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminBar from './AdminBar';
+import SettingsDialog from './SettingsDialog';
 import OrderCard from './OrderCard';
 import { BulkBar, PeriodBar, StatusBar } from './OrderFilters';
 import { useAdminUser } from './AdminGate';
@@ -49,6 +50,7 @@ export default function OrdersAdmin() {
   const user = useAdminUser();
   const askDialog = useAsk();
   const toast = useToast();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
@@ -167,7 +169,7 @@ export default function OrdersAdmin() {
 
   return (
     <>
-      <AdminBar user={user} />
+      <AdminBar user={user} onSettings={() => setSettingsOpen(true)} />
 
       <div className="admin-wrap admin-wrap--wide">
         <main className="a-main">
@@ -277,6 +279,11 @@ export default function OrdersAdmin() {
           ) : null}
         </main>
       </div>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        user={user.email ?? ''}
+      />
     </>
   );
 }
