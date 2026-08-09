@@ -16,6 +16,28 @@ import { t, tf } from '@/lib/i18n';
 /* Поля доставки. Розмітка й класи ті самі, що в address.js:
    стилі перенесені як є, і дописувати CSS тут нема потреби. */
 
+/* Поле форми → хвіст id у розмітці. Здебільшого це просто назва
+   з великої літери, але countryCode малюється як «Country», тож
+   зібрати id формулою не вийде. */
+const FIELD_ID: Record<string, string> = {
+  city: 'City',
+  branch: 'Branch',
+  countryCode: 'Country',
+  countryOther: 'CountryOther',
+  intlCity: 'IntlCity',
+  state: 'State',
+  street: 'Street',
+  zip: 'Zip'
+};
+
+/** Перевести фокус у поле, якого бракує: у формі їх до девʼяти,
+ *  і шукати червону рамку очима — зайва робота для покупця. */
+export function focusAddressField(prefix: string, field: string): void {
+  const el = document.getElementById(prefix + (FIELD_ID[field] ?? ''));
+  el?.focus();
+  el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 export default function AddressFields({
   v,
   set,

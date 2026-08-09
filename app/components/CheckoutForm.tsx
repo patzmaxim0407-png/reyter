@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart } from './CartProvider';
-import AddressFields from './AddressFields';
+import AddressFields, { focusAddressField } from './AddressFields';
 import PromoField from './PromoField';
 import * as cart from '@/lib/cart';
 import * as fb from '@/lib/firebase';
@@ -142,6 +142,7 @@ export default function CheckoutForm() {
       const problem = checkAddress(addr);
       if (problem) {
         setBad({ field: problem.field, text: t(problem.key) });
+        focusAddressField('co', problem.field);
         return;
       }
 

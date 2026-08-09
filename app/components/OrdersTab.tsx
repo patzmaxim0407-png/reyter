@@ -7,6 +7,7 @@ import AuthPanel from './AuthPanel';
 import OrderCard, { type OrderView } from './OrderCard';
 import TrackForm from './TrackForm';
 import { useToast } from './Toasts';
+import { copyText } from '@/lib/copy';
 import { useCart } from './CartProvider';
 import * as cart from '@/lib/cart';
 import * as fb from '@/lib/firebase';
@@ -44,6 +45,13 @@ function toRow(o: Record<string, unknown>): Row {
     items: Array.isArray(o.items) ? (o.items as OrderItem[]) : [],
     message: typeof o.message === 'string' ? o.message : ''
   };
+}
+
+/* Один шлях копіювання на всі кнопки: підтверджуємо лише те,
+   що справді сталося */
+async function copy(text: string, toast: (m: string, k?: 'plain' | 'success') => void) {
+  const done = await copyText(text);
+  toast(t(done ? 'cart.copied' : 'cart.copyFail'), done ? 'success' : 'plain');
 }
 
 const EmptyState = () => (
@@ -119,7 +127,13 @@ export default function OrdersTab({
       toast(t('acc.gone'));
       return;
     }
-    lines.forEach((l) => cart.add(c, l.id, l.size, l.parts));
+    /* cart.add кладе рівно одну штуку — кількість треба
+       виставити окремо. В оригіналі це був цикл із qty викликів
+       add; тут одна операція, і додається саме до того, що вже
+       лежить у кошику, а не замість нього. */
+    lines.forEach((l) =>
+      cart.setQtyOf(c, l.id, l.size, l.parts, cart.qtyOf(c, l.id, l.size, l.parts) + l.qty)
+    );
     /* Пропущені позиції називаємо вголос: мовчазний кошик
        на дві позиції замість чотирьох виглядає як помилка */
     if (skipped.length) toast(`${t('acc.repeat')}: ${lines.length}, ${t('acc.gone')} — ${skipped.length}`);
@@ -152,7 +166,10 @@ export default function OrdersTab({
 
   return (
     <>
-      {rows.length ? <p className="account-note">{t(note)}</p> : null}
+      {/* Примітку показуємо й на порожньому списку: «база не
+          відповіла» і «замовлень немає» — різні речі, і мовчати
+          про першу означає збрехати */}
+      {rows.length || mode === 'down' ? <p className="account-note">{t(note)}</p> : null}
 
       {rows.length ? (
         rows.map((o, i) => (
@@ -161,27 +178,18 @@ export default function OrdersTab({
             o={o}
             showStatus={mode === 'cloud'}
             onRepeat={() => repeat(o)}
-            onCopy={
-              o.message
-                ? () => {
-                    void navigator.clipboard?.writeText(o.message ?? '');
-                    toast(t('acc.copy'), 'success');
-                  }
-                : undefined
-            }
-            onCopyTtn={() => {
-              void navigator.clipboard?.writeText(o.ttn ?? '');
-              toast(t('acc.copy'), 'success');
-            }}
+            onCopy={o.message ? () => void copy(o.message ?? '', toast) : undefined}
+            onCopyTtn={() => void copy(o.ttn ?? '', toast)}
           />
         ))
       ) : (
         <EmptyState />
       )}
 
-      {/* Порожньо в акаунті — можливо, замовляли гостем
-          і на іншу пошту */}
-      {!rows.length ? <TrackForm /> : null}
+      {/* Порожньо в акаунті — можливо, замовляли гостем і на іншу
+          пошту. Коли ж база просто не відповіла, шукати в ній
+          нема сенсу: запит впаде так само. */}
+      {!rows.length && mode === 'cloud' ? <TrackForm /> : null}
 
       {mode === 'local' && rows.length ? (
         <button

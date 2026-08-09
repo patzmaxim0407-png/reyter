@@ -273,6 +273,7 @@ const uk = {
   'cart.myOrders': 'Мої замовлення',
   'cart.keepShopping': 'Продовжити покупки',
   'cart.copied': 'Скопійовано ✓',
+  'cart.copyFail': 'Не вдалося скопіювати — виділіть текст вручну',
   'cart.order': 'Замовлення',
 
   'acc.title': 'Мій кабінет',
@@ -612,6 +613,7 @@ const en: Record<UIKey, string> = {
   'cart.myOrders': 'My orders',
   'cart.keepShopping': 'Continue shopping',
   'cart.copied': 'Copied ✓',
+  'cart.copyFail': 'Could not copy — please select the text manually',
   'cart.order': 'Order',
 
   'acc.title': 'My account',

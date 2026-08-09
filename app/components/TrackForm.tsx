@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import OrderCard, { type OrderView } from './OrderCard';
 import { useToast } from './Toasts';
+import { copyText } from '@/lib/copy';
 import { trackFind, type TrackFailReason } from '@/lib/track';
 import { t } from '@/lib/i18n';
 
@@ -116,10 +117,11 @@ export default function TrackForm({ divider = true }: { divider?: boolean }) {
           <OrderCard
             o={found}
             showStatus
-            onCopyTtn={() => {
-              void navigator.clipboard?.writeText(found.ttn ?? '');
-              toast(t('acc.copy'), 'success');
-            }}
+            onCopyTtn={() =>
+              void copyText(found.ttn ?? '').then((done) =>
+                toast(t(done ? 'cart.copied' : 'cart.copyFail'), done ? 'success' : 'plain')
+              )
+            }
           />
         ) : null}
       </div>

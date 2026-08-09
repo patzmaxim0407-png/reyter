@@ -105,7 +105,7 @@ ok('гостю дано вхід поруч', await ev('!!document.querySelector
 await ev(`localStorage.setItem('reyter:orders', JSON.stringify([{
   num: 'R-260808-799', date: '2026-08-08T10:00:00.000Z', total: 1250, status: 'new',
   message: 'текст замовлення',
-  items: [{ id: 'CME-003', name: 'Комплект menthol', category: 'Комплекти', size: null, qty: 1, price: 1250,
+  items: [{ id: 'CME-003', name: 'Комплект menthol', category: 'Комплекти', size: null, qty: 3, price: 1250,
             parts: [{ id: 'ME-001', name: 'Menthol', category: 'Сліпи', size: 'S' },
                     { id: 'MME-002', name: 'Майка menthol', category: 'Майки', size: 'S' }] }]
 }]))`);
@@ -138,8 +138,21 @@ const repeat = await ev(`(() => {
   return true;
 })()`);
 await wait(900);
-ok('замовлення повторюється в кошик', repeat === true &&
-   (await ev(`document.querySelector('.cart-count')?.textContent`)) === '1',
+/* Саме кількість: cart.add кладе одну штуку, тож замовлення
+   на три легко перетворюється на одне — і це непомітно */
+ok('замовлення повторюється з тією самою кількістю', repeat === true &&
+   (await ev(`document.querySelector('.cart-count')?.textContent`)) === '3',
+   'бейдж: ' + (await ev(`document.querySelector('.cart-count')?.textContent`)));
+
+/* Повтор удруге додає до наявного, а не заміняє його */
+await ev(`document.querySelector('.drawer__close')?.click()`);
+await wait(300);
+await go(BASE + '/account?tab=orders');
+await ev(`[...document.querySelectorAll('.order-card__actions button')]
+  .find(x => x.className.includes('btn--primary'))?.click()`);
+await wait(900);
+ok('повтор удруге додає, а не заміняє',
+   (await ev(`document.querySelector('.cart-count')?.textContent`)) === '6',
    'бейдж: ' + (await ev(`document.querySelector('.cart-count')?.textContent`)));
 ok('панель кошика відкрилась після повтору',
    await ev(`document.querySelector('.drawer')?.classList.contains('is-open')`));

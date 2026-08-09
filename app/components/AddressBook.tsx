@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import AddressFields from './AddressFields';
+import AddressFields, { focusAddressField } from './AddressFields';
 import { useToast } from './Toasts';
 import * as cart from '@/lib/cart';
 import * as fb from '@/lib/firebase';
@@ -64,6 +64,7 @@ export default function AddressBook() {
     if (problem) {
       setBad(problem.field);
       toast(t(problem.key));
+      focusAddressField('ad', problem.field);
       return;
     }
     book.save(fromForm(form), {

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import AuthPanel from './AuthPanel';
 import { useToast } from './Toasts';
+import { copyText } from '@/lib/copy';
 import * as fb from '@/lib/firebase';
 import { promoSaveCode, type Promo } from '@/lib/promo';
 import { promoCard, sortMyPromos } from '@/lib/account';
@@ -106,8 +107,9 @@ export default function PromosTab({ c, user }: { c: Catalogue; user: User | null
                   className="btn btn--ghost btn--sm"
                   type="button"
                   onClick={() => {
-                    void navigator.clipboard?.writeText(card.code);
-                    toast(t('acc.promoCopied'), 'success');
+                    void copyText(card.code).then((done) =>
+                      toast(t(done ? 'acc.promoCopied' : 'cart.copyFail'), done ? 'success' : 'plain')
+                    );
                   }}
                 >
                   {t('acc.copyPromo')}
