@@ -2434,12 +2434,11 @@
     }, entry));
   }
 
-  function adjustOrderStock(batch, order, direction) {
-    const grouped = {};
-
-    /* Комплект власних залишків не має — списуємо його складники.
-       Одна одиниця комплекту = по одній одиниці кожного складника
-       в обраному покупцем розмірі. */
+  /* Позиції замовлення в «одиниці складу»: комплект власних
+     залишків не має, тож замість нього рахуємо його складники.
+     Одна одиниця комплекту = по одній одиниці кожного складника
+     в обраному покупцем розмірі. */
+  function stockUnits(order) {
     const units = [];
     (order.items || []).forEach((item) => {
       const qty = Number(item.qty) || 0;
@@ -2450,15 +2449,29 @@
             id: x.id,
             name: (x.name || x.id) + ' (у складі «' + (item.name || item.id) + '»)',
             size: x.size || null,
+            volume: !!x.volume,
             qty: qty
           });
         });
       } else {
-        units.push({ id: item.id, name: item.name || item.id, size: item.size || null, qty: qty });
+        units.push({
+          id: item.id,
+          name: item.name || item.id,
+          size: item.size || null,
+          volume: !!item.volume,
+          qty: qty
+        });
       }
     });
+    return units;
+  }
 
-    units.forEach((item) => {
+  /* Накопичує зміни залишків у спільну мапу і одразу пише журнал
+     руху. Мапа спільна навмисно: при редагуванні замовлення ми
+     повертаємо старий склад і списуємо новий, і той самий товар
+     має отримати РІВНО ОДИН запис у документі inventory. */
+  function collectStock(batch, order, direction, into) {
+    stockUnits(order).forEach((item) => {
       const p = productById(item.id);
       const delta = direction * item.qty;
       if (!delta) return;
@@ -2466,12 +2479,13 @@
       /* Товар міг зникнути з каталогу після замовлення — тоді
          спираємось на ознаку, збережену в самій позиції */
       const sized = p ? isSized(p) : !item.volume && !!item.size;
-      if (!grouped[item.id]) grouped[item.id] = { sizes: {}, qty: 0 };
+      if (!into[item.id]) into[item.id] = { sizes: {}, qty: 0 };
       if (!sized) {
-        grouped[item.id].qty += delta;
+        into[item.id].qty += delta;
       } else if (item.size) {
-        grouped[item.id].sizes[item.size] = (grouped[item.id].sizes[item.size] || 0) + delta;
+        into[item.id].sizes[item.size] = (into[item.id].sizes[item.size] || 0) + delta;
       }
+
       logMove(batch, {
         productId: item.id,
         productName: item.name,
@@ -2481,27 +2495,34 @@
         ref: order.num || ''
       });
     });
+  }
 
+  function writeStock(batch, grouped) {
     Object.keys(grouped).forEach((pid) => {
       const g = grouped[pid];
-      // нічого не змінюється — не створюємо порожній документ складу
-      if (!g.qty && !Object.keys(g.sizes).length) return;
+      const sizeKeys = Object.keys(g.sizes).filter((s) => g.sizes[s]);
 
-      const ref = R.fb.db.collection('inventory').doc(pid);
+      // нічого не змінюється — не чіпаємо документ складу зовсім
+      if (!g.qty && !sizeKeys.length) return;
+
       const upd = { updated: firebase.firestore.FieldValue.serverTimestamp() };
       if (g.qty) upd.qty = firebase.firestore.FieldValue.increment(g.qty);
-      const sizeKeys = Object.keys(g.sizes);
       if (sizeKeys.length) {
         upd.sizes = {};
         sizeKeys.forEach((s) => {
           upd.sizes[s] = firebase.firestore.FieldValue.increment(g.sizes[s]);
         });
       }
-      batch.set(ref, upd, { merge: true });
+      batch.set(R.fb.db.collection('inventory').doc(pid), upd, { merge: true });
     });
   }
 
-  /* Чи вистачає залишків на замовлення (попередження перед підтвердженням) */
+  function adjustOrderStock(batch, order, direction) {
+    const grouped = {};
+    collectStock(batch, order, direction, grouped);
+    writeStock(batch, grouped);
+  }
+
   function stockShortage(order) {
     const short = [];
 
@@ -4001,8 +4022,14 @@
       try {
         const batch = R.fb.db.batch();
         if (prev.stockApplied) {
-          adjustOrderStock(batch, prev, 1);       // повернули старий склад
-          adjustOrderStock(batch, updated, -1);   // списали новий
+          /* Повертаємо старий склад і списуємо новий однією
+             операцією: Firestore не любить двох записів в один
+             документ у межах одного batch, та й розміри, які не
+             змінилися, взагалі не треба чіпати. */
+          const moved = {};
+          collectStock(batch, prev, 1, moved);
+          collectStock(batch, updated, -1, moved);
+          writeStock(batch, moved);
         }
         batch.update(R.fb.db.collection('orders').doc(prev._id), {
           items: updated.items,
