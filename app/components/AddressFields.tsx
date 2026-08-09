@@ -19,20 +19,26 @@ import { t, tf } from '@/lib/i18n';
 export default function AddressFields({
   v,
   set,
-  invalid
+  invalid,
+  prefix = 'co'
 }: {
   v: AddressForm;
   set(patch: Partial<AddressForm>): void;
   invalid?: keyof AddressForm | null;
+  /* Той самий блок стоїть і в оформленні, і в адресній книзі
+     кабінету. Якби id полів збігались, підпис клікав би не по
+     тому полю, а браузер підставляв би збережене не туди. */
+  prefix?: string;
 }) {
   const intl = v.carrier === 'intl';
+  const at = (name: string) => prefix + name;
 
   return (
     <div className="addr">
       <div className="field">
-        <label htmlFor="coCarrier">{t('addr.carrier')}</label>
+        <label htmlFor={at('Carrier')}>{t('addr.carrier')}</label>
         <select
-          id="coCarrier"
+          id={at('Carrier')}
           value={v.carrier}
           onChange={(e) => set({ carrier: e.target.value as CarrierId })}
         >
@@ -46,7 +52,7 @@ export default function AddressFields({
 
       <div className="addr__np" hidden={intl}>
         <Combobox
-          id="coCity"
+          id={at('City')}
           label={t('addr.city')}
           value={v.city}
           placeholder={t('addr.cityPh')}
@@ -72,7 +78,7 @@ export default function AddressFields({
         />
 
         <Combobox
-          id="coBranch"
+          id={at('Branch')}
           label={t('addr.branch')}
           value={v.branch}
           disabled={!v.cityRef}
@@ -100,9 +106,9 @@ export default function AddressFields({
 
       <div className="addr__intl" hidden={!intl}>
         <div className="field">
-          <label htmlFor="coCountry">{t('addr.country')}</label>
+          <label htmlFor={at('Country')}>{t('addr.country')}</label>
           <select
-            id="coCountry"
+            id={at('Country')}
             className={invalid === 'countryCode' ? 'is-invalid' : undefined}
             value={v.countryCode}
             onChange={(e) => set({ countryCode: e.target.value })}
@@ -119,9 +125,9 @@ export default function AddressFields({
         {/* Країни поза списком вписують текстом — напрямків
             більше, ніж ми готові перелічити наперед */}
         <div className="field" hidden={v.countryCode !== 'other'}>
-          <label htmlFor="coCountryOther">{t('addr.countryOther')}</label>
+          <label htmlFor={at('CountryOther')}>{t('addr.countryOther')}</label>
           <input
-            id="coCountryOther"
+            id={at('CountryOther')}
             className={invalid === 'countryOther' ? 'is-invalid' : undefined}
             placeholder={t('addr.countryOtherPh')}
             value={v.countryOther}
@@ -131,9 +137,9 @@ export default function AddressFields({
 
         <div className="form-row">
           <div className="field">
-            <label htmlFor="coIntlCity">{t('addr.intlCity')}</label>
+            <label htmlFor={at('IntlCity')}>{t('addr.intlCity')}</label>
             <input
-              id="coIntlCity"
+              id={at('IntlCity')}
               className={invalid === 'intlCity' ? 'is-invalid' : undefined}
               autoComplete="address-level2"
               value={v.intlCity}
@@ -143,9 +149,9 @@ export default function AddressFields({
 
           {/* Для США, Канади й Австралії без штату посилку не приймуть */}
           <div className={'field' + (stateRequired(v.countryCode) ? ' is-required' : '')}>
-            <label htmlFor="coState">{t('addr.state')}</label>
+            <label htmlFor={at('State')}>{t('addr.state')}</label>
             <input
-              id="coState"
+              id={at('State')}
               className={invalid === 'state' ? 'is-invalid' : undefined}
               autoComplete="address-level1"
               value={v.state}
@@ -155,9 +161,9 @@ export default function AddressFields({
         </div>
 
         <div className="field">
-          <label htmlFor="coStreet">{t('addr.street')}</label>
+          <label htmlFor={at('Street')}>{t('addr.street')}</label>
           <input
-            id="coStreet"
+            id={at('Street')}
             className={invalid === 'street' ? 'is-invalid' : undefined}
             autoComplete="address-line1"
             placeholder={t('addr.streetPh')}
@@ -168,9 +174,9 @@ export default function AddressFields({
 
         <div className="form-row">
           <div className="field">
-            <label htmlFor="coExtra">{t('addr.extra')}</label>
+            <label htmlFor={at('Extra')}>{t('addr.extra')}</label>
             <input
-              id="coExtra"
+              id={at('Extra')}
               autoComplete="address-line2"
               placeholder={t('addr.extraPh')}
               value={v.extra}
@@ -179,9 +185,9 @@ export default function AddressFields({
           </div>
 
           <div className="field">
-            <label htmlFor="coZip">{t('addr.zip')}</label>
+            <label htmlFor={at('Zip')}>{t('addr.zip')}</label>
             <input
-              id="coZip"
+              id={at('Zip')}
               className={invalid === 'zip' ? 'is-invalid' : undefined}
               autoComplete="postal-code"
               placeholder={zipHint(v.countryCode)}

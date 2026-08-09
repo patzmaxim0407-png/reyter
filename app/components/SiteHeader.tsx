@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import CartButton from './CartButton';
+import AccountButton from './AccountButton';
 
-/* Шапка рендериться на сервері — інтерактивна в ній лише кнопка
-   кошика, і саме вона одна їде в браузер. Навігація лишається
-   звичайними посиланнями й працює без JavaScript. */
+/* Шапка рендериться на сервері. У браузер їдуть лише дві кнопки
+   праворуч — кошик і кабінет: обидві показують стан, якого сервер
+   не знає. Навігація лишається звичайними посиланнями й працює
+   без JavaScript. */
 export default function SiteHeader() {
   return (
     <header className="site-header" id="siteHeader">
@@ -25,6 +27,7 @@ export default function SiteHeader() {
           <Link href="/#contacts">Соц мережі</Link>
         </nav>
 
+        <AccountButton />
         <CartButton />
       </div>
     </header>

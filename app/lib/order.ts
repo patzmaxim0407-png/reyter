@@ -30,6 +30,10 @@ export interface Customer extends Address {
   email: string;
   comment?: string;
   confirm?: Confirm;
+  /* Покупця записують у базу цілком, а поля йому дописували
+     роками — закритий набір тут не витримав би першого ж
+     нового поля в адмінці. */
+  [key: string]: unknown;
 }
 
 export interface Order {

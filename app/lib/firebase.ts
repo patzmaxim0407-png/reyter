@@ -226,12 +226,49 @@ export async function promoConsume(code: string): Promise<boolean> {
 
 /* ---------- Замовлення ---------- */
 
-export async function createOrder(order: Record<string, unknown>): Promise<string | null> {
+export interface NewOrder {
+  num: string;
+  date: string;
+  items: unknown[];
+  subtotal: number;
+  discount: number;
+  promoCode: string;
+  total: number;
+  customer: { email?: string; phone?: string; [k: string]: unknown };
+  message?: string;
+}
+
+/** Замовлення потрапляє в адмінку і від гостя без акаунта: тоді
+ *  uid порожній, а правила бази дозволяють такий запис.
+ *
+ *  Поля перелічені поіменно, а не розсипані спредом: документ
+ *  читає адмінка, і кожне з них їй потрібне. status без значення
+ *  зламав би фільтри, uid — відрізав би замовлення від кабінету,
+ *  trackKey — від відстеження. */
+export async function createOrder(
+  order: NewOrder,
+  opts: { trackKey?: string; lang?: string } = {}
+): Promise<string | null> {
   const d = db();
   if (!d) return null;
+  const user = auth()?.currentUser ?? null;
   try {
     const ref = await addDoc(collection(d, 'orders'), {
-      ...order,
+      num: order.num,
+      date: order.date,
+      items: order.items,
+      subtotal: Number(order.subtotal) || Number(order.total) || 0,
+      discount: Number(order.discount) || 0,
+      promoCode: order.promoCode || '',
+      total: order.total,
+      customer: order.customer,
+      message: order.message ?? '',
+      status: 'new',
+      uid: user ? user.uid : null,
+      email: order.customer.email || user?.email || '',
+      source: 'Сайт',
+      lang: opts.lang || 'uk',
+      trackKey: opts.trackKey || '',
       created: serverTimestamp()
     });
     return ref.id;

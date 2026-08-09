@@ -6,6 +6,7 @@ import '../styles/modal.css';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import CartProvider from '@/components/CartProvider';
+import Toasts from '@/components/Toasts';
 import CartDrawer from '@/components/CartDrawer';
 import { loadCatalog, loadStock } from '@/lib/firestore';
 import { cartCatalogue } from '@/lib/catalog';
@@ -59,12 +60,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
         </div>
 
-        <CartProvider c={c}>
-          <SiteHeader />
-          <main id="top">{children}</main>
-          <SiteFooter />
-          <CartDrawer />
-        </CartProvider>
+        <Toasts>
+          <CartProvider c={c}>
+            <SiteHeader />
+            <main id="top">{children}</main>
+            <SiteFooter />
+            <CartDrawer />
+          </CartProvider>
+        </Toasts>
       </body>
     </html>
   );

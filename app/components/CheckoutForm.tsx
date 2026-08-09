@@ -185,13 +185,25 @@ export default function CheckoutForm() {
         t
       });
 
+      /* Ключ відстеження рахуємо ДО запису: гість без акаунта
+         має бачити статус одразу після оформлення, а ключ мусить
+         лежати в самому замовленні — телефон потім відредагують
+         в адмінці, і порахувати його заново вже не вийде. */
+      const { trackKey, trackCreate } = await import('@/lib/track');
+      const key = await trackKey(order.num, customer.phone);
+
       /* Спершу база — це єдине, що не можна втратити. Решта
-         (лист, Telegram, лічильник промокоду) вже необовʼязкова:
-         замовлення видно в адмінці й без них. */
-      const id = await fb.createOrder(order as unknown as Record<string, unknown>);
+         (відстеження, лист, Telegram, лічильник промокоду) вже
+         необовʼязкова: замовлення видно в адмінці й без них. */
+      const id = await fb.createOrder(order, { trackKey: key, lang: 'uk' });
+
+      /* Запис відстеження створюємо лише коли замовлення справді
+         лягло в базу. Інакше покупець бачив би статус замовлення,
+         якого в магазині немає. */
+      if (id && key) void trackCreate({ ...order, status: 'new', trackKey: key });
 
       const saved = cart.getOrders();
-      saved.unshift({ ...order, _id: id } as never);
+      saved.unshift({ ...order, _id: id, trackKey: key } as never);
       cart.saveOrders(saved.slice(0, 50));
 
       if (code) void fb.promoConsume(code);
