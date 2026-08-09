@@ -13,6 +13,10 @@ import { readFileSync } from 'node:fs';
 
 const PROFILE = '/tmp/reyter-test-' + process.pid + '-' + Date.now();
 const BASE = process.argv[2] || 'http://localhost:3000';
+/* Магазин може жити на іншому домені: на бойових адмінка стоїть
+   на admin.reyter.men, і корінь там — теж адмінка. Без окремої
+   адреси перевірка «магазин цілий» падала б на порожньому місці. */
+const SHOP = process.argv[3] || BASE;
 
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
   '--headless=new',
@@ -118,12 +122,12 @@ ok(
 
 /* ---------- Магазин лишився цілим ---------- */
 
-await go(BASE + '/');
+await go(SHOP + '/');
 ok('каталог покупця працює', await ev('!!document.querySelector(".pgrid .pcard")'));
 ok('шапка магазину на місці', await ev('!!document.querySelector(".site-header")'));
 ok('адмінської шапки в магазині немає', !(await ev('!!document.querySelector(".abar")')));
 
-await go(BASE + '/account');
+await go(SHOP + '/account');
 ok('кабінет працює', await ev('!!document.querySelector(".account-page")'));
 
 console.log('\n' + (bad ? `не зійшлося: ${bad}` : 'усе зійшлося'));
