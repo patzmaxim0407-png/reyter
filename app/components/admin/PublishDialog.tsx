@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { db } from '@/lib/firebase';
+import { SITE_CONFIG } from '@/lib/site-config';
 import {
   KEY_TOKEN,
   backupDataJs,
@@ -54,7 +55,18 @@ export default function PublishDialog({
   const [when, setWhen] = useState('');
   const [showWhen, setShowWhen] = useState(false);
   const [token, setToken] = useState('');
+  const [backupNote, setBackupNote] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const saveToken = (v: string) => {
+    setToken(v);
+    try {
+      if (v) localStorage.setItem(KEY_TOKEN, v);
+      else localStorage.removeItem(KEY_TOKEN);
+    } catch {
+      /* приватний режим */
+    }
+  };
 
   /* Токен GitHub лежить лише в цьому браузері — у базу він
      не потрапляє навіть випадково */
@@ -69,6 +81,7 @@ export default function PublishDialog({
   useEffect(() => {
     if (!open) return;
     setStatus(null);
+    setBackupNote('');
     setShowWhen(false);
     setWhen(
       toLocalInput(
@@ -89,8 +102,22 @@ export default function PublishDialog({
     user: { email: user.email ?? '' },
     onStatus: setStatus,
     backup: (snap: Draft) => {
-      if (!token) return;
-      void backupDataJs(snap, { token, config: {}, now: new Date() });
+      /* Токен не перевіряємо тут: без нього backupDataJs скаже
+         про це сама, і адмін побачить, що резервної копії немає.
+         Мовчазний вихід виглядав би як успіх. */
+      void backupDataJs(snap, {
+        token,
+        /* Конфіг мусить лягти в резервний файл незміненим: його
+           досі читає СТАРИЙ сайт, і для нього data.js — єдине
+           місце, де живуть розмірна сітка, статуси й соцмережі.
+           Порожній обʼєкт тут затер би їх усі. */
+        config: SITE_CONFIG,
+        now: new Date(),
+        onNote: setBackupNote,
+        rememberToken: saveToken,
+        // токен без прав не має тихо провалювати кожну публікацію
+        forgetToken: () => saveToken('')
+      });
     }
   };
 
@@ -199,17 +226,10 @@ export default function PublishDialog({
                 placeholder="github_pat_… або ghp_…"
                 autoComplete="off"
                 value={token}
-                onChange={(e) => {
-                  setToken(e.target.value);
-                  try {
-                    if (e.target.value) localStorage.setItem(KEY_TOKEN, e.target.value);
-                    else localStorage.removeItem(KEY_TOKEN);
-                  } catch {
-                    /* приватний режим */
-                  }
-                }}
+                onChange={(e) => saveToken(e.target.value)}
               />
             </div>
+            {backupNote ? <p className="field__hint">{backupNote}</p> : null}
           </details>
 
           {status ? (

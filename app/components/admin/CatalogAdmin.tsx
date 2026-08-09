@@ -24,8 +24,14 @@ import {
   persistCatOrder,
   saveProduct
 } from '@/lib/admin/draft';
-import { draftDiffers, loadPublished, type PublishedDoc, type ScheduledDoc } from '@/lib/admin/publish';
-import { uploadPhotos } from '@/lib/admin/photos';
+import {
+  draftDiffers,
+  housekeeping,
+  loadPublished,
+  type PublishedDoc,
+  type ScheduledDoc
+} from '@/lib/admin/publish';
+import { migratePhotos, uploadPhotos } from '@/lib/admin/photos';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import type { Category, Product } from '@/lib/types';
 
@@ -62,13 +68,49 @@ export default function CatalogAdmin() {
     [toast]
   );
 
+  /* Прибирання при вході адміна робить дві потрібні речі:
+     застосовує прострочений розклад і, якщо публікацій ще не
+     було, фіксує поточний стан. Без другого покупець бачив би
+     порожній каталог: сайт читає published/catalog, а його
+     просто не існувало б. Чекаємо на чернетку — саме з неї
+     береться перший знімок. */
+  const [tidied, setTidied] = useState(false);
   useEffect(() => {
-    void loadPublished(db()).then((pair) => {
+    if (tidied || !draft.seeded) return;
+    setTidied(true);
+    void loadPublished(db()).then(async (pair) => {
       if (!pair) return;
-      setPublished(pair.published);
-      setScheduled(pair.scheduled);
+      const next = await housekeeping({
+        db: db(),
+        user: { email: user.email ?? '' },
+        draft,
+        seeded: draft.seeded,
+        published: pair.published,
+        scheduled: pair.scheduled,
+        /* Разова міграція старих фото з репозиторію у Storage.
+           Маркер у базі спільний зі старою адмінкою, тож якщо
+           вона вже пройшла — це порожній прохід. */
+        migrations: [
+          async () => {
+            const d = db();
+            if (!d) return;
+            const res = await migratePhotos({
+              db: d,
+              storage: getStorage(),
+              user,
+              seeded: draft.seeded,
+              products: draft.products
+            });
+            if (res.outcome === 'partial') {
+              toast(`Не перенеслось фото: ${res.failed} з ${res.total}`);
+            }
+          }
+        ]
+      });
+      setPublished(next.published);
+      setScheduled(next.scheduled);
     });
-  }, []);
+  }, [draft, tidied, user, toast]);
 
   /* Обрана категорія могла зникнути — інакше список показував би
      порожнечу без жодного пояснення */
@@ -265,7 +307,13 @@ export default function CatalogAdmin() {
 
   return (
     <>
-      <AdminBar user={user} hasDraft={hasDraft} onPublish={() => setPubOpen(true)} />
+      <AdminBar
+        user={user}
+        hasDraft={hasDraft}
+        /* Поки чернетка не приїхала, публікувати нічого: знімок
+           порожнього каталогу стер би вітрину повністю */
+        onPublish={draft.seeded ? () => setPubOpen(true) : undefined}
+      />
 
       <div className="admin-wrap">
         <CategoryList

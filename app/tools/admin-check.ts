@@ -64,6 +64,13 @@ ok('порожні рядки з textarea відкидаються',
 ok('крок порядку лишає місце для вставки', maxOrder([{ order: 10 }, { order: 30 }]) === 30);
 ok('артикул не дублюється всередині документа', !('id' in prodDocData(prod({ id: 'A-1' }))));
 
+/* Firestore не приймає undefined: одне таке поле відхиляє ВЕСЬ
+   запис, тобто товар без старої ціни просто не зберігся б */
+const doc = prodDocData({ ...prod({ id: 'A-1' }), oldPrice: undefined, set: undefined });
+ok('порожні поля в документ не потрапляють',
+   !Object.values(doc).includes(undefined as never),
+   JSON.stringify(Object.keys(doc)));
+
 ok('скорочений hex розгортається', normalizeHex('#0AF') === '#00aaff', normalizeHex('#0AF'));
 ok('не-hex відкидається', normalizeHex('синій') === '');
 

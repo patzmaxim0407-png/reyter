@@ -69,10 +69,19 @@ function fail(field: CheckField, message: string): CheckFail {
 export type ProductDoc = Omit<Product, 'id'>;
 
 /** Артикул — це id документа, а не поле в ньому. Другий примірник
- *  усередині розійшовся б із першим після перейменування. */
+ *  усередині розійшовся б із першим після перейменування.
+ *
+ *  Порожні поля не пишемо зовсім. У старій адмінці це робив
+ *  collectForm («if (oldPrice) p.oldPrice = …»), тож undefined
+ *  у товарі не бувало ніколи. Тут форма віддає обʼєкт цілком, і
+ *  без цього фільтра Firestore відхилив би весь запис: undefined
+ *  він не приймає, і товар без старої ціни просто не зберігся б. */
 export function prodDocData(p: Product): ProductDoc {
   const data: ProductDoc & { id?: string } = { ...p };
   delete data.id;
+  (Object.keys(data) as (keyof typeof data)[]).forEach((k) => {
+    if (data[k] === undefined) delete data[k];
+  });
   return data;
 }
 
