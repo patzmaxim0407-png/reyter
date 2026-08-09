@@ -1,0 +1,575 @@
+/* ============================================================
+   REYTER — layout.css
+   Рухомий рядок, шапка, навігація, hero, підвал
+   ============================================================ */
+
+/* ---------- Рухомий рядок ---------- */
+.marquee {
+  background: var(--c-blue-ink);
+  color: rgba(255, 255, 255, 0.92);
+  overflow: hidden;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding-block: 0.5rem;
+}
+
+.marquee__track {
+  display: flex;
+  white-space: nowrap;
+  width: max-content;
+  animation: marquee 28s linear infinite;
+}
+
+.marquee:hover .marquee__track {
+  animation-play-state: paused;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee__track {
+    animation: none;
+  }
+}
+
+/* ---------- Шапка ---------- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--c-blue);
+  transition: box-shadow var(--t-fast);
+}
+
+.site-header.is-scrolled {
+  box-shadow: 0 10px 30px rgba(6, 27, 60, 0.28);
+}
+
+.site-header {
+  padding-top: env(safe-area-inset-top);
+}
+
+.site-header__inner {
+  max-width: var(--container);
+  margin-inline: auto;
+  height: var(--header-h);
+  padding-left: max(clamp(1rem, 3vw, 2rem), env(safe-area-inset-left));
+  padding-right: max(clamp(1rem, 3vw, 2rem), env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.brand img {
+  height: 40px;
+  width: auto;
+}
+
+.drop-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 0.32rem 0.9rem;
+  white-space: nowrap;
+}
+
+/* ---------- Навігація ---------- */
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+  margin-left: auto;
+}
+
+.site-nav > a {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  position: relative;
+  padding-block: 0.3rem;
+  white-space: nowrap; /* пункти меню не переносяться по словах */
+}
+
+.site-nav > a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: #fff;
+  border-radius: 2px;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--t-fast);
+}
+
+.site-nav > a:hover::after,
+.site-nav > a:focus-visible::after {
+  transform: scaleX(1);
+}
+
+/* У шапці соцмереж немає: вони не вміщалися в контейнер і зсували
+   праву групу за його межі. Показуємо їх лише в мобільному меню,
+   а на десктопі вони є в секції «Контакти» та в підвалі. */
+.site-nav__socials {
+  display: none;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.site-nav__socials a {
+  color: #fff;
+  font-size: 1.05rem;
+  opacity: 0.85;
+  transition: opacity var(--t-fast), transform var(--t-fast);
+}
+
+.site-nav__socials a:hover {
+  opacity: 1;
+  transform: translateY(-2px);
+}
+
+/* ---------- Дії в шапці (кабінет, кошик) ---------- */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;   /* завжди притиснуті до правого краю */
+}
+
+.hbtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  color: #fff;
+  transition: background-color var(--t-fast), transform var(--t-fast);
+}
+
+.hbtn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.hbtn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  transform: translateY(-1px);
+}
+
+.cart-count {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  min-width: 18px;
+  height: 18px;
+  padding-inline: 4px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--c-blue);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+/* ---------- Перемикач мови ---------- */
+.lang-switch {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  margin-right: 0.2rem;
+}
+
+.lang-btn {
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.75);
+  transition: background-color var(--t-fast), color var(--t-fast);
+}
+
+.lang-btn:hover {
+  color: #fff;
+}
+
+.lang-btn.is-active {
+  background: #fff;
+  color: var(--c-blue);
+}
+
+/* ---------- Бургер ---------- */
+.burger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  align-items: center;
+}
+
+.burger span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  border-radius: 2px;
+  background: #fff;
+  transition: transform var(--t-fast), opacity var(--t-fast);
+}
+
+.burger.is-open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.burger.is-open span:nth-child(2) { opacity: 0; }
+.burger.is-open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* ---------- Hero ---------- */
+.hero {
+  overflow: hidden;
+}
+
+.hero__grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: clamp(2rem, 5vw, 4.5rem);
+  align-items: center;
+}
+
+.hero__eyebrow {
+  margin-bottom: 1.1rem;
+}
+
+.hero__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.9rem, 4.6vw, 3.3rem);
+  color: var(--c-ink);
+  letter-spacing: -0.02em;
+}
+
+.hero__brand {
+  color: var(--c-blue);
+  display: inline-block;
+}
+
+.hero__subtitle {
+  margin-top: 1.1rem;
+  font-size: 1.08rem;
+  color: var(--c-muted);
+  max-width: 34rem;
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 1.8rem;
+}
+
+.hero__more {
+  margin-top: 1.6rem;
+  font-weight: 600;
+  color: var(--c-blue);
+  border-bottom: 1.5px dashed rgba(1, 74, 173, 0.45);
+  padding-bottom: 2px;
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+
+.hero__more:hover {
+  color: var(--c-blue-deep);
+  border-color: var(--c-blue-deep);
+}
+
+.hero__full {
+  margin-top: 1.1rem;
+  display: grid;
+  gap: 0.9rem;
+  color: var(--c-ink);
+  max-width: 36rem;
+  animation: fadeDown 0.5s var(--ease-out);
+}
+
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.hero__trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.6rem;
+  margin-top: 2rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--c-line);
+}
+
+.hero__trust li {
+  position: relative;
+  padding-left: 1.35rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--c-muted);
+}
+
+.hero__trust li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--c-blue);
+  font-weight: 800;
+}
+
+.hero__media {
+  position: relative;
+}
+
+.hero__frame {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+  box-shadow: var(--shadow-hover);
+}
+
+.hero__frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(200deg, rgba(1, 74, 173, 0.12) 0%, transparent 45%);
+  pointer-events: none;
+}
+
+.hero__frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero__media::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  right: -34px;
+  bottom: -34px;
+  width: 62%;
+  height: 62%;
+  border-radius: var(--radius-lg);
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(1, 74, 173, 0.16) 0 2px,
+    transparent 2px 9px
+  );
+}
+
+/* ---------- Підвал ---------- */
+.site-footer {
+  background: var(--c-blue-ink);
+  color: rgba(255, 255, 255, 0.85);
+  padding-block: clamp(3rem, 6vw, 4.5rem) 1.6rem;
+}
+
+.site-footer__slogan {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.3rem, 3vw, 2rem);
+  color: #fff;
+  margin-bottom: clamp(2rem, 4vw, 3rem);
+}
+
+.site-footer__grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 0.8fr;
+  gap: 2rem;
+  padding-bottom: 2.4rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.site-footer__col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
+  font-size: 0.94rem;
+}
+
+.site-footer__logo {
+  height: 34px;
+  width: auto;
+}
+
+.site-footer__col a {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  transition: color var(--t-fast);
+}
+
+.site-footer__col a:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.site-footer__socials {
+  flex-direction: row;
+  gap: 1rem;
+  font-size: 1.25rem;
+}
+
+.site-footer__socials a:hover {
+  transform: translateY(-2px);
+  text-decoration: none;
+}
+
+.site-footer__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  padding-top: 1.5rem;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* ---------- Адаптив ---------- */
+/* Поступово ущільнюємо шапку, перш ніж ховати меню під бургер */
+@media (max-width: 1280px) {
+  .site-header__inner {
+    gap: 1rem;
+  }
+
+  .site-nav {
+    gap: 1.05rem;
+  }
+
+  .site-nav > a {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 1080px) {
+  .drop-pill {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .burger {
+    display: flex;
+  }
+
+  /* Ущільнюємо, щоб група іконок вміщалася і не вилазила за край */
+  .site-header__inner {
+    gap: 0.6rem;
+  }
+
+  .header-actions {
+    gap: 0.25rem;
+  }
+
+  .lang-switch {
+    padding: 2px;
+  }
+
+  .lang-btn {
+    padding: 0.26rem 0.45rem;
+    font-size: 0.72rem;
+  }
+
+  .site-nav {
+    position: absolute;
+    top: calc(var(--header-h) + env(safe-area-inset-top));
+    left: 0;
+    right: 0;
+    max-height: calc(100dvh - var(--header-h) - env(safe-area-inset-top));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    background: var(--c-blue);
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 24px 40px rgba(6, 27, 60, 0.35);
+    padding: 0.6rem 1.4rem 1.4rem;
+    transform: translateY(-8px);
+    opacity: 0;
+    visibility: hidden;
+    transition: transform var(--t-fast), opacity var(--t-fast), visibility var(--t-fast);
+  }
+
+  .site-nav.is-open {
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .site-nav > a {
+    padding: 0.9rem 0.2rem;
+    font-size: 1.05rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .site-nav > a::after {
+    display: none;
+  }
+
+  /* У мобільному меню соцмережі доречні — підвал далеко */
+  .site-nav__socials {
+    display: flex;
+    padding-left: 0.2rem;
+    padding-top: 1.1rem;
+    gap: 1.4rem;
+    font-size: 1.2rem;
+  }
+
+  .hero__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero__media {
+    order: -1;
+    max-width: 480px;
+  }
+
+  .site-footer__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .brand img {
+    height: 32px;
+  }
+
+  .site-footer__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero__actions .btn {
+    flex: 1 1 auto;
+  }
+}
