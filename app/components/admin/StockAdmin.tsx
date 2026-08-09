@@ -6,6 +6,7 @@ import SettingsDialog from './SettingsDialog';
 import StockRow from './StockRow';
 import MoveRow from './MoveRow';
 import RestockForm, { type RestockSubmit, type SizeCell } from './RestockForm';
+import RestockEdit from './RestockEdit';
 import { useAdminUser } from './AdminGate';
 import { useAsk } from './AskProvider';
 import { useToast } from '../Toasts';
@@ -25,12 +26,14 @@ import {
   isSetOf,
   isSized,
   movesPage,
+  pagerNumbers,
   planReceive,
   planWriteoff,
   notifyStockAlerts,
   receiveRestock,
   restockOverdue,
   restockTotal,
+  saveRestockEdit,
   setStockRow,
   sizeQty,
   stockRow,
@@ -70,6 +73,7 @@ export default function StockAdmin() {
   const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all');
   const [movesPageNo, setMovesPageNo] = useState(1);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => watchDraft(setDraft), []);
@@ -413,7 +417,30 @@ export default function StockAdmin() {
               {restocks.filter((r) => r.status !== 'received').length ? (
                 restocks
                   .filter((r) => r.status !== 'received')
-                  .map((r) => (
+                  .map((r) =>
+                    editing === r._id ? (
+                      <RestockEdit
+                        key={r._id}
+                        r={r}
+                        p={draft.products.find((x) => x.id === r.productId) ?? null}
+                        busy={busy}
+                        onCancel={() => setEditing(null)}
+                        onSave={async (v) => {
+                          const w = writer();
+                          if (!w) return;
+                          setBusy(true);
+                          try {
+                            const res = await saveRestockEdit(w, restocks, r, v, new Date());
+                            if (!res.ok) return toast(res.message);
+                            setEditing(null);
+                            toast('Прихід оновлено ✓', 'success');
+                            await reload();
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      />
+                    ) : (
                     <div
                       className={'ao-restock' + (restockOverdue(r, new Date()) ? ' is-overdue' : '')}
                       key={r._id}
@@ -438,6 +465,14 @@ export default function StockAdmin() {
                           Оприбуткувати
                         </button>
                         <button
+                          className="btn btn--ghost btn--sm"
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setEditing(r._id)}
+                        >
+                          Редагувати
+                        </button>
+                        <button
                           className="btn btn--ghost btn--sm ao-danger"
                           type="button"
                           disabled={busy}
@@ -460,7 +495,8 @@ export default function StockAdmin() {
                         </button>
                       </div>
                     </div>
-                  ))
+                    )
+                  )
               ) : (
                 <div className="a-empty">Немає приходів у черзі.</div>
               )}
@@ -548,18 +584,46 @@ export default function StockAdmin() {
                   ))}
 
                   {page.pages > 1 ? (
-                    <div className="ao-pager">
-                      {Array.from({ length: page.pages }, (_, i) => i + 1).map((n) => (
-                        <button
-                          key={n}
-                          type="button"
-                          className={'ao-chip' + (n === page.page ? ' is-active' : '')}
-                          onClick={() => setMovesPageNo(n)}
-                        >
-                          {n}
-                        </button>
-                      ))}
-                    </div>
+                    <nav className="ao-pager" aria-label="Сторінки журналу">
+                      <button
+                        className="ao-pager__nav"
+                        type="button"
+                        disabled={page.page === 1}
+                        aria-label="Попередня сторінка"
+                        onClick={() => setMovesPageNo(page.page - 1)}
+                      >
+                        ←
+                      </button>
+                      {/* Перша, остання й вікно навколо поточної:
+                          шістнадцять кнопок поспіль не поміщаються
+                          на телефон і нічим не допомагають */}
+                      {pagerNumbers(page.page, page.pages).map((n, i) =>
+                        n === '…' ? (
+                          <span className="ao-pager__gap" key={'gap' + i}>
+                            …
+                          </span>
+                        ) : (
+                          <button
+                            key={n}
+                            type="button"
+                            className={'ao-pager__num' + (n === page.page ? ' is-active' : '')}
+                            aria-current={n === page.page ? 'page' : undefined}
+                            onClick={() => setMovesPageNo(n)}
+                          >
+                            {n}
+                          </button>
+                        )
+                      )}
+                      <button
+                        className="ao-pager__nav"
+                        type="button"
+                        disabled={page.page === page.pages}
+                        aria-label="Наступна сторінка"
+                        onClick={() => setMovesPageNo(page.page + 1)}
+                      >
+                        →
+                      </button>
+                    </nav>
                   ) : null}
                 </>
               ) : (

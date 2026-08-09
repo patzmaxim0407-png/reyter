@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminBar from './AdminBar';
 import SettingsDialog from './SettingsDialog';
 import OrderCard from './OrderCard';
+import ManualOrder from './ManualOrder';
 import { BulkBar, PeriodBar, StatusBar } from './OrderFilters';
 import { useAdminUser } from './AdminGate';
 import { useAsk } from './AskProvider';
@@ -62,6 +63,9 @@ export default function OrdersAdmin() {
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [error, setError] = useState('');
+  /* undefined — форма закрита; null — нове замовлення;
+     обʼєкт — редагуємо наявне. */
+  const [manual, setManual] = useState<AdminOrder | null | undefined>(undefined);
 
   useEffect(
     () =>
@@ -221,6 +225,13 @@ export default function OrdersAdmin() {
             </div>
           </div>
 
+          <div className="a-toolbar">
+            <h2>Замовлення</h2>
+            <button className="btn btn--primary" type="button" onClick={() => setManual(null)}>
+              + Нове замовлення
+            </button>
+          </div>
+
           <PeriodBar f={f} set={(p) => setF((v) => ({ ...v, ...p }))} today={todayISO(new Date())} />
           <StatusBar f={f} set={(p) => setF((v) => ({ ...v, ...p }))} scope={scope} />
 
@@ -258,6 +269,7 @@ export default function OrdersAdmin() {
                   })
                 }
                 onStatus={(next) => void onStatus(o, next)}
+                onEdit={() => setManual(o)}
                 onField={async (field, value) => {
                   const d = db();
                   if (!d) return;
@@ -331,6 +343,16 @@ export default function OrdersAdmin() {
           ) : null}
         </main>
       </div>
+      <ManualOrder
+        open={manual !== undefined}
+        order={manual ?? null}
+        c={c}
+        orders={orders}
+        by={user.email ?? ''}
+        onClose={() => setManual(undefined)}
+        onDone={() => setManual(undefined)}
+      />
+
       <SettingsDialog
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}

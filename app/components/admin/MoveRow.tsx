@@ -1,5 +1,7 @@
 'use client';
 
+import { moveTag, type Move } from '@/lib/admin/stock';
+
 /* Рядок журналу руху. Розмітка й класи ті самі, що в старій панелі.
 
    У журнал потрапляє КОЖНА зміна залишків — прихід, продаж,
@@ -7,29 +9,14 @@
    мовчазне виправлення не лишило б сліду, і за місяць уже не
    зрозуміти, куди подівся товар. */
 
-export interface Move {
-  productId?: string;
-  productName?: string;
-  size?: string | null;
-  delta?: number;
-  reason?: string;
-  ref?: string;
-  by?: string;
-  ts?: unknown;
-}
-
-export const MOVE_TAGS: Record<string, { title: string; cls: string }> = {
-  restock: { title: 'Прихід', cls: 'is-in' },
-  order: { title: 'Замовлення', cls: 'is-out' },
-  'order-cancel': { title: 'Повернення', cls: 'is-back' },
-  'order-return': { title: 'Повернення від покупця', cls: 'is-back' },
-  writeoff: { title: 'Списання', cls: 'is-out' },
-  manual: { title: 'Коригування', cls: 'is-manual' }
-};
+/* Тип і мітки живуть у lib/admin/stock.ts — там, де рух
+   записується. Копія тут розійшлася б із оригіналом на першій
+   же новій причині. */
+export type { Move };
 
 export default function MoveRow({ m, date }: { m: Move; date: Date | null }) {
   const delta = Number(m.delta) || 0;
-  const tag = MOVE_TAGS[m.reason ?? ''] ?? { title: m.reason || '—', cls: 'is-manual' };
+  const tag = moveTag(m);
   // від пошти лишаємо частину до @: у рядку журналу вона лише заважає
   const who = String(m.by ?? '').split('@')[0];
 
