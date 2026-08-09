@@ -6,21 +6,24 @@ import { useRouter } from 'next/navigation';
 import { useCart } from './CartProvider';
 import AddressFields, { focusAddressField } from './AddressFields';
 import PromoField from './PromoField';
+import type { User } from 'firebase/auth';
 import * as cart from '@/lib/cart';
 import * as fb from '@/lib/firebase';
 import { catTitle, getProduct, uah } from '@/lib/catalog';
 import {
   EMPTY_FORM,
+  addressLine,
   checkAddress,
   createAddrBook,
   fromForm,
   toForm,
-  type AddressForm
+  type AddressForm,
+  type SavedAddress
 } from '@/lib/address';
 import { buildOrder, checkCustomer, MESSENGERS, type Confirm, type Customer } from '@/lib/order';
 import { orderPlaced } from '@/lib/notify';
 import { t } from '@/lib/i18n';
-import type { Promo } from '@/lib/promo';
+import { promoCheck, promoMessage, promoSaveCode, promoSavedCode, type Promo } from '@/lib/promo';
 
 /* ============================================================
    Оформлення замовлення
@@ -53,8 +56,20 @@ export default function CheckoutForm() {
   const [addr, setAddr] = useState<AddressForm>(EMPTY_FORM);
   const [saveAddr, setSaveAddr] = useState(true);
 
+  /* Промокод живе тут, а не в полі: при зміні кошика його треба
+     перевіряти заново, і поле мусить це побачити. */
   const [promo, setPromo] = useState<Promo | null>(null);
   const [discount, setDiscount] = useState(0);
+  const [partial, setPartial] = useState(false);
+  const [promoMsg, setPromoMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [promoBusy, setPromoBusy] = useState(false);
+
+  const [user, setUser] = useState<User | null>(null);
+
+  /* null — ще не обрано; '' — вводимо нову адресу; id — узяли
+     збережену. Без книги вибирати нема з чого, і форма
+     показується одразу. */
+  const [pickedAddr, setPickedAddr] = useState<string | null>(null);
 
   const [bad, setBad] = useState<{ field: string; text: string } | null>(null);
   const [sending, setSending] = useState(false);
@@ -71,9 +86,16 @@ export default function CheckoutForm() {
     setPhone(String(p.phone || ''));
     setEmail(String(p.email || ''));
     setAddr(toForm(p));
-    const saved = p.confirm as Confirm | undefined;
+    const saved = p.confirm as (Confirm & { phoneMode?: string }) | undefined;
     if (saved) {
-      setConfirm({ ...EMPTY_CONFIRM, ...saved });
+      setConfirm({
+        ...EMPTY_CONFIRM,
+        ...saved,
+        /* Старий сайт писав у профіль 'same'. Якби ми лишили це
+           значення як є, жодна з двох радіокнопок не була б
+           позначена — покупець побачив би порожній вибір. */
+        phoneMode: saved.phoneMode === 'other' ? 'other' : 'main'
+      });
       setTg(String(saved.telegram || ''));
     }
   }, []);
@@ -83,10 +105,106 @@ export default function CheckoutForm() {
   useEffect(
     () =>
       fb.watchAuth((u) => {
+        setUser(u);
         if (u?.email) setEmail((v) => v || u.email || '');
       }),
     []
   );
+
+  /* Адресна книга профілю: у покупця їх зазвичай кілька —
+     собі, на роботу, рідним. */
+  const book = useMemo(
+    () =>
+      createAddrBook({
+        get: () => cart.getProfile(),
+        save: (p) => {
+          cart.saveProfile(p);
+          const u = fb.auth()?.currentUser;
+          if (u) void fb.saveCloudProfile(u.uid, u.email ?? '', p);
+        }
+      }),
+    []
+  );
+  const [addrList, setAddrList] = useState<SavedAddress[]>([]);
+  const [addrOpen, setAddrOpen] = useState(false);
+
+  useEffect(() => {
+    const list = book.list();
+    setAddrList(list);
+    // є що обрати — беремо основну; немає — одразу форма
+    const def = list.length ? book.defaultId() || list[0].id : '';
+    setPickedAddr(def);
+    setAddrOpen(!def);
+    if (def) setAddr(toForm(book.get(def)));
+  }, [book]);
+
+  function pickAddr(id: string) {
+    setPickedAddr(id);
+    setAddrOpen(!id);
+    setAddr(id ? toForm(book.get(id)) : EMPTY_FORM);
+    setBad(null);
+  }
+
+  /* Умови промокоду перевіряємо заново на кожну зміну кошика:
+     прибрали товар — і код із порогом суми більше не діє.
+     Без цього знижка лишалась би намальованою, а база її
+     не визнала б уже при відправці. */
+  useEffect(() => {
+    if (!promo) return;
+    const res = promoCheck(promo, cart.forPromo(c), null, user?.email ?? '');
+    if (res.ok) {
+      setDiscount(res.discount ?? 0);
+      setPartial(!!res.partial);
+      return;
+    }
+    setPromo(null);
+    setDiscount(0);
+    setPartial(false);
+    promoSaveCode('');
+    setPromoMsg({ ok: false, text: promoMessage(res, promo, promoDeps(!user)) });
+  }, [lines, promo, c, user]);
+
+  function promoDeps(guest: boolean) {
+    return {
+      t,
+      categoryTitle: (id: string) => catTitle(c, id),
+      productName: (id: string) => c.products.find((x) => x.id === id)?.name ?? '',
+      guest
+    };
+  }
+
+  async function applyPromo(code: string, silent = false) {
+    setPromoBusy(true);
+    const who = user?.email ?? '';
+    const found = (await fb.promoFetch(code)) as Promo | null;
+    const res = promoCheck(found, cart.forPromo(c), null, who);
+    setPromoBusy(false);
+
+    if (res.ok) {
+      setPromo(found);
+      setDiscount(res.discount ?? 0);
+      setPartial(!!res.partial);
+      setPromoMsg(null);
+      promoSaveCode(code);
+      return;
+    }
+    setPromo(null);
+    setDiscount(0);
+    setPartial(false);
+    promoSaveCode('');
+    /* Мовчки — коли код підтягнувся зі сховища сам: покупець
+       щойно нічого не вводив, і докір йому ні за що */
+    if (!silent) setPromoMsg({ ok: false, text: promoMessage(res, found, promoDeps(!who)) });
+  }
+
+  /* Раніше застосований код перечитуємо з бази: адмін міг його
+     вимкнути або він міг протермінуватись, поки кошик лежав */
+  useEffect(() => {
+    const saved = promoSavedCode();
+    if (saved) void applyPromo(saved, true);
+    // разово, на монтуванні
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const total = Math.max(0, subtotal - discount);
 
@@ -113,8 +231,7 @@ export default function CheckoutForm() {
       let code = '';
       let off = 0;
       if (promo) {
-        const { promoCheck, promoMessage, promoSaveCode } = await import('@/lib/promo');
-        const who = fb.auth()?.currentUser?.email ?? '';
+        const who = user?.email ?? '';
         const fresh = (await fb.promoFetch(promo.code ?? '')) as Promo | null;
         // пошту передаємо й тут: без неї персональний код власника
         // не пройшов би останню перевірку, хоч щойно був прийнятий
@@ -122,16 +239,10 @@ export default function CheckoutForm() {
         if (!res.ok) {
           setPromo(null);
           setDiscount(0);
+          setPartial(false);
           promoSaveCode('');
-          setBad({
-            field: 'promo',
-            text: promoMessage(res, fresh, {
-              t,
-              categoryTitle: (id) => catTitle(c, id),
-              productName: (id) => c.products.find((x) => x.id === id)?.name ?? '',
-              guest: !who
-            })
-          });
+          setPromoMsg({ ok: false, text: promoMessage(res, fresh, promoDeps(!who)) });
+          setBad({ field: 'promo', text: t('promo.dropped') });
           return;
         }
         code = promo.code ?? '';
@@ -142,7 +253,10 @@ export default function CheckoutForm() {
       const problem = checkAddress(addr);
       if (problem) {
         setBad({ field: problem.field, text: t(problem.key) });
-        focusAddressField('co', problem.field);
+        // помилку в захованій формі покупець не побачить
+        setAddrOpen(true);
+        // фокус ставимо після того, як форма розкриється
+        requestAnimationFrame(() => focusAddressField('co', problem.field));
         return;
       }
 
@@ -152,26 +266,33 @@ export default function CheckoutForm() {
         email: email.trim(),
         ...fromForm(addr),
         comment: comment.trim(),
-        confirm: {
-          ...confirm,
-          messenger: confirm.method === 'messenger' ? confirm.messenger : '',
-          altPhone: confirm.phoneMode === 'other' ? confirm.altPhone.trim() : '',
-          ...(confirm.messenger === 'telegram' && tg.trim()
-            ? { telegram: tg.trim().replace(/^@+/, '') }
-            : {})
-        }
+        confirm: (() => {
+          /* Логін пишемо лише коли месенджер справді Telegram.
+             Перевіряти сире confirm.messenger не можна: за
+             замовчуванням там 'telegram', і покупець, який обрав
+             дзвінок, отримав би в замовленні чужий рядок «@…». */
+          const messenger = confirm.method === 'messenger' ? confirm.messenger : '';
+          const login = messenger === 'telegram' ? tg.trim().replace(/^@+/, '') : '';
+          return {
+            ...confirm,
+            messenger,
+            altPhone: confirm.phoneMode === 'other' ? confirm.altPhone.trim() : '',
+            ...(login ? { telegram: login } : {})
+          };
+        })()
       };
 
       /* Профіль запамʼятовуємо мерджем: у ньому лежить адресна
          книга, і перезапис обʼєктом покупця стер би її */
-      cart.saveProfile({ ...cart.getProfile(), ...customer, comment: '' });
+      const profile = { ...cart.getProfile(), ...customer, comment: '' };
+      cart.saveProfile(profile);
+      /* І в хмару — щоб на іншому пристрої не набирати заново.
+         Без цього залогінений покупець щоразу заповнював би
+         форму з нуля, хоч акаунт у нього є. */
+      if (user) void fb.saveCloudProfile(user.uid, user.email ?? '', profile);
 
-      if (saveAddr) {
-        const book = createAddrBook({
-          get: () => cart.getProfile(),
-          save: (p) => cart.saveProfile(p)
-        });
-        // перша збережена адреса стає адресою за замовчуванням
+      // Нову адресу за бажанням кладемо в книгу
+      if (saveAddr && !pickedAddr) {
         book.save(fromForm(addr), { makeDefault: !book.list().length });
       }
 
@@ -213,12 +334,12 @@ export default function CheckoutForm() {
         .then((s) => orderPlaced(s as { workerUrl?: string } | null, order, 'uk', t));
 
       clear();
-      const { promoSaveCode } = await import('@/lib/promo');
       promoSaveCode('');
 
       // Номер потрібен на сторінці подяки, а стан між сторінками
       // не переживе перезавантаження — передаємо адресою
-      router.push(`/thanks?num=${encodeURIComponent(order.num)}`);
+      const mail = customer.email ? `&mail=${encodeURIComponent(customer.email)}` : '';
+      router.push(`/thanks?num=${encodeURIComponent(order.num)}${mail}`);
     } finally {
       setSending(false);
     }
@@ -290,10 +411,18 @@ export default function CheckoutForm() {
       </div>
 
       <PromoField
-        c={c}
-        onChange={(p, off) => {
-          setPromo(p);
-          setDiscount(off);
+        promo={promo}
+        discount={discount}
+        partial={partial}
+        message={promoMsg}
+        busy={promoBusy}
+        onApply={(code) => void applyPromo(code)}
+        onDrop={() => {
+          setPromo(null);
+          setDiscount(0);
+          setPartial(false);
+          setPromoMsg(null);
+          promoSaveCode('');
         }}
       />
 
@@ -346,22 +475,63 @@ export default function CheckoutForm() {
           />
         </div>
 
-        <AddressFields
-          v={addr}
-          set={(patch) => setAddr((a) => ({ ...a, ...patch }))}
-          invalid={
-            bad && bad.field in EMPTY_FORM ? (bad.field as keyof AddressForm) : null
-          }
-        />
+        {/* Є збережені адреси — спершу список: обрати «на роботу»
+            має бути один клік, а не перенабирання відділення */}
+        {addrList.length ? (
+          <div className="field addrpick">
+            <span className="field__label">{t('adr.where')}</span>
+            <div className="addrpick__list">
+              {addrList.map((a) => (
+                <button
+                  type="button"
+                  key={a.id}
+                  className={'addrpick__item' + (a.id === pickedAddr ? ' is-on' : '')}
+                  onClick={() => pickAddr(a.id)}
+                >
+                  <b>{book.title(a)}</b>
+                  <span>{addressLine(a)}</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                className={'addrpick__item addrpick__item--new' + (pickedAddr ? '' : ' is-on')}
+                onClick={() => pickAddr('')}
+              >
+                <b>+ {t('adr.newHere')}</b>
+                <span>{t('adr.newHint')}</span>
+              </button>
+            </div>
+          </div>
+        ) : null}
 
-        <label className="checkout-savepick">
-          <input
-            type="checkbox"
-            checked={saveAddr}
-            onChange={(e) => setSaveAddr(e.target.checked)}
-          />{' '}
-          {t('adr.saveToProfile')}
-        </label>
+        {/* Обрану адресу не дублюємо полями — вона вже написана
+            на картці. Форма розкривається кнопкою, якщо треба
+            виправити відділення саме для цього замовлення. */}
+        {addrList.length && pickedAddr && !addrOpen ? (
+          <button type="button" className="addrpick__edit" onClick={() => setAddrOpen(true)}>
+            {t('adr.editHere')}
+          </button>
+        ) : null}
+
+        <div hidden={!!(addrList.length && pickedAddr && !addrOpen)}>
+          <AddressFields
+            v={addr}
+            set={(patch) => setAddr((a) => ({ ...a, ...patch }))}
+            invalid={bad && bad.field in EMPTY_FORM ? (bad.field as keyof AddressForm) : null}
+          />
+        </div>
+
+        {/* Пропонуємо зберегти лише нову адресу: обрана вже в книзі */}
+        {!pickedAddr ? (
+          <label className="checkout-savepick">
+            <input
+              type="checkbox"
+              checked={saveAddr}
+              onChange={(e) => setSaveAddr(e.target.checked)}
+            />{' '}
+            {t('adr.saveToProfile')}
+          </label>
+        ) : null}
 
         {/* Як підтвердити замовлення. Дзвінок беруть не всі —
             месенджер тут не примха, а спосіб взагалі дочекатись

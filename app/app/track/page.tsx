@@ -9,7 +9,13 @@ export const metadata: Metadata = {
   alternates: { canonical: '/track' }
 };
 
-export default function TrackPage() {
+export default async function TrackPage({
+  searchParams
+}: {
+  searchParams: Promise<{ num?: string }>;
+}) {
+  const { num } = await searchParams;
+
   return (
     <div className="container account-page">
       <h1 className="section-title">Відстеження замовлення</h1>
@@ -17,7 +23,7 @@ export default function TrackPage() {
         Введіть номер замовлення й телефон, на який воно оформлене, — і побачите,
         де воно зараз.
       </p>
-      <TrackForm divider={false} />
+      <TrackForm divider={false} initialNum={num ?? ''} />
     </div>
   );
 }

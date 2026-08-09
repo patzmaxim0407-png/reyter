@@ -21,8 +21,16 @@ const WHY: Record<TrackFailReason, string> = {
   offline: 'trk.offline'
 };
 
-export default function TrackForm({ divider = true }: { divider?: boolean }) {
-  const [num, setNum] = useState('');
+export default function TrackForm({
+  divider = true,
+  initialNum = ''
+}: {
+  divider?: boolean;
+  /** Номер із адреси: після оформлення переписувати його з екрана
+   *  руками — саме те місце, де люди помиляються. */
+  initialNum?: string;
+}) {
+  const [num, setNum] = useState(initialNum);
   const [phone, setPhone] = useState('');
   const [state, setState] = useState<'idle' | 'busy' | 'found' | 'fail'>('idle');
   const [found, setFound] = useState<OrderView | null>(null);

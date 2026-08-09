@@ -245,3 +245,11 @@ export function fmt(n: number): string {
 export function uah(n: number, lang: 'uk' | 'en' = 'uk'): string {
   return lang === 'en' ? `UAH ${fmt(n)}` : `${fmt(n)} грн`;
 }
+
+/* ---------- Налаштування магазину ----------
+   Ті самі числа, що в data.js старого сайту. Живуть у коді, а не
+   в базі: вони змінюються раз на рік, а зайвий запит на кожній
+   сторінці коштував би дорожче. */
+
+/** Від якої суми доставка по Україні безкоштовна, грн. */
+export const FREE_DELIVERY_FROM = 1500;

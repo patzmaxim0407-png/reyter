@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useCart } from './CartProvider';
-import { catTitle, getProduct, uah } from '@/lib/catalog';
+import { catTitle, getProduct, uah, FREE_DELIVERY_FROM } from '@/lib/catalog';
 import { t } from '@/lib/i18n';
 
 /* Панель кошика. Розмітка й класи ті самі, що в index.html
@@ -11,6 +11,11 @@ import { t } from '@/lib/i18n';
 
 export default function CartDrawer() {
   const { c, lines, subtotal, isOpen, close, setQty, remove } = useCart();
+
+  /* Поріг рахуємо від суми товарів: знижку тут ще не знають,
+     а обіцяти безкоштовну доставку й потім забрати не можна */
+  const left = Math.max(0, FREE_DELIVERY_FROM - subtotal);
+  const pct = Math.min(100, Math.round((subtotal / FREE_DELIVERY_FROM) * 100));
 
   /* Поки панель відкрита, сторінка під нею не має скролитись —
      інакше на мобільному палець тягне фон замість списку */
@@ -133,9 +138,24 @@ export default function CartDrawer() {
             </Link>
           ) : (
             <>
-              {/* Знижку й доставку рахує сторінка оформлення:
-                  тут промокод іще не введено, а доставку визначає
-                  магазин після підтвердження */}
+              {/* Скільки лишилось до безкоштовної доставки —
+                  єдина причина, чому покупець тут щось доскладає */}
+              <div className="free-ship">
+                {left > 0 ? (
+                  <>
+                    <span dangerouslySetInnerHTML={{ __html: t('cart.freeLeft') }} /> {uah(left)}
+                  </>
+                ) : (
+                  <span dangerouslySetInnerHTML={{ __html: t('cart.freeDone') }} />
+                )}
+                <div className="free-ship__bar">
+                  <div className={'free-ship__fill' + (left === 0 ? ' is-done' : '')} style={{ width: pct + '%' }} />
+                </div>
+              </div>
+
+              {/* Знижку рахує сторінка оформлення: тут промокод
+                  іще не введено, а доставку визначає магазин
+                  після підтвердження */}
               <div className="cart-total">
                 <span>{t('cart.total')}</span>
                 <span className="cart-total__sum">{uah(subtotal)}</span>

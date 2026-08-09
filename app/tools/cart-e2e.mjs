@@ -258,6 +258,53 @@ if (np.opts > 0) {
   }
 }
 
+/* --- 7б. Поріг безкоштовної доставки в кошику --- */
+await evalJs(`[...document.querySelectorAll('.hbtn')].at(-1)?.click()`);
+await wait(400);
+const ship = await evalJs(`(() => {
+  const box = document.querySelector('.free-ship');
+  return { text: box?.textContent || '', width: box?.querySelector('.free-ship__fill')?.style.width || '' };
+})()`);
+ok('поріг безкоштовної доставки показано', !!ship.text && !!ship.width,
+   ship.text.slice(0, 60) + ' [' + ship.width + ']');
+await evalJs(`document.querySelector('.drawer__close')?.click()`);
+await wait(300);
+
+/* --- 7в. Вибір збереженої адреси --- */
+await evalJs(`localStorage.setItem('reyter:profile', JSON.stringify({
+  name: 'Тарас', phone: '+380971112233',
+  addresses: [
+    { id: 'a1', label: 'Дім', carrier: 'Нова Пошта', carrierId: 'np', city: 'Львів', cityRef: 'r1', branch: 'Відділення №1', branchRef: 'w1' },
+    { id: 'a2', label: 'Робота', carrier: 'Нова Пошта', carrierId: 'np', city: 'Київ', cityRef: 'r2', branch: 'Відділення №7', branchRef: 'w2' }
+  ],
+  defaultAddressId: 'a2'
+}))`);
+await go(BASE + '/checkout');
+const pick = await evalJs(`(() => ({
+  cards: document.querySelectorAll('.addrpick__item').length,
+  on: document.querySelector('.addrpick__item.is-on b')?.textContent || '',
+  formHidden: !!document.querySelector('.addrpick__edit')
+}))()`);
+ok('збережені адреси показані', pick.cards === 3, JSON.stringify(pick));
+ok('обрана саме основна адреса', pick.on === 'Робота', pick.on);
+ok('форма адреси згорнута під карткою', pick.formHidden);
+
+await evalJs(`[...document.querySelectorAll('.addrpick__item')].find(x => x.textContent.includes('Дім'))?.click()`);
+await wait(400);
+ok('перемикання адреси підставляє її поля',
+   (await evalJs(`document.getElementById('coCity')?.value`)) === 'Львів',
+   await evalJs(`document.getElementById('coCity')?.value`));
+
+/* --- 8б. Промокод перераховується при зміні кошика --- */
+await evalJs(`localStorage.setItem('reyter:promo', 'НЕМАЄ-ТАКОГО')`);
+await go(BASE + '/checkout');
+await wait(1800);
+ok('неіснуючий код зі сховища не малює знижку',
+   !(await evalJs(`!!document.querySelector('.promo--on')`)) &&
+   !(await evalJs(`!!document.querySelector('.checkout-summary .is-off')`)),
+   'бейджа немає');
+
+
 console.log('\nПомилки в консолі: ' + (errors.length ? '\n' + errors.join('\n') : 'немає'));
 
 ws.close();
