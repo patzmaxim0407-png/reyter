@@ -2094,6 +2094,71 @@
     return VIEWS.includes(v) ? v : 'catalog';
   }
 
+  /* ---------- Прокрутка між розділами й після F5 ----------
+     Вміст адмінки приходить із бази вже після завантаження
+     сторінки. На момент, коли браузер відновлює позицію після
+     перезавантаження, сторінка ще порожня й коротка — позиція
+     обрізається до нуля. Тому запамʼятовуємо її самі й
+     повертаємо, щойно вміст став достатньо високим. */
+
+  const SCROLL_KEY = 'reyter:admin:scroll';
+  let shownView = null;
+
+  function rememberScroll() {
+    // під час відкритої модалки body зафіксований, а scrollY = 0
+    if (document.body.classList.contains('no-scroll')) return;
+    try {
+      sessionStorage.setItem(SCROLL_KEY, JSON.stringify({
+        v: currentView(),
+        y: Math.round(window.scrollY || 0)
+      }));
+    } catch (e) { /* приватний режим */ }
+  }
+
+  function restoreScroll() {
+    let saved = null;
+    try {
+      saved = JSON.parse(sessionStorage.getItem(SCROLL_KEY) || 'null');
+    } catch (e) { /* нічого не збережено */ }
+    if (!saved || saved.v !== currentView() || !saved.y) return;
+
+    let tries = 0;
+    (function tick() {
+      // сторінка тільки завантажилась, тож будь-яка ненульова
+      // позиція означає, що користувач уже гортає сам — не заважаємо
+      if (window.scrollY > 0) return;
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      if (max >= saved.y || tries++ > 60) {
+        window.scrollTo(0, saved.y);
+        return;
+      }
+      setTimeout(tick, 80);
+    })();
+  }
+
+  /* Перемальовування списку не має зсувати сторінку.
+     Замовлення, склад і промокоди приходять у реальному часі, і
+     кожен знімок перебирає весь список. Поки браузер міряє новий
+     вміст (старий DOM уже викинуто, фото ще без розмірів), висота
+     документа просідає — і позицію прокрутки обрізає до нової
+     висоти. Тримаємо стару висоту на час підстановки й повертаємо
+     позицію, якщо вона все-таки зʼїхала. */
+  function paint(node, html) {
+    if (!node) return;
+    const y = window.scrollY;
+    const keep = node.offsetHeight;
+    if (keep) node.style.minHeight = keep + 'px';
+
+    node.innerHTML = html;
+    if (window.scrollY !== y) window.scrollTo(0, y);
+
+    requestAnimationFrame(() => {
+      node.style.minHeight = '';
+      // список міг стати коротшим — scrollTo сам обріже до межі
+      if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
+    });
+  }
+
   function showView() {
     const v = currentView();
     $id('viewCatalog').hidden = v !== 'catalog';
@@ -2106,7 +2171,15 @@
     if (v === 'orders') renderOrdersRoot();
     if (v === 'stock') renderStockRoot();
     if (v === 'promos') renderPromosRoot();
-    window.scrollTo(0, 0);
+
+    if (shownView === null) {
+      // перше малювання після входу — це або F5, або перехід
+      // за посиланням: позицію треба повернути, а не збити
+      restoreScroll();
+    } else if (shownView !== v) {
+      window.scrollTo(0, 0);   // перемкнули розділ — читаємо згори
+    }
+    shownView = v;
   }
 
   function startCloud() {
@@ -2675,11 +2748,20 @@
 
   /* Після перемальовки стрічка фільтрів починається з нуля —
      повертаємо в поле зору те, що обране зараз. На телефоні
-     чіпи стають прокрутною доріжкою, інакше активного не видно. */
+     чіпи стають прокрутною доріжкою, інакше активного не видно.
+
+     Рухаємо саме доріжку, а не сторінку. scrollIntoView тягне за
+     собою всіх прокрутних предків разом із документом: замовлення
+     оновлюються в реальному часі, і на кожен знімок адміна
+     підкидало вгору до фільтрів, хоч би де він читав список. */
   function showActiveChips(root) {
     if (!root) return;
-    root.querySelectorAll('.ao-chips .ao-chip.is-active').forEach((c) => {
-      if (c.scrollIntoView) c.scrollIntoView({ inline: 'center', block: 'nearest' });
+    root.querySelectorAll('.ao-chips').forEach((strip) => {
+      const active = strip.querySelector('.ao-chip.is-active');
+      if (!active || strip.scrollWidth <= strip.clientWidth) return;
+      const s = strip.getBoundingClientRect();
+      const a = active.getBoundingClientRect();
+      strip.scrollLeft += (a.left - s.left) - (s.width - a.width) / 2;
     });
   }
 
@@ -2693,7 +2775,7 @@
       if (!visibleIds.has(id)) selection.delete(id);
     });
 
-    ordersBody().innerHTML =
+    paint(ordersBody(),
       '<div class="ao-toolbar">' +
         '<span class="ao-live">● live</span>' +
         '<span>Нові замовлення зʼявляються автоматично</span>' +
@@ -2714,7 +2796,7 @@
       (list.length > visible.length
         ? '<button class="btn btn--ghost ao-more" data-more type="button">Показати ще ' +
             Math.min(PAGE_SIZE, list.length - visible.length) + ' із ' + (list.length - visible.length) + '</button>'
-        : (list.length ? '<p class="ao-note ao-count">Показано всі ' + list.length + '</p>' : ''));
+        : (list.length ? '<p class="ao-note ao-count">Показано всі ' + list.length + '</p>' : '')));
 
     bindLiveInputs();
   }
@@ -3779,7 +3861,7 @@
     const active = promosCache.filter((p) => promoState(p).cls === 'is-on').length;
     const totalUses = promosCache.reduce((s, p) => s + promoUsed(p.code), 0);
 
-    promosBody().innerHTML =
+    paint(promosBody(),
       '<div class="ao-stats">' +
         '<div class="ao-stat"><b>' + promosCache.length + '</b><span>усього промокодів</span></div>' +
         '<div class="ao-stat"><b>' + active + '</b><span>діють зараз</span></div>' +
@@ -3789,7 +3871,7 @@
         (promosCache.length
           ? promosCache.map(promoCardHTML).join('')
           : '<div class="a-empty">Промокодів ще немає. Натисніть «+ Новий промокод», щоб створити першу знижку.</div>') +
-      '</div>';
+      '</div>');
   }
 
   /* ---------- Редактор промокоду ---------- */
@@ -4403,12 +4485,12 @@
       content = movesHTML();
     }
 
-    stockBody().innerHTML =
+    paint(stockBody(),
       '<div class="ao-toolbar">' +
         '<span class="ao-live">● live</span>' +
         '<div class="ao-chips">' + tab('stock', 'Залишки') + tab('restock', 'Прихід') + tab('moves', 'Рух') + '</div>' +
       '</div>' +
-      content;
+      content);
 
     showActiveChips(stockBody());
 
@@ -5006,6 +5088,16 @@
     if (!$id('viewCatalog')) return;
 
     window.addEventListener('hashchange', showView);
+
+    // Позицію відновлюємо самі — інакше браузер зробить це до
+    // того, як зʼявиться вміст, і просто скине на нуль
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    let scrollTimer = null;
+    window.addEventListener('scroll', () => {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(rememberScroll, 150);
+    }, { passive: true });
+
     showView();
     initBarMenu();
 
