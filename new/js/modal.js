@@ -443,6 +443,10 @@
   function openProduct(id) {
     const p = R.getProduct(id);
     if (!p || !el.modal) return;
+    // Схований товар не відкриваємо навіть за прямим посиланням:
+    // у каталозі його немає, і показувати його як звичайний
+    // товар — вводити покупця в оману
+    if (p.hidden) return;
 
     current = p;
     currentAv = R.availability(p);

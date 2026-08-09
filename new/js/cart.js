@@ -470,6 +470,76 @@
     return parts.join(' · ');
   };
 
+  /* ---------- Вибір адреси з профілю ----------
+     Якщо збережених адрес немає — усе як було, звичайна форма.
+     Якщо є — спершу список, і форма розкривається лише під
+     «нову адресу»: обрати збережене має бути один клік. */
+
+  let pickedAddr = null;   // id обраної адреси, '' — вводимо нову
+
+  function addrPickHTML() {
+    const list = R.addrBook ? R.addrBook.list() : [];
+    if (!list.length) {
+      pickedAddr = '';
+      return R.addressField('co', R.getProfile());
+    }
+
+    if (pickedAddr === null) pickedAddr = R.addrBook.defaultId();
+    const chosen = pickedAddr ? R.addrBook.get(pickedAddr) : null;
+
+    const cards = list.map((a) =>
+      '<button type="button" class="addrpick__item' + (a.id === pickedAddr ? ' is-on' : '') + '" ' +
+        'data-pick-addr="' + R.esc(a.id) + '">' +
+        '<b>' + R.esc(R.addrBook.title(a)) + '</b>' +
+        '<span>' + R.esc(R.addressLine(a)) + '</span>' +
+      '</button>'
+    ).join('');
+
+    /* Обрану адресу не дублюємо полями: вона вже написана на
+       картці. Форма розкривається кнопкою — якщо треба виправити
+       відділення саме для цього замовлення. */
+    return (
+      '<div class="field addrpick">' +
+        '<span class="field__label">' + R.t('adr.where') + '</span>' +
+        '<div class="addrpick__list">' +
+          cards +
+          '<button type="button" class="addrpick__item addrpick__item--new' +
+            (pickedAddr ? '' : ' is-on') + '" data-pick-addr="">' +
+            '<b>+ ' + R.t('adr.newHere') + '</b>' +
+            '<span>' + R.t('adr.newHint') + '</span>' +
+          '</button>' +
+        '</div>' +
+      '</div>' +
+      (chosen
+        ? '<button type="button" class="addrpick__edit" data-addr-toggle>' + R.t('adr.editHere') + '</button>'
+        : '') +
+      '<div id="coAddrForm"' + (chosen ? ' hidden' : '') + '>' +
+        R.addressField('co', chosen || {}) +
+      '</div>' +
+      (chosen
+        ? ''
+        : '<label class="checkout-savepick">' +
+            '<input type="checkbox" id="coSaveAddr" checked> ' + R.t('adr.saveToProfile') +
+          '</label>')
+    );
+  }
+
+  /* Помилку в захованій формі покупець не побачить — розкриваємо */
+  function showAddrForm() {
+    const box = document.getElementById('coAddrForm');
+    const btn = document.querySelector('[data-addr-toggle]');
+    if (box) box.hidden = false;
+    if (btn) btn.hidden = true;
+  }
+
+  function pickAddr(id) {
+    pickedAddr = id;
+    const box = document.getElementById('coAddrBox');
+    if (!box) return;
+    box.innerHTML = addrPickHTML();
+    R.initAddress('co');
+  }
+
   function renderCheckout() {
     const items = cart.items();
     const profile = R.getProfile();
@@ -503,7 +573,7 @@
           'autocomplete="name" required placeholder="' + R.esc(R.t('cart.namePh')) + '"') +
         fieldHTML('coPhone', R.t('cart.phone'), profile.phone, 'type="tel" autocomplete="tel" placeholder="+380..." required') +
         fieldHTML('coEmail', R.t('cart.email'), defaultEmail, 'type="email" autocomplete="email" placeholder="you@example.com"') +
-        R.addressField('co', profile) +
+        '<div id="coAddrBox">' + addrPickHTML() + '</div>' +
         confirmHTML(profile) +
         '<div class="field">' +
           '<label for="coComment">' + R.t('cart.comment') + '</label>' +
@@ -586,6 +656,7 @@
 
     const addr = R.addressCheck('co');
     if (!addr.ok) {
+      showAddrForm();
       R.toast(addr.text);
       if (addr.focus) addr.focus.focus();
       return;
@@ -600,8 +671,18 @@
       confirm: collectConfirm()
     });
 
-    // Профіль запамʼятовуємо для наступних замовлень
-    R.saveProfile(Object.assign({}, customer, { comment: '' }));
+    /* Профіль запамʼятовуємо для наступних замовлень. Саме
+       мерджем: у профілі лежить адресна книга, і перезапис
+       обʼєктом покупця стер би її. */
+    R.saveProfile(Object.assign({}, R.getProfile(), customer, { comment: '' }));
+
+    // Нову адресу за бажанням кладемо в книгу
+    const saveBox = document.getElementById('coSaveAddr');
+    if (R.addrBook && saveBox && saveBox.checked) {
+      R.addrBook.save(R.addressValue('co'), {
+        makeDefault: !R.addrBook.list().length
+      });
+    }
 
     const now = new Date();
     const num =
@@ -772,6 +853,17 @@
     d.addEventListener('click', (e) => {
       const item = e.target.closest('.cart-item');
 
+      const pick = e.target.closest('[data-pick-addr]');
+      if (pick) {
+        pickAddr(pick.dataset.pickAddr);
+        return;
+      }
+
+      if (e.target.closest('[data-addr-toggle]')) {
+        showAddrForm();
+        return;
+      }
+
       if (e.target.closest('[data-remove]') && item) {
         cart.remove(Number(item.dataset.idx));
         render();
@@ -786,6 +878,7 @@
       } else if (e.target.closest('[data-promo-remove]')) {
         removePromo();
       } else if (e.target.closest('[data-checkout]')) {
+        pickedAddr = null;   // щоразу починаємо з основної адреси
         mode = 'checkout';
         render();
       } else if (e.target.closest('[data-back]')) {

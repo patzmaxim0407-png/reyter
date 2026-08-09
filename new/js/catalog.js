@@ -47,11 +47,22 @@
 
   /* Кольори товару. Старий формат — просто масив відтінків,
      новий — обʼєкти {hex, id}, де id вказує на картку того
-     самого товару в іншому кольорі. Читаємо обидва. */
+     самого товару в іншому кольорі. Читаємо обидва.
+
+     Прив'язку до схованого товару відкидаємо: зразок вів би на
+     картку, якої в каталозі немає, а сам відтінок означав би
+     колір, який не купити. Зразки без прив'язки лишаються —
+     це просто позначки наявних відтінків. */
   R.productColors = function (p) {
-    return ((p && p.colors) || []).map((c) =>
-      typeof c === 'string' ? { hex: c, id: '' } : { hex: c.hex || '', id: c.id || '' }
-    ).filter((c) => c.hex);
+    return ((p && p.colors) || [])
+      .map((c) =>
+        typeof c === 'string' ? { hex: c, id: '' } : { hex: c.hex || '', id: c.id || '' })
+      .filter((c) => {
+        if (!c.hex) return false;
+        if (!c.id) return true;
+        const linked = R.getProduct(c.id);
+        return !!linked && !linked.hidden;
+      });
   };
 
   R.inCategory = function (p, catId) {

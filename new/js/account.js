@@ -137,10 +137,91 @@
         fieldHTML('prName', R.t('acc.name'), p.name,
           'autocomplete="name" placeholder="' + R.esc(R.t('acc.namePh')) + '"') +
         fieldHTML('prPhone', R.t('acc.phone'), p.phone, 'type="tel" autocomplete="tel" placeholder="+380..."') +
-        R.addressField('pr', p) +
         '<button class="btn btn--primary" data-save type="button">' + R.t('acc.save') + '</button>' +
-      '</form>'
+      '</form>' +
+      '<div class="addrbook" id="addrBook"></div>'
     );
+  }
+
+  /* ---------- Адресна книга ----------
+     Замовляють на різні відділення — собі, на роботу, рідним.
+     Тут їх зберігають, а в кошику обирають зі списку. */
+
+  let addrEditId = null;   // яку адресу зараз редагують ('' — нова)
+
+  function addrCardHTML(a, isDefault) {
+    return (
+      '<article class="addrcard' + (isDefault ? ' is-default' : '') + '" data-addr-id="' + R.esc(a.id) + '">' +
+        '<div class="addrcard__top">' +
+          '<b>' + R.esc(R.addrBook.title(a)) + '</b>' +
+          (isDefault ? '<span class="addrcard__badge">' + R.t('adr.default') + '</span>' : '') +
+        '</div>' +
+        '<p class="addrcard__line">' + R.esc(R.addressLine(a)) + '</p>' +
+        '<div class="addrcard__actions">' +
+          (isDefault
+            ? ''
+            : '<button class="btn btn--ghost btn--sm" data-addr-default type="button">' + R.t('adr.makeDefault') + '</button>') +
+          '<button class="btn btn--ghost btn--sm" data-addr-edit type="button">' + R.t('adr.edit') + '</button>' +
+          '<button class="btn btn--ghost btn--sm addrcard__del" data-addr-del type="button" ' +
+            'aria-label="' + R.esc(R.t('adr.remove')) + '">✕</button>' +
+        '</div>' +
+      '</article>'
+    );
+  }
+
+  function addrEditorHTML(a) {
+    return (
+      '<div class="addrform" id="addrForm">' +
+        '<h5>' + R.t(a ? 'adr.editTitle' : 'adr.newTitle') + '</h5>' +
+        fieldHTML('adLabel', R.t('adr.label'), a ? a.label : '',
+          'autocomplete="off" placeholder="' + R.esc(R.t('adr.labelPh')) + '"') +
+        R.addressField('ad', a || {}) +
+        '<div class="addrform__actions">' +
+          '<button class="btn btn--primary btn--sm" data-addr-save type="button">' + R.t('adr.save') + '</button>' +
+          '<button class="btn btn--ghost btn--sm" data-addr-cancel type="button">' + R.t('adr.cancel') + '</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function renderAddrBook() {
+    const box = document.getElementById('addrBook');
+    if (!box) return;
+
+    const list = R.addrBook.list();
+    const def = R.addrBook.defaultId();
+
+    box.innerHTML =
+      '<h5 class="addrbook__title">' + R.t('adr.title') + '</h5>' +
+      (list.length
+        ? list.map((a) => addrCardHTML(a, a.id === def)).join('')
+        : '<p class="account-note">' + R.t('adr.empty') + '</p>') +
+      (addrEditId === null
+        ? '<button class="btn btn--ghost btn--sm addrbook__add" data-addr-add type="button">+ ' + R.t('adr.add') + '</button>'
+        : addrEditorHTML(addrEditId ? R.addrBook.get(addrEditId) : null));
+
+    if (addrEditId !== null) {
+      R.initAddress('ad');
+      const label = document.getElementById('adLabel');
+      if (label) setTimeout(() => label.focus(), 50);
+    }
+  }
+
+  function saveAddrFromForm() {
+    const check = R.addressCheck('ad');
+    if (!check.ok) {
+      R.toast(check.text);
+      if (check.focus) check.focus.focus();
+      return;
+    }
+    R.addrBook.save(R.addressValue('ad'), {
+      id: addrEditId || '',
+      label: document.getElementById('adLabel').value.trim(),
+      makeDefault: !R.addrBook.list().length
+    });
+    addrEditId = null;
+    renderAddrBook();
+    R.toast(R.t('adr.saved'), 'success');
   }
 
   async function renderProfile() {
@@ -167,36 +248,34 @@
         authUserHTML() +
         '<p class="account-note">' + R.t('acc.profileNote') + '</p>' +
         profileFormHTML(local);
-
-      R.initAddress('pr');
+      renderAddrBook();
 
       // Підтягуємо хмарний профіль і перемальовуємо форму, якщо він свіжіший
       const cloud = await R.fb.loadCloudProfile();
       if (cloud && document.getElementById('prName')) {
         const merged = Object.assign({}, local, cloud);
         R.saveProfile(merged);
-        // Блок адреси має власний стан (реф міста, тип доставки),
-        // тож перемальовуємо його цілком, а не по полю
         body().innerHTML =
           authUserHTML() +
           '<p class="account-note">' + R.t('acc.profileNote') + '</p>' +
           profileFormHTML(merged);
-        R.initAddress('pr');
+        renderAddrBook();
       }
     } else {
       // Firebase недоступний — локальний режим
       body().innerHTML =
         '<p class="account-note">' + R.t('acc.profileNoteLocal') + '</p>' +
         profileFormHTML(local);
-      R.initAddress('pr');
+      renderAddrBook();
     }
   }
 
+  /* Адреси живуть у книзі — тут лише імʼя й телефон */
   function saveProfileFromForm() {
-    const profile = Object.assign({
+    const profile = Object.assign({}, R.getProfile(), {
       name: document.getElementById('prName').value.trim(),
       phone: document.getElementById('prPhone').value.trim()
-    }, R.addressValue('pr'));
+    });
     R.saveProfile(profile);
     if (signedIn()) R.fb.saveCloudProfile(profile);
     R.toast(R.t('acc.saved'), 'success');
@@ -547,6 +626,30 @@
         authMode = switchBtn.dataset.switch;
         render();
         return;
+      }
+
+      /* ---- адресна книга ---- */
+      if (e.target.closest('[data-addr-add]')) { addrEditId = ''; renderAddrBook(); return; }
+      if (e.target.closest('[data-addr-cancel]')) { addrEditId = null; renderAddrBook(); return; }
+      if (e.target.closest('[data-addr-save]')) { saveAddrFromForm(); return; }
+
+      const addrCard = e.target.closest('[data-addr-id]');
+      if (addrCard) {
+        const id = addrCard.dataset.addrId;
+        if (e.target.closest('[data-addr-edit]')) { addrEditId = id; renderAddrBook(); return; }
+        if (e.target.closest('[data-addr-default]')) {
+          R.addrBook.setDefault(id);
+          renderAddrBook();
+          R.toast(R.t('adr.defaultSet'), 'success');
+          return;
+        }
+        if (e.target.closest('[data-addr-del]')) {
+          R.addrBook.remove(id);
+          if (addrEditId === id) addrEditId = null;
+          renderAddrBook();
+          R.toast(R.t('adr.removed'));
+          return;
+        }
       }
 
       if (e.target.closest('[data-google]')) { doGoogle(); return; }

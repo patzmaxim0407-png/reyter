@@ -366,6 +366,124 @@
     };
   };
 
+  /* ============================================================
+     Адресна книга профілю
+     ------------------------------------------------------------
+     Покупці замовляють на різні відділення — собі, на роботу,
+     рідним. Тримаємо список адрес у профілі, а поля верхнього
+     рівня (carrier / city / branch …) лишаємо дзеркалом основної:
+     на них спираються кошик, лист і адмінка, і переписувати їх
+     заради книги немає сенсу.
+     ============================================================ */
+
+  const ADDR_FIELDS = ['carrier', 'carrierId', 'city', 'cityRef', 'branch', 'branchRef', 'intl'];
+
+  function pickAddr(src) {
+    const out = {};
+    ADDR_FIELDS.forEach((k) => { if (src && src[k] != null) out[k] = src[k]; });
+    return out;
+  }
+
+  function blankAddr() {
+    return { carrier: '', carrierId: '', city: '', cityRef: '', branch: '', branchRef: '', intl: null };
+  }
+
+  function hasAddr(a) {
+    if (!a) return false;
+    const intl = a.intl || {};
+    return !!(a.city || a.branch || intl.city || intl.street);
+  }
+
+  function profile() {
+    return (R.getProfile ? R.getProfile() : {}) || {};
+  }
+
+  function commit(list, defaultId) {
+    const p = profile();
+    const def = list.find((x) => x.id === defaultId) || list[0] || null;
+    const next = Object.assign({}, p, blankAddr(), def ? pickAddr(def) : {}, {
+      addresses: list,
+      defaultAddressId: def ? def.id : ''
+    });
+    R.saveProfile(next);
+    if (R.fb && R.fb.enabled && R.fb.user) R.fb.saveCloudProfile(next);
+    return next;
+  }
+
+  function nextId(list) {
+    let n = 1;
+    while (list.some((x) => x.id === 'a' + n)) n++;
+    return 'a' + n;
+  }
+
+  R.addrBook = {
+    /* Старий профіль тримав рівно одну адресу полями верхнього
+       рівня — показуємо її як першу збережену */
+    list: function () {
+      const p = profile();
+      const list = Array.isArray(p.addresses) ? p.addresses.filter(hasAddr) : [];
+      if (list.length) return list;
+      return hasAddr(p) ? [Object.assign({ id: 'a1', label: '' }, pickAddr(p))] : [];
+    },
+
+    defaultId: function () {
+      const list = R.addrBook.list();
+      const saved = profile().defaultAddressId;
+      return list.some((x) => x.id === saved) ? saved : (list[0] ? list[0].id : '');
+    },
+
+    get: function (id) {
+      return R.addrBook.list().find((x) => x.id === id) || null;
+    },
+
+    /* Повертає id збереженої адреси. Однакову двічі не додаємо:
+       після кожного замовлення книга інакше росла б дублікатами. */
+    save: function (addr, opts) {
+      opts = opts || {};
+      const list = R.addrBook.list();
+      const same = list.find((x) => R.addrBook.same(x, addr));
+      const id = opts.id || (same ? same.id : nextId(list));
+      const entry = Object.assign({ id: id, label: opts.label || '' }, pickAddr(addr));
+
+      const i = list.findIndex((x) => x.id === id);
+      if (i >= 0) entry.label = opts.label != null ? opts.label : (list[i].label || '');
+      if (i >= 0) list[i] = entry; else list.push(entry);
+
+      commit(list.slice(0, 12), opts.makeDefault ? id : R.addrBook.defaultId());
+      return id;
+    },
+
+    remove: function (id) {
+      const list = R.addrBook.list().filter((x) => x.id !== id);
+      commit(list, R.addrBook.defaultId() === id ? '' : R.addrBook.defaultId());
+    },
+
+    setDefault: function (id) {
+      commit(R.addrBook.list(), id);
+    },
+
+    same: function (a, b) {
+      if (!a || !b) return false;
+      const key = (x) => {
+        const intl = x.intl || {};
+        return [
+          R.carrierId(x.carrier) || x.carrierId || '',
+          (x.city || intl.city || '').toLowerCase().trim(),
+          (x.branch || intl.street || '').toLowerCase().trim(),
+          (intl.zip || '').toLowerCase().trim()
+        ].join('|');
+      };
+      return key(a) === key(b);
+    },
+
+    /* Підпис картки: свій, якщо його вписали, інакше — місто */
+    title: function (a) {
+      if (a && a.label) return a.label;
+      const intl = (a && a.intl) || {};
+      return a ? (a.city || intl.city || R.addressLine(a) || '') : '';
+    }
+  };
+
   /* Один рядок адреси — для листа, повідомлення й адмінки */
   R.addressLine = function (c) {
     if (!c) return '';

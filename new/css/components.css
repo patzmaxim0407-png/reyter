@@ -2076,3 +2076,169 @@
 .size-pill--out {
   cursor: pointer;
 }
+
+/* ---------- Адресна книга профілю ---------- */
+.addrbook {
+  margin-top: 1.4rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--c-line);
+}
+
+.addrbook__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 0.7rem;
+}
+
+.addrcard {
+  background: var(--c-paper);
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem 0.9rem;
+  margin-bottom: 0.6rem;
+}
+
+.addrcard.is-default {
+  border-color: rgba(1, 74, 173, 0.45);
+}
+
+.addrcard__top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.addrcard__top b {
+  font-size: 0.92rem;
+}
+
+.addrcard__badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--c-blue);
+  background: rgba(1, 74, 173, 0.1);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+}
+
+.addrcard__line {
+  font-size: 0.83rem;
+  color: var(--c-muted);
+  line-height: 1.45;
+  margin-bottom: 0.6rem;
+}
+
+.addrcard__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* Хрестик видалення тримається праворуч, окремо від решти */
+.addrcard__del {
+  margin-left: auto;
+  min-width: 2.2rem;
+  padding-inline: 0.6rem;
+}
+
+.addrbook__add {
+  width: 100%;
+}
+
+.addrform {
+  background: var(--c-paper);
+  border: 1.5px dashed rgba(1, 74, 173, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.addrform h5 {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.addrform__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.addrform__actions .btn {
+  flex: 1;
+}
+
+/* ---------- Вибір адреси в кошику ---------- */
+.addrpick__list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.addrpick__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--c-paper);
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.addrpick__item b {
+  display: block;
+  font-size: 0.88rem;
+  margin-bottom: 0.1rem;
+}
+
+.addrpick__item span {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--c-muted);
+  line-height: 1.4;
+}
+
+.addrpick__item:hover {
+  border-color: rgba(1, 74, 173, 0.4);
+}
+
+.addrpick__item.is-on {
+  border-color: var(--c-blue);
+  background: rgba(1, 74, 173, 0.06);
+}
+
+.addrpick__item--new b {
+  color: var(--c-blue);
+}
+
+.checkout-savepick {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.checkout-savepick input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--c-blue);
+  cursor: pointer;
+}
+
+.addrpick__edit {
+  align-self: start;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--c-blue);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
