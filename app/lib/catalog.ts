@@ -9,7 +9,7 @@
    поки старий сайт іще працює поруч.
    ============================================================ */
 
-import type { Availability, Color, Product, Stock } from './types';
+import type { Availability, Category, Color, Product, Stock } from './types';
 
 export const ALL_SIZES = ['XS', 'S', 'M', 'L', 'XL'];
 /** «Закінчується», коли лишилось стільки або менше. */
@@ -18,7 +18,51 @@ export const LOW_STOCK_AT = 2;
 export type Catalogue = {
   products: Product[];
   stock: Stock;
+  /** Потрібні лише там, де показуємо назву категорії (кошик,
+   *  лист покупцеві). Розрахунки наявності без них обходяться. */
+  categories?: Category[];
 };
+
+/** Назва категорії за id. Категорію могли видалити вже після
+ *  того, як товар потрапив у кошик, — тоді просто нічого. */
+export function catTitle(c: Catalogue, id?: string | null): string {
+  if (!id) return '';
+  return c.categories?.find((x) => x.id === id)?.title ?? '';
+}
+
+/** Каталог для кошика: він їде в браузер на кожній сторінці, тож
+ *  тягне лише ті поля, які кошик і оформлення справді читають.
+ *  Повний каталог утричі важчий, а описи, догляд і решта картинок
+ *  там ні до чого.
+ *
+ *  Заховані товари лишаються: складник комплекту зазвичай саме
+ *  захований, і без нього комплект у кошику розсипався б. */
+export function cartCatalogue(
+  products: Product[],
+  stock: Stock,
+  categories: Category[]
+): Catalogue {
+  return {
+    stock,
+    categories,
+    products: products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      nameEn: p.nameEn,
+      price: p.price,
+      category: p.category,
+      categories: p.categories,
+      set: p.set,
+      hidden: p.hidden,
+      sale: p.sale,
+      volume: p.volume,
+      sizes: p.sizes,
+      status: p.status,
+      lowStock: p.lowStock,
+      images: p.images.slice(0, 1)
+    }))
+  };
+}
 
 export function getProduct(c: Catalogue, id: string): Product | null {
   return c.products.find((p) => p.id === id) ?? null;

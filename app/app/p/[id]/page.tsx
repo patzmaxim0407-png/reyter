@@ -1,17 +1,9 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import AddToCart from '@/components/AddToCart';
 import { loadCatalog, loadStock } from '@/lib/firestore';
-import {
-  ALL_SIZES,
-  availability,
-  getProduct,
-  isSet,
-  isSized,
-  productColors,
-  setParts,
-  uah
-} from '@/lib/catalog';
+import { availability, getProduct, productColors, uah } from '@/lib/catalog';
 
 /* Значення має бути літералом: Next читає його статично,
    до виконання коду, тож імпортовану константу не бачить. */
@@ -84,7 +76,6 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   const av = availability(c, p);
   const colors = productColors(c, p);
-  const parts = setParts(c, p);
   const catTitle = categories.find((x) => x.id === p.category)?.title ?? '';
 
   /* Дані для пошукових систем. Наявність беремо з тих самих
@@ -184,71 +175,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             </div>
           ) : null}
 
-          {/* Комплект: розмірна сітка кожного складника окремо —
-              верх і низ у людей різні, тож «розміру комплекту» не існує */}
-          {isSet(p) && parts.length ? (
-            <div className="pinfo__sizes">
-              <div className="pinfo__sizes-head">
-                <span>Складники комплекту</span>
-              </div>
-              <div className="sizes sizes--set">
-                <p className="setsizes__note">
-                  Оберіть розмір для кожної речі — комплект збереться саме під вас.
-                </p>
-                {parts.map((part) => {
-                  const pav = availability(c, part);
-                  return (
-                    <div className={'setpart' + (pav.soldOut ? ' is-out' : '')} key={part.id}>
-                      <div className="setpart__head">
-                        <img src={part.images[0]} alt="" loading="lazy" />
-                        <span>
-                          <b>{part.name}</b>
-                          <em>{pav.soldOut ? 'Продано' : part.id}</em>
-                        </span>
-                      </div>
-                      <div className="sizes">
-                        {(isSized(part) ? ALL_SIZES : [part.volume ?? 'один розмір']).map((s) => {
-                          const has = !pav.soldOut && (!isSized(part) || pav.sizes.includes(s));
-                          return (
-                            <span
-                              className={'size-pill' + (has ? '' : ' size-pill--out')}
-                              key={s}
-                            >
-                              <label>{s}</label>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : isSized(p) ? (
-            <div className="pinfo__sizes">
-              <div className="pinfo__sizes-head">
-                <span>Розмір</span>
-              </div>
-              <div className="sizes">
-                {ALL_SIZES.map((s) => {
-                  const has = !av.soldOut && av.sizes.includes(s);
-                  const low = has && av.low.includes(s);
-                  return (
-                    <span
-                      className={
-                        'size-pill' + (has ? '' : ' size-pill--out') + (low ? ' size-pill--low' : '')
-                      }
-                      key={s}
-                    >
-                      <label>{s}</label>
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          ) : p.volume ? (
-            <p className="pinfo__meta">Обʼєм: {p.volume}</p>
-          ) : null}
+          <AddToCart c={c} p={p} />
 
           <div className="pinfo__desc">
             {p.fabric ? (

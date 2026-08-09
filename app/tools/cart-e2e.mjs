@@ -1,0 +1,265 @@
+/* Прогін кошика в справжньому Chrome через CDP:
+   картка товару → додати → бейдж → панель → оформлення. */
+import { spawn } from 'node:child_process';
+import { setTimeout as wait } from 'node:timers/promises';
+import { readFileSync } from 'node:fs';
+
+/* Свій профіль і свій порт на кожен прогін: інакше скрипт
+   під'єднується до Chrome попереднього запуску — з його кошиком
+   у localStorage, і тести «падають» на чужих даних. */
+const PROFILE = '/tmp/reyter-test-' + process.pid + '-' + Date.now();
+
+const BASE = process.argv[2] || 'http://localhost:3000';
+const CHROME =
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+
+const chrome = spawn(CHROME, [
+  '--headless=new',
+  '--remote-debugging-port=0',
+  '--user-data-dir=' + PROFILE,
+  '--no-first-run',
+  'about:blank'
+]);
+await wait(2500);
+
+const port = readFileSync(PROFILE + '/DevToolsActivePort', 'utf8').split(/\r?\n/)[0].trim();
+const list = await (await fetch('http://127.0.0.1:' + port + '/json/list')).json();
+const page = list.find((t) => t.type === 'page');
+const ws = new WebSocket(page.webSocketDebuggerUrl);
+await new Promise((r) => ws.addEventListener('open', r));
+
+let id = 0;
+const pending = new Map();
+ws.addEventListener('message', (raw) => {
+  const m = JSON.parse(raw.data);
+  if (m.id && pending.has(m.id)) {
+    pending.get(m.id)(m);
+    pending.delete(m.id);
+  }
+});
+function send(method, params = {}) {
+  const my = ++id;
+  ws.send(JSON.stringify({ id: my, method, params }));
+  return new Promise((r) => pending.set(my, r));
+}
+async function evalJs(expression) {
+  const r = await send('Runtime.evaluate', {
+    expression,
+    awaitPromise: true,
+    returnByValue: true
+  });
+  if (r.result?.exceptionDetails) throw new Error(JSON.stringify(r.result.exceptionDetails));
+  return r.result?.result?.value;
+}
+async function go(url) {
+  await send('Page.navigate', { url });
+  for (let i = 0; i < 60; i++) {
+    await wait(200);
+    const ready = await evalJs('document.readyState === "complete"');
+    if (ready) break;
+  }
+  await wait(700); // гідратація
+}
+
+await send('Page.enable');
+await send('Runtime.enable');
+/* У headless вікно не активне, і події фокуса не летять узагалі —
+   без цього поле відділення не відкрилося б навіть у справному коді */
+await send('Emulation.setFocusEmulationEnabled', { enabled: true });
+
+const errors = [];
+ws.addEventListener('message', (raw) => {
+  const m = JSON.parse(raw.data);
+  if (m.method === 'Runtime.exceptionThrown') {
+    errors.push(m.params.exceptionDetails.exception?.description || 'exception');
+  }
+});
+
+const out = [];
+const ok = (name, cond, extra = '') => {
+  const line = `${cond ? '✓' : '✗'} ${name}${extra ? ' — ' + extra : ''}`;
+  out.push(line);
+  console.log(line);
+};
+
+/* --- 1. Каталог: бейдж кошика порожній --- */
+await go(BASE + '/');
+ok('каталог відкривається', await evalJs('!!document.querySelector(".pgrid .pcard")'));
+ok(
+  'бейдж кошика схований на порожньому кошику',
+  await evalJs('!!document.querySelector(".cart-count[hidden]")')
+);
+
+/* --- 2. Знаходимо комплект --- */
+const setId = await evalJs(`(async () => {
+  const r = await fetch('${BASE}/');
+  return null;
+})()`);
+
+/* Беремо перший товар з каталогу */
+const firstHref = await evalJs(
+  'document.querySelector(".pgrid a[href^=\\"/p/\\"]")?.getAttribute("href")'
+);
+ok('картка веде на власну сторінку', !!firstHref, firstHref || '');
+
+/* --- 3. Сторінка товару: додаємо в кошик --- */
+await go(BASE + firstHref);
+ok('є блок розмірів або кнопка', await evalJs('!!document.querySelector(".btn--order")'));
+
+const sizeInfo = await evalJs(`(() => {
+  const pills = [...document.querySelectorAll('.size-pill input:not([disabled])')];
+  if (pills.length) pills[0].click();
+  return { pills: pills.length, picked: pills[0]?.value || '' };
+})()`);
+await wait(200);
+ok('розмір обирається', sizeInfo.pills > 0, `доступних: ${sizeInfo.pills}, обрано: ${sizeInfo.picked}`);
+
+await evalJs('document.querySelector(".btn--order")?.click()');
+await wait(600);
+
+const badge = await evalJs(`(() => {
+  const b = document.querySelector('.cart-count');
+  return { text: b?.textContent, hidden: b?.hasAttribute('hidden') };
+})()`);
+ok('бейдж показує 1', badge.text === '1' && !badge.hidden, JSON.stringify(badge));
+
+/* --- 4. Кошик переживає перезавантаження --- */
+await go(BASE + '/');
+const badge2 = await evalJs('document.querySelector(".cart-count")?.textContent');
+ok('кошик переживає перезавантаження', badge2 === '1', `бейдж: ${badge2}`);
+
+/* --- 5. Панель кошика --- */
+await evalJs(`[...document.querySelectorAll('.hbtn')].at(-1)?.click()`);
+await wait(400);
+const drawer = await evalJs(`(() => {
+  const d = document.querySelector('.drawer');
+  const item = document.querySelector('.cart-item');
+  return {
+    open: d?.classList.contains('is-open'),
+    name: document.querySelector('.cart-item__name')?.textContent || '',
+    meta: document.querySelector('.cart-item__meta')?.textContent || '',
+    total: document.querySelector('.cart-total__sum')?.textContent || '',
+    checkout: document.querySelector('.drawer__foot a[href="/checkout"]') ? true : false
+  };
+})()`);
+ok('панель відкрилась', drawer.open);
+ok('позиція має назву', !!drawer.name, drawer.name);
+ok('позиція має категорію й артикул', /·/.test(drawer.meta), drawer.meta);
+ok('сума порахована', /грн/.test(drawer.total), drawer.total);
+ok('є перехід на оформлення', drawer.checkout);
+
+/* --- 6. Кількість --- */
+await evalJs(`document.querySelectorAll('.cart-item .qty button')[1]?.click()`);
+await wait(400);
+const qty = await evalJs('document.querySelector(".cart-item .qty span")?.textContent');
+ok('кількість збільшується', qty === '2', `qty: ${qty}`);
+
+/* --- 7. Оформлення --- */
+await go(BASE + '/checkout');
+const co = await evalJs(`(() => ({
+  items: document.querySelectorAll('.checkout-summary > div').length,
+  promo: !!document.querySelector('.promo input'),
+  carrier: !!document.getElementById('coCarrier'),
+  city: !!document.getElementById('coCity'),
+  branchDisabled: document.getElementById('coBranch')?.disabled,
+  confirm: !!document.querySelector('.co-confirm'),
+  submit: !!document.querySelector('.btn--order')
+}))()`);
+ok('позиції в підсумку', co.items > 0, `рядків: ${co.items}`);
+ok('поле промокоду є', co.promo);
+ok('перевізник є', co.carrier);
+ok('поле міста є', co.city);
+ok('відділення заблоковане без міста', co.branchDisabled === true);
+ok('блок підтвердження є', co.confirm);
+ok('кнопка відправки є', co.submit);
+
+/* --- 8. Валідація: порожня форма не проходить --- */
+await evalJs('document.querySelector(".btn--order")?.click()');
+await wait(500);
+const err = await evalJs(`(() => ({
+  text: document.querySelector('.promo__hint.is-err')?.textContent || '',
+  invalid: !!document.querySelector('.is-invalid')
+}))()`);
+ok('порожня форма не відправляється', !!err.text, err.text);
+
+/* --- 9. Нова Пошта: пошук міста --- */
+await evalJs(`(() => {
+  const el = document.getElementById('coCity');
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+  setter.call(el, 'Львів');
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+})()`);
+await wait(2500);
+const np = await evalJs(`(() => ({
+  opts: document.querySelectorAll('.acombo__opt').length,
+  first: document.querySelector('.acombo__opt span')?.textContent || '',
+  msg: document.querySelector('.acombo__msg')?.textContent || ''
+}))()`);
+ok('Нова Пошта відповідає', np.opts > 0, `варіантів: ${np.opts}, перший: ${np.first}${np.msg ? ' / ' + np.msg : ''}`);
+
+if (np.opts > 0) {
+  await evalJs(`(() => {
+    const li = document.querySelector('.acombo__opt');
+    li.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+  })()`);
+  await wait(500);
+  const picked = await evalJs(`(() => ({
+    city: document.getElementById('coCity')?.value,
+    branchOn: !document.getElementById('coBranch')?.disabled
+  }))()`);
+  ok('місто обирається', !!picked.city, picked.city);
+  ok('відділення розблокувалось', picked.branchOn);
+
+  await evalJs(`document.getElementById('coBranch').focus()`);
+  await wait(3000);
+  // рахуємо ЛИШЕ список відділення: список міста лишається в DOM схованим
+  const wh = await evalJs(`(() => {
+    const box = document.getElementById('coBranch').closest('.acombo');
+    const list = box.querySelector('.acombo__list');
+    return {
+      hidden: list.hidden,
+      opts: box.querySelectorAll('.acombo__opt').length,
+      first: box.querySelector('.acombo__opt span')?.textContent || '',
+      note: box.querySelector('.acombo__opt i')?.textContent || '',
+      msg: box.querySelector('.acombo__msg')?.textContent || ''
+    };
+  })()`);
+  ok('відділення підтягнулись', wh.opts > 0 && !wh.hidden,
+     `${wh.opts}, напр.: ${wh.first}${wh.note ? ' [' + wh.note + ']' : ''}${wh.msg ? ' / ' + wh.msg : ''}`);
+
+  // вибір відділення має лягти в поле
+  if (wh.opts > 0) {
+    await evalJs(`(() => {
+      const box = document.getElementById('coBranch').closest('.acombo');
+      box.querySelector('.acombo__opt').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    })()`);
+    await wait(400);
+    const b = await evalJs(`document.getElementById('coBranch').value`);
+    ok('відділення обирається', !!b, b);
+
+    // зміна міста має скинути відділення
+    await evalJs(`(() => {
+      const el = document.getElementById('coCity');
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(el, 'Київ');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await wait(2500);
+    await evalJs(`(() => {
+      const box = document.getElementById('coCity').closest('.acombo');
+      box.querySelector('.acombo__opt')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    })()`);
+    await wait(500);
+    const after = await evalJs(`(() => ({
+      city: document.getElementById('coCity').value,
+      branch: document.getElementById('coBranch').value
+    }))()`);
+    ok('зміна міста скидає відділення', after.branch === '', `місто: ${after.city}, відділення: "${after.branch}"`);
+  }
+}
+
+console.log('\nПомилки в консолі: ' + (errors.length ? '\n' + errors.join('\n') : 'немає'));
+
+ws.close();
+chrome.kill();
+process.exit(0);

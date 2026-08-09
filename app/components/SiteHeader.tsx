@@ -1,8 +1,9 @@
 import Link from 'next/link';
+import CartButton from './CartButton';
 
-/* Шапка. Поки що без кошика й кабінету — вони приїдуть разом
-   із клієнтським станом на наступному етапі; тут лише навігація,
-   яка має працювати і без JavaScript. */
+/* Шапка рендериться на сервері — інтерактивна в ній лише кнопка
+   кошика, і саме вона одна їде в браузер. Навігація лишається
+   звичайними посиланнями й працює без JavaScript. */
 export default function SiteHeader() {
   return (
     <header className="site-header" id="siteHeader">
@@ -23,6 +24,8 @@ export default function SiteHeader() {
           <Link href="/#delivery">Доставка</Link>
           <Link href="/#contacts">Соц мережі</Link>
         </nav>
+
+        <CartButton />
       </div>
     </header>
   );

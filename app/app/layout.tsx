@@ -5,6 +5,10 @@ import '../styles/components.css';
 import '../styles/modal.css';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
+import CartProvider from '@/components/CartProvider';
+import CartDrawer from '@/components/CartDrawer';
+import { loadCatalog, loadStock } from '@/lib/firestore';
+import { cartCatalogue } from '@/lib/catalog';
 
 /* Метадані сторінки-оболонки. Конкретний товар доповнює їх
    своїми — див. generateMetadata у app/p/[id]/page.tsx. */
@@ -32,7 +36,14 @@ export const viewport: Viewport = {
   viewportFit: 'cover'
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  /* Кошик має знати ціни й склад комплектів на кожній сторінці,
+     тож каталог їде в браузер разом із розміткою. Обрізаний:
+     описи, догляд і решта картинок кошику ні до чого, а важить
+     повний утричі більше. */
+  const [catalog, stock] = await Promise.all([loadCatalog(), loadStock()]);
+  const c = cartCatalogue(catalog.products, stock, catalog.categories);
+
   return (
     <html lang="uk">
       <body>
@@ -48,9 +59,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </div>
 
-        <SiteHeader />
-        <main id="top">{children}</main>
-        <SiteFooter />
+        <CartProvider c={c}>
+          <SiteHeader />
+          <main id="top">{children}</main>
+          <SiteFooter />
+          <CartDrawer />
+        </CartProvider>
       </body>
     </html>
   );
