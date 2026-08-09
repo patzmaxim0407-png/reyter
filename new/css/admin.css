@@ -2171,9 +2171,11 @@ label.a-promo-product i {
   background: var(--c-amber-soft);
 }
 
+/* Оприбуткований прихід не приглушуємо непрозорістю: його
+   читають, щоб перевірити, коли й скільки прийняли */
 .ao-restock.is-received {
   border-left-color: var(--c-green);
-  opacity: 0.75;
+  background: var(--c-cream);
 }
 
 .ao-restock__info {
@@ -2193,6 +2195,73 @@ label.a-promo-product i {
 
 .ao-restock__date {
   font-weight: 600;
+  margin-top: 0.15rem;
+}
+
+.ao-restock.is-received .ao-restock__date b {
+  color: var(--c-green);
+}
+
+.ao-restock__date em {
+  font-style: normal;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+/* Назва плюс підсумок однією стрічкою */
+.ao-restock__info b {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ao-restock__total {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--c-blue);
+  background: rgba(1, 74, 173, 0.09);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+}
+
+/* Кількості по розмірах — пігулками */
+.ao-restock__pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.25rem;
+}
+
+.ao-restock__pills i {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  font-style: normal;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--c-ink);
+  background: var(--c-cream-dark);
+  border-radius: 6px;
+  padding: 0.1rem 0.45rem;
+}
+
+.ao-restock__pills i b {
+  display: inline;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--c-muted);
+  text-transform: uppercase;
+}
+
+.ao-restock__pills u {
+  text-decoration: none;
+  font-size: 0.76rem;
+  color: var(--c-muted);
+}
+
+.ao-restock__pills u::before {
+  content: '· ';
 }
 
 .ao-restock__actions {

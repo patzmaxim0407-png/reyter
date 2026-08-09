@@ -5117,27 +5117,69 @@
     );
   }
 
+  /* Дата в людському вигляді: «20 серпня», з роком лише коли
+     він не поточний — інакше рядок довший, ніж потрібно */
+  function shortDate(d) {
+    if (!d || isNaN(d)) return '';
+    const opts = { day: 'numeric', month: 'long' };
+    if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+    return d.toLocaleDateString('uk-UA', opts);
+  }
+
+  function stamp(ts) {
+    const d = ts && ts.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+    if (!d || isNaN(d)) return '';
+    return shortDate(d) + ', ' + d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+  }
+
   function restockCardHTML(r) {
     const p = productById(r.productId);
     if (r._id === editingRestockId && r.status === 'pending') {
       return restockEditHTML(r, p);
     }
 
-    const overdue = r.status === 'pending' && r.expected && r.expected < todayISO();
-    const qtyText = r.items
-      ? Object.keys(r.items).filter((k) => r.items[k] > 0).map((k) => k + ': ' + r.items[k]).join(', ')
-      : (r.qty ? r.qty + ' шт' : '');
-    const dateText = r.expected
-      ? new Date(r.expected + 'T00:00:00').toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' })
-      : '';
+    const done = r.status === 'received';
+    const overdue = !done && r.expected && r.expected < todayISO();
+
+    /* Кількості пігулками, а не рядком «M: 5, L: 4»: так видно
+       і розміри, і скільки саме чого, не вчитуючись */
+    const pills = r.items
+      ? Object.keys(r.items).filter((k) => r.items[k] > 0)
+          .map((k) => '<i><b>' + esc(k) + '</b>' + r.items[k] + '</i>').join('')
+      : (r.qty ? '<i><b>шт</b>' + r.qty + '</i>' : '');
+
+    const total = r.items
+      ? Object.keys(r.items).reduce((n, k) => n + (Number(r.items[k]) || 0), 0)
+      : (Number(r.qty) || 0);
+
+    const expected = r.expected ? shortDate(new Date(r.expected + 'T00:00:00')) : '';
+    const gotAt = stamp(r.receivedAt);
+
+    /* Для оприбуткованого головне — коли його справді прийняли.
+       Планова дата лишається поруч, якщо відрізняється: видно,
+       на скільки постачальник спізнився. */
+    let dateLine;
+    if (done) {
+      dateLine = '<b>✓ оприбутковано</b>' +
+        (gotAt ? ' ' + esc(gotAt) : '') +
+        (r.receivedBy ? ' · ' + esc(String(r.receivedBy).split('@')[0]) : '') +
+        (expected && gotAt && gotAt.indexOf(expected) !== 0
+          ? ' <em>планувався на ' + esc(expected) + '</em>'
+          : '');
+    } else {
+      dateLine = (overdue ? '⚠ очікувався ' : 'очікується ') + esc(expected || '—');
+    }
+
     return (
-      '<div class="ao-restock' + (overdue ? ' is-overdue' : '') + (r.status === 'received' ? ' is-received' : '') + '" data-id="' + esc(r._id) + '">' +
+      '<div class="ao-restock' + (overdue ? ' is-overdue' : '') + (done ? ' is-received' : '') + '" data-id="' + esc(r._id) + '">' +
         '<div class="ao-restock__info">' +
-          '<b>' + esc(r.productName || (p && p.name) || r.productId) + '</b>' +
-          '<span>' + esc(qtyText) + (r.note ? ' · ' + esc(r.note) : '') + '</span>' +
-          '<span class="ao-restock__date">' +
-            (r.status === 'received' ? 'оприбутковано' : (overdue ? '⚠ очікувався ' : 'очікується ')) + esc(dateText) +
+          '<b>' + esc(r.productName || (p && p.name) || r.productId) +
+            (total ? '<span class="ao-restock__total">' + total + ' шт</span>' : '') +
+          '</b>' +
+          '<span class="ao-restock__pills">' + pills +
+            (r.note ? '<u>' + esc(r.note) + '</u>' : '') +
           '</span>' +
+          '<span class="ao-restock__date">' + dateLine + '</span>' +
         '</div>' +
         (r.status === 'pending'
           ? '<div class="ao-restock__actions">' +
@@ -5782,7 +5824,8 @@
       batch.set(invRef, upd, { merge: true });
       batch.update(R.fb.db.collection('restocks').doc(r._id), {
         status: 'received',
-        receivedAt: firebase.firestore.FieldValue.serverTimestamp()
+        receivedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        receivedBy: (R.fb.user && R.fb.user.email) || ''
       });
       await batch.commit();
 
