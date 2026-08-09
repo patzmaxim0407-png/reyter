@@ -4218,3 +4218,21 @@ label.a-promo-product i {
 .ao-restock-form select {
   min-width: 0;
 }
+
+/* Товар, який не повернувся на склад при скасуванні */
+.ao-lost {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+  color: var(--c-red);
+  background: var(--c-red-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.6rem;
+}
+
+/* Список у діалозі — той самий вигляд, що й решта полів */
+#askSelectField select {
+  width: 100%;
+}

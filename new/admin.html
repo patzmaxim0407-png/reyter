@@ -12,9 +12,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/base.css?v=20260809m">
-  <link rel="stylesheet" href="css/components.css?v=20260809m">
-  <link rel="stylesheet" href="css/admin.css?v=20260809m">
+  <link rel="stylesheet" href="css/base.css?v=20260809n">
+  <link rel="stylesheet" href="css/components.css?v=20260809n">
+  <link rel="stylesheet" href="css/admin.css?v=20260809n">
 </head>
 <body class="admin-body">
 
@@ -26,7 +26,7 @@
     <p id="gateStatus">Доступ лише для адміністраторів магазину.</p>
     <button class="btn btn--primary" id="gateLoginBtn" type="button">Увійти через Google</button>
     <button class="btn btn--ghost btn--sm" id="gateLogoutBtn" type="button" hidden>Вийти та увійти іншим акаунтом</button>
-    <a class="a-gate-screen__back" href="index.html">← Повернутися на сайт</a>
+    <a class="a-gate-screen__back" href="https://reyter.men/new/">← Повернутися на сайт</a>
   </div>
 </div>
 
@@ -47,7 +47,7 @@
     </button>
     <div class="abar__drop">
       <span class="abar__user" id="adminUserChip" hidden></span>
-      <a class="btn btn--ghost btn--sm" href="index.html" target="_blank" rel="noopener">Сайт</a>
+      <a class="btn btn--ghost btn--sm" href="https://reyter.men/new/" target="_blank" rel="noopener">Сайт</a>
       <button class="btn btn--ghost btn--sm" id="settingsBtn" type="button">Налаштування</button>
       <button class="btn btn--primary btn--sm" id="publishBtn" type="button">
         Опублікувати <span class="abar__count" id="publishBadge" hidden>●</span>
@@ -484,7 +484,7 @@
         </div>
         <p class="field__hint" id="pubBackupStatus"></p>
         <div class="a-pub__links">
-          <a href="index.html?preview=draft" target="_blank" rel="noopener">Переглянути чернетку на сайті ↗</a>
+          <a href="https://reyter.men/new/?preview=draft" target="_blank" rel="noopener">Переглянути чернетку на сайті ↗</a>
           <button class="a-linklike" id="downloadBtn" type="button">Завантажити data.js</button>
         </div>
       </details>
@@ -510,6 +510,10 @@
     </header>
     <div class="a-ask__body">
       <p id="askText"></p>
+      <div class="field" id="askSelectField" hidden>
+        <label for="askSelect" id="askSelectLabel"></label>
+        <select id="askSelect"></select>
+      </div>
       <div class="field" id="askField" hidden>
         <label for="askInput" id="askLabel"></label>
         <input id="askInput" autocomplete="off">
@@ -665,14 +669,14 @@
 <script src="https://www.gstatic.com/firebasejs/12.9.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore-compat.js"></script>
 
-<script src="js/data.js?v=20260809m"></script>
-<script src="js/i18n.js?v=20260809m"></script>
-<script src="js/address.js?v=20260809m"></script>
-<script src="js/firebase.js?v=20260809m"></script>
-<script src="js/notify.js?v=20260809m"></script>
-<script src="js/promo.js?v=20260809m"></script>
-<script src="js/track.js?v=20260809m"></script>
-<script src="js/admin.js?v=20260809m"></script>
+<script src="js/data.js?v=20260809n"></script>
+<script src="js/i18n.js?v=20260809n"></script>
+<script src="js/address.js?v=20260809n"></script>
+<script src="js/firebase.js?v=20260809n"></script>
+<script src="js/notify.js?v=20260809n"></script>
+<script src="js/promo.js?v=20260809n"></script>
+<script src="js/track.js?v=20260809n"></script>
+<script src="js/admin.js?v=20260809n"></script>
 
 </body>
 </html>

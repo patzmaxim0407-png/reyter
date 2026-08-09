@@ -526,6 +526,24 @@
       inputEl.placeholder = opts.placeholder || '';
     }
 
+    /* Необовʼязковий список — коли питання не «так чи ні», а
+       «що саме сталося»: причина списання, наприклад.
+       Тоді діалог повертає обʼєкт { reason, note }. */
+    const selFieldEl = document.getElementById('askSelectField');
+    const selLabelEl = document.getElementById('askSelectLabel');
+    const selEl = document.getElementById('askSelect');
+    const wantsSelect = !!(opts.select && selFieldEl);
+    if (selFieldEl) {
+      selFieldEl.hidden = !wantsSelect;
+      if (wantsSelect) {
+        selLabelEl.textContent = opts.select.label || '';
+        selEl.innerHTML = (opts.select.options || [])
+          .map((o) => '<option value="' + esc(o.id) + '"' +
+            (o.id === opts.select.value ? ' selected' : '') + '>' + esc(o.title) + '</option>')
+          .join('');
+      }
+    }
+
     okBtn.textContent = opts.okText || 'Гаразд';
     okBtn.className = 'btn ' + (opts.danger ? 'btn--danger' : 'btn--primary');
     cancelBtn.textContent = opts.cancelText || 'Скасувати';
@@ -550,7 +568,7 @@
 
     modal.hidden = false;
     R.lockBg();
-    setTimeout(() => (wantsInput ? inputEl : okBtn).focus(), 60);
+    setTimeout(() => (wantsSelect ? selEl : wantsInput ? inputEl : okBtn).focus(), 60);
 
     return new Promise((resolve) => {
       function close(result) {
@@ -565,6 +583,10 @@
         if (e.target.closest('[data-ask-cancel]') || e.target === cancelBtn) return close(null);
         if (altBtn && e.target === altBtn) return close('alt');
         if (e.target === okBtn) {
+          if (wantsSelect) {
+            // нотатка тут необовʼязкова — причини достатньо
+            return close({ reason: selEl.value, note: wantsInput ? inputEl.value.trim() : '' });
+          }
           const val = wantsInput ? inputEl.value.trim() : true;
           if (wantsInput && !val) { inputEl.focus(); return; }
           close(val);
@@ -2546,7 +2568,7 @@
      руху. Мапа спільна навмисно: при редагуванні замовлення ми
      повертаємо старий склад і списуємо новий, і той самий товар
      має отримати РІВНО ОДИН запис у документі inventory. */
-  function collectStock(batch, order, direction, into, reason) {
+  function collectStock(batch, order, direction, into, reason, refText) {
     stockUnits(order).forEach((item) => {
       const p = productById(item.id);
       const delta = direction * item.qty;
@@ -2568,7 +2590,7 @@
         size: item.size || null,
         delta: delta,
         reason: reason || (direction < 0 ? 'order' : 'order-cancel'),
-        ref: order.num || ''
+        ref: refText || order.num || ''
       });
     });
   }
@@ -2942,8 +2964,17 @@
 
   function historyHTML(o) {
     const log = (o.statusLog || []).slice().reverse();
-    if (!log.length) return '<p class="ao-note">Історія порожня — статус ще не змінювався.</p>';
+
+    /* Товар, який не повернувся на склад: причина видно прямо
+       в картці, а не лише в журналі руху */
+    const lost = o.writeoff
+      ? '<p class="ao-lost">Товар не повернувся на склад · <b>' + esc(o.writeoff.title || '') + '</b>' +
+        (o.writeoff.note ? ' · ' + esc(o.writeoff.note) : '') + '</p>'
+      : '';
+
+    if (!log.length) return lost + '<p class="ao-note">Історія порожня — статус ще не змінювався.</p>';
     return (
+      lost +
       '<div class="ao-history">' +
         log.map((h) => {
           const d = h.at ? new Date(h.at).toLocaleString('uk-UA', {
@@ -3276,18 +3307,39 @@
        могли не забрати й вона їде назад тижнями, річ могла
        повернутись пошкодженою або не повернутись зовсім. */
     let putBack = true;
+    let lost = null;   // причина, чому товар не повернувся
+
     if (!willConsume && wasApplied && !opts.silent) {
       const units = (order.items || []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
       const answer = await R.ask({
         title: next === 'cancelled' ? 'Скасування замовлення' : 'Повернення статусу',
         text: 'Замовлення №' + order.num + ' — товар (' + units + ' шт) уже списаний зі складу.' +
-          '\n\nПовернути його в залишки? Якщо річ не повернулась або повернулась зіпсованою — ' +
-          'оберіть «Не повертати», а потім спишіть її окремо на вкладці «Прихід».',
+          '\n\nПовернути його в залишки? Якщо річ не повернулась або повернулась ' +
+          'зіпсованою — оберіть «Не повертати», і ми одразу запишемо причину.',
         okText: 'Повернути на склад',
         altText: 'Не повертати'
       });
       if (answer === null) return false;      // передумали
       putBack = answer !== 'alt';
+
+      /* Не повертається — питаємо, що сталося. Кількість від цього
+         не зміниться (товар уже списаний), але в журналі буде видно
+         і скасування, і причину втрати, а не мовчазний «-1 під
+         замовлення», якого вже не існує. */
+      if (!putBack) {
+        lost = await R.ask({
+          title: 'Що сталося з товаром',
+          text: 'Товар (' + units + ' шт) не повертається на склад. ' +
+            'Запишемо це списанням — щоб потім було видно, скільки втрачено і чому.',
+          select: { label: 'Причина', options: WRITEOFF_REASONS, value: 'lost' },
+          input: '',
+          label: 'Нотатка (необовʼязково)',
+          placeholder: 'напр.: посилку не забрали, повернулась пошкодженою',
+          okText: 'Записати списання',
+          danger: true
+        });
+        if (lost === null) return false;      // передумали
+      }
     }
 
     try {
@@ -3302,11 +3354,28 @@
         upd.stockApplied = true;
       }
       if (!willConsume && wasApplied) {
-        // Не повертаємо на склад — товар просто лишається списаним,
-        // і замовлення більше не тримає його за собою
         if (putBack) {
           adjustOrderStock(batch, order, +1,
             next === 'cancelled' ? 'order-cancel' : 'order-return');
+        } else if (lost) {
+          /* Повертаємо й одразу списуємо: у залишках нічого не
+             змінюється (нетто нуль, документ inventory навіть не
+             чіпається), зате журнал розповідає повну історію. */
+          const title = (WRITEOFF_REASONS.find((r) => r.id === lost.reason) || {}).title || 'Списання';
+          const grouped = {};
+          collectStock(batch, order, +1, grouped,
+            next === 'cancelled' ? 'order-cancel' : 'order-return');
+          collectStock(batch, order, -1, grouped, 'writeoff',
+            (order.num || '') + ' · ' + title + (lost.note ? ' · ' + lost.note : ''));
+          writeStock(batch, grouped);
+
+          upd.writeoff = {
+            reason: lost.reason,
+            title: title,
+            note: lost.note || '',
+            at: new Date().toISOString(),
+            by: (R.fb.user && R.fb.user.email) || ''
+          };
         }
         upd.stockApplied = false;
         upd.stockReturned = putBack;
@@ -3329,7 +3398,9 @@
         else if (upd.stockApplied === false) {
           toast(putBack
             ? 'Статус оновлено, товар повернено на склад ✓'
-            : 'Статус оновлено. Товар на склад НЕ повернуто', putBack ? 'success' : '');
+            : 'Статус оновлено, товар списано: ' +
+              ((upd.writeoff && upd.writeoff.title) || 'не повернувся'),
+            putBack ? 'success' : '');
         }
         else toast('Статус: ' + statusInfo(next).title + ' ✓', 'success');
       }

@@ -17,8 +17,9 @@
      TG_CHAT     — Chat ID отримувачів, кілька — через кому
      ADMIN_KEY   — (необовʼязково) пароль для службових запитів
                    з адмінки: перевірка стану, пошук чатів, тест
-     ALLOW_ORIGIN— (необовʼязково) домен сайту, за замовчуванням
-                   https://reyter.men
+     ALLOW_ORIGIN— (необовʼязково) домени, з яких дозволені запити.
+                   Кілька — через кому. За замовчуванням
+                   https://reyter.men та https://admin.reyter.men
    ============================================================ */
 
 const BLUE = '#014AAD';
@@ -476,10 +477,16 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default {
   async fetch(request, env) {
-    const allow = env.ALLOW_ORIGIN || 'https://reyter.men';
-    const origin = request.headers.get('Origin') || '';
+    /* Сайт і адмінка живуть на різних доменах, тож дозволених
+       origin кілька. Браузер приймає в заголовку рівно один —
+       віддаємо той, з якого прийшов запит, якщо він у списку. */
+    const allowed = String(env.ALLOW_ORIGIN || 'https://reyter.men,https://admin.reyter.men')
+      .split(/[,;\s]+/)
+      .map((s) => s.trim().replace(/\/+$/, ''))
+      .filter(Boolean);
+    const origin = (request.headers.get('Origin') || '').replace(/\/+$/, '');
     const cors = {
-      'Access-Control-Allow-Origin': origin === allow ? origin : allow,
+      'Access-Control-Allow-Origin': allowed.includes(origin) ? origin : allowed[0],
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Max-Age': '86400'
