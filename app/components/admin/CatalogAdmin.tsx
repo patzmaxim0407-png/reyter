@@ -1,0 +1,381 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { getStorage } from 'firebase/storage';
+import AdminBar from './AdminBar';
+import CategoryList from './CategoryList';
+import ProductList from './ProductList';
+import ProductEditor, { type EditorSave } from './ProductEditor';
+import PublishDialog from './PublishDialog';
+import { useAdminUser } from './AdminGate';
+import { useAsk } from './AskProvider';
+import { useToast } from '../Toasts';
+import { db } from '@/lib/firebase';
+import { EMPTY_DRAFT, watchDraft, type Draft } from '@/lib/admin/store';
+import {
+  addCategory,
+  applyProductSave,
+  checkCategoryDelete,
+  deleteCategory,
+  maxOrder,
+  planProductSave,
+  prodDocData,
+  renameCategory,
+  reorderCategories,
+  persistCatOrder,
+  saveProduct
+} from '@/lib/admin/draft';
+import { loadPublished, type PublishedDoc, type ScheduledDoc } from '@/lib/admin/publish';
+import { uploadPhotos } from '@/lib/admin/photos';
+import { doc, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
+import type { Category, Product } from '@/lib/types';
+
+/* ============================================================
+   Каталог в адмінці
+   ------------------------------------------------------------
+   Усе, що тут редагується, лягає в чернетку — покупець бачить
+   опублікований знімок. Тому небезпечна дія тут не «псує сайт»,
+   а псує дані: саме тому кожна з них проходить через перевірку
+   з lib/admin/draft.ts.
+   ============================================================ */
+
+export default function CatalogAdmin() {
+  const user = useAdminUser();
+  const ask = useAsk();
+  const toast = useToast();
+
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const [current, setCurrent] = useState('all');
+  const [published, setPublished] = useState<PublishedDoc | null>(null);
+  const [scheduled, setScheduled] = useState<ScheduledDoc | null>(null);
+  const [editing, setEditing] = useState<{ product: Product | null } | null>(null);
+  const [pubOpen, setPubOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
+
+  /* Чернетка приходить підпискою: магазин ведуть удвох, і зміна
+     з телефона має зʼявитись на ноутбуці сама */
+  useEffect(
+    () =>
+      watchDraft(setDraft, () =>
+        toast('Не вдалося прочитати чернетку — перевірте права доступу')
+      ),
+    [toast]
+  );
+
+  useEffect(() => {
+    void loadPublished(db()).then((pair) => {
+      if (!pair) return;
+      setPublished(pair.published);
+      setScheduled(pair.scheduled);
+    });
+  }, []);
+
+  /* Обрана категорія могла зникнути — інакше список показував би
+     порожнечу без жодного пояснення */
+  useEffect(() => {
+    if (current !== 'all' && !draft.categories.some((c) => c.id === current)) setCurrent('all');
+  }, [draft.categories, current]);
+
+  const need = useCallback(() => {
+    const d = db();
+    if (!d) toast('Немає звʼязку з базою');
+    return d;
+  }, [toast]);
+
+  /* ---------- Категорії ---------- */
+
+  async function onAddCategory(name: string) {
+    const d = need();
+    if (!d) return;
+    try {
+      await addCategory(d, draft.categories, name);
+    } catch {
+      toast('Не вдалося створити категорію — перевірте права');
+    }
+  }
+
+  async function onRenameCategory(cat: Category) {
+    const name = await ask({
+      title: 'Перейменувати категорію',
+      text: 'Нова назва буде видна покупцям після публікації.',
+      label: 'Назва',
+      input: cat.title
+    });
+    if (typeof name !== 'string' || !name.trim()) return;
+    const d = need();
+    if (!d) return;
+    try {
+      await renameCategory(d, cat.id, name.trim());
+    } catch {
+      toast('Не вдалося перейменувати');
+    }
+  }
+
+  async function onDeleteCategory(cat: Category) {
+    const check = checkCategoryDelete(draft.products, cat.id);
+    if (!check.ok) {
+      await ask({ title: 'Категорія не порожня', text: check.message, okText: 'Зрозуміло' });
+      return;
+    }
+    const yes = await ask({
+      title: 'Видалити категорію?',
+      text: `«${cat.title}» зникне зі списку.\n\nПокупці побачать це після публікації.`,
+      okText: 'Видалити',
+      danger: true
+    });
+    if (yes !== true) return;
+    const d = need();
+    if (!d) return;
+    try {
+      await deleteCategory(d, cat.id);
+      if (current === cat.id) setCurrent('all');
+    } catch {
+      toast('Не вдалося видалити');
+    }
+  }
+
+  async function onReorder(from: number, to: number) {
+    const ids = draft.categories.map((c) => c.id);
+    const [moved] = ids.splice(from, 1);
+    ids.splice(to, 0, moved);
+
+    const plan = reorderCategories(draft.categories, ids);
+    if (!plan.ok || !plan.changed) return;
+
+    // малюємо новий порядок одразу: підписка підтвердить його за мить
+    setDraft((v) => ({ ...v, categories: plan.categories }));
+    const d = need();
+    if (!d) return;
+    try {
+      await persistCatOrder(d, draft.categories, ids);
+    } catch {
+      toast('Порядок не збережено — перевірте права');
+    }
+  }
+
+  /* ---------- Товари ---------- */
+
+  async function onAct(act: 'edit' | 'dup' | 'toggle' | 'del', p: Product) {
+    if (act === 'edit') return setEditing({ product: p });
+
+    if (act === 'dup') {
+      /* Копія відкривається одразу, але артикул лишається
+         порожнім: два товари з однаковим id — це один документ,
+         і другий мовчки затер би перший. */
+      return setEditing({
+        product: { ...p, id: '', name: p.name + ' (копія)', order: maxOrder(draft.products) + 10 }
+      });
+    }
+
+    const d = need();
+    if (!d) return;
+
+    if (act === 'toggle') {
+      try {
+        await updateDoc(doc(d, 'catalog_products', p.id), { hidden: !p.hidden });
+      } catch {
+        toast('Не вдалося змінити видимість');
+      }
+      return;
+    }
+
+    /* Видалення товару, який стоїть у комплекті, лишило б комплект
+       без складника — його неможливо ні зібрати, ні порахувати */
+    const inSets = draft.products.filter((x) => (x.set ?? []).includes(p.id));
+    if (inSets.length) {
+      await ask({
+        title: 'Товар у комплекті',
+        text:
+          `«${p.name}» входить у: ${inSets.map((x) => x.name).join(', ')}.\n\n` +
+          'Спершу приберіть його зі складу цих комплектів.',
+        okText: 'Зрозуміло'
+      });
+      return;
+    }
+
+    const yes = await ask({
+      title: 'Видалити товар?',
+      text: `«${p.name}» (${p.id}) зникне з чернетки.\n\nПокупці побачать це після публікації.`,
+      okText: 'Видалити',
+      danger: true
+    });
+    if (yes !== true) return;
+    try {
+      await deleteDoc(doc(d, 'catalog_products', p.id));
+    } catch {
+      toast('Не вдалося видалити');
+    }
+  }
+
+  async function onSaveProduct(v: EditorSave) {
+    const d = need();
+    if (!d) return;
+
+    const res = planProductSave({
+      product: v.product,
+      products: draft.products,
+      editingId: editing?.product?.id ?? null,
+      isSetOn: v.isSetOn,
+      setRows: v.setRows
+    });
+    if (!res.ok) {
+      toast(res.message);
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await saveProduct(d, res.plan);
+      // список оновиться підпискою, але без цього кадру картка
+      // на мить показала б старі дані
+      setDraft((s) => ({ ...s, products: applyProductSave(s.products, res.plan) }));
+      setEditing(null);
+      toast('Збережено ✓', 'success');
+    } catch {
+      toast('Не вдалося зберегти — перевірте права доступу');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /* ---------- Первинний імпорт ---------- */
+
+  async function seed() {
+    const d = need();
+    if (!d) return;
+    const yes = await ask({
+      title: 'Імпортувати каталог у базу?',
+      text: 'Поточний вміст резервного файлу стане чернеткою. Покупці цього ще не побачать.',
+      okText: 'Імпортувати'
+    });
+    if (yes !== true) return;
+
+    setBusy(true);
+    try {
+      await Promise.all([
+        ...draft.categories.map((c, i) =>
+          setDoc(doc(d, 'catalog_categories', c.id), { title: c.title, order: i * 10 })
+        ),
+        ...draft.products.map((p, i) =>
+          setDoc(doc(d, 'catalog_products', p.id), prodDocData({ ...p, order: i * 10 }))
+        )
+      ]);
+      toast('Каталог імпортовано в чернетку ✓', 'success');
+    } catch {
+      toast('Не вдалося імпортувати — увійдіть акаунтом адміністратора');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /* ---------- Фото ---------- */
+
+  const onUpload = useCallback(
+    async (files: FileList, article: string) => {
+      if (!article) {
+        toast('Спершу вкажіть артикул — за ним називаються файли');
+        return [];
+      }
+      const res = await uploadPhotos(
+        { storage: getStorage(), user },
+        Array.from(files),
+        article,
+        (p) => setUploadStatus(p.kind === 'photo' ? '' : p.text)
+      );
+      if (!res.ok) toast(res.error);
+      else setUploadStatus(`Готово: ${res.urls.length}`);
+      return res.urls;
+    },
+    [user, toast]
+  );
+
+  const hasDraft = !!scheduled || (draft.seeded && !!published);
+
+  return (
+    <>
+      <AdminBar user={user} hasDraft={hasDraft} onPublish={() => setPubOpen(true)} />
+
+      <div className="admin-wrap">
+        <CategoryList
+          categories={draft.categories}
+          products={draft.products}
+          current={current}
+          onPick={setCurrent}
+          onAdd={(n) => void onAddCategory(n)}
+          onRename={(c) => void onRenameCategory(c)}
+          onDelete={(c) => void onDeleteCategory(c)}
+          onReorder={(a, b) => void onReorder(a, b)}
+        />
+
+        <main className="a-main">
+          <div className="a-toolbar">
+            <h2>
+              {current === 'all'
+                ? 'Всі товари'
+                : (draft.categories.find((c) => c.id === current)?.title ?? current)}
+            </h2>
+            <button
+              className="btn btn--primary"
+              type="button"
+              disabled={!draft.categories.length}
+              onClick={() => setEditing({ product: null })}
+            >
+              + Новий товар
+            </button>
+          </div>
+
+          <div className="a-list">
+            {!draft.seeded && draft.products.length ? (
+              <div className="a-seed">
+                <b>Каталог ще не в базі даних.</b> Натисніть, щоб імпортувати його — після
+                цього всі зміни зберігатимуться миттєво.
+                <button
+                  className="btn btn--primary btn--sm"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void seed()}
+                >
+                  Імпортувати каталог у базу
+                </button>
+              </div>
+            ) : null}
+
+            <ProductList
+              categories={draft.categories}
+              products={draft.products}
+              current={current}
+              onAct={(a, p) => void onAct(a, p)}
+            />
+          </div>
+        </main>
+      </div>
+
+      <ProductEditor
+        open={!!editing}
+        product={editing?.product ?? null}
+        categories={draft.categories}
+        products={draft.products}
+        busy={busy}
+        uploadStatus={uploadStatus}
+        onClose={() => setEditing(null)}
+        onSave={(v) => void onSaveProduct(v)}
+        onUpload={(files, article) => onUpload(files, article)}
+      />
+
+      <PublishDialog
+        open={pubOpen}
+        onClose={() => setPubOpen(false)}
+        draft={draft}
+        seeded={draft.seeded}
+        published={published}
+        scheduled={scheduled}
+        user={user}
+        onChanged={(next) => {
+          if ('published' in next) setPublished(next.published ?? null);
+          if ('scheduled' in next) setScheduled(next.scheduled ?? null);
+        }}
+      />
+    </>
+  );
+}
