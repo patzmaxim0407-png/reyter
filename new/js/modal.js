@@ -152,6 +152,9 @@
     el.sizeLink.hidden = false;
     el.sizesBlock.hidden = false;
     toggleSizeChart(false);
+    // Контейнер розмірів — flex-рядок; для комплекту він має бути
+    // колонкою, інакше блоки складників стають поруч
+    el.sizes.classList.add('sizes--set');
 
     el.sizes.innerHTML =
       '<p class="setsizes__note">' + R.t('p.setNote') + '</p>' +
@@ -209,6 +212,7 @@
     const av = currentAv;
     selectedSize = null;
     selectedParts = null;
+    el.sizes.classList.remove('sizes--set');
 
     if (R.isSet(p) && R.setParts(p).length) {
       renderSetSizes();
