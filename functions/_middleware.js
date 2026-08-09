@@ -40,5 +40,16 @@ export async function onRequest(context) {
 
   const to = new URL(url);
   to.pathname = target;
-  return next(new Request(to.toString(), request));
+  const res = await next(new Request(to.toString(), request));
+
+  /* Корінь домену адмінки не кешуємо. Якщо колись маршрут знову
+     віддасть редирект, браузер запамʼятає його надовго (308 —
+     «постійний»), і потім адреса чіплятиметься навіть після
+     виправлення на сервері. */
+  if (path === '/' || path === '') {
+    const out = new Response(res.body, res);
+    out.headers.set('Cache-Control', 'no-store');
+    return out;
+  }
+  return res;
 }
