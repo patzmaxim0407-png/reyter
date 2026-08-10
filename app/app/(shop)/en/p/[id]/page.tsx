@@ -23,5 +23,5 @@ export async function generateMetadata({
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <><HomeView lang="en" /><ProductModal lang="en"><ProductView id={id} lang="en" modal /></ProductModal></>;
+  return <><HomeView lang="en" /><ProductModal lang="en"><ProductView id={id} lang="en" modal standalone /></ProductModal></>;
 }
