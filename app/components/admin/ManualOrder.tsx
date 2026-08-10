@@ -25,6 +25,7 @@ import {
   type NoPromoHint,
   type OrderDialogs
 } from '@/lib/admin/orders';
+import { hasInvDoc, sizeQty, unitQty } from '@/lib/admin/stock';
 import { promoFetch } from '@/lib/firebase';
 import { t } from '@/lib/i18n';
 import type { Promo } from '@/lib/promo';
@@ -321,109 +322,156 @@ export default function ManualOrder({
           />
 
           <h5 className="ao-sub">Товари</h5>
-          <div className="ao-norows">
+          <div>
             {rows.map((row) => {
               const p = c.products.find((x) => x.id === row.pid) ?? null;
               const parts = p && isSet(p) ? setParts(c, p) : [];
+              const inv = { products: c.products, inv: c.stock ?? {} };
+
+              /* «Залишок піде в мінус» — не заборона, а попередження:
+                 продати наперед іноді треба, але бачити це адмін
+                 мусить. Товар без обліку не рахуємо взагалі. */
+              const short = parts.length
+                ? parts.some((part) => {
+                    if (!hasInvDoc(inv, part.id)) return false;
+                    const sz = (row.parts ?? []).find((x) => x.id === part.id)?.size;
+                    if (!sz) return false;
+                    const have = availableSizes(c, part).length
+                      ? sizeQty(inv, part.id, sz)
+                      : unitQty(inv, part.id);
+                    return have < row.qty;
+                  })
+                : !!p &&
+                  hasInvDoc(inv, p.id) &&
+                  !!row.size &&
+                  sizeQty(inv, p.id, row.size) < row.qty;
+
+              const withQty = (pid: string, sz: string) =>
+                hasInvDoc(inv, pid) ? `${sz} (${sizeQty(inv, pid, sz)} шт)` : sz;
+
               return (
-                <div className="ao-norow" key={row.uid}>
-                  <Combobox
-                    id={'noProd-' + row.uid}
-                    label=""
-                    value={p ? p.name : ''}
-                    placeholder="товар — назва або артикул"
-                    empty="addr.noCity"
-                    minChars={0}
-                    openOnFocus
-                    search={async (q) => {
-                      const s = q.trim().toLowerCase();
-                      return c.products
-                        .filter((x) => !x.hidden)
-                        .filter((x) => !s || (x.name + ' ' + x.id).toLowerCase().includes(s))
-                        .slice(0, 40)
-                        .map((x) => ({ ref: x.id, text: x.name, value: x.name, note: x.id }));
-                    }}
-                    onType={() => setRow(row.uid, { pid: '', size: '', parts: null })}
-                    onPick={(it) => {
-                      const picked = c.products.find((x) => x.id === it.ref);
-                      setRow(row.uid, {
-                        pid: it.ref,
-                        size: '',
-                        parts: null,
-                        // ціну підставляємо з каталогу, але лишаємо редагованою
-                        price: Number(picked?.price) || 0
-                      });
-                    }}
-                  />
+                <div className={'a-norow' + (short ? ' is-short' : '')} key={row.uid}>
+                  <span className="a-norow__product">
+                    <Combobox
+                      id={'noProd-' + row.uid}
+                      label=""
+                      value={p ? p.name : ''}
+                      placeholder="оберіть товар — назва або артикул"
+                      empty="addr.noCity"
+                      minChars={0}
+                      openOnFocus
+                      search={async (q) => {
+                        const s = q.trim().toLowerCase();
+                        return c.products
+                          .filter((x) => !x.hidden)
+                          .filter((x) => !s || (x.name + ' ' + x.id).toLowerCase().includes(s))
+                          .slice(0, 40)
+                          .map((x) => ({ ref: x.id, text: x.name, value: x.name, note: x.id }));
+                      }}
+                      onType={() => setRow(row.uid, { pid: '', size: '', parts: null })}
+                      onPick={(it) => {
+                        const picked = c.products.find((x) => x.id === it.ref);
+                        setRow(row.uid, {
+                          pid: it.ref,
+                          size: '',
+                          parts: null,
+                          // ціну підставляємо з каталогу, але лишаємо редагованою
+                          price: Number(picked?.price) || 0
+                        });
+                      }}
+                    />
+                  </span>
 
-                  {parts.length ? (
-                    <div className="ao-norow__parts">
-                      {parts.map((part) => (
-                        <label className="ao-qty" key={part.id}>
-                          <span>{part.name}</span>
-                          <select
-                            value={(row.parts ?? []).find((x) => x.id === part.id)?.size ?? ''}
-                            onChange={(e) =>
-                              setRow(row.uid, {
-                                parts: [
-                                  ...(row.parts ?? []).filter((x) => x.id !== part.id),
-                                  { id: part.id, size: e.target.value }
-                                ]
-                              })
-                            }
-                          >
-                            <option value="">розмір</option>
-                            {availableSizes(c, part).map((sz) => (
-                              <option value={sz} key={sz}>
-                                {sz}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      ))}
-                    </div>
-                  ) : p ? (
-                    <select
-                      value={row.size}
-                      onChange={(e) => setRow(row.uid, { size: e.target.value })}
-                    >
-                      <option value="">розмір</option>
-                      {availableSizes(c, p).map((sz) => (
-                        <option value={sz} key={sz}>
-                          {sz}
-                        </option>
-                      ))}
-                    </select>
-                  ) : null}
+                  <span className="a-norow__size">
+                    {parts.length ? (
+                      /* Комплект — це кілька товарів, і розмір у
+                         кожного свій: по одному вибору на складник */
+                      <span className="a-norow__set">
+                        {parts.map((part) => (
+                          <label className="a-norow__setrow" key={part.id}>
+                            <span>{part.name}</span>
+                            <select
+                              value={(row.parts ?? []).find((x) => x.id === part.id)?.size ?? ''}
+                              onChange={(e) =>
+                                setRow(row.uid, {
+                                  parts: [
+                                    ...(row.parts ?? []).filter((x) => x.id !== part.id),
+                                    { id: part.id, size: e.target.value }
+                                  ]
+                                })
+                              }
+                            >
+                              <option value="">розмір</option>
+                              {availableSizes(c, part).map((sz) => (
+                                <option value={sz} key={sz}>
+                                  {withQty(part.id, sz)}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ))}
+                      </span>
+                    ) : !p ? (
+                      <select disabled>
+                        <option>—</option>
+                      </select>
+                    ) : (
+                      <select
+                        value={row.size}
+                        onChange={(e) => setRow(row.uid, { size: e.target.value })}
+                      >
+                        <option value="">розмір</option>
+                        {availableSizes(c, p).map((sz) => (
+                          <option value={sz} key={sz}>
+                            {withQty(p.id, sz)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </span>
 
-                  <label className="ao-qty">
-                    <span>к-сть</span>
+                  <span className="a-norow__qty">
                     <input
                       type="number"
                       min="1"
                       value={row.qty}
+                      placeholder="К-сть"
+                      aria-label="Кількість"
                       onChange={(e) => setRow(row.uid, { qty: Math.max(1, Number(e.target.value) || 1) })}
                     />
-                  </label>
+                  </span>
 
-                  <label className="ao-qty">
-                    <span>ціна</span>
+                  <span className="a-norow__price">
                     <input
                       type="number"
                       min="0"
                       value={row.price}
+                      placeholder="Ціна"
+                      aria-label="Ціна за штуку"
                       onChange={(e) => setRow(row.uid, { price: Math.max(0, Number(e.target.value) || 0) })}
-                    />
-                  </label>
+                    />{' '}
+                    грн
+                  </span>
+
+                  <span className="a-norow__sum">Разом: {fmt(row.price * row.qty)} грн</span>
 
                   <button
+                    className="a-norow__del"
                     type="button"
-                    className="a-color__del"
+                    title="Прибрати"
                     aria-label="Прибрати рядок"
                     onClick={() => setRows((v) => (v.length > 1 ? v.filter((x) => x.uid !== row.uid) : v))}
                   >
                     ✕
                   </button>
+
+                  {short ? (
+                    <span className="a-norow__warn">
+                      {parts.length
+                        ? 'Складників не вистачає — залишок піде в мінус'
+                        : `На складі лише ${p ? sizeQty(inv, p.id, row.size) : 0} шт — залишок піде в мінус`}
+                    </span>
+                  ) : null}
                 </div>
               );
             })}
@@ -538,7 +586,7 @@ export default function ManualOrder({
 
           {/* Лист іде лише коли є пошта — інакше галочка нічого
               не означає */}
-          <label className="a-check">
+          <label className="a-check a-check--pad">
             <input
               type="checkbox"
               checked={!!form.notify}

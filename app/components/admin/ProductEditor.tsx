@@ -164,6 +164,16 @@ export default function ProductEditor({
 
   const invalid = (f: CheckField) => (bad?.field === f ? 'is-invalid' : undefined);
 
+
+  /* Значок на картці рівно один: «Продано» переважує «Sale» —
+     знижка на те, чого немає, покупцеві ні до чого. */
+  const badges: [string, string][] =
+    p.status === 'sold-out'
+      ? [['badge--sold', 'Продано']]
+      : p.sale
+        ? [['badge--sale', 'Sale']]
+        : [];
+
   return (
     <div className="a-modal" role="dialog" aria-modal="true">
       <div className="a-modal__backdrop" onClick={onClose} />
@@ -355,7 +365,7 @@ export default function ProductEditor({
               <div hidden={!isSetOn}>
                 <div className="a-setlist">
                   {setRows.map((id, i) => (
-                    <div className="a-setrow" key={i}>
+                    <div className="a-setitem" key={i}>
                       <select
                         className={invalid('set')}
                         value={id}
@@ -649,19 +659,45 @@ export default function ProductEditor({
 
           <aside className="a-preview">
             <h4>Попередній перегляд</h4>
-            <div className="pcard">
-              <div className="pcard__media">
+            {/* Картка тут така сама, як у каталозі: і класи, і теги.
+                Інакше «попередній перегляд» показував би не те, що
+                побачить покупець. */}
+            <div
+              className={
+                'pcard' +
+                (p.sale ? ' pcard--sale' : '') +
+                (p.status === 'sold-out' ? ' pcard--sold' : '')
+              }
+            >
+              <span className="pcard__media">
                 {p.images[0] ? <img src={p.images[0]} alt="" /> : null}
-              </div>
-              <div className="pcard__body">
-                <h3 className="pcard__name">{p.name || 'Назва товару'}</h3>
-                <div className="pcard__price">
+                {badges.length ? (
+                  <span className="pcard__badges">
+                    {badges.map(([cls, text]) => (
+                      <span className={'badge ' + cls} key={cls}>
+                        {text}
+                      </span>
+                    ))}
+                  </span>
+                ) : null}
+              </span>
+              <span className="pcard__body">
+                <span className="pcard__title">
+                  {p.name || 'Назва товару'}
+                  {(p.colors ?? []).map((col, i) => {
+                    const hex = typeof col === 'string' ? col : col?.hex;
+                    return hex ? (
+                      <span className="dot" style={{ backgroundColor: hex }} key={hex + i} />
+                    ) : null;
+                  })}
+                </span>
+                <span className="pcard__price">
                   <span className="price__now">{(p.price || 0).toLocaleString('uk-UA')} грн</span>
                   {p.oldPrice ? (
                     <del className="price__old">{p.oldPrice.toLocaleString('uk-UA')} грн</del>
                   ) : null}
-                </div>
-              </div>
+                </span>
+              </span>
             </div>
           </aside>
         </div>

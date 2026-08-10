@@ -134,7 +134,8 @@ export default function SettingsDialog({
           </button>
         </div>
 
-        <div className="a-settings">
+        {/* Класи ті самі, що в admin.html: цю панель малює admin.css */}
+        <div className="a-publish">
           {tab === 'notify' ? (
             <>
               <div className="field">
@@ -176,7 +177,7 @@ export default function SettingsDialog({
                 />
               </div>
 
-              <div className="a-settings__actions">
+              <div className="a-settings__row">
                 <button
                   className="btn btn--ghost btn--sm"
                   type="button"
@@ -349,12 +350,12 @@ export default function SettingsDialog({
                 </button>
               </div>
 
-              <div className="a-admins">
+              <div className="ao-admins">
                 {/* Засновників не прибрати: якби колекція
                     спорожніла, зайти й полагодити її було б нікому.
                     Тому вони показані окремо й без кнопки. */}
                 {FOUNDERS.map((email) => (
-                  <div className="a-admin" key={email}>
+                  <div className="ao-admin" key={email}>
                     <span>
                       {email} <i className="ao-tag">засновник</i>
                     </span>
@@ -362,7 +363,7 @@ export default function SettingsDialog({
                 ))}
 
                 {admins.map((a) => (
-                  <div className="a-admin" key={a.email}>
+                  <div className="ao-admin" key={a.email}>
                     <span>
                       {a.email}
                       {a.by ? <i className="ao-tag">додав {a.by.split('@')[0]}</i> : null}

@@ -106,8 +106,28 @@ export default function PromosAdmin() {
     <>
       <AdminBar user={user} onSettings={() => setSettingsOpen(true)} />
 
-      <div className="admin-wrap admin-wrap--wide">
-        <main className="a-main">
+      {/* Розкладка сторінки — та сама, що в admin.html: .admin-wrap
+          це дві колонки каталогу з бічним списком категорій, і
+          сторінці промокодів вона не підходить. */}
+      <div className="a-page">
+        <div className="a-page__head a-page__head--row">
+          <div>
+            <h2>Промокоди</h2>
+            <p>
+              Знижки для клієнтів: на весь кошик, на окремі категорії або конкретні товари.
+              Покупець вводить код у кошику й одразу бачить суму знижки.
+            </p>
+          </div>
+          <button
+            className="btn btn--primary"
+            type="button"
+            onClick={() => setEditing({ promo: null })}
+          >
+            + Новий промокод
+          </button>
+        </div>
+
+        <div className="a-orders a-orders--page">
           <div className="ao-stats">
             <div className="ao-stat">
               <b>{promos.length}</b>
@@ -123,21 +143,13 @@ export default function PromosAdmin() {
             </div>
           </div>
 
-          <div className="a-toolbar">
-            <h2>Промокоди</h2>
-            <button
-              className="btn btn--primary"
-              type="button"
-              onClick={() => setEditing({ promo: null })}
-            >
-              + Новий промокод
-            </button>
-          </div>
-
           {error ? <p className="ao-note">{error}</p> : null}
 
+          <div className="ao-list">
           {!promos.length && !error ? (
-            <div className="a-empty">Промокодів ще немає.</div>
+            <div className="a-empty">
+              Промокодів ще немає. Натисніть «+ Новий промокод», щоб створити першу знижку.
+            </div>
           ) : (
             view.map(({ p, state, used }) => (
               <PromoCard
@@ -210,7 +222,8 @@ export default function PromosAdmin() {
               />
             ))
           )}
-        </main>
+          </div>
+        </div>
       </div>
 
       <PromoEditor

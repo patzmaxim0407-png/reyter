@@ -50,7 +50,7 @@ export default function RestockEdit({
 
   return (
     <form
-      className="ao-restock-edit"
+      className="ao-restock-form"
       onSubmit={(e) => {
         e.preventDefault();
         onSave({ expected, note, sizes: sized ? qty : null, qty: sized ? undefined : one });

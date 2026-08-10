@@ -268,8 +268,19 @@ export default function StockAdmin() {
     <>
       <AdminBar user={user} onSettings={() => setSettingsOpen(true)} />
 
-      <div className="admin-wrap admin-wrap--wide">
-        <main className="a-main">
+      {/* Розкладка — як в admin.html: .admin-wrap це дві колонки
+          каталогу з бічним списком категорій, і сторінці складу
+          вона не підходить. */}
+      <div className="a-page">
+        <div className="a-page__head">
+          <h2>Склад</h2>
+          <p>
+            Залишки по розмірах, прихід товару та журнал руху. Сайт показує «Продано» і
+            «Закінчується» з цих даних.
+          </p>
+        </div>
+
+        <div className="a-orders a-orders--page">
           <div className="ao-stats">
             <div className="ao-stat">
               <b>{stats.units}</b>
@@ -293,7 +304,8 @@ export default function StockAdmin() {
             </div>
           </div>
 
-          <div className="ao-filterbar">
+          <div className="ao-toolbar">
+            <span className="ao-live">● live</span>
             <div className="ao-chips">
               {(
                 [
@@ -634,7 +646,7 @@ export default function StockAdmin() {
               )}
             </>
           ) : null}
-        </main>
+        </div>
       </div>
       <SettingsDialog
         open={settingsOpen}

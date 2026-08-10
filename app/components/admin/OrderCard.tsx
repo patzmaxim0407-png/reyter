@@ -273,31 +273,38 @@ export default function OrderCard({
           {/* Товар не повернули на склад — причина має бути видна
               прямо в картці, інакше через тиждень її вже не знайти */}
           {o.writeoff ? (
-            <div className="ao-card__hist">
-              <span className="ao-field__label">Списання при скасуванні</span>
-              <div className="ao-hist">
-                <div>
-                  {o.writeoff.title}
-                  {o.writeoff.note ? ' · ' + o.writeoff.note : ''}
-                  {o.writeoff.by ? ' · ' + o.writeoff.by : ''}
-                </div>
-              </div>
-            </div>
+            <p className="ao-lost">
+              Товар не повернувся на склад · <b>{o.writeoff.title}</b>
+              {o.writeoff.note ? ' · ' + o.writeoff.note : ''}
+            </p>
           ) : null}
 
-          <div className="ao-card__hist">
-            <span className="ao-field__label">Історія статусів</span>
-            <div className="ao-hist">
-              {/* Найновіше згори: читають саме останнє, а не перше */}
-              {(o.statusLog ?? []).slice().reverse().map((h, n) => (
-                <div key={n}>
-                  {statusInfo(h.status).title}
-                  {h.at ? ' · ' + new Date(h.at).toLocaleString('uk-UA') : ''}
-                  {h.by ? ' · ' + h.by : ''}
-                </div>
-              ))}
+          {/* Найновіше згори: читають саме останнє, а не перше */}
+          {(o.statusLog ?? []).length ? (
+            <div className="ao-history">
+              {(o.statusLog ?? [])
+                .slice()
+                .reverse()
+                .map((h, n) => (
+                  <div key={n}>
+                    <b>{statusInfo(h.status).title}</b>
+                    <span>
+                      {h.at
+                        ? new Date(h.at).toLocaleString('uk-UA', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        : ''}
+                      {h.by ? ' · ' + h.by : ''}
+                    </span>
+                  </div>
+                ))}
             </div>
-          </div>
+          ) : (
+            <p className="ao-note">Історія порожня — статус ще не змінювався.</p>
+          )}
         </div>
       ) : null}
 

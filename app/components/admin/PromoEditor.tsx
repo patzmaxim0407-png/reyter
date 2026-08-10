@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { uah } from '@/lib/catalog';
+import { fmt, uah } from '@/lib/catalog';
 import { promoMessage, type Promo, type PromoScope, type PromoType } from '@/lib/promo';
 import { pcCollect, pcPreview, promoForm, type PromoForm } from '@/lib/admin/promos';
 import { t } from '@/lib/i18n';
@@ -157,24 +157,44 @@ export default function PromoEditor({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
-                <div className="a-pclist">
-                  {shownProducts.map((p) => (
-                    <label className="a-check" key={p.id}>
-                      <input
-                        type="checkbox"
-                        checked={f.products.includes(p.id)}
-                        onChange={(e) =>
-                          set(
-                            'products',
-                            e.target.checked
-                              ? [...f.products, p.id]
-                              : f.products.filter((x) => x !== p.id)
-                          )
-                        }
-                      />{' '}
-                      {p.name} · {p.id}
-                    </label>
-                  ))}
+                {/* Список із фото — як у старій панелі: за самою
+                    назвою «Бріфи classic» від «Бріфи classic Black»
+                    не відрізнити. */}
+                <div className="a-promo-products">
+                  {shownProducts.length ? (
+                    shownProducts.map((p) => (
+                      <label className="a-promo-product" key={p.id}>
+                        <input
+                          type="checkbox"
+                          checked={f.products.includes(p.id)}
+                          onChange={(e) =>
+                            set(
+                              'products',
+                              e.target.checked
+                                ? [...f.products, p.id]
+                                : f.products.filter((x) => x !== p.id)
+                            )
+                          }
+                        />
+                        <img
+                          src={p.images?.[0] ?? ''}
+                          alt=""
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.visibility = 'hidden';
+                          }}
+                        />
+                        <span>
+                          {p.name}
+                          <i>
+                            {p.id} · {fmt(p.price)} грн
+                          </i>
+                        </span>
+                      </label>
+                    ))
+                  ) : (
+                    <div className="a-empty">Нічого не знайдено.</div>
+                  )}
                 </div>
               </div>
             ) : null}
@@ -249,7 +269,7 @@ export default function PromoEditor({
                 />{' '}
                 Не діє на SALE-товари
               </label>
-              <label className="a-check">
+              <label className="a-check a-check--pad">
                 <input
                   type="checkbox"
                   checked={f.active}
@@ -276,7 +296,7 @@ export default function PromoEditor({
             {!preview ? (
               <p className="ao-note">Вкажіть розмір знижки — і тут зʼявиться приклад.</p>
             ) : (
-              <div className="a-pcpreview">
+              <div className="a-promo-preview">
                 <p className="ao-muted">{preview.items.join(', ') || '—'}</p>
                 <div className="ao-sumline">
                   <span>Товари</span>

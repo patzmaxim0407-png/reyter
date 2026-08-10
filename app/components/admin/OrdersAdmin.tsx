@@ -204,8 +204,31 @@ export default function OrdersAdmin() {
     <>
       <AdminBar user={user} onSettings={() => setSettingsOpen(true)} />
 
-      <div className="admin-wrap admin-wrap--wide">
-        <main className="a-main">
+      {/* Розкладка — як в admin.html: .admin-wrap це дві колонки
+          каталогу з бічним списком категорій, і сторінці замовлень
+          вона не підходить. */}
+      <div className="a-page">
+        <div className="a-page__head a-page__head--row">
+          <div>
+            <h2>Замовлення</h2>
+            <p>
+              Оформлені замовлення надходять сюди автоматично. Змінюйте статус — покупець
+              бачить його у своєму кабінеті.
+            </p>
+          </div>
+          <button className="btn btn--primary" type="button" onClick={() => setManual(null)}>
+            + Нове замовлення
+          </button>
+        </div>
+
+        <div className="a-orders a-orders--page">
+          {/* Видно, що список живий: замовлення приходять самі,
+              і сторінку не треба перезавантажувати */}
+          <div className="ao-toolbar">
+            <span className="ao-live">● live</span>
+            <span>Нові замовлення зʼявляються автоматично</span>
+          </div>
+
           <div className="ao-stats">
             <div className="ao-stat">
               <b>{stats.count}</b>
@@ -223,13 +246,6 @@ export default function OrdersAdmin() {
               <b>{stats.units}</b>
               <span>одиниць товару</span>
             </div>
-          </div>
-
-          <div className="a-toolbar">
-            <h2>Замовлення</h2>
-            <button className="btn btn--primary" type="button" onClick={() => setManual(null)}>
-              + Нове замовлення
-            </button>
           </div>
 
           <PeriodBar f={f} set={(p) => setF((v) => ({ ...v, ...p }))} today={todayISO(new Date())} />
@@ -253,6 +269,7 @@ export default function OrdersAdmin() {
 
           {error ? <p className="ao-note">{error}</p> : null}
 
+          <div className="ao-list">
           {visible.length ? (
             visible.map((o) => (
               <OrderCard
@@ -328,20 +345,29 @@ export default function OrdersAdmin() {
               />
             ))
           ) : (
-            <div className="a-empty">За цим фільтром замовлень немає.</div>
+            /* Порожньо через фільтр і порожньо взагалі — різні речі,
+               і підказка має бути різна */
+            <div className="a-empty">
+              {orders.length
+                ? 'За цими фільтрами нічого не знайдено. Спробуйте розширити період або скинути пошук.'
+                : 'Замовлень поки немає. Щойно покупець оформить кошик — воно зʼявиться тут.'}
+            </div>
           )}
+          </div>
 
           {list.length > visible.length ? (
             <button
-              className="btn btn--ghost"
+              className="btn btn--ghost ao-more"
               type="button"
-              style={{ width: '100%' }}
               onClick={() => setLimit((n) => n + PAGE_SIZE)}
             >
-              Показати ще ({list.length - visible.length})
+              Показати ще {Math.min(PAGE_SIZE, list.length - visible.length)} із{' '}
+              {list.length - visible.length}
             </button>
+          ) : list.length ? (
+            <p className="ao-note ao-count">Показано всі {list.length}</p>
           ) : null}
-        </main>
+        </div>
       </div>
       <ManualOrder
         open={manual !== undefined}
