@@ -30,12 +30,14 @@ import type { OrderItem } from '@/lib/types';
    є, просто ми не знаємо, які саме.
    ============================================================ */
 
-interface Row extends OrderView {
+export interface Row extends OrderView {
   items?: OrderItem[];
   message?: string;
 }
 
-function toRow(o: Record<string, unknown>): Row {
+export type OrdersMode = 'cloud' | 'local' | 'down';
+
+export function toRow(o: Record<string, unknown>): Row {
   return {
     num: String(o.num ?? ''),
     date: String(o.date ?? ''),
@@ -83,51 +85,25 @@ const EmptyState = () => {
 export default function OrdersTab({
   c,
   user,
-  online
+  online,
+  rows,
+  mode,
+  onRows
 }: {
   c: Catalogue;
   user: User | null | undefined;
   online: boolean;
+  /* Список вантажить сторінка кабінету: шапка показує з нього
+     підсумки, і другий запит до бази означав би зайві читання
+     та два різні числа на одному екрані. */
+  rows: Row[] | null;
+  mode: OrdersMode;
+  onRows(next: Row[]): void;
 }) {
   const { t } = useLang();
   const router = useRouter();
   const toast = useToast();
   const { open } = useCart();
-
-  /* null — ще вантажимо; 'cloud' — дані з бази зі статусами;
-     'local' — копія браузера; 'down' — база мовчить. */
-  const [rows, setRows] = useState<Row[] | null>(null);
-  const [mode, setMode] = useState<'cloud' | 'local' | 'down'>('local');
-
-  useEffect(() => {
-    /* Гість бачить свою ж локальну історію — ту, що лежить у
-       цьому браузері. На старому сайті ця гілка вмикалась лише
-       коли CDN Firebase був заблокований; тепер SDK у бандлі й
-       «не завантажитись» не може, тож без цього покупець, який
-       щойно оформив замовлення гостем, побачив би форму входу
-       замість власного замовлення. */
-    if (!user) {
-      setRows(cart.getOrders().map((o) => toRow(o as unknown as Record<string, unknown>)));
-      setMode('local');
-      return;
-    }
-
-    let alive = true;
-    setRows(null);
-    void fb.loadMyOrders(user.uid, user.email ?? '').then((cloud) => {
-      if (!alive) return;
-      if (cloud === null) {
-        setRows(cart.getOrders().map((o) => toRow(o as unknown as Record<string, unknown>)));
-        setMode('down');
-        return;
-      }
-      setRows(cloud.map(toRow));
-      setMode('cloud');
-    });
-    return () => {
-      alive = false;
-    };
-  }, [user, online]);
 
   function repeat(o: Row) {
     const { lines, skipped } = repeatOrder(c, { items: o.items });
@@ -207,7 +183,7 @@ export default function OrdersTab({
           onClick={() => {
             if (!confirm(t('acc.clearConfirm'))) return;
             cart.saveOrders([]);
-            setRows([]);
+            onRows([]);
             router.refresh();
           }}
         >

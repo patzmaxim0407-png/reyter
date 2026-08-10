@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Catalogue } from '@/lib/catalog';
 import { availability, productColors, uah } from '@/lib/catalog';
 import { t, tf, tx } from '@/lib/i18n';
@@ -33,9 +34,19 @@ export default function ProductCard({
     .join(' ');
 
   return (
-    <a
+    /* scroll={false} — картка відкривається накладкою поверх
+       каталогу, і сам каталог має лишитись там, де людина його
+       гортала. Префікс /new додає Next із basePath.
+
+       prefetch={false} — за кожною карткою стоїть ціла сторінка
+       з каталогом усередині, десь 130 КБ. Підвантажити їх усі
+       наперед означало б злити кілька мегабайтів мобільного
+       трафіку до першого дотику. */
+    <Link
       className={cls}
-      href={'/new' + (lang === 'en' ? '/en' : '') + `/p/${encodeURIComponent(p.id)}`}
+      scroll={false}
+      prefetch={false}
+      href={(lang === 'en' ? '/en' : '') + `/p/${encodeURIComponent(p.id)}`}
     >
       <span className="pcard__media">
         <img
@@ -88,6 +99,6 @@ export default function ProductCard({
           <span className="pcard__salenote">{tf(p, 'saleNote', lang)}</span>
         ) : null}
       </span>
-    </a>
+    </Link>
   );
 }

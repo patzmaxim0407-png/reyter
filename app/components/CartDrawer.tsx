@@ -5,6 +5,7 @@ import { useLang } from './LangProvider';
 import Link from 'next/link';
 import { useCart } from './CartProvider';
 import { catTitle, getProduct, uah, FREE_DELIVERY_FROM } from '@/lib/catalog';
+import { lockScroll, unlockScroll } from '@/lib/scroll-lock';
 
 /* Панель кошика. Розмітка й класи ті самі, що в index.html
    старого сайту, — стилі підходять без правок. */
@@ -22,14 +23,13 @@ export default function CartDrawer() {
      інакше на мобільному палець тягне фон замість списку */
   useEffect(() => {
     if (!isOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close();
     };
     document.addEventListener('keydown', onKey);
     return () => {
-      document.body.style.overflow = prev;
+      unlockScroll();
       document.removeEventListener('keydown', onKey);
     };
   }, [isOpen, close]);

@@ -55,10 +55,38 @@
   padding: 0;
 }
 
+/* Недоступний розмір на попередньому сайті був підписом при
+   вимкненому перемикачі, тут це кнопка — вона веде до підписки
+   «повідомити, коли зʼявиться» і, на відміну від підпису,
+   досяжна з клавіатури. Вигляд лишається той самий, тож
+   повторюємо тут правила .size-pill label. */
 .size-pill__alert {
-  display: inline-grid;
+  display: grid;
   place-items: center;
+  min-width: 52px;
+  padding: 0.55rem 0.9rem;
+  border-radius: 12px;
+  border: 1.5px solid var(--c-line);
+  background: transparent;
   font: inherit;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: inherit;
+  opacity: 0.4;
+  text-decoration: line-through;
+  cursor: pointer;
+  transition: opacity var(--t-fast), border-color var(--t-fast);
+}
+
+.size-pill__alert:hover,
+.size-pill__alert:focus-visible {
+  opacity: 0.75;
+  border-color: var(--c-blue);
+}
+
+.size-pill__alert:focus-visible {
+  outline: 2px solid var(--c-blue);
+  outline-offset: 2px;
 }
 
 .pinfo__sizes-head {
@@ -94,6 +122,322 @@
 .form-error {
   color: var(--c-red);
   font-size: .84rem;
+}
+
+/* ============================================================
+   Кабінет
+   ------------------------------------------------------------
+   Єдина сторінка, яку тут малюємо з нуля, а не переносимо: у
+   панелі збоку місця було рівно на список, а на сторінці його
+   вдосталь — тож покупець одразу бачить, хто він, скільки в
+   нього замовлень і чи є чим скористатись.
+
+   Палітра та сама, що й на сайті: глибокий синій, вершковий фон,
+   тонкі лінії. Нічого нового не вигадуємо — кабінет має бути
+   продовженням магазину, а не окремим застосунком.
+   ============================================================ */
+
+.account {
+  max-width: 980px;
+  padding-block: 1.5rem 3.4rem;
+}
+
+/* ---------- Шапка ---------- */
+
+.account__hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--c-blue-ink) 0%, var(--c-blue) 58%, #0B62D6 100%);
+  color: #fff;
+  box-shadow: var(--shadow-card);
+}
+
+/* Мʼякий відблиск у куті — щоб суцільна синя пляма не виглядала
+   пласкою. Суто оздоблення, тож поза потоком і без подій. */
+.account__hero::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -60% -30% auto auto;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22), transparent 68%);
+  pointer-events: none;
+}
+
+.account__identity {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.account__avatar {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.14);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.account__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account__who {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.account__eyebrow {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.account__name {
+  margin: 0.1rem 0 0.25rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.3rem, 4.4vw, 1.9rem);
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.account__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 1.1rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  opacity: 0.84;
+}
+
+.account__email {
+  overflow-wrap: anywhere;
+}
+
+.account__logout {
+  flex: 0 0 auto;
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.account__logout:hover {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.account__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1.25rem;
+}
+
+/* Не тягнемо плитки на всю ширину: два числа, розтягнуті на
+   екран, читаються гірше за два компактні блоки */
+.account__stat {
+  flex: 1 1 130px;
+  max-width: 230px;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.account__stat--accent {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.account__stat dt {
+  font-size: 0.71rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.78;
+}
+
+.account__stat dd {
+  margin-top: 0.1rem;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/* ---------- Розкладка ---------- */
+
+.account__layout {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+
+.account__nav {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.32rem;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius);
+  background: var(--c-paper);
+  box-shadow: var(--shadow-card);
+  /* На вузькому екрані розділи прокручуються вбік, а не
+     стискаються в нечитабельні стовпчики */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.account__nav::-webkit-scrollbar {
+  display: none;
+}
+
+.account__tab {
+  display: flex;
+  flex: 1 0 auto;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.7rem 0.85rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--c-muted);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--t-fast), color var(--t-fast);
+}
+
+.account__tab-icon {
+  flex: 0 0 auto;
+  width: 19px;
+  height: 19px;
+}
+
+.account__tab:hover {
+  background: var(--c-cream);
+  color: var(--c-ink);
+}
+
+.account__tab.is-active {
+  background: var(--c-blue);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(1, 74, 173, 0.26);
+}
+
+.account__tab:focus-visible {
+  outline: 2px solid var(--c-blue);
+  outline-offset: 2px;
+}
+
+/* Скільки замовлень і скільки знижок напоготові — видно, ще не
+   відкриваючи розділ */
+.account__tab-count {
+  min-width: 22px;
+  margin-left: auto;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--c-cream-dark);
+  color: var(--c-ink);
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+}
+
+.account__tab.is-active .account__tab-count {
+  background: rgba(255, 255, 255, 0.26);
+  color: #fff;
+}
+
+.account__panel {
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius);
+  background: var(--c-paper);
+  box-shadow: var(--shadow-card);
+}
+
+/* Панель отримує фокус при зміні розділу — але обводка навколо
+   цілого блоку виглядала б як помилка */
+.account__panel:focus {
+  outline: none;
+}
+
+.account__panel > .account-note:first-child {
+  margin-top: 0;
+}
+
+/* На вузькому екрані три розділи з іконками не вміщаються, і
+   останній ховається за краєм. Іконки тут прикраса — підписи
+   важливіші, тож поступаються саме вони. */
+@media (max-width: 560px) {
+  .account__tab {
+    gap: 0.4rem;
+    padding: 0.65rem 0.6rem;
+    font-size: 0.87rem;
+  }
+
+  .account__tab-icon {
+    display: none;
+  }
+}
+
+@media (min-width: 880px) {
+  .account__hero {
+    padding: 2rem 2.2rem;
+  }
+
+  .account__avatar {
+    width: 76px;
+    height: 76px;
+    font-size: 1.8rem;
+  }
+
+  .account__layout {
+    grid-template-columns: 236px minmax(0, 1fr);
+    gap: 1.6rem;
+    align-items: start;
+    margin-top: 1.6rem;
+  }
+
+  /* Розділи лишаються перед очима, поки гортаєш довгий список
+     замовлень */
+  .account__nav {
+    position: sticky;
+    top: calc(var(--header-h) + 14px);
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .account__tab {
+    flex: 0 0 auto;
+  }
+
+  .account__panel {
+    padding: 1.6rem 1.7rem;
+  }
 }
 
 .product-modal-content {

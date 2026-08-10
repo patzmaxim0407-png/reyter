@@ -355,6 +355,15 @@ const uk = {
   'acc.gone': 'Цих товарів уже немає в каталозі',
   'acc.ttn': 'ТТН',
 
+  /* Шапка кабінету */
+  'acc.guest': 'Вітаємо!',
+  'acc.guestSub': 'Ви переглядаєте кабінет без входу — тут лише те, що зберіг цей браузер.',
+  'acc.since': 'З нами з {date}',
+  'acc.statOrders': 'Замовлень',
+  'acc.statSpent': 'На суму',
+  'acc.statPromos': 'Знижок напоготові',
+  'acc.navHint': 'Розділи кабінету',
+
   'st.new': 'Нове',
   'st.confirmed': 'Підтверджено',
   'st.shipped': 'Відправлено',
@@ -701,6 +710,14 @@ const en: Record<UIKey, string> = {
   'acc.clearConfirm': 'Delete all order history from this browser?',
   'acc.gone': 'These items are no longer in the catalogue',
   'acc.ttn': 'Tracking',
+
+  'acc.guest': 'Welcome!',
+  'acc.guestSub': 'You are browsing without signing in — this shows only what this browser saved.',
+  'acc.since': 'With us since {date}',
+  'acc.statOrders': 'Orders',
+  'acc.statSpent': 'Total',
+  'acc.statPromos': 'Discounts ready',
+  'acc.navHint': 'Account sections',
 
   'st.new': 'New',
   'st.confirmed': 'Confirmed',

@@ -1,14 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useLang } from './LangProvider';
 import type { User } from 'firebase/auth';
 import AuthPanel from './AuthPanel';
 import { useToast } from './Toasts';
 import { copyText } from '@/lib/copy';
-import * as fb from '@/lib/firebase';
 import { promoSaveCode, type Promo } from '@/lib/promo';
-import { promoCard, sortMyPromos } from '@/lib/account';
+import { promoCard } from '@/lib/account';
 import { catTitle, type Catalogue } from '@/lib/catalog';
 
 /* Персональні знижки покупця.
@@ -17,26 +15,19 @@ import { catTitle, type Catalogue } from '@/lib/catalog';
    змінився, і код міг стати вичерпаним. Показати вчорашній стан
    означало б пообіцяти знижку, якої вже немає. */
 
-export default function PromosTab({ c, user }: { c: Catalogue; user: User | null }) {
+export default function PromosTab({
+  c,
+  user,
+  list
+}: {
+  c: Catalogue;
+  user: User | null;
+  /* Коди вантажить сторінка кабінету — їх кількість видно ще
+     й у шапці, тож джерело має бути одне. null — ще вантажимо. */
+  list: Promo[] | null;
+}) {
   const { t, lang } = useLang();
-  const [list, setList] = useState<Promo[] | null>(null);
   const toast = useToast();
-
-  useEffect(() => {
-    if (!user?.email) {
-      setList([]);
-      return;
-    }
-    let alive = true;
-    setList(null);
-    void fb.promoMine(user.email).then((rows) => {
-      // спершу ті, що згорають раніше; безстрокові — на початку
-      if (alive) setList(sortMyPromos(rows as Promo[]));
-    });
-    return () => {
-      alive = false;
-    };
-  }, [user]);
 
   const deps = {
     t,

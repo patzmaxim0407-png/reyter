@@ -48,26 +48,8 @@ export default function ProfileTab({ user, online }: { user: User | null; online
 
   return (
     <>
-      {user ? (
-        <div className="auth-user">
-          <div className="auth-user__avatar">{(user.email || 'R')[0].toUpperCase()}</div>
-          <div className="auth-user__info">
-            <b>{user.displayName || t('acc.yourAccount')}</b>
-            <span>{user.email || ''}</span>
-          </div>
-          <button
-            className="btn btn--ghost btn--sm"
-            type="button"
-            onClick={() => {
-              void fb.logout();
-              toast(t('acc.loggedOut'));
-            }}
-          >
-            {t('acc.logout')}
-          </button>
-        </div>
-      ) : null}
-
+      {/* Хто увійшов і кнопка виходу — у шапці кабінету:
+          повторювати їх ще раз над формою нема сенсу */}
       <p className="account-note">{t(online ? 'acc.profileNote' : 'acc.profileNoteLocal')}</p>
 
       <form

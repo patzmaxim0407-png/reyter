@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import Lightbox from './Lightbox';
 import { t } from '@/lib/i18n';
 import type { Lang } from '@/lib/types';
@@ -9,11 +9,32 @@ export default function ProductGallery({ images, alt, lang }: { images: string[]
   const [index, setIndex] = useState(0);
   const [lightbox, setLightbox] = useState(false);
   const choose = useCallback((next: number) => setIndex(next), []);
-  const move = (delta: number) => setIndex((value) => (value + delta + images.length) % images.length);
+  const move = useCallback(
+    (delta: number) => setIndex((value) => (value + delta + images.length) % images.length),
+    [images.length]
+  );
+
+  /* Гортання фото пальцем. Поріг по горизонталі більший за
+     вертикальний зсув — інакше жест перехоплював би звичайну
+     прокрутку сторінки. */
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (event: React.TouchEvent) => {
+    touch.current = event.touches.length === 1
+      ? { x: event.touches[0].screenX, y: event.touches[0].screenY }
+      : null;
+  };
+  const onTouchEnd = (event: React.TouchEvent) => {
+    const start = touch.current;
+    touch.current = null;
+    if (!start) return;
+    const dx = event.changedTouches[0].screenX - start.x;
+    const dy = event.changedTouches[0].screenY - start.y;
+    if (Math.abs(dx) > 50 && Math.abs(dy) < 60) move(dx > 0 ? -1 : 1);
+  };
 
   if (!images.length) return null;
   return (
-    <div className="pmodal__gallery">
+    <div className="pmodal__gallery" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <div className="gal__main">
         <button className="gal__image-button" type="button" aria-label={t('p.photos', lang)} onClick={() => setLightbox(true)}>
           <img src={images[index]} alt={alt} />

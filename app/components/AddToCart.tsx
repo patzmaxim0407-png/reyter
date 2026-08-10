@@ -257,7 +257,12 @@ export default function AddToCart({
             disabled={av.soldOut}
             onClick={handleAdd}
           >
-            {av.soldOut ? t('p.soldOut', lang) : added ? t('p.added', lang) : t('p.addToCart', lang)}
+            {/* Кошик перетворюється на галочку — підтвердження, що
+                товар додано. Обидві іконки лежать у розмітці, показ
+                перемикає клас is-added. */}
+            <svg className="ico-cart" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="18" height="18"><path d="M6 8h12l-1 13H7L6 8Z" /><path d="M9 10V6a3 3 0 0 1 6 0v4" /></svg>
+            <svg className="ico-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" width="18" height="18"><path d="m4.5 12.5 5 5 10-11" /></svg>
+            <span>{av.soldOut ? t('p.soldOut', lang) : added ? t('p.added', lang) : t('p.addToCart', lang)}</span>
           </button>
         )}
       </div>

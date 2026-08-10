@@ -138,7 +138,7 @@ ok('шапка магазину на місці', await ev('!!document.querySele
 ok('адмінської шапки в магазині немає', !(await ev('!!document.querySelector(".abar")')));
 
 await go(SHOP + '/account');
-ok('кабінет працює', await ev('!!document.querySelector(".account-page")'));
+ok('кабінет працює', await ev('!!document.querySelector(".account")'));
 }
 
 console.log('\n' + (bad ? `не зійшлося: ${bad}` : 'усе зійшлося'));

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { t } from '@/lib/i18n';
 import type { Lang } from '@/lib/types';
+import { lockScroll, unlockScroll } from '@/lib/scroll-lock';
 
 export default function Lightbox({
   images,
@@ -27,8 +28,7 @@ export default function Lightbox({
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
-    const oldOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     closeRef.current?.focus();
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -38,8 +38,8 @@ export default function Lightbox({
     document.addEventListener('keydown', key);
     return () => {
       document.removeEventListener('keydown', key);
-      document.body.style.overflow = oldOverflow;
-      previous?.focus();
+      unlockScroll();
+      previous?.focus({ preventScroll: true });
     };
   }, [open, images.length, index, onClose, onIndex]);
 

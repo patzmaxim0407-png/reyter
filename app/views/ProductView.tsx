@@ -77,7 +77,20 @@ export default async function ProductView({ id, lang, modal = false }: { id: str
   if (!p || p.hidden) notFound();
 
   const av = availability(c, p);
-  const colors = productColors(c, p);
+
+  /* Зразки кольорів. Самі по собі кольори нічого не перемикають —
+     їх і так видно на фото; блок має сенс лише тоді, коли є куди
+     перейти. Тому беремо ті, що ведуть на інший товар, і додаємо
+     до них поточний — інакше повернутись до нього не вийде.
+
+     Порядок — як у каталозі, а не «поточний перший»: інакше
+     зразки мінялися б місцями після кожного перемикання. */
+  const family = productColors(c, p).filter((x) => x.id && x.id !== p.id);
+  const own = productColors(c, p).find((x) => !x.id || x.id === p.id);
+  const swatches = (family.length
+    ? [{ hex: own?.hex ?? productColors(c, p)[0]?.hex ?? '', id: p.id }, ...family]
+    : []
+  ).sort((a, b) => c.products.findIndex((x) => x.id === a.id) - c.products.findIndex((x) => x.id === b.id));
   const name = tf(p, 'name', lang);
   const catTitle = tf(categories.find((x) => x.id === p.category), 'title', lang);
   const base = lang === 'en' ? '/en' : '';
@@ -146,24 +159,43 @@ export default async function ProductView({ id, lang, modal = false }: { id: str
             <p className="pinfo__sale-note">{tf(p, 'saleNote', lang)}</p>
           ) : null}
 
-          {colors.length > 1 ? (
+          {swatches.length ? (
             <div className="pinfo__colors">
               <span className="pinfo__colors-title">{t('p.color', lang)}</span>
               <div className="swatches">
-                {colors.map((col) => {
-                  const target = col.id && col.id !== p.id ? col.id : null;
-                  const swatch = (
+                {swatches.map((col) => {
+                  const target = col.id === p.id ? p : getProduct(c, col.id);
+                  const active = col.id === p.id;
+                  const soldOut = target ? availability(c, target).soldOut : false;
+                  const title = target ? tf(target, 'name', lang) : '';
+                  const cls =
+                    'swatch' + (active ? ' is-active' : '') + (soldOut ? ' is-sold' : '');
+                  const style = { ['--swatch' as string]: col.hex };
+
+                  /* Поточний колір — не посилання: вести звідси
+                     нікуди, а вигляд той самий */
+                  return active ? (
                     <span
-                      className={'swatch' + (col.id === p.id ? ' is-active' : '')}
-                      style={{ ['--swatch' as string]: col.hex }}
+                      key={col.id}
+                      className={cls}
+                      style={style}
+                      aria-current="true"
+                      title={`${title} — ${t('p.thisColor', lang)}`}
                     />
-                  );
-                  return target ? (
-                    <Link key={col.id || col.hex} href={`${base}/p/${encodeURIComponent(target)}`}>
-                      {swatch}
-                    </Link>
                   ) : (
-                    <span key={col.id || col.hex}>{swatch}</span>
+                    <Link
+                      key={col.id}
+                      className={cls}
+                      style={style}
+                      scroll={false}
+                      /* Колір заміщає крок, а не додає: інакше
+                         «закрити» відмотувало б кольори по
+                         одному замість повернення в каталог */
+                      replace
+                      href={`${base}/p/${encodeURIComponent(col.id)}`}
+                      title={title}
+                      aria-label={title}
+                    />
                   );
                 })}
               </div>

@@ -77,9 +77,9 @@ const go = async (url) => {
 /* ---------- Кабінет гостя ---------- */
 
 await go(BASE + '/account');
-ok('кабінет відкривається', await ev('!!document.querySelector(".account-page")'));
+ok('кабінет відкривається', await ev('!!document.querySelector(".account")'));
 
-const tabs = await ev(`[...document.querySelectorAll('.drawer__tab')].map(x => x.textContent)`);
+const tabs = await ev(`[...document.querySelectorAll('.account__tab')].map(x => x.querySelector('.account__tab-label').textContent)`);
 ok('три вкладки', tabs.length === 3, tabs.join(' | '));
 
 ok('гостю показано вхід', await ev('!!document.querySelector(".auth-google")'));
@@ -95,8 +95,8 @@ ok('порожній вхід дає повідомлення', await ev('!!docu
 
 await go(BASE + '/account?tab=orders');
 ok('вкладка замовлень активна',
-   (await ev(`document.querySelector('.drawer__tab.is-active')?.textContent`)) !== tabs[0],
-   await ev(`document.querySelector('.drawer__tab.is-active')?.textContent`));
+   (await ev(`document.querySelector('.account__tab[aria-selected=true] .account__tab-label')?.textContent`)) === tabs[2],
+   await ev(`document.querySelector('.account__tab[aria-selected=true] .account__tab-label')?.textContent`));
 ok('гостю дано форму відстеження', await ev('!!document.getElementById("trkNum")'));
 ok('гостю дано вхід поруч', await ev('!!document.querySelector(".auth-google")'));
 

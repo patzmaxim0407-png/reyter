@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Lightbox from './Lightbox';
 import { t } from '@/lib/i18n';
 import type { Lang } from '@/lib/types';
+import { lockScroll, unlockScroll } from '@/lib/scroll-lock';
 
 export function ReadMore({ lang }: { lang: Lang }) {
   const [open, setOpen] = useState(false);
@@ -193,13 +194,12 @@ export function FriendlyClub({ lang }: { lang: Lang }) {
 
   useEffect(() => {
     if (!dialog) return;
-    const old = document.body.style.overflow;
     const previous = document.activeElement as HTMLElement | null;
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     close.current?.focus();
     const key = (event: KeyboardEvent) => event.key === 'Escape' && setDialog(false);
     document.addEventListener('keydown', key);
-    return () => { document.removeEventListener('keydown', key); document.body.style.overflow = old; previous?.focus(); };
+    return () => { document.removeEventListener('keydown', key); unlockScroll(); previous?.focus({ preventScroll: true }); };
   }, [dialog]);
 
   return <>
