@@ -86,6 +86,21 @@ export function watchAuth(fn: (user: User | null) => void): () => void {
   return onAuthStateChanged(a, (u) => fn(u));
 }
 
+/* Перенаправлення працює лише тоді, коли сторінка входу лежить
+   на тому самому домені, що й сайт. Наш обробник — на
+   reyter-18d2c.firebaseapp.com, тобто на чужому: сучасні браузери
+   ділять сховище між доменами, і після повернення Firebase не
+   знаходить власного стану. Саме звідси «Unable to process request
+   due to missing initial state» — глухий кут, з якого людина вже
+   не повертається на сайт.
+
+   Тому перенаправлення вмикається саме тоді, коли обробник свій.
+   Перенесемо його на admin.reyter.men — умова стане правдивою
+   сама, і нічого міняти не доведеться. */
+function redirectWorks(): boolean {
+  return typeof location !== 'undefined' && location.hostname === FB_CONFIG.authDomain;
+}
+
 export async function loginGoogle(): Promise<User | null> {
   const a = auth();
   if (!a) return null;
@@ -93,15 +108,23 @@ export async function loginGoogle(): Promise<User | null> {
   try {
     return (await signInWithPopup(a, provider)).user;
   } catch (err) {
-    /* Попап блокують типово на мобільних — тоді повне
-       перенаправлення. Воно не повертає користувача одразу:
-       сторінка перезавантажиться, і його підхопить watchAuth. */
     const code = (err as { code?: string })?.code ?? '';
-    if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
+    const blocked =
+      code === 'auth/popup-blocked' ||
+      code === 'auth/operation-not-supported-in-this-environment';
+    if (!blocked) throw err;
+
+    if (redirectWorks()) {
+      /* Не повертає користувача одразу: сторінка перезавантажиться,
+         і його підхопить watchAuth. */
       await signInWithRedirect(a, provider);
       return null;
     }
-    throw err;
+
+    /* Вбудований браузер месенджера — типовий випадок, коли попап
+       не відкривається. Чесно кажемо, що робити, замість того щоб
+       завести людину в глухий кут. */
+    throw Object.assign(new Error('in-app-browser'), { code: 'reyter/no-popup' });
   }
 }
 
@@ -157,6 +180,8 @@ export function authError(err: unknown): string {
     'auth/popup-closed-by-user': 'Вікно входу було закрито',
     'auth/cancelled-popup-request': 'Вікно входу було закрито',
     'auth/popup-blocked': 'Браузер заблокував спливаюче вікно — дозвольте його',
+    'reyter/no-popup':
+      'Цей браузер не дає відкрити вікно входу. Відкрийте сторінку в Safari або Chrome — там вхід спрацює.',
     'auth/operation-not-supported-in-this-environment':
       'Цей браузер не підтримує спливаючі вікна — спробуйте ще раз',
     'auth/unauthorized-domain':

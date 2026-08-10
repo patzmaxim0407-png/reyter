@@ -33,12 +33,17 @@ export async function isAdminUser(user: User | null | undefined): Promise<boolea
 }
 
 /** Стан екрана входу. Розділений на випадки навмисно: «немає
- *  звʼязку», «ви не увійшли» і «у цього акаунта немає прав» —
- *  три різні проблеми, і три різні дії у відповідь. */
+ *  звʼязку», «ви не увійшли», «вхід не вдався» і «у цього акаунта
+ *  немає прав» — різні проблеми, і різні дії у відповідь.
+ *
+ *  'failed' відокремлений від 'denied' не для краси: раніше текст
+ *  помилки входу підставляли замість пошти, і на екрані виходило
+ *  «У акаунта Вікно входу було закрито немає прав адміністратора». */
 export type GateState =
   | { kind: 'offline' }
   | { kind: 'checking' }
   | { kind: 'anonymous' }
+  | { kind: 'failed'; text: string }
   | { kind: 'denied'; email: string }
   | { kind: 'ok' };
 
@@ -48,8 +53,12 @@ export function gateMessage(s: GateState): string {
       return 'Firebase недоступний — перевірте інтернет або блокувальник реклами.';
     case 'checking':
       return 'Перевіряємо доступ…';
+    case 'failed':
+      return s.text;
     case 'denied':
-      return `У акаунта ${s.email} немає прав адміністратора.`;
+      return s.email
+        ? `У акаунта ${s.email} немає прав адміністратора.`
+        : 'У цього акаунта немає прав адміністратора.';
     default:
       return 'Доступ лише для адміністраторів магазину.';
   }

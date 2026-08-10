@@ -54,12 +54,16 @@ export default function AdminGate({ children }: { children: ReactNode }) {
         <h2>REYTER · Адмінка</h2>
         <p>{gateMessage(state)}</p>
 
-        {state.kind === 'anonymous' ? (
+        {/* Після невдалої спроби кнопка лишається: закрите вікно
+            входу — привід натиснути ще раз, а не тупик */}
+        {state.kind === 'anonymous' || state.kind === 'failed' ? (
           <button
             className="btn btn--primary"
             type="button"
             onClick={() => {
-              void fb.loginGoogle().catch((err) => setState({ kind: 'denied', email: fb.authError(err) }));
+              void fb
+                .loginGoogle()
+                .catch((err) => setState({ kind: 'failed', text: fb.authError(err) }));
             }}
           >
             Увійти через Google
