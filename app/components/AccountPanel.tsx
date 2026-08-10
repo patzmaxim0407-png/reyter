@@ -8,6 +8,7 @@ import ProfileTab from './ProfileTab';
 import PromosTab from './PromosTab';
 import OrdersTab, { toRow, type OrdersMode, type Row } from './OrdersTab';
 import AuthPanel from './AuthPanel';
+import PageTop from './PageTop';
 import { useToast } from './Toasts';
 import * as cart from '@/lib/cart';
 import * as fb from '@/lib/firebase';
@@ -184,6 +185,10 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
 
   return (
     <div className="container account">
+      {/* Кабінет відкривається згори — і на вході, і коли приїхали
+          дані: до того сторінка коротша за екран */}
+      <PageTop ready={user !== undefined} />
+
       <header className="account__hero">
         <div className="account__identity">
           <div className="account__avatar" aria-hidden="true">

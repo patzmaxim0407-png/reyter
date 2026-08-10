@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import TrackForm from '@/components/TrackForm';
+import PageTop from '@/components/PageTop';
 
 /* Окрема адреса для тих, хто замовляв гостем: посилання на неї
    можна покласти в лист-підтвердження. */
@@ -18,6 +19,7 @@ export default async function TrackPage({
 
   return (
     <div className="container account-page">
+      <PageTop />
       <h1 className="section-title">Відстеження замовлення</h1>
       <p className="account-note">
         Введіть номер замовлення й телефон, на який воно оформлене, — і побачите,
