@@ -256,6 +256,42 @@ ok('після закриття сторінка приймає натискан
   return !!(at && at.closest('a.pcard'));
 })()`));
 
+/* ---------- Поява ----------
+   Картка має виїжджати, а не зʼявлятися ривком. Вузол, вставлений
+   одразу з класом is-open, переходити не має від чого. */
+
+await go(BASE + '/');
+const рух = await ev(`(async () => {
+  const кадри = [];
+  const t0 = performance.now();
+  const tick = () => {
+    const p = document.querySelector('.pmodal__panel');
+    if (p) кадри.push(getComputedStyle(p).opacity);
+    if (performance.now() - t0 < 600) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  document.querySelector('.pgrid a[href*="/p/"]').click();
+  await new Promise((r) => setTimeout(r, 800));
+  return { перший: кадри[0] ?? '', різних: new Set(кадри).size };
+})()`);
+ok('картка виїжджає, а не зʼявляється ривком', рух.різних > 3, JSON.stringify(рух));
+
+/* ---------- Фото на весь екран ----------
+   Натискання повз знімок закриває перегляд, по знімку — збільшує. */
+
+await ev(`document.querySelector('.gal__image-button')?.click()`);
+await wait(800);
+await ev(`document.querySelector('.lightbox__stage img')?.click()`);
+await wait(500);
+ok('натискання по знімку збільшує', await ev(`!!document.querySelector('.lightbox__stage img.is-zoomed')`));
+ok('перегляд при цьому не закрився', await ev(`!!document.querySelector('.lightbox.is-open')`));
+await ev(`document.querySelector('.lightbox__stage')?.click()`);
+await wait(700);
+ok('натискання повз знімок закриває перегляд', !(await ev(`!!document.querySelector('.lightbox')`)));
+ok('картка товару лишилась відкритою', await ev(`!!document.querySelector('.pmodal.is-open')`));
+await ev(`document.querySelector('.pmodal__close')?.click()`);
+await wait(1800);
+
 /* ---------- Дотик ----------
    На картці наведення показує друге фото. На телефоні «наведення»
    це перший тап — і картка відкривалася лише з другого разу. */

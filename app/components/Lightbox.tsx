@@ -56,8 +56,20 @@ export default function Lightbox({
         <button className="lightbox__nav lightbox__nav--prev" type="button" aria-label={t('p.prev', lang)} onClick={() => move(-1)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 6-6 6 6 6" /></svg></button>
         <button className="lightbox__nav lightbox__nav--next" type="button" aria-label={t('p.next', lang)} onClick={() => move(1)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg></button>
       </> : null}
-      <div className="lightbox__stage" onClick={() => setZoomed((value) => !value)}>
-        <img className={zoomed ? 'is-zoomed' : ''} src={images[index]} alt={alt} />
+      {/* Натискання повз знімок закриває перегляд, натискання по
+          самому знімку — збільшує. Так було й на попередньому
+          сайті; після переносу порожнє місце теж збільшувало, і
+          вийти з перегляду можна було лише хрестиком. */}
+      <div className="lightbox__stage" onClick={onClose}>
+        <img
+          className={zoomed ? 'is-zoomed' : ''}
+          src={images[index]}
+          alt={alt}
+          onClick={(e) => {
+            e.stopPropagation();
+            setZoomed((value) => !value);
+          }}
+        />
       </div>
       {images.length > 1 ? <span className="lightbox__counter">{index + 1} / {images.length}</span> : null}
     </div>

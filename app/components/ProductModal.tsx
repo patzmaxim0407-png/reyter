@@ -21,7 +21,23 @@ export default function ProductModal({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closingRef = useRef(false);
   const unlockedRef = useRef(false);
-  const [open, setOpen] = useState(true);
+  /* Починаємо закритою й відкриваємо наступним кадром — інакше
+     вузол вставляється вже з класом is-open, переходити нема від
+     чого, і картка не виїжджає, а зʼявляється ривком. Два кадри,
+     а не один: перший лише вставляє розмітку, і браузер має
+     встигнути порахувати початковий стан. */
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setOpen(true));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, []);
 
   const finishClose = useCallback(() => {
     /* Знімаємо блокування ДО переходу: інакше сторінка встигне
