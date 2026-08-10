@@ -72,14 +72,11 @@ export async function productMetadata(id: string, lang: Lang): Promise<Metadata>
 export default async function ProductView({
   id,
   lang,
-  modal = false,
-  standalone = false
+  modal = false
 }: {
   id: string;
   lang: Lang;
   modal?: boolean;
-  /* Картку відкрили за прямим посиланням, а не з каталогу. */
-  standalone?: boolean;
 }) {
   const { c, p, categories } = await load(id);
 
@@ -192,23 +189,6 @@ export default async function ProductView({
                       style={style}
                       aria-current="true"
                       title={`${title} — ${t('p.thisColor', lang)}`}
-                    />
-                  ) : standalone ? (
-                    /* Сторінка, відкрита за прямим посиланням, уже
-                       малює накладку сама. Клієнтський перехід на
-                       інший колір додав би поверх неї ще одну — від
-                       перехопленого маршруту, — і закриття лишало б
-                       на екрані невидиму картку, крізь яку нічого
-                       не натиснути. Тому звідси йдемо звичайним
-                       посиланням: сторінка перезавантажиться, і
-                       накладка знову буде одна. */
-                    <a
-                      key={col.id}
-                      className={cls}
-                      style={style}
-                      href={`/new${base}/p/${encodeURIComponent(col.id)}`}
-                      title={title}
-                      aria-label={title}
                     />
                   ) : (
                     <Link

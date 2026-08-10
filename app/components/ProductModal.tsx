@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { adoptOrLock, unlockScroll } from '@/lib/scroll-lock';
 import { canGoBack } from '@/lib/nav-depth';
 import { t } from '@/lib/i18n';
@@ -9,12 +9,20 @@ import type { Lang } from '@/lib/types';
 
 export default function ProductModal({
   children,
-  lang
+  lang,
+  selfPath
 }: {
   children: React.ReactNode;
   lang: Lang;
+  /** Адреса, якій ця картка належить. Задає лише сторінка товару,
+   *  відкрита за прямим посиланням: щойно адреса стане чужою —
+   *  наприклад, перемкнули колір, і перехоплювач намалював нову
+   *  картку, — ця має зникнути, а не лишитись під сподом. */
+  selfPath?: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const мимо = !!selfPath && pathname !== selfPath;
   const panelRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -28,14 +36,22 @@ export default function ProductModal({
      встигнути порахувати початковий стан. */
   const [open, setOpen] = useState(false);
 
+  /* Поки шторка їде вгору, вона натискань не приймає: інакше
+     другий тап (а на телефоні їх роблять швидко) потрапляє вже не
+     в картку каталогу, а в те, що під палець приїхало — у фото або
+     навіть у «Додати в кошик». */
+  const [ready, setReady] = useState(false);
+
   useEffect(() => {
     let second = 0;
     const first = requestAnimationFrame(() => {
       second = requestAnimationFrame(() => setOpen(true));
     });
+    const settle = setTimeout(() => setReady(true), 380);
     return () => {
       cancelAnimationFrame(first);
       cancelAnimationFrame(second);
+      clearTimeout(settle);
     };
   }, []);
 
@@ -49,8 +65,18 @@ export default function ProductModal({
     /* Прийшли з каталогу — вертаємось у нього разом із позицією
        прокрутки, яку памʼятає браузер. Прийшли за прямим
        посиланням — вести «назад» нікуди, відкриваємо головну. */
-    if (canGoBack()) router.back();
-    else router.replace(lang === 'en' ? '/en' : '/', { scroll: false });
+    if (canGoBack()) {
+      router.back();
+      return;
+    }
+
+    /* Повертатись нікуди — прийшли за прямим посиланням. Тут саме
+       повний перехід, а не router.replace: слот, у якому живе
+       картка, на головній не має з чим збігтися, і Next лишає в
+       ньому останнє показане. Картка тоді зникає з очей, але не з
+       розмітки. Повний перехід дає чисту сторінку, а replace не
+       додає зайвого запису в історію. */
+    window.location.replace('/new' + (lang === 'en' ? '/en' : '/'));
   }, [lang, router]);
 
   const close = useCallback(() => {
@@ -190,8 +216,10 @@ export default function ProductModal({
     };
   }, [close]);
 
+  if (мимо) return null;
+
   return (
-    <div className={'pmodal' + (open ? ' is-open' : '')} role="dialog" aria-modal="true" aria-labelledby="pmName">
+    <div className={'pmodal' + (open ? ' is-open' : '') + (ready ? ' is-ready' : '')} role="dialog" aria-modal="true" aria-labelledby="pmName">
       <button ref={backdropRef} className="pmodal__backdrop" type="button" aria-label={t('p.close', lang)} onClick={close} />
       <div className="pmodal__panel" ref={panelRef}>
         <span className="pmodal__handle" aria-hidden="true" />

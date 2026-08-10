@@ -23,5 +23,12 @@ export async function generateMetadata({
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <><HomeView lang="en" /><ProductModal lang="en"><ProductView id={id} lang="en" modal standalone /></ProductModal></>;
+  /* Каталог, а поверх нього картка. Слот @productModal сюди
+     не втручається: перехоплення працює лише при переході
+     всередині сайту, а це прямий вхід.
+
+     selfPath — щоб картка сама зникла, щойно адреса стане
+     чужою. Так буває при зміні кольору: перехоплювач малює
+     нову картку, і без цього поверх неї лишалася б ця. */
+  return <><HomeView lang="en" /><ProductModal lang="en" selfPath={`/en/p/${id}`}><ProductView id={id} lang="en" modal /></ProductModal></>;
 }

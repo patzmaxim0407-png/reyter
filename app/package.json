@@ -6,9 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "cf:build": "opennextjs-cloudflare build",
-    "cf:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
+    "cf:build": "opennextjs-cloudflare build && node tools/check-chunks.mjs",
+    "cf:preview": "opennextjs-cloudflare build && node tools/check-chunks.mjs && opennextjs-cloudflare preview",
+    "cf:deploy": "opennextjs-cloudflare build && node tools/check-chunks.mjs && opennextjs-cloudflare deploy",
+    "check:build": "node tools/check-chunks.mjs"
   },
   "dependencies": {
     "firebase": "^12.17.1",
