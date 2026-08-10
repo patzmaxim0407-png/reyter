@@ -12,6 +12,7 @@
 
 let depth = 0;
 let savedScroll = 0;
+let ahead: ReturnType<typeof setTimeout> | null = null;
 
 export function lockScroll(): void {
   if (depth++ > 0) return;
@@ -29,6 +30,39 @@ export function unlockScroll(): void {
   document.documentElement.style.scrollBehavior = 'auto';
   window.scrollTo(0, savedScroll);
   document.documentElement.style.scrollBehavior = behavior;
+}
+
+/* ---------- Замок наперед ----------
+   Між натисканням на картку товару й появою самої картки минає
+   стільки, скільки триває запит: у мережі це півсекунди, а не
+   нуль, як на своїй машині. За цей час сторінка встигає
+   переміститись — і оверлей запамʼятовує вже не ту позицію, з
+   якої людина пішла.
+
+   Тому замикаємо прокрутку одразу на кліку, ще до переходу, а
+   оверлей потім переймає цей замок замість того, щоб ставити
+   свій. Якщо перехід чомусь не відбувся, замок звільняється сам:
+   лишити сторінку нерухомою назавжди гірше за будь-який стрибок. */
+
+const AHEAD_TTL = 4000;
+
+export function lockScrollAhead(): void {
+  if (depth > 0 || ahead) return;
+  lockScroll();
+  ahead = setTimeout(() => {
+    ahead = null;
+    unlockScroll();
+  }, AHEAD_TTL);
+}
+
+/** Оверлей відкрився: переймає завчасний замок або ставить свій. */
+export function adoptOrLock(): void {
+  if (ahead) {
+    clearTimeout(ahead);
+    ahead = null;
+    return;
+  }
+  lockScroll();
 }
 
 /** Позиція сторінки під оверлеєм. Потрібна закриттю картки

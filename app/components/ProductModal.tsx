@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { lockScroll, unlockScroll } from '@/lib/scroll-lock';
+import { adoptOrLock, unlockScroll } from '@/lib/scroll-lock';
 import { canGoBack } from '@/lib/nav-depth';
 import { t } from '@/lib/i18n';
 import type { Lang } from '@/lib/types';
@@ -46,7 +46,7 @@ export default function ProductModal({
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    lockScroll();
+    adoptOrLock();
     closeRef.current?.focus();
 
     const onKey = (event: KeyboardEvent) => {

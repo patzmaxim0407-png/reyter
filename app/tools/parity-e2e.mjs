@@ -104,6 +104,16 @@ ok('таблиця розмірів', await ev(`document.querySelectorAll('.size
    String(await ev(`document.querySelectorAll('.size-guide__table tbody tr').length`)));
 ok('підвал', await ev(`!!document.querySelector('.site-footer, footer')`));
 
+/* ---------- Підкреслення ----------
+   Картка товару й перемикач мови були кнопками, а стали
+   посиланнями — і браузер узявся підкреслювати назви та ціни. */
+
+const underlined = await ev(`[...document.querySelectorAll('a')]
+  .filter((a) => getComputedStyle(a).textDecorationLine.includes('underline') && a.textContent.trim())
+  .map((a) => a.className || a.tagName)
+  .slice(0, 5)`);
+ok('назви й ціни не підкреслені', underlined.length === 0, underlined.join(', '));
+
 /* ---------- Шрифти ---------- */
 
 const fonts = await ev(`(() => {

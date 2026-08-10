@@ -52,6 +52,15 @@ await send('Page.enable');
 await send('Runtime.enable');
 await send('Emulation.setFocusEmulationEnabled', { enabled: true });
 
+/* SLOW=1 — повільна мережа. Саме тут ламалось те, чого не видно
+   на своїй машині: поки йде запит, сторінка встигає зрушити. */
+if (process.env.SLOW) {
+  await send('Network.enable');
+  await send('Network.emulateNetworkConditions', {
+    offline: false, latency: 600, downloadThroughput: 400_000, uploadThroughput: 400_000
+  });
+}
+
 const errors = [];
 ws.addEventListener('message', (raw) => {
   const m = JSON.parse(raw.data);
