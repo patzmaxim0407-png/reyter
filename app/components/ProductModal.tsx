@@ -44,11 +44,30 @@ export default function ProductModal({
     timerRef.current = setTimeout(finishClose, 240);
   }, [finishClose]);
 
+  /* Замок прокрутки й фокус — рівно один раз за життя картки.
+     Раніше це лежало в одному ефекті з обробником клавіш, а той
+     перезапускався на кожну зміну close(): картку встигало
+     розблокувати й заблокувати знову, а сторінка при цьому
+     сіпалась. */
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     adoptOrLock();
     closeRef.current?.focus();
+    return () => {
+      if (!unlockedRef.current) unlockScroll();
+      previous?.focus({ preventScroll: true });
+    };
+  }, []);
 
+  /* Таймер закриття прибираємо ЛИШЕ коли картка справді зникає.
+     Доти він недоторканний: якщо його скасувати між «згасанням» і
+     переходом, картка лишається в розмітці — невидима, але на весь
+     екран, і жоден клік більше нікуди не доходить. */
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         // Лайтбокс фотографій лежить вище за картку й має
@@ -73,12 +92,7 @@ export default function ProductModal({
     };
 
     document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      if (!unlockedRef.current) unlockScroll();
-      if (timerRef.current) clearTimeout(timerRef.current);
-      previous?.focus({ preventScroll: true });
-    };
+    return () => document.removeEventListener('keydown', onKey);
   }, [close]);
 
   /* ---------- Стягування панелі донизу (телефон) ----------

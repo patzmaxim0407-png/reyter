@@ -225,6 +225,49 @@ if (await ev(`!!document.querySelector('a.swatch')`)) {
      (await ev(`location.pathname`)).replace(/\/$/, '') === home, await ev(`location.href`));
 }
 
+/* ---------- Найгірший шлях ----------
+   Відкрити картку → розгорнути фото на весь екран → закрити.
+   Саме після цього на сторінці лишалась невидима модалка: вона
+   на весь екран і глушила будь-яке натискання, а сторінка
+   лишалась замкненою. */
+
+await go(BASE + '/');
+await ev(`document.querySelector('.pgrid a[href*="/p/"]').click()`);
+await wait(1500);
+await ev(`document.querySelector('.gal__image-button')?.click()`);
+await wait(800);
+ok('фото розгортається на весь екран', await ev(`!!document.querySelector('.lightbox.is-open')`));
+
+await ev(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+await wait(700);
+ok('перший Escape закриває лише фото',
+   (await ev(`!document.querySelector('.lightbox.is-open')`)) &&
+   (await ev(`!!document.querySelector('.pmodal.is-open')`)));
+
+await ev(`document.querySelector('.pmodal__close').click()`);
+await wait(1800);
+ok('після закриття модалки в розмітці не лишилось',
+   await ev(`!document.querySelector('.pmodal')`));
+ok('після закриття сторінка приймає натискання', await ev(`(() => {
+  const a = document.querySelector('.pgrid a[href*="/p/"]');
+  a.scrollIntoView({ block: 'center', behavior: 'instant' });
+  const r = a.getBoundingClientRect();
+  const at = document.elementFromPoint(Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2));
+  return !!(at && at.closest('a.pcard'));
+})()`));
+
+/* ---------- Дотик ----------
+   На картці наведення показує друге фото. На телефоні «наведення»
+   це перший тап — і картка відкривалася лише з другого разу. */
+
+const hoverSwap = await ev(`(() => {
+  const rules = [...document.styleSheets].flatMap((sheet) => {
+    try { return [...sheet.cssRules]; } catch { return []; }
+  });
+  return rules.some((r) => r.conditionText === '(hover: none)' || r.media?.mediaText === '(hover: none)');
+})()`);
+ok('на дотикових екранах наведення вимкнено', hoverSwap);
+
 console.log('\n' + (bad ? `не зійшлося: ${bad}` : 'усе зійшлося'));
 console.log('Помилки в консолі: ' + (errors.length ? '\n' + errors.join('\n') : 'немає'));
 
