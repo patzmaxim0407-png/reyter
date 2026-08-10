@@ -12,6 +12,7 @@
    node --experimental-strip-types --import ./tools/ts-resolve-register.mjs tools/admin-check.ts
    ============================================================ */
 
+import { readFileSync } from 'node:fs';
 import {
   adminColors,
   lines,
@@ -241,6 +242,30 @@ ok('минулий час не приймається', checkScheduleTime('2026-
 ok('майбутній час приймається', checkScheduleTime('2026-08-10T18:00', now).ok === true);
 ok('«через мить» не приймається — поки діалог відкритий, воно стане минулим',
    checkScheduleTime('2026-08-10T12:00', now).ok === false);
+
+/* ---------- Оболонка адмінки ----------
+   Не логіка, а розмітка — але саме ці дві помилки коштували
+   робочої адмінки, і жоден тест їх не ловив: без LangProvider
+   падало ручне замовлення (пошук міста питає мову), а атрибут
+   hidden на списку дій ховав «Опублікувати» на широкому екрані,
+   де кнопки «⋯» немає взагалі. */
+
+const layout = readFileSync(new URL('../app/(admin)/admin/layout.tsx', import.meta.url), 'utf8');
+for (const provider of ['LangProvider', 'Toasts', 'AskProvider']) {
+  ok(`оболонка адмінки дає ${provider}`, layout.includes('<' + provider + '>'));
+}
+
+const bar = readFileSync(new URL('../components/admin/AdminBar.tsx', import.meta.url), 'utf8');
+ok('список дій не ховається атрибутом hidden', !/abar__drop"\s+hidden/.test(bar));
+ok('меню «⋯» перемикає is-open на батькові', bar.includes("'abar__actions' + (open ? ' is-open' : '')"));
+
+const shells = ['OrdersAdmin', 'PromosAdmin', 'StockAdmin'];
+for (const name of shells) {
+  const src = readFileSync(new URL(`../components/admin/${name}.tsx`, import.meta.url), 'utf8');
+  ok(`${name} має кнопку публікації`, src.includes('<PublishControl'));
+  ok(`${name} не лежить у розкладці каталогу`, !src.includes('className="admin-wrap'));
+  ok(`${name} малює сторінку класами старої панелі`, src.includes('className="a-page"'));
+}
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
 process.exit(failed ? 1 : 0);

@@ -8,6 +8,7 @@ import CategoryList from './CategoryList';
 import ProductList from './ProductList';
 import ProductEditor, { type EditorSave } from './ProductEditor';
 import PublishDialog from './PublishDialog';
+import { useNewOrders } from './PublishControl';
 import { useAdminUser } from './AdminGate';
 import { useAsk } from './AskProvider';
 import { useToast } from '../Toasts';
@@ -50,6 +51,7 @@ export default function CatalogAdmin() {
   const ask = useAsk();
   const toast = useToast();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const newOrders = useNewOrders();
 
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [current, setCurrent] = useState('all');
@@ -310,6 +312,7 @@ export default function CatalogAdmin() {
       <AdminBar
         user={user}
         hasDraft={hasDraft}
+        newOrders={newOrders}
         /* Поки чернетка не приїхала, публікувати нічого: знімок
            порожнього каталогу стер би вітрину повністю */
         onPublish={draft.seeded ? () => setPubOpen(true) : undefined}

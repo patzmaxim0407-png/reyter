@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import AdminBar from './AdminBar';
+import PublishControl from './PublishControl';
 import SettingsDialog from './SettingsDialog';
 import OrderCard from './OrderCard';
 import ManualOrder from './ManualOrder';
@@ -202,7 +202,7 @@ export default function OrdersAdmin() {
 
   return (
     <>
-      <AdminBar user={user} onSettings={() => setSettingsOpen(true)} />
+      <PublishControl user={user} onSettings={() => setSettingsOpen(true)} />
 
       {/* Розкладка — як в admin.html: .admin-wrap це дві колонки
           каталогу з бічним списком категорій, і сторінці замовлень

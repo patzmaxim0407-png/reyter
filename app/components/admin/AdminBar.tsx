@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import * as fb from '@/lib/firebase';
 
@@ -26,17 +26,42 @@ const TABS = [
 export default function AdminBar({
   user,
   hasDraft,
+  newOrders = 0,
   onPublish,
   onSettings
 }: {
   user: User;
   /** Є неопубліковані зміни або запланована публікація. */
   hasDraft?: boolean;
+  /** Скільки замовлень чекають на обробку — значок на вкладці. */
+  newOrders?: number;
   onPublish?: () => void;
   onSettings?: () => void;
 }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
+  const actions = useRef<HTMLDivElement>(null);
+
+  /* Меню «⋯» закривається кліком повз нього та Escape — інакше на
+     телефоні воно лишається розгорнутим над сторінкою */
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!actions.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  // розділ змінили — меню має закритись само
+  useEffect(() => setOpen(false), [path]);
 
   return (
     <header className="abar">
@@ -55,11 +80,18 @@ export default function AdminBar({
             href={x.href}
           >
             {x.title}
+            {x.href === '/admin/orders' && newOrders ? (
+              <span className="abar__count">{newOrders}</span>
+            ) : null}
           </Link>
         ))}
       </nav>
 
-      <div className="abar__actions">
+      {/* is-open на батькові, а не hidden на самому списку: на
+          широкому екрані це просто ряд кнопок, і hidden ховав їх
+          там, де кнопки «⋯» взагалі немає — «Опублікувати» ставало
+          недосяжним. */}
+      <div className={'abar__actions' + (open ? ' is-open' : '')} ref={actions}>
         <button
           className={'abar__more' + (hasDraft ? ' has-draft' : '')}
           type="button"
@@ -73,7 +105,7 @@ export default function AdminBar({
           <span />
         </button>
 
-        <div className="abar__drop" hidden={!open}>
+        <div className="abar__drop">
           <span className="abar__user">{user.email}</span>
           {/* Абсолютне посилання: на адмінському домені корінь —
               це сама адмінка, і відносне вело б у нікуди */}

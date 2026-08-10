@@ -4,9 +4,12 @@ import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { db } from '@/lib/firebase';
 import { SITE_CONFIG } from '@/lib/site-config';
+import { SHOP_URL } from './AdminBar';
+import { useToast } from '../Toasts';
 import {
   KEY_TOKEN,
   backupDataJs,
+  buildDataJs,
   cancelSchedule,
   checkScheduleTime,
   defaultScheduleAt,
@@ -16,6 +19,7 @@ import {
   publishNow,
   schedulePublish,
   scheduledStale,
+  snapshotDraft,
   toLocalInput,
   type Draft,
   type PublishedDoc,
@@ -57,6 +61,7 @@ export default function PublishDialog({
   const [token, setToken] = useState('');
   const [backupNote, setBackupNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   const saveToken = (v: string) => {
     setToken(v);
@@ -230,6 +235,37 @@ export default function PublishDialog({
               />
             </div>
             {backupNote ? <p className="field__hint">{backupNote}</p> : null}
+
+            {/* Дві речі, доступні й без GitHub: подивитись на
+                чернетку очима покупця та забрати data.js собі
+                на диск, якщо токена немає. */}
+            <div className="a-pub__links">
+              <a
+                href={SHOP_URL + '/?preview=draft'}
+                target="_blank"
+                rel="noopener"
+              >
+                Переглянути чернетку на сайті ↗
+              </a>
+              <button
+                className="a-linklike"
+                type="button"
+                onClick={() => {
+                  const text = buildDataJs(snapshotDraft(draft), SITE_CONFIG, new Date());
+                  const url = URL.createObjectURL(
+                    new Blob([text], { type: 'text/javascript;charset=utf-8' })
+                  );
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'data.js';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast('Файл data.js завантажено', 'success');
+                }}
+              >
+                Завантажити data.js
+              </button>
+            </div>
           </details>
 
           {status ? (

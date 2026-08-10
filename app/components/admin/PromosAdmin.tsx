@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import AdminBar from './AdminBar';
+import PublishControl from './PublishControl';
 import SettingsDialog from './SettingsDialog';
 import PromoCard from './PromoCard';
 import PromoEditor from './PromoEditor';
@@ -104,7 +104,7 @@ export default function PromosAdmin() {
 
   return (
     <>
-      <AdminBar user={user} onSettings={() => setSettingsOpen(true)} />
+      <PublishControl user={user} onSettings={() => setSettingsOpen(true)} />
 
       {/* Розкладка сторінки — та сама, що в admin.html: .admin-wrap
           це дві колонки каталогу з бічним списком категорій, і

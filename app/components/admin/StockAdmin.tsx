@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import AdminBar from './AdminBar';
+import PublishControl from './PublishControl';
 import SettingsDialog from './SettingsDialog';
 import StockRow from './StockRow';
 import MoveRow from './MoveRow';
@@ -266,7 +266,7 @@ export default function StockAdmin() {
 
   return (
     <>
-      <AdminBar user={user} onSettings={() => setSettingsOpen(true)} />
+      <PublishControl user={user} onSettings={() => setSettingsOpen(true)} />
 
       {/* Розкладка — як в admin.html: .admin-wrap це дві колонки
           каталогу з бічним списком категорій, і сторінці складу
