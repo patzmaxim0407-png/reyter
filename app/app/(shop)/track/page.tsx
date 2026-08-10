@@ -6,7 +6,7 @@ import TrackForm from '@/components/TrackForm';
 export const metadata: Metadata = {
   title: 'Відстеження замовлення',
   description: 'Перевірити статус замовлення REYTER за номером і телефоном.',
-  alternates: { canonical: '/track' }
+  alternates: { canonical: '/track', languages: { uk: '/track', en: '/en/track' } }
 };
 
 export default async function TrackPage({

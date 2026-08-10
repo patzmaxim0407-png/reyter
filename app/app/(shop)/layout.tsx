@@ -3,6 +3,7 @@ import SiteFooter from '@/components/SiteFooter';
 import CartProvider from '@/components/CartProvider';
 import LangProvider from '@/components/LangProvider';
 import CartDrawer from '@/components/CartDrawer';
+import ShopChrome from '@/components/ShopChrome';
 import { loadCatalog, loadStock } from '@/lib/firestore';
 import { cartCatalogue } from '@/lib/catalog';
 
@@ -17,27 +18,14 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
   const c = cartCatalogue(catalog.products, stock, catalog.categories);
 
   return (
-    <>
-      <a className="skip-link" href="#catalog">
-        Перейти до каталогу
-      </a>
-
-      {/* Рухомий рядок над шапкою */}
-      <div className="marquee" aria-hidden="true">
-        <div className="marquee__track">
-          <span>Безкоштовна доставка по Україні від 1500 грн ✦ Міжнародна доставка ✦</span>
-          <span>Безкоштовна доставка по Україні від 1500 грн ✦ Міжнародна доставка ✦</span>
-        </div>
-      </div>
-
-      <LangProvider>
+    <LangProvider>
+      <ShopChrome />
         <CartProvider c={c}>
           <SiteHeader />
-          <main id="top">{children}</main>
+          <main id="main-content">{children}</main>
           <SiteFooter />
           <CartDrawer />
         </CartProvider>
-      </LangProvider>
-    </>
+    </LangProvider>
   );
 }

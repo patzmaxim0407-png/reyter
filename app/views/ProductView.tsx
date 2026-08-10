@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import AddToCart from '@/components/AddToCart';
+import ProductGallery from '@/components/ProductGallery';
 import { loadCatalog, loadStock } from '@/lib/firestore';
 import { availability, getProduct, productColors, uah } from '@/lib/catalog';
 import { t, tf, tx } from '@/lib/i18n';
@@ -121,20 +122,7 @@ export default async function ProductView({ id, lang }: { id: string; lang: Lang
       </nav>
 
       <div className="pmodal__scroll">
-        <div className="pmodal__gallery">
-          <div className="gal__main">
-            <img src={p.images[0]} alt={name} />
-          </div>
-          {p.images.length > 1 ? (
-            <div className="gal__thumbs">
-              {p.images.map((src, i) => (
-                <span className={'gthumb' + (i === 0 ? ' is-active' : '')} key={src}>
-                  <img src={src} alt="" loading="lazy" />
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <ProductGallery images={p.images} alt={name} lang={lang} />
 
         <div className="pmodal__info">
           <p className="pinfo__category">{catTitle}</p>
@@ -234,6 +222,12 @@ export default async function ProductView({ id, lang }: { id: string; lang: Lang
               ) : null}
             </div>
           ) : null}
+
+          <div className="pinfo__notes">
+            <div className="note-card" dangerouslySetInnerHTML={{ __html: t('p.note1', lang) }} />
+            <div className="note-card" dangerouslySetInnerHTML={{ __html: t('p.note2', lang) }} />
+            <div className="note-card" dangerouslySetInnerHTML={{ __html: t('p.note3', lang) }} />
+          </div>
         </div>
       </div>
     </article>

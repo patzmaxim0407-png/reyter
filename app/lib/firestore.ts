@@ -96,6 +96,21 @@ export async function loadCatalog(revalidate = CATALOG_TTL): Promise<Catalog> {
   };
 }
 
+/** Публічний попередній перегляд чернетки (?preview=draft), як у
+ *  старому сайті. Firestore rules дозволяють читання каталогу,
+ *  але запис усе одно лишається тільки адміністраторам. */
+export async function loadDraftCatalog(): Promise<Catalog> {
+  const [cats, prods] = await Promise.all([
+    listDocs('catalog_categories', 0),
+    listDocs('catalog_products', 0)
+  ]);
+  return {
+    categories: cats.map((item) => ({ id: item.id, ...item.data }) as unknown as Category).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    products: prods.map((item) => ({ id: item.id, ...item.data }) as unknown as Product).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    nextAt: null
+  };
+}
+
 /* ---------- Залишки ----------
    Живуть окремо від каталогу й змінюються значно частіше:
    кожне підтверджене замовлення зменшує їх. Тому й TTL коротший. */

@@ -13,6 +13,8 @@ import {
 } from '@/lib/catalog';
 import { t, tx } from '@/lib/i18n';
 import type { Lang, Product } from '@/lib/types';
+import ProductSizeGuide from './ProductSizeGuide';
+import RestockNotice from './RestockNotice';
 
 /* Єдиний інтерактивний острівець на сторінці товару.
    Решта сторінки — статичний HTML із сервера: так вона зʼявляється
@@ -58,6 +60,7 @@ export default function AddToCart({
 
   const [shake, setShake] = useState(false);
   const [added, setAdded] = useState(false);
+  const [etaTarget, setEtaTarget] = useState<{ id: string; name: string; size: string | null } | null>(null);
 
   const isComplect = isSet(p) && parts.length > 0;
   const inCart = cart.qtyOf(p.id, size, isComplect ? picks : undefined);
@@ -107,6 +110,7 @@ export default function AddToCart({
         <div className="pinfo__sizes">
           <div className="pinfo__sizes-head">
             <span>{t('p.setParts', lang)}</span>
+            <ProductSizeGuide lang={lang} />
           </div>
           <div className={'sizes sizes--set' + (shake ? ' shake' : '')}>
             <p className="setsizes__note">
@@ -129,7 +133,7 @@ export default function AddToCart({
                     {options.map((s) => {
                       const has = !pav.soldOut && (!isSized(part) || pav.sizes.includes(s));
                       const isLow = has && pav.low.includes(s);
-                      return (
+                      return has ? (
                         <span
                           key={s || 'one'}
                           className={
@@ -143,7 +147,6 @@ export default function AddToCart({
                             name={`part-${n}`}
                             id={`part-${n}-${s || 'one'}`}
                             value={s}
-                            disabled={!has}
                             checked={chosen === s}
                             onChange={() => pick(part.id, s)}
                           />
@@ -151,6 +154,15 @@ export default function AddToCart({
                             {s ? tx(s, lang) : t('p.onePiece', lang)}
                           </label>
                         </span>
+                      ) : (
+                        <button
+                          type="button"
+                          key={s || 'one'}
+                          className="size-pill size-pill--out size-pill__alert"
+                          onClick={() => setEtaTarget({ id: part.id, name: part.name, size: s || null })}
+                        >
+                          {s ? tx(s, lang) : t('p.onePiece', lang)}
+                        </button>
                       );
                     })}
                   </div>
@@ -163,12 +175,13 @@ export default function AddToCart({
         <div className="pinfo__sizes">
           <div className="pinfo__sizes-head">
             <span>{t(p.volume ? 'p.volume' : 'p.size', lang)}</span>
+            {!p.volume ? <ProductSizeGuide lang={lang} /> : null}
           </div>
           <div className={'sizes' + (shake ? ' shake' : '')}>
             {(p.volume ? [p.volume] : ALL_SIZES).map((s) => {
               const has = !av.soldOut && (p.volume ? true : av.sizes.includes(s));
               const isLow = has && av.low.includes(s);
-              return (
+              return has ? (
                 <span
                   key={s}
                   className={
@@ -180,16 +193,33 @@ export default function AddToCart({
                     name="pm-size"
                     id={`size-${s}`}
                     value={s}
-                    disabled={!has}
                     checked={size === s}
                     onChange={() => setSize(s)}
                   />
                   <label htmlFor={`size-${s}`}>{tx(s, lang)}</label>
                 </span>
+              ) : (
+                <button
+                  type="button"
+                  key={s}
+                  className="size-pill size-pill--out size-pill__alert"
+                  onClick={() => setEtaTarget({ id: p.id, name: p.name, size: p.volume ? null : s })}
+                >
+                  {tx(s, lang)}
+                </button>
               );
             })}
           </div>
         </div>
+      ) : null}
+
+      {etaTarget || av.soldOut ? (
+        <RestockNotice
+          productId={etaTarget?.id ?? p.id}
+          productName={etaTarget?.name ?? p.name}
+          size={etaTarget?.size ?? null}
+          lang={lang}
+        />
       ) : null}
 
       <div className="pinfo__cta">
