@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useLang } from './LangProvider';
 import { noteNavigation } from '@/lib/nav-depth';
 import { lockScrollAhead } from '@/lib/scroll-lock';
@@ -11,6 +11,7 @@ import { lockScrollAhead } from '@/lib/scroll-lock';
 export default function ShopChrome() {
   const { lang, t } = useLang();
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -21,6 +22,35 @@ export default function ShopChrome() {
   useEffect(() => {
     noteNavigation();
   }, [pathname]);
+
+  /* Картку підвантажуємо ще до кліку — щойно покупець торкнувся
+     її пальцем або навів мишу. Між дотиком і кліком минає майже
+     десята секунди, а між наведенням і кліком — набагато більше:
+     цього досить, щоб картка відкрилась миттєво.
+
+     Саме за наміром, а не наперед: у каталозі три десятки товарів,
+     і тягнути їх усі одразу означало б кілька мегабайтів
+     мобільного трафіку заради одного дотику. Кожну адресу
+     гріємо один раз. */
+  useEffect(() => {
+    const warmed = new Set<string>();
+    const warm = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      const card = target?.closest?.('a.pcard') as HTMLAnchorElement | null;
+      const href = card?.getAttribute('href');
+      if (!href || warmed.has(href)) return;
+      warmed.add(href);
+      // router.prefetch чекає шлях без префікса — його додає Next
+      router.prefetch(href.replace(/^\/new/, '') || '/');
+    };
+
+    document.addEventListener('pointerover', warm, { passive: true });
+    document.addEventListener('touchstart', warm, { passive: true });
+    return () => {
+      document.removeEventListener('pointerover', warm);
+      document.removeEventListener('touchstart', warm);
+    };
+  }, [router]);
 
   /* Картка товару відкривається накладкою поверх каталогу, тож
      фон замикаємо вже на натисканні — поки йде запит, сторінка

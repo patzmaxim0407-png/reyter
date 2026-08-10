@@ -13,7 +13,10 @@ export const metadata: Metadata = {
    до виконання коду, тож імпортовану константу не бачить. */
 export const revalidate = 60;
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ preview?: string }> }) {
-  const { preview } = await searchParams;
-  return <HomeView lang="uk" previewDraft={preview === 'draft'} />;
+/* Без параметрів адреси навмисно: варто сторінці зазирнути в
+   searchParams — і Next рендерить її на кожен запит, а це два
+   читання Firestore щоразу. Перегляд чернетки живе окремо, на
+   /preview: він потрібен лише адміністраторові. */
+export default async function Home() {
+  return <HomeView lang="uk" />;
 }

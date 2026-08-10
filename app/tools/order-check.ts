@@ -125,7 +125,10 @@ ok('країна поза списком повертається в своє п
 ok('без імені замовлення не збирається', checkCustomer({ name: '', phone: '+380971112233', email: '' })?.field === 'name');
 ok('короткий телефон не проходить', checkCustomer({ name: 'Тарас', phone: '123', email: '' })?.field === 'phone');
 ok('крива пошта не проходить', checkCustomer({ name: 'Тарас', phone: '+380971112233', email: 'ой' })?.field === 'email');
-ok('порожня пошта дозволена', checkCustomer({ name: 'Тарас', phone: '+380971112233', email: '' }) === null);
+ok('без пошти замовлення не збирається — на неї йде підтвердження',
+   checkCustomer({ name: 'Тарас', phone: '+380971112233', email: '' })?.field === 'email');
+ok('із поштою збирається',
+   checkCustomer({ name: 'Тарас', phone: '+380971112233', email: 'taras@example.com' }) === null);
 
 const customer: Customer = {
   name: 'Тарас Шевченко',

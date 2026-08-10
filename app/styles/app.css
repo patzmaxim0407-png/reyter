@@ -442,14 +442,52 @@
    важливіші, тож поступаються саме вони. */
 @media (max-width: 560px) {
   .account__tab {
+    /* Рівні третини з підписом посередині: інакше «Профіль»
+       розтягувався за вмістом, а «Мої замовлення» тиснулось
+       до самого краю. */
+    flex: 1 1 0;
+    justify-content: center;
     gap: 0.4rem;
-    padding: 0.65rem 0.6rem;
+    padding: 0.65rem 0.5rem;
     font-size: 0.87rem;
   }
 
   .account__tab-icon {
     display: none;
   }
+
+  /* margin-left: auto тримав лічильник біля правого краю —
+     разом із центруванням це розсувало підпис */
+  .account__tab-count {
+    margin-left: 0.3rem;
+  }
+
+  /* Кнопка виходу забирала в імені половину рядка, і воно
+     ламалося посеред слова. Відпускаємо її на власний рядок —
+     імені й пошті лишається вся ширина. */
+  .account__identity {
+    flex-wrap: wrap;
+  }
+
+  .account__who {
+    flex: 1 1 55%;
+  }
+
+  .account__logout {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .account__email {
+    font-size: 0.82rem;
+  }
+}
+
+/* Слово переносимо цілком; рвати його посеред складу можна лише
+   тоді, коли воно саме по собі довше за рядок. */
+.account__name {
+  overflow-wrap: break-word;
 }
 
 @media (min-width: 880px) {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLang } from './LangProvider';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import ProfileTab from './ProfileTab';
 import PromosTab from './PromosTab';
@@ -61,14 +61,17 @@ function joinedText(user: User, lang: string, t: (k: string) => string): string 
 
 export default function AccountPanel({ c }: { c: Catalogue }) {
   const { t, lang } = useLang();
-  const router = useRouter();
-  const pathname = usePathname();
   const params = useSearchParams();
   const toast = useToast();
   const tabsRef = useRef<HTMLDivElement>(null);
 
+  /* Початковий розділ береться з адреси, далі ним керує сторінка:
+     так перемикання не чекає на сервер, а поділитися посиланням
+     усе одно можна. */
   const asked = params.get('tab');
-  const tab: TabId = TABS.some((x) => x.id === asked) ? (asked as TabId) : 'profile';
+  const [tab, setTab] = useState<TabId>(
+    TABS.some((x) => x.id === asked) ? (asked as TabId) : 'profile'
+  );
 
   /* undefined — ще не знаємо, чи покупець увійшов. Показувати
      в цю мить форму входу означало б блимнути нею перед тим,
@@ -147,12 +150,16 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
 
   /* ---------- Вкладки ---------- */
 
-  const go = useCallback(
-    (next: TabId) => {
-      router.replace(next === 'profile' ? pathname : `${pathname}?tab=${next}`, { scroll: false });
-    },
-    [pathname, router]
-  );
+  /* Розділ лишається в адресі — посилання на «мої замовлення»
+     можна надіслати. Але міняємо її саме history.replaceState, а
+     не router: маршрутизатор на кожне перемикання ходив би на
+     сервер по ту саму сторінку, і вкладки перемикались із
+     затримкою. Next такий виклик підхоплює сам. */
+  const go = useCallback((next: TabId) => {
+    setTab(next);
+    const base = window.location.pathname;
+    window.history.replaceState(null, '', next === 'profile' ? base : `${base}?tab=${next}`);
+  }, []);
 
   /* Стрілки ходять по вкладках, як в операційній системі:
      інакше з клавіатури довелося б табати крізь кожну. */

@@ -195,7 +195,10 @@ export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function checkCustomer(v: { name: string; phone: string; email: string }) {
   if (!v.name.trim()) return { field: 'name' as const, key: 'cart.fillNamePhone' };
   if (!PHONE_RE.test(v.phone.trim())) return { field: 'phone' as const, key: 'cart.fillNamePhone' };
-  if (v.email.trim() && !EMAIL_RE.test(v.email.trim())) {
+  /* Пошта обовʼязкова: на неї йде підтвердження замовлення, лист
+     «знову в наявності» і за нею ж покупець бачить свої замовлення
+     в кабінеті. Без неї замовлення нікуди написати. */
+  if (!EMAIL_RE.test(v.email.trim())) {
     return { field: 'email' as const, key: 'cart.checkEmail' };
   }
   return null;

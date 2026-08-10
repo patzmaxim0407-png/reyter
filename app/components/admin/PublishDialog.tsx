@@ -241,7 +241,7 @@ export default function PublishDialog({
                 на диск, якщо токена немає. */}
             <div className="a-pub__links">
               <a
-                href={SHOP_URL + '/?preview=draft'}
+                href={SHOP_URL + '/preview'}
                 target="_blank"
                 rel="noopener"
               >

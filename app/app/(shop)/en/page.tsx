@@ -10,7 +10,6 @@ export const metadata: Metadata = {
 
 export const revalidate = 60;
 
-export default async function HomeEn({ searchParams }: { searchParams: Promise<{ preview?: string }> }) {
-  const { preview } = await searchParams;
-  return <HomeView lang="en" previewDraft={preview === 'draft'} />;
+export default async function HomeEn() {
+  return <HomeView lang="en" />;
 }

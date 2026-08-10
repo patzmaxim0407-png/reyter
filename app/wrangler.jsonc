@@ -32,6 +32,16 @@
      проєкт Pages. Воркер бере лише /new* і весь адмінський домен.
      Маршрут за шляхом має перевагу над кастомним доменом Pages,
      тож обидва живуть на одному хості. */
+  /* Сховище кешу сторінок. Без нього кожен запит рендериться
+     наново — з двома читаннями Firestore на кожну сторінку. */
+  /* Воркер має дозвіл покликати сам себе: саме так черга
+     перебудовує сторінку, строк свіжості якої минув. */
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "reyter-site" }],
+
+  "kv_namespaces": [
+    { "binding": "NEXT_INC_CACHE_KV", "id": "779784e1ae67447fb44f8f3889614c3e" }
+  ],
+
   "routes": [
     { "pattern": "reyter.men/new*", "zone_name": "reyter.men" },
     { "pattern": "www.reyter.men/new*", "zone_name": "reyter.men" },

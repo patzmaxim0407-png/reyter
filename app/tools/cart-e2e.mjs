@@ -186,6 +186,28 @@ const err = await evalJs(`(() => ({
 }))()`);
 ok('порожня форма не відправляється', !!err.text, err.text);
 
+/* Пошта обовʼязкова: на неї йде підтвердження замовлення. Раніше
+   без неї замовлення проходило, і написати покупцеві не було куди. */
+await evalJs(`(() => {
+  const set = (id, v) => {
+    const el = document.getElementById(id);
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    setter.call(el, v);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  set('coName', 'Тарас Шевченко');
+  set('coPhone', '+380971112233');
+  set('coEmail', '');
+})()`);
+await wait(300);
+await evalJs('document.querySelector(".btn--order")?.click()');
+await wait(500);
+const noMail = await evalJs(`(() => ({
+  text: document.querySelector('.promo__hint.is-err')?.textContent || '',
+  onEmail: document.getElementById('coEmail')?.classList.contains('is-invalid')
+}))()`);
+ok('без пошти замовлення не проходить', noMail.onEmail === true, noMail.text);
+
 /* --- 9. Нова Пошта: пошук міста --- */
 await evalJs(`(() => {
   const el = document.getElementById('coCity');

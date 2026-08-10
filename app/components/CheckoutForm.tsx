@@ -469,6 +469,7 @@ export default function CheckoutForm() {
             ref={emailRef}
             className={bad?.field === 'email' ? 'is-invalid' : undefined}
             type="email"
+            required
             autoComplete="email"
             placeholder="you@example.com"
             value={email}
