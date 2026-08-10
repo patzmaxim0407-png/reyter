@@ -15,6 +15,7 @@
    ============================================================ */
 
 import type { Catalog, Category, Product, Stock } from './types';
+import { cache } from 'react';
 
 const PROJECT = process.env.NEXT_PUBLIC_FB_PROJECT ?? 'reyter-18d2c';
 const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
@@ -74,7 +75,7 @@ async function listDocs(collection: string, revalidate: number) {
    чернетці, поки їх не опублікують. Запланована публікація живе
    в published/next і вмикається сама, щойно настає її час. */
 
-export async function loadCatalog(revalidate = CATALOG_TTL): Promise<Catalog> {
+export const loadCatalog = cache(async function loadCatalog(revalidate = CATALOG_TTL): Promise<Catalog> {
   const [next, current] = await Promise.all([
     getDoc('published/next', revalidate),
     getDoc('published/catalog', revalidate)
@@ -94,7 +95,7 @@ export async function loadCatalog(revalidate = CATALOG_TTL): Promise<Catalog> {
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     nextAt: !due && publishAt > 0 ? publishAt : null
   };
-}
+});
 
 /** Публічний попередній перегляд чернетки (?preview=draft), як у
  *  старому сайті. Firestore rules дозволяють читання каталогу,
@@ -115,7 +116,7 @@ export async function loadDraftCatalog(): Promise<Catalog> {
    Живуть окремо від каталогу й змінюються значно частіше:
    кожне підтверджене замовлення зменшує їх. Тому й TTL коротший. */
 
-export async function loadStock(revalidate = 30): Promise<Stock> {
+export const loadStock = cache(async function loadStock(revalidate = 30): Promise<Stock> {
   const docs = await listDocs('inventory', revalidate);
   const out: Stock = {};
   for (const d of docs) {
@@ -125,7 +126,7 @@ export async function loadStock(revalidate = 30): Promise<Stock> {
     };
   }
   return out;
-}
+});
 
 /** Очікувані дати приходу: адмінка публікує лише «коли зʼявиться»,
  *  без кількостей — це вже комерційна інформація. */
