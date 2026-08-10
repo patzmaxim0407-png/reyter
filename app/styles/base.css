@@ -25,7 +25,7 @@
 
   /* Шрифти */
   --font-body:    var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-display: var(--font-unbounded), 'Unbounded', var(--font-inter), 'Inter', sans-serif;
+  --font-display: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
   /* Геометрія */
   --radius-lg: 22px;

@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
-import { Inter, Unbounded } from 'next/font/google';
+import { Inter } from 'next/font/google';
 import '../styles/base.css';
 import '../styles/layout.css';
 import '../styles/components.css';
@@ -9,7 +9,6 @@ import '../styles/app.css';
 import Toasts from '@/components/Toasts';
 
 const inter = Inter({ subsets: ['latin', 'cyrillic'], variable: '--font-inter', display: 'swap' });
-const unbounded = Unbounded({ subsets: ['latin', 'cyrillic'], weight: ['500', '600', '700'], variable: '--font-unbounded', display: 'swap' });
 
 /* Спільна оболонка на все: <html>, стилі й черга повідомлень.
    Шапку, підвал і кошик додає оболонка магазину — адмінці вони
@@ -57,7 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: "document.documentElement.lang=location.pathname.startsWith('/new/en')?'en':'uk'" }} />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
       </head>
-      <body className={`${inter.variable} ${unbounded.variable}`}>
+      <body className={inter.variable}>
         <Toasts>{children}</Toasts>
         <Script src="https://www.googletagmanager.com/gtag/js?id=G-BWRC6C9CV8" strategy="afterInteractive" />
         <Script id="reyter-ga" strategy="afterInteractive">{`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-BWRC6C9CV8');`}</Script>
