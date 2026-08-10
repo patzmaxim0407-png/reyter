@@ -95,6 +95,7 @@ await go(BASE + '/');
 await ev(`window.scrollTo(0, 1800)`);
 await wait(700);
 
+await ev(`window.__firstImg = document.querySelector('.pgrid .pcard__media img')`);
 const beforeY = await ev(`Math.round(window.scrollY)`);
 const beforeTop = await anchorTop();
 ok('каталог прокручено', beforeY > 800, 'y=' + beforeY);
@@ -112,6 +113,11 @@ await ev(
 await wait(1500);
 
 ok('картка відкрилась', await ev(`!!document.querySelector('.pmodal.is-open')`));
+
+/* Каталог має лишитись тим самим — не перемальованим. Перевіряємо
+   по самому вузлу <img>: якщо сторінка перемалювалась, картинки
+   створюються заново й на очах блимають. */
+ok('каталог не перемалювався', await ev(`window.__firstImg === document.querySelector('.pgrid .pcard__media img')`));
 ok('адреса стала адресою товару', (await ev(`location.pathname`)).includes('/p/'),
    await ev(`location.pathname`));
 ok('сторінку не перезавантажило',
@@ -188,6 +194,8 @@ await ev(`document.querySelector('.pmodal__close').click()`);
 await wait(1600);
 
 ok('картка закрилась', await ev(`!document.querySelector('.pmodal')`));
+ok('після закриття каталог теж не перемалювався',
+   await ev(`window.__firstImg === document.querySelector('.pgrid .pcard__media img')`));
 const home = new URL(BASE).pathname.replace(/\/$/, '') || '/';
 ok('повернулись у каталог', (await ev(`location.pathname`)).replace(/\/$/, '') === home,
    await ev(`location.pathname`));

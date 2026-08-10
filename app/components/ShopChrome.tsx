@@ -23,16 +23,19 @@ export default function ShopChrome() {
     noteNavigation();
   }, [pathname]);
 
-  /* Картку підвантажуємо ще до кліку — щойно покупець торкнувся
-     її пальцем або навів мишу. Між дотиком і кліком минає майже
-     десята секунди, а між наведенням і кліком — набагато більше:
-     цього досить, щоб картка відкрилась миттєво.
+  /* Картку підвантажуємо заздалегідь — але лише там, де є мишею
+     що наводити. На дотику так робити не можна: iOS витрачає
+     перший тап на «наведення», якщо в цю мить щось відбувається,
+     і картка відкривалася аж із другого разу.
 
-     Саме за наміром, а не наперед: у каталозі три десятки товарів,
-     і тягнути їх усі одразу означало б кілька мегабайтів
-     мобільного трафіку заради одного дотику. Кожну адресу
-     гріємо один раз. */
+     Втрата невелика: сторінки й так віддаються з кешу за десяту
+     секунди. А от перший тап, який нічого не робить, помічає
+     кожен.
+
+     Кожну адресу гріємо один раз. */
   useEffect(() => {
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
     const warmed = new Set<string>();
     const warm = (event: Event) => {
       const target = event.target as HTMLElement | null;
@@ -45,11 +48,7 @@ export default function ShopChrome() {
     };
 
     document.addEventListener('pointerover', warm, { passive: true });
-    document.addEventListener('touchstart', warm, { passive: true });
-    return () => {
-      document.removeEventListener('pointerover', warm);
-      document.removeEventListener('touchstart', warm);
-    };
+    return () => document.removeEventListener('pointerover', warm);
   }, [router]);
 
   /* Картка товару відкривається накладкою поверх каталогу, тож
