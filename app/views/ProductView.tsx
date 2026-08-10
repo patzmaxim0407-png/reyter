@@ -69,7 +69,7 @@ export async function productMetadata(id: string, lang: Lang): Promise<Metadata>
   };
 }
 
-export default async function ProductView({ id, lang }: { id: string; lang: Lang }) {
+export default async function ProductView({ id, lang, modal = false }: { id: string; lang: Lang; modal?: boolean }) {
   const { c, p, categories } = await load(id);
 
   // Схований товар не показуємо навіть за прямим посиланням:
@@ -105,13 +105,13 @@ export default async function ProductView({ id, lang }: { id: string; lang: Lang
   };
 
   return (
-    <article className="container product-page">
+    <article className={modal ? 'product-modal-content' : 'container product-page'}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <nav className="crumbs" aria-label={t('nav.catalog', lang)}>
+      {!modal ? <nav className="crumbs" aria-label={t('nav.catalog', lang)}>
         <Link href={base || '/'}>{t('nav.catalog', lang)}</Link>
         {catTitle ? (
           <>
@@ -119,14 +119,14 @@ export default async function ProductView({ id, lang }: { id: string; lang: Lang
             <Link href={`${base}/#cat-${p.category}`}>{catTitle}</Link>
           </>
         ) : null}
-      </nav>
+      </nav> : null}
 
       <div className="pmodal__scroll">
         <ProductGallery images={p.images} alt={name} lang={lang} />
 
         <div className="pmodal__info">
           <p className="pinfo__category">{catTitle}</p>
-          <h1 className="pinfo__name">{name}</h1>
+          <h1 className="pinfo__name" id="pmName">{name}</h1>
 
           <div className="pinfo__meta">
             <span className={'status-chip status-chip--' + (av.soldOut ? 'no' : 'ok')}>

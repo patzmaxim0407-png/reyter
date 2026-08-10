@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import ProductView, { productMetadata, productParams } from '@/views/ProductView';
+import ProductModal from '@/components/ProductModal';
+import HomeView from '@/views/HomeView';
 
 /* Значення має бути літералом: Next читає його статично,
    до виконання коду, тож імпортовану константу не бачить. */
@@ -21,5 +23,5 @@ export async function generateMetadata({
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <ProductView id={id} lang="uk" />;
+  return <><HomeView lang="uk" /><ProductModal lang="uk" navigation="home"><ProductView id={id} lang="uk" modal /></ProductModal></>;
 }

@@ -9,7 +9,7 @@ import { cartCatalogue } from '@/lib/catalog';
 
 /* Оболонка магазину: усе, що бачить покупець. */
 
-export default async function ShopLayout({ children }: { children: React.ReactNode }) {
+export default async function ShopLayout({ children, productModal }: { children: React.ReactNode; productModal: React.ReactNode }) {
   /* Кошик має знати ціни й склад комплектів на кожній сторінці,
      тож каталог їде в браузер разом із розміткою. Обрізаний:
      описи, догляд і решта картинок кошику ні до чого, а важить
@@ -24,6 +24,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
           <SiteHeader />
           <main id="main-content">{children}</main>
           <SiteFooter />
+          {productModal}
           <CartDrawer />
         </CartProvider>
     </LangProvider>
