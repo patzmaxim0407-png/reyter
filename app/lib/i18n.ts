@@ -73,6 +73,7 @@ const uk = {
   'fclub.li3': 'відмічають нас у своїх публікаціях або сторіс;',
   'fclub.li4': 'залишаються на звʼязку з нами та підтримують наше комʼюніті.',
   'fclub.note': '*Ми дивимося не лише на покупки, а й на справжній інтерес до бренду 🫂',
+  'fclub.play': 'Відтворити відео',
 
   'catalog.title': 'Наші позиції',
   'catalog.sub': 'Кожна модель — про комфорт і характер. Обирайте свою.',
@@ -419,6 +420,7 @@ const en: Record<UIKey, string> = {
   'fclub.li3': 'tag us in their posts or stories;',
   'fclub.li4': 'stay in touch with us and support our community.',
   'fclub.note': '*We look not only at purchases, but at genuine interest in the brand 🫂',
+  'fclub.play': 'Play video',
 
   'catalog.title': 'Our collection',
   'catalog.sub': 'Every piece is about comfort and character. Choose yours.',

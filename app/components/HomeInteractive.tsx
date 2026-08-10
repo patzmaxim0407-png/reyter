@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Lightbox from './Lightbox';
 import { t } from '@/lib/i18n';
 import type { Lang } from '@/lib/types';
@@ -17,15 +17,180 @@ export function ReadMore({ lang }: { lang: Lang }) {
 
 export function FriendlyClub({ lang }: { lang: Lang }) {
   const strip = useRef<HTMLDivElement>(null);
+  const video = useRef<HTMLVideoElement>(null);
   const close = useRef<HTMLButtonElement>(null);
   const [slide, setSlide] = useState(0);
   const [dialog, setDialog] = useState(false);
+  const [playVisible, setPlayVisible] = useState(false);
 
-  const go = (next: number) => {
-    const normalized = (next + 2) % 2;
-    setSlide(normalized);
+  const go = useCallback((next: number) => {
+    const normalized = ((next % 2) + 2) % 2;
     strip.current?.scrollTo({ left: normalized * strip.current.clientWidth, behavior: 'smooth' });
-  };
+  }, []);
+
+  const playVideo = useCallback(() => {
+    const node = video.current;
+    if (!node) return;
+    if (!node.src) {
+      node.src = window.matchMedia('(max-width: 640px)').matches
+        ? node.dataset.srcSm ?? ''
+        : node.dataset.src ?? '';
+    }
+    node.play().then(() => setPlayVisible(false)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const root = strip.current;
+    const node = video.current;
+    if (!root || !node) return;
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let settle: ReturnType<typeof setTimeout> | null = null;
+    let frame = 0;
+    let held = false;
+    let onScreen = true;
+    let videoOk = true;
+    let loaded = false;
+
+    if (reduced) setPlayVisible(true);
+
+    const current = () => Math.round(root.scrollLeft / Math.max(1, root.clientWidth));
+    const stopTimer = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    };
+    const load = () => {
+      if (loaded) return;
+      loaded = true;
+      node.src = window.matchMedia('(max-width: 640px)').matches
+        ? node.dataset.srcSm ?? ''
+        : node.dataset.src ?? '';
+    };
+    const goTo = (next: number) => {
+      const normalized = ((next % 2) + 2) % 2;
+      root.scrollTo({ left: normalized * root.clientWidth, behavior: 'smooth' });
+    };
+    const plan = () => {
+      stopTimer();
+      if (reduced || held || !onScreen) return;
+      if (current() === 1 && videoOk && !node.ended) {
+        timer = setTimeout(() => goTo(current() + 1), 20_000);
+      } else {
+        timer = setTimeout(() => goTo(current() + 1), current() === 1 && node.ended ? 700 : 5_000);
+      }
+    };
+    const start = () => {
+      if (reduced) return;
+      load();
+      node.currentTime = 0;
+      node.play()
+        .then(() => setPlayVisible(false))
+        .catch(() => {
+          setPlayVisible(true);
+          videoOk = false;
+          plan();
+        });
+    };
+    const onEnded = () => {
+      if (!reduced && !held && onScreen) goTo(current() + 1);
+    };
+    const onPlay = () => {
+      videoOk = true;
+      plan();
+    };
+    const hold = () => {
+      held = true;
+      stopTimer();
+    };
+    const release = () => {
+      held = false;
+      plan();
+    };
+    const onScroll = () => {
+      if (!frame) {
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          setSlide(current());
+        });
+      }
+      if (settle) clearTimeout(settle);
+      settle = setTimeout(plan, 160);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        goTo(current() + 1);
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        goTo(current() - 1);
+      }
+    };
+
+    node.addEventListener('ended', onEnded);
+    node.addEventListener('play', onPlay);
+    root.addEventListener('pointerenter', hold);
+    root.addEventListener('pointerleave', release);
+    root.addEventListener('touchstart', hold, { passive: true });
+    root.addEventListener('touchend', release, { passive: true });
+    root.addEventListener('focusin', hold);
+    root.addEventListener('focusout', release);
+    root.addEventListener('scroll', onScroll, { passive: true });
+    root.addEventListener('keydown', onKey);
+
+    let horizontal: IntersectionObserver | null = null;
+    let vertical: IntersectionObserver | null = null;
+    if ('IntersectionObserver' in window) {
+      horizontal = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.intersectionRatio > 0.6) {
+            if (onScreen) start();
+          } else if (!node.paused) {
+            node.pause();
+          }
+        });
+      }, { root, threshold: [0, 0.6] });
+      horizontal.observe(node);
+
+      vertical = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          onScreen = entry.isIntersecting;
+          if (!onScreen) {
+            stopTimer();
+            if (!node.paused) node.pause();
+          } else {
+            plan();
+            if (loaded && root.scrollLeft > root.clientWidth * 0.6) start();
+          }
+        });
+      }, { threshold: 0 });
+      vertical.observe(root);
+    } else {
+      load();
+    }
+
+    setSlide(current());
+    plan();
+    return () => {
+      stopTimer();
+      if (settle) clearTimeout(settle);
+      if (frame) cancelAnimationFrame(frame);
+      horizontal?.disconnect();
+      vertical?.disconnect();
+      node.pause();
+      node.removeEventListener('ended', onEnded);
+      node.removeEventListener('play', onPlay);
+      root.removeEventListener('pointerenter', hold);
+      root.removeEventListener('pointerleave', release);
+      root.removeEventListener('touchstart', hold);
+      root.removeEventListener('touchend', release);
+      root.removeEventListener('focusin', hold);
+      root.removeEventListener('focusout', release);
+      root.removeEventListener('scroll', onScroll);
+      root.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
   useEffect(() => {
     if (!dialog) return;
     const old = document.body.style.overflow;
@@ -40,12 +205,25 @@ export function FriendlyClub({ lang }: { lang: Lang }) {
   return <>
     <section className="fclub-section">
       <div className="container"><article className="fclub reveal">
-        <div ref={strip} className="fclub__strip" tabIndex={0} role="group" aria-roledescription="carousel" aria-label="Friendly Club" onScroll={(e) => setSlide(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))}>
+        <div ref={strip} className="fclub__strip" tabIndex={0} role="group" aria-roledescription="carousel" aria-label="Friendly Club">
           <div className="fclub__slide">
             <img className="fclub__media" src="/new/assets/images/Serpen2026/IMG_2325.webp" alt="Friendly Club — Reyter" loading="lazy" />
             <div className="fclub__overlay"><h2 className="fclub__title">{t('fclub.title', lang)}</h2><p className="fclub__lead">{t('fclub.lead', lang)}</p><button className="btn btn--light" type="button" aria-haspopup="dialog" onClick={() => setDialog(true)}>{t('fclub.btn', lang)}</button></div>
           </div>
-          <div className="fclub__slide"><video className="fclub__media" controls muted playsInline preload="metadata" poster="/new/assets/images/fclub-poster.webp"><source src="/new/assets/videos/fclub-mobile.mp4" media="(max-width: 700px)" /><source src="/new/assets/videos/fclub-desktop.mp4" /></video></div>
+          <div className="fclub__slide">
+            <video
+              ref={video}
+              className="fclub__media"
+              muted
+              playsInline
+              preload="none"
+              poster="/new/assets/images/fclub-poster.webp"
+              data-src="/new/assets/videos/fclub-desktop.mp4"
+              data-src-sm="/new/assets/videos/fclub-mobile.mp4"
+              aria-label="REYTER Summer"
+            />
+            <button className="fclub__play" type="button" aria-label={t('fclub.play', lang)} hidden={!playVisible} onClick={playVideo} />
+          </div>
         </div>
         <button className="fclub__nav fclub__nav--prev" type="button" aria-label={t('p.prev', lang)} onClick={() => go(slide - 1)} />
         <button className="fclub__nav fclub__nav--next" type="button" aria-label={t('p.next', lang)} onClick={() => go(slide + 1)} />
