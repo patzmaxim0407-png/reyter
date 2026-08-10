@@ -112,6 +112,7 @@ const uk = {
   'footer.policy': 'Політика конфіденційності',
   'footer.copy': '© 2026 REYTER. Зроблено з ❤️ в Україні.',
   'footer.fop': 'Працюємо офіційно — ФОП Пац М.',
+  'footer.address': 'Київ, вул. Магнітогорська, 1а',
 
   'badge.sold': 'Продано',
   'badge.sale': 'Sale',
@@ -468,6 +469,7 @@ const en: Record<UIKey, string> = {
   'footer.policy': 'Privacy policy',
   'footer.copy': '© 2026 REYTER. Made with ❤️ in Ukraine.',
   'footer.fop': 'Officially registered — FOP Pats M.',
+  'footer.address': 'Kyiv, 1a Mahnitohorska St.',
 
   'badge.sold': 'Sold out',
   'badge.sale': 'Sale',

@@ -15,6 +15,10 @@ export default function SiteFooter() {
           <div className="site-footer__col">
             <img className="site-footer__logo" src="/new/assets/images/Logo1.png" alt="REYTER" loading="lazy" />
             <p>{t('footer.about')}</p>
+            {/* Марка бренду, а не переклад: «Based in Ukraine»
+                лишається англійською в обох мовах */}
+            <p className="site-footer__based">Based in Ukraine</p>
+            <address className="site-footer__addr">{t('footer.address')}</address>
           </div>
           <nav className="site-footer__col" aria-label="REYTER">
             <Link href={`${base}/#about`}>{t('nav.about')}</Link>
