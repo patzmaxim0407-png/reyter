@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import type { Catalogue } from '@/lib/catalog';
 import { availability, productColors, uah } from '@/lib/catalog';
 import { t, tf, tx } from '@/lib/i18n';
@@ -34,10 +33,9 @@ export default function ProductCard({
     .join(' ');
 
   return (
-    <Link
+    <a
       className={cls}
-      href={(lang === 'en' ? '/en' : '') + `/p/${encodeURIComponent(p.id)}`}
-      prefetch={false}
+      href={'/new' + (lang === 'en' ? '/en' : '') + `/p/${encodeURIComponent(p.id)}`}
     >
       <span className="pcard__media">
         <img
@@ -90,6 +88,6 @@ export default function ProductCard({
           <span className="pcard__salenote">{tf(p, 'saleNote', lang)}</span>
         ) : null}
       </span>
-    </Link>
+    </a>
   );
 }
