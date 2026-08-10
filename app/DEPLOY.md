@@ -304,6 +304,15 @@ Authentication → Settings → Authorized domains.
 `ALLOW_ORIGIN` у воркері сповіщень (крок 9), і після зміни
 обовʼязково **Deploy**.
 
+**Перевірити локально окремий домен.** `wrangler dev` підставляє
+хост із маршрутів у `wrangler.jsonc`, тож заголовком `Host` його
+не підмінити. Потрібен явний прапорець:
+
+```bash
+npx wrangler dev --local --host reyter.men        # магазин
+npx wrangler dev --local --host admin.reyter.men  # адмінка
+```
+
 **Сторінка віддає 500** — подивитись живі логи:
 
 ```bash

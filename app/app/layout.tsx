@@ -57,12 +57,16 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="uk" suppressHydrationWarning>
+    /* Змінні шрифтів мусять бути на <html>, а не на <body>:
+       --font-body оголошено в :root, і підстановка var(--font-inter)
+       рахується саме там. З <body> вона порожня, шрифт злітає
+       на Times, і весь макет виглядає чужим. */
+    <html lang="uk" className={`${inter.variable} ${unbounded.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: "document.documentElement.lang=location.pathname.startsWith('/new/en')?'en':'uk'" }} />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
       </head>
-      <body className={`${inter.variable} ${unbounded.variable}`}>
+      <body>
         <Toasts>{children}</Toasts>
         <Script src="https://www.googletagmanager.com/gtag/js?id=G-BWRC6C9CV8" strategy="afterInteractive" />
         <Script id="reyter-ga" strategy="afterInteractive">{`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-BWRC6C9CV8');`}</Script>
