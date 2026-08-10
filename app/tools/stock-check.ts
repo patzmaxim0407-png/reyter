@@ -13,6 +13,8 @@
    node --experimental-strip-types --import ./tools/ts-resolve-register.mjs tools/stock-check.ts
    ============================================================ */
 
+import { readFileSync } from 'node:fs';
+import { etaDateText, shortDate, stamp, toDate } from '../lib/dates.ts';
 import {
   CONSUMING,
   MOVES_PER_PAGE,
@@ -25,6 +27,8 @@ import {
   movesPage,
   planReceive,
   planWriteoff,
+  lastReceived,
+  pendingRestocks,
   restockOverdue,
   restockTotal,
   setStockRow,
@@ -272,6 +276,53 @@ ok('пошук за посиланням', filteredMoves(moves, 'all', 'R-7').le
 
 const evening = new Date(2026, 7, 10, 23, 30);
 ok('вечірня дата не тікає на завтра', todayISO(evening) === '2026-08-10', todayISO(evening));
+
+/* ---------- Прихід: що показує список ---------- */
+
+const feed: Restock[] = [
+  { _id: 'a', productId: 'X', expected: '2026-08-01', status: 'received' },
+  { _id: 'b', productId: 'X', expected: '2026-08-05', status: 'pending' },
+  { _id: 'c', productId: 'X', expected: '2026-08-09', status: 'received' },
+  { _id: 'd', productId: 'X', expected: '2026-08-20', status: 'pending' }
+];
+
+ok('у черзі лишаються тільки неоприбутковані',
+   pendingRestocks(feed).map((r) => r._id).join('') === 'bd',
+   pendingRestocks(feed).map((r) => r._id).join(''));
+
+ok('«останні оприбутковані» — справді останні, а не найдавніші',
+   lastReceived(feed).map((r) => r._id).join('') === 'ca',
+   lastReceived(feed).map((r) => r._id).join(''));
+
+ok('довгий список обрізається згори', lastReceived(feed, 1).map((r) => r._id).join('') === 'c');
+
+/* ---------- Дати для людини ---------- */
+
+const NOW = new Date('2026-08-10T12:00:00');
+ok('дата поточного року — без року', shortDate(toDate('2026-08-20'), NOW) === '20 серпня',
+   shortDate(toDate('2026-08-20'), NOW));
+ok('дата іншого року — з роком', /2027/.test(shortDate(toDate('2027-01-05'), NOW)),
+   shortDate(toDate('2027-01-05'), NOW));
+ok('порожня дата не дає «Invalid Date»', shortDate(toDate(''), NOW) === '');
+ok('зіпсована дата не дає «Invalid Date»', shortDate(toDate('не дата'), NOW) === '');
+ok('вечірня дата не тікає на добу назад', shortDate(toDate('2026-08-20'), NOW).startsWith('20'));
+ok('мітка з часом', /^20 серпня, \d\d:\d\d$/.test(stamp(new Date('2026-08-20T14:30:00'), NOW)),
+   stamp(new Date('2026-08-20T14:30:00'), NOW));
+ok('вітрина показує дату словами', etaDateText('2026-08-15', 'uk', NOW) === '15 серпня',
+   etaDateText('2026-08-15', 'uk', NOW));
+ok('нерозбірливу дату вітрина показує як є', etaDateText('скоро', 'uk', NOW) === 'скоро');
+
+/* ---------- Лист «знову в наявності» ----------
+   Тип запиту — єдине, за чим воркер розрізняє листи. Помилка тут
+   не видно ніде: адмінка каже «оприбутковано», а лист не йде. */
+
+const client = readFileSync(new URL('../lib/notify.ts', import.meta.url), 'utf8');
+const worker = readFileSync(new URL('../../new/worker/worker.js', import.meta.url), 'utf8');
+const asked = [...client.matchAll(/type: '([a-z-]+)'/g)].map((m) => m[1]);
+ok('клієнт шле хоч якісь типи листів', asked.length > 0, asked.join(', '));
+for (const type of [...new Set(asked)]) {
+  ok(`воркер знає тип «${type}»`, worker.includes(`'${type}'`), asked.join(', '));
+}
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
 process.exit(failed ? 1 : 0);

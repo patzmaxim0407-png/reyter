@@ -7,6 +7,7 @@ import StockRow from './StockRow';
 import MoveRow from './MoveRow';
 import RestockForm, { type RestockSubmit, type SizeCell } from './RestockForm';
 import RestockEdit from './RestockEdit';
+import RestockInfo from './RestockInfo';
 import { useAdminUser } from './AdminGate';
 import { useAsk } from './AskProvider';
 import { useToast } from '../Toasts';
@@ -32,6 +33,8 @@ import {
   notifyStockAlerts,
   receiveRestock,
   restockOverdue,
+  lastReceived,
+  pendingRestocks,
   restockTotal,
   saveRestockEdit,
   setStockRow,
@@ -82,9 +85,13 @@ export default function StockAdmin() {
     []
   );
 
+  /* Невдале читання лишає на екрані те, що вже було: порожній
+     список приходів виглядав би як «усе оприбутковано». */
   const reload = useCallback(async () => {
-    setRestocks((await loadRestocks()) as unknown as Restock[]);
-    setMoves((await loadMoves()) as unknown as Move[]);
+    const [r, m] = await Promise.all([loadRestocks(), loadMoves()]);
+    if (r) setRestocks(r as unknown as Restock[]);
+    if (m) setMoves(m as unknown as Move[]);
+    if (!r || !m) setError('Не вдалося прочитати склад — показано попередні дані');
   }, []);
   useEffect(() => void reload(), [reload]);
 
@@ -98,6 +105,11 @@ export default function StockAdmin() {
     }
     return { db: d, by: user.email ?? '' };
   }
+
+  const catTitle = useCallback(
+    (id: string) => draft.categories.find((c) => c.id === id)?.title ?? id,
+    [draft.categories]
+  );
 
   /* ---------- Список складу ---------- */
 
@@ -152,9 +164,12 @@ export default function StockAdmin() {
     [s]
   );
 
-  async function onRestockSubmit(v: RestockSubmit) {
+  /* Повертаємо true лише коли запис справді відбувся: форма
+     чистить поля саме за цією відповіддю, а між натисканням і
+     записом стоять питання «списати більше, ніж є?». */
+  async function onRestockSubmit(v: RestockSubmit): Promise<boolean> {
     const w = writer();
-    if (!w) return;
+    if (!w) return false;
     setBusy(true);
     try {
       if (v.mode === 'in') {
@@ -165,7 +180,10 @@ export default function StockAdmin() {
           { productId: v.productId, expected: v.expected, note: v.note, sizes: v.qty, qty: v.qty[''] },
           new Date()
         );
-        if (!res.ok) return toast(res.message);
+        if (!res.ok) {
+          toast(res.message);
+          return false;
+        }
         toast('Прихід додано ✓', 'success');
       } else {
         const plan = planWriteoff(s, {
@@ -175,7 +193,10 @@ export default function StockAdmin() {
           sizes: v.qty,
           qty: v.qty['']
         });
-        if (!plan.ok) return toast(plan.message);
+        if (!plan.ok) {
+          toast(plan.message);
+          return false;
+        }
 
         /* Списати більше, ніж є, зазвичай означає помилку в цифрі —
            але не завжди: товар могли продати повз систему */
@@ -186,7 +207,7 @@ export default function StockAdmin() {
             okText: 'Усе одно списати',
             danger: true
           });
-          if (go !== true) return;
+          if (go !== true) return false;
         }
         const yes = await ask({
           title: 'Списання',
@@ -194,13 +215,17 @@ export default function StockAdmin() {
           okText: 'Списати',
           danger: true
         });
-        if (yes !== true) return;
+        if (yes !== true) return false;
 
         const res = await createWriteoff(w, plan);
-        if (!res.ok) return toast(res.message);
+        if (!res.ok) {
+          toast(res.message);
+          return false;
+        }
         toast('Списано ✓', 'success');
       }
       await reload();
+      return true;
     } finally {
       setBusy(false);
     }
@@ -318,7 +343,13 @@ export default function StockAdmin() {
                   key={id}
                   type="button"
                   className={'ao-chip' + (tab === id ? ' is-active' : '')}
-                  onClick={() => setTab(id)}
+                  /* Перечитуємо на кожен вхід у розділ: залишки
+                     ведуть удвох, і прихід міг зʼявитися чи бути
+                     оприбуткованим з іншого пристрою. */
+                  onClick={() => {
+                    setTab(id);
+                    if (id !== 'stock') void reload();
+                  }}
                 >
                   {title}
                 </button>
@@ -421,15 +452,15 @@ export default function StockAdmin() {
                 reasons={WRITEOFF_REASONS}
                 today={todayISO(new Date())}
                 sizesOf={sizesOf}
+                categoryTitle={catTitle}
+                totalOf={(p) => (hasInvDoc(s, p.id) ? totalQty(s, p) : null)}
                 busy={busy}
-                onSubmit={(v) => void onRestockSubmit(v)}
+                onSubmit={onRestockSubmit}
               />
 
-              <h5 className="ao-cat-title">Очікуються</h5>
-              {restocks.filter((r) => r.status !== 'received').length ? (
-                restocks
-                  .filter((r) => r.status !== 'received')
-                  .map((r) =>
+              <h5>Очікуються</h5>
+              {pendingRestocks(restocks).length ? (
+                pendingRestocks(restocks).map((r) =>
                     editing === r._id ? (
                       <RestockEdit
                         key={r._id}
@@ -457,16 +488,7 @@ export default function StockAdmin() {
                       className={'ao-restock' + (restockOverdue(r, new Date()) ? ' is-overdue' : '')}
                       key={r._id}
                     >
-                      <div className="ao-restock__info">
-                        <b>{r.productName || r.productId}</b>
-                        <span>
-                          {restockTotal(r)} шт
-                          {r.expected
-                            ? (restockOverdue(r, new Date()) ? ' · ⚠ очікувався ' : ' · до ') + r.expected
-                            : ''}
-                          {r.note ? ' · ' + r.note : ''}
-                        </span>
-                      </div>
+                      <RestockInfo r={r} />
                       <div className="ao-restock__actions">
                         <button
                           className="btn btn--primary btn--sm"
@@ -482,7 +504,7 @@ export default function StockAdmin() {
                           disabled={busy}
                           onClick={() => setEditing(r._id)}
                         >
-                          Редагувати
+                          Змінити
                         </button>
                         <button
                           className="btn btn--ghost btn--sm ao-danger"
@@ -502,8 +524,10 @@ export default function StockAdmin() {
                             if (!res.ok) toast(res.message);
                             await reload();
                           }}
+                          title="Видалити прихід"
+                          aria-label="Видалити прихід"
                         >
-                          Видалити
+                          ✕
                         </button>
                       </div>
                     </div>
@@ -515,26 +539,14 @@ export default function StockAdmin() {
 
               {/* Оприбутковані лишаються на очах: інакше не
                   перевірити, коли й хто прийняв товар */}
-              {restocks.some((r) => r.status === 'received') ? (
+              {lastReceived(restocks).length ? (
                 <>
-                  <h5 className="ao-cat-title">Останні оприбутковані</h5>
-                  {restocks
-                    .filter((r) => r.status === 'received')
-                    .slice(0, 10)
-                    .map((r) => (
-                      <div className="ao-restock is-done" key={r._id}>
-                        <div className="ao-restock__info">
-                          <b>{r.productName || r.productId}</b>
-                          <span>
-                            {restockTotal(r)} шт
-                            {r.receivedAt?.toDate
-                              ? ' · ' + r.receivedAt.toDate().toLocaleDateString('uk-UA')
-                              : ''}
-                            {r.receivedBy ? ' · ' + r.receivedBy.split('@')[0] : ''}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                  <h5>Останні оприбутковані</h5>
+                  {lastReceived(restocks).map((r) => (
+                    <div className="ao-restock is-received" key={r._id}>
+                      <RestockInfo r={r} />
+                    </div>
+                  ))}
                 </>
               ) : null}
             </>

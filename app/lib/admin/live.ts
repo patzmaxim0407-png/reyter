@@ -131,15 +131,22 @@ export function watchPromos(
   return watch(query(collection(d, PROMOS_COL)), onData, onError);
 }
 
-async function readOnce(path: string, field: string, dir: 'asc' | 'desc', max: number): Promise<Doc[]> {
+/* null — прочитати не вдалося. Саме null, а не порожній список:
+   «приходів немає» і «база не відповіла» — різні речі, і друге не
+   має стирати з екрана те, що вже прочитано. */
+async function readOnce(
+  path: string,
+  field: string,
+  dir: 'asc' | 'desc',
+  max: number
+): Promise<Doc[] | null> {
   const d = db();
   if (!d) return [];
   try {
     const snap = await getDocs(query(collection(d, path), orderBy(field, dir), fsLimit(max)));
     return snap.docs.map((x) => ({ _id: x.id, ...(x.data() as object) }) as Doc);
   } catch {
-    // порожній список: без приходів і руху адмінка працює далі
-    return [];
+    return null;
   }
 }
 

@@ -12,7 +12,7 @@
    node --experimental-strip-types --import ./tools/ts-resolve-register.mjs tools/admin-check.ts
    ============================================================ */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import {
   adminColors,
   lines,
@@ -266,6 +266,75 @@ for (const name of shells) {
   ok(`${name} не лежить у розкладці каталогу`, !src.includes('className="admin-wrap'));
   ok(`${name} малює сторінку класами старої панелі`, src.includes('className="a-page"'));
 }
+
+/* ---------- Класи без стилів ----------
+   Найтихіша поломка адмінки: компонент вигадує власну назву
+   класу, стилі про неї не знають, і блок показується голим. Так
+   свого часу лишились без оформлення рядки ручного замовлення,
+   форма правки приходу й вибір товарів у промокоді.
+
+   Перевіряємо всі класи, які згадують компоненти адмінки, проти
+   всіх наших стилів. Службові is-* пропускаємо: це стани, вони
+   завжди пишуться в парі з базовим класом. */
+
+const STYLES = ['admin.css', 'components.css', 'base.css', 'layout.css', 'modal.css', 'app.css']
+  .map((f) => readFileSync(new URL('../styles/' + f, import.meta.url), 'utf8'))
+  .join('\n');
+const described = new Set([...STYLES.matchAll(/\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]));
+
+/* Клас є в старій розмітці, але власного правила не має —
+   він там був так само. */
+const KNOWN_BARE = new Set(['a-pub__when', 'acombo', 'ao-stockrow--set']);
+
+const adminFiles = readdirSync(new URL('../components/admin/', import.meta.url))
+  .filter((f) => f.endsWith('.tsx'));
+
+for (const file of adminFiles) {
+  const src = readFileSync(new URL('../components/admin/' + file, import.meta.url), 'utf8');
+  const names = new Set<string>();
+
+  for (const m of src.matchAll(/className="([^"]*)"/g)) {
+    m[1].split(/\s+/).forEach((c) => c && names.add(c));
+  }
+  for (const m of src.matchAll(/className=\{([^}]*)\}/g)) {
+    /* Прибираємо те, що класами не є: аргументи викликів
+       (invalid('price')) і порівняння (tab === 'notify'). */
+    const expr = m[1]
+      .replace(/[a-zA-Z_$][\w$.]*\([^()]*\)/g, '')
+      .replace(/[=!]==\s*'[^']*'/g, '');
+    for (const lit of expr.matchAll(/'([^']*)'/g)) {
+      lit[1].split(/\s+/).forEach((c) => c && names.add(c));
+    }
+  }
+
+  const orphans = [...names].filter(
+    (c) =>
+      // назви класів у проєкті складені: a-item, ao-restock__date
+      /[-_]/.test(c) &&
+      !c.endsWith('-') &&
+      !c.startsWith('is-') &&
+      !KNOWN_BARE.has(c) &&
+      !described.has(c)
+  );
+  ok(`${file}: усі класи описані в стилях`, orphans.length === 0, orphans.join(', '));
+}
+
+/* ---------- Прихід ----------
+   Розділ, який користувач просив перенести повністю. */
+
+const stock = readFileSync(new URL('../components/admin/StockAdmin.tsx', import.meta.url), 'utf8');
+const rform = readFileSync(new URL('../components/admin/RestockForm.tsx', import.meta.url), 'utf8');
+const redit = readFileSync(new URL('../components/admin/RestockEdit.tsx', import.meta.url), 'utf8');
+const rinfo = readFileSync(new URL('../components/admin/RestockInfo.tsx', import.meta.url), 'utf8');
+
+ok('оприбуткований прихід має клас is-received', stock.includes('ao-restock is-received'));
+ok('вибір товару в приході — з чіпом', rform.includes('<ProductChip'));
+ok('поле вибору тримає ширину рядка', rform.includes('a-nopick a-rstpick'));
+ok('форма правки лишається карткою списку', redit.includes('ao-restock ao-restock--edit'));
+ok('у формі правки видно, який прихід редагують', redit.includes('ao-restock__info'));
+ok('кількості показані пігулками', rinfo.includes('ao-restock__pills'));
+ok('дата приходу — окремим рядком', rinfo.includes('ao-restock__date'));
+ok('дати показані словами, а не ISO', rinfo.includes('shortDate') && rinfo.includes('stamp'));
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
 process.exit(failed ? 1 : 0);

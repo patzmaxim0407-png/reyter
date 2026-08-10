@@ -183,7 +183,11 @@ export async function sendBackInStock(
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'back-in-stock', ...mail })
+      /* Саме 'stock': воркер розрізняє листи за цим полем
+         (new/worker/worker.js), і 'back-in-stock' він не знає —
+         запит провалювався в гілку замовлення, лист не йшов, а
+         підписка так і лишалась неопрацьованою. */
+      body: JSON.stringify({ type: 'stock', ...mail })
     });
     const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
     return !!data.ok;

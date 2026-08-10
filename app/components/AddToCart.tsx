@@ -58,6 +58,13 @@ export default function AddToCart({
     })
   );
 
+  /* Складник, який тримає весь комплект розпроданим. */
+  const blocker = useMemo(() => {
+    if (!isSet(p) || !parts.length || !av.soldOut) return null;
+    const part = parts.find((x) => availability(c, x).soldOut);
+    return part ? { id: part.id, name: part.name } : null;
+  }, [p, parts, av.soldOut, c]);
+
   const [shake, setShake] = useState(false);
   const [added, setAdded] = useState(false);
   const [etaTarget, setEtaTarget] = useState<{ id: string; name: string; size: string | null } | null>(null);
@@ -219,6 +226,10 @@ export default function AddToCart({
           productName={etaTarget?.name ?? p.name}
           size={etaTarget?.size ?? null}
           lang={lang}
+          /* Комплекту нічого не «приходить»: на склад їдуть речі.
+             Тому дату беремо в того складника, через який комплект
+             і став недоступним, а чекає покупець усе одно комплект. */
+          etaOf={etaTarget ? null : blocker}
         />
       ) : null}
 

@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import Combobox from '../Combobox';
+import ProductChip from './ProductChip';
+import { fmt } from '@/lib/catalog';
 import type { Product } from '@/lib/types';
 
 /* ============================================================
@@ -10,6 +12,11 @@ import type { Product } from '@/lib/types';
    Одна форма на дві дії — вони відрізняються лише напрямком і
    тим, що прихід спершу стає в чергу очікування, а списання
    забирає товар одразу.
+
+   Товар обирають не зі списку назв, а з рядків із фото, артикулом,
+   категорією, ціною й залишком: у каталозі є «Бріфи classic» і
+   «Бріфи classic Black», і за самою назвою їх не розрізнити.
+   Обране лишається чіпом над полем — щоб не покластися на памʼять.
 
    Розмітка й класи ті самі, що в старій панелі.
    ============================================================ */
@@ -42,6 +49,8 @@ export default function RestockForm({
   reasons,
   today,
   sizesOf,
+  categoryTitle,
+  totalOf,
   onSubmit,
   busy
 }: {
@@ -51,7 +60,14 @@ export default function RestockForm({
   /** Розміри товару разом із поточними залишками. Порожній
    *  масив — товар без сітки, кількість одна. */
   sizesOf(p: Product): SizeCell[];
-  onSubmit(v: RestockSubmit): void;
+  categoryTitle(id: string): string;
+  /** Скільки всього на складі; null — обліку немає. */
+  totalOf(p: Product): number | null;
+  /** true — записалось, форму можна чистити. Форма чекає на
+   *  відповідь: між натисканням і записом стоять питання
+   *  «списати більше, ніж є?», і після «скасувати» введене має
+   *  лишитись на місці. */
+  onSubmit(v: RestockSubmit): Promise<boolean>;
   busy?: boolean;
 }) {
   const [mode, setMode] = useState<'in' | 'off'>('in');
@@ -66,19 +82,38 @@ export default function RestockForm({
   const selected = products.find((p) => p.id === pid) ?? null;
   const cells = useMemo(() => (selected ? sizesOf(selected) : []), [selected, sizesOf]);
 
-  function reset() {
+  /* Перемикання напрямку — це вже інша операція: кількості й
+     нотатка від попередньої до неї не належать. Товар лишаємо:
+     часто саме його щойно й дивились. */
+  function switchMode(next: 'in' | 'off') {
+    if (next === mode) return;
+    setMode(next);
     setQty({});
     setNote('');
+    setExpected(today);
+    setReason(reasons[0]?.id ?? 'lost');
   }
 
   return (
     <form
       className={'ao-restock-form' + (off ? ' is-writeoff' : '')}
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        if (!selected) return;
-        onSubmit({ mode, productId: selected.id, qty, expected, reason, note: note.trim() });
-        reset();
+        if (!selected || busy) return;
+        const done = await onSubmit({
+          mode,
+          productId: selected.id,
+          qty,
+          expected,
+          reason,
+          note: note.trim()
+        });
+        if (!done) return;
+        setQty({});
+        setNote('');
+        setPid('');
+        setSearch('');
+        setExpected(today);
       }}
     >
       <div className="ao-restock-form__head">
@@ -86,14 +121,14 @@ export default function RestockForm({
           <button
             type="button"
             className={'ao-chip' + (!off ? ' is-active' : '')}
-            onClick={() => setMode('in')}
+            onClick={() => switchMode('in')}
           >
             ↓ Прихід
           </button>
           <button
             type="button"
             className={'ao-chip' + (off ? ' is-active' : '')}
-            onClick={() => setMode('off')}
+            onClick={() => switchMode('off')}
           >
             ↑ Списання
           </button>
@@ -110,17 +145,53 @@ export default function RestockForm({
         <Combobox
           id="rstProduct"
           label=""
+          className="acombo a-nopick a-rstpick"
+          chip={selected ? <ProductChip p={selected} /> : null}
           value={search}
           placeholder="товар — назва або артикул"
           empty="Нічого не знайдено"
           minChars={0}
           openOnFocus
           search={async (q) => {
-            const s = q.trim().toLowerCase();
+            const needle = q.trim().toLowerCase();
             return products
-              .filter((p) => !s || (p.name + ' ' + p.id).toLowerCase().includes(s))
+              .filter(
+                (p) =>
+                  !needle ||
+                  p.name.toLowerCase().includes(needle) ||
+                  p.id.toLowerCase().includes(needle) ||
+                  categoryTitle(p.category).toLowerCase().includes(needle)
+              )
               .slice(0, 40)
-              .map((p) => ({ ref: p.id, text: p.name, value: p.name, note: p.id }));
+              .map((p) => {
+                const left = totalOf(p);
+                return {
+                  ref: p.id,
+                  text: p.name,
+                  value: p.name,
+                  cls: 'a-pick',
+                  node: (
+                    <>
+                      <img
+                        className="a-pick__img"
+                        src={p.images?.[0] ?? ''}
+                        alt=""
+                        loading="lazy"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.visibility = 'hidden';
+                        }}
+                      />
+                      <span className="a-pick__body">
+                        <b>{p.name}</b>
+                        <i>
+                          {p.id} · {categoryTitle(p.category)} · {fmt(p.price)} грн
+                          {left === null ? '' : ` · ${left} шт`}
+                        </i>
+                      </span>
+                    </>
+                  )
+                };
+              });
           }}
           onType={(v) => {
             setSearch(v);
@@ -137,6 +208,7 @@ export default function RestockForm({
         {off ? (
           <select
             title="Причина списання"
+            aria-label="Причина списання"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           >
@@ -150,6 +222,7 @@ export default function RestockForm({
           <input
             type="date"
             title="Очікувана дата приходу"
+            aria-label="Очікувана дата приходу"
             value={expected}
             onChange={(e) => setExpected(e.target.value)}
           />
@@ -159,7 +232,7 @@ export default function RestockForm({
       <div className="ao-restock-form__qty">
         {!selected ? (
           <p className="ao-note">Оберіть товар, щоб вказати кількість.</p>
-        ) : cells.length ? (
+        ) : (
           cells.map((c) => (
             <label
               className={'ao-qty' + (off && c.have === 0 ? ' is-zero' : '')}
@@ -172,9 +245,13 @@ export default function RestockForm({
               <input
                 type="number"
                 min="0"
-                /* Списати більше, ніж лежить на складі, не можна:
-                   мінус у залишках потім нічим не пояснити */
-                max={off && c.have !== null ? Math.max(0, c.have) : undefined}
+                aria-label={(off ? 'Списати' : 'Прихід') + ', ' + (c.size || 'штук')}
+                /* Обмеження лише там, де розмір справді рахують.
+                   Поштучний товар лишаємо без max, як у старій
+                   панелі: інакше при нульовому залишку в поле не
+                   ввести нічого, і питання «списати більше, ніж
+                   є?» ніколи б не пролунало. */
+                max={off && c.size && c.have !== null ? Math.max(0, c.have) : undefined}
                 value={qty[c.size] ?? 0}
                 onChange={(e) =>
                   setQty((v) => ({ ...v, [c.size]: Math.max(0, Number(e.target.value) || 0) }))
@@ -182,10 +259,11 @@ export default function RestockForm({
               />
             </label>
           ))
-        ) : null}
+        )}
       </div>
 
       <input
+        aria-label="Нотатка"
         placeholder={
           off
             ? 'Нотатка: що саме сталося (необовʼязково)'

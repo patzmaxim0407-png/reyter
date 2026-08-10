@@ -49,25 +49,23 @@ export default function RestockEdit({
   }, [r]);
 
   return (
+    /* Правка підміняє собою картку приходу в списку, тому й
+       виглядає карткою: ті самі .ao-restock, лише в режимі
+       редагування. Порядок блоків — як у старій панелі: спершу
+       кількості, бо саме заради них форму й відкривають. */
     <form
-      className="ao-restock-form"
+      className="ao-restock ao-restock--edit"
+      data-id={r._id}
       onSubmit={(e) => {
         e.preventDefault();
         onSave({ expected, note, sizes: sized ? qty : null, qty: sized ? undefined : one });
       }}
     >
-      <div className="ao-restock-form__row">
-        <input
-          type="date"
-          title="Очікувана дата приходу"
-          value={expected}
-          onChange={(e) => setExpected(e.target.value)}
-        />
-        <input
-          placeholder="Нотатка: постачальник, партія тощо"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-        />
+      <div className="ao-restock__info">
+        <b>{r.productName || r.productId}</b>
+        <span className="ao-note">
+          Вкажіть фактично отриману кількість — оприбуткується саме вона.
+        </span>
       </div>
 
       <div className="ao-restock-form__qty">
@@ -78,6 +76,7 @@ export default function RestockEdit({
               <input
                 type="number"
                 min="0"
+                aria-label={'Кількість, розмір ' + sz}
                 value={qty[sz] ?? 0}
                 onChange={(e) =>
                   setQty((v) => ({ ...v, [sz]: Math.max(0, Number(e.target.value) || 0) }))
@@ -91,11 +90,28 @@ export default function RestockEdit({
             <input
               type="number"
               min="0"
+              aria-label="Кількість, штук"
               value={one}
               onChange={(e) => setOne(Math.max(0, Number(e.target.value) || 0))}
             />
           </label>
         )}
+      </div>
+
+      <div className="ao-restock-form__row">
+        <input
+          type="date"
+          title="Очікувана дата приходу"
+          aria-label="Очікувана дата приходу"
+          value={expected}
+          onChange={(e) => setExpected(e.target.value)}
+        />
+        <input
+          aria-label="Нотатка"
+          placeholder="Нотатка: постачальник, партія тощо"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
       </div>
 
       <div className="ao-restock__actions">

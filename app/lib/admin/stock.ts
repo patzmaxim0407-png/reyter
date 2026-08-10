@@ -777,6 +777,23 @@ export function restockEditSizes(r: Restock, p: Product | null): string[] {
   return ALL_SIZES.filter((s) => carded.includes(s) || inDoc.includes(s));
 }
 
+/** Приходи, які ще чекають. Порядок — той, у якому їх прочитали:
+ *  за зростанням очікуваної дати, тобто найближчі згори. */
+export function pendingRestocks(list: Restock[]): Restock[] {
+  return list.filter((r) => r.status !== 'received');
+}
+
+/** Останні оприбутковані. Список іде за зростанням очікуваної
+ *  дати, тож свіжі — в кінці; беремо їх і перевертаємо. Брати
+ *  перші означало б показувати найдавніші прийоми, а щойно
+ *  оприбуткований у блок не потрапляв би взагалі. */
+export function lastReceived(list: Restock[], max = 10): Restock[] {
+  return list
+    .filter((r) => r.status === 'received')
+    .slice(-max)
+    .reverse();
+}
+
 export function restockOverdue(r: Restock, now: Date): boolean {
   return r.status !== 'received' && !!r.expected && r.expected < todayISO(now);
 }
@@ -1352,7 +1369,11 @@ export async function loadMoves(db: Firestore): Promise<Move[] | null> {
 /** Адреса картки товару в листі. Веде на старий сайт, поки він
  *  живий: підписник має потрапити саме на товар, який чекав, а не
  *  на головну — з новим доменом цей рядок доведеться замінити. */
-export const ALERT_PRODUCT_URL = 'https://reyter.men/new/#p/';
+/* Адреса товару в листі. Стара панель складала '#p/<id>' —
+   тодішній сайт відкривав картку якорем. Тепер у товару є власна
+   сторінка, і посилання з якорем привело б покупця просто на
+   головну. */
+export const ALERT_PRODUCT_URL = 'https://reyter.men/new/p/';
 
 export interface StockAlert {
   productId?: string;

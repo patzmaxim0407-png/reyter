@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLang } from './LangProvider';
 
 /* ============================================================
@@ -28,12 +28,22 @@ export interface ComboItem {
   value: string;
   /** Позначка збоку: «Поштомат», «12 відділень». */
   note?: string;
+  /** Додатковий клас рядка. Адмінка малює товари з фото — рядок
+   *  вищий і має власне оформлення. */
+  cls?: string;
+  /** Готова розмітка рядка замість text + note. */
+  node?: ReactNode;
 }
 
 export default function Combobox(props: {
   id: string;
   label: string;
   value: string;
+  /* Адмінка ставить це поле в рядок форми, де підпису над ним
+     немає, а обране показує чіпом із фото — щоб два товари з
+     майже однаковою назвою не переплутати. */
+  className?: string;
+  chip?: ReactNode;
   placeholder?: string;
   hint?: string;
   disabled?: boolean;
@@ -54,6 +64,8 @@ export default function Combobox(props: {
     id,
     label,
     value,
+    className,
+    chip,
     placeholder,
     hint,
     disabled,
@@ -157,9 +169,10 @@ export default function Combobox(props: {
   const listOpen = open && (busy || !!note || items.length > 0);
 
   return (
-    <div className="field acombo">
-      <label htmlFor={id}>{label}</label>
+    <div className={className ?? 'field acombo'}>
+      {label ? <label htmlFor={id}>{label}</label> : null}
       <div className="acombo__box">
+        {chip}
         <input
           id={id}
           className={invalid ? 'is-invalid' : undefined}
@@ -193,15 +206,21 @@ export default function Combobox(props: {
                 key={it.ref}
                 role="option"
                 aria-selected={n === active}
-                className={'acombo__opt' + (n === active ? ' is-active' : '')}
+                className={
+                  'acombo__opt' + (it.cls ? ' ' + it.cls : '') + (n === active ? ' is-active' : '')
+                }
                 onMouseDown={(e) => {
                   e.preventDefault();
                   choose(it);
                 }}
                 onMouseEnter={() => setActive(n)}
               >
-                <span>{it.text}</span>
-                {it.note ? <i>{it.note}</i> : null}
+                {it.node ?? (
+                  <>
+                    <span>{it.text}</span>
+                    {it.note ? <i>{it.note}</i> : null}
+                  </>
+                )}
               </li>
             ))}
         </ul>
