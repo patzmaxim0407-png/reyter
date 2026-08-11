@@ -383,8 +383,13 @@ export default function ManualOrder({
                       openOnFocus
                       search={async (q) => {
                         const s = q.trim().toLowerCase();
+                        /* Прихованих на сайті НЕ відсіюємо: саме
+                           їх найчастіше й продають з дзвінка —
+                           залишок, який не показують, зняту з
+                           продажу позицію, домовлений викуп. Що
+                           товар прихований, видно в самому
+                           рядку. */
                         return c.products
-                          .filter((x) => !x.hidden)
                           .filter(
                             (x) =>
                               !s ||
@@ -413,6 +418,7 @@ export default function ManualOrder({
                                   <b>{x.name}</b>
                                   <i>
                                     {x.id} · {catTitle(c, x.category)} · {fmt(x.price)} грн
+                                    {x.hidden ? ' · прихований на сайті' : ''}
                                   </i>
                                 </span>
                               </>
