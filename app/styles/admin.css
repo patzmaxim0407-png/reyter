@@ -4990,3 +4990,122 @@ label.a-promo-product i {
 .ao-line__cat {
   margin-left: 2px;
 }
+
+/* ---------- Масові дії ----------
+   Вісім однакових кнопок поспіль око читає як одну смугу. Статуси
+   мають свої кольори — ті самі, що й у списку, — а службові дії
+   стоять окремою групою за розділювачем. */
+
+.ao-bulk__label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-right: 2px;
+}
+
+.ao-bulk__st {
+  border: 1.5px solid currentColor;
+  background: #fff;
+}
+
+.ao-bulk__st.st-new { color: #1d4ed8; }
+.ao-bulk__st.st-confirmed { color: #7c3aed; }
+.ao-bulk__st.st-shipped { color: #b45309; }
+.ao-bulk__st.st-done { color: #15803d; }
+.ao-bulk__st.st-cancelled { color: #b3261e; }
+
+.ao-bulk__st:hover {
+  background: currentColor;
+}
+
+.ao-bulk__st:hover {
+  color: #fff;
+}
+
+.ao-bulk__st.st-new:hover { background: #1d4ed8; border-color: #1d4ed8; }
+.ao-bulk__st.st-confirmed:hover { background: #7c3aed; border-color: #7c3aed; }
+.ao-bulk__st.st-shipped:hover { background: #b45309; border-color: #b45309; }
+.ao-bulk__st.st-done:hover { background: #15803d; border-color: #15803d; }
+.ao-bulk__st.st-cancelled:hover { background: #b3261e; border-color: #b3261e; }
+
+.ao-bulk__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 4px;
+  background: var(--a-line, #e3e6ec);
+}
+
+.ao-bulk__off {
+  color: #6b7280;
+}
+
+/* ---------- Створення накладної ---------- */
+
+.ttn-panel {
+  width: min(560px, 100%);
+}
+
+.ttn-box {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  overflow: auto;
+}
+
+.ttn-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.ttn-to {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid #dbe6f6;
+  border-radius: 12px;
+  background: #f5f9ff;
+  font-size: 13px;
+}
+
+.ttn-to b {
+  font-size: 14px;
+}
+
+.ttn-to span {
+  color: #5b6270;
+}
+
+.ttn-from {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--a-line, #e3e6ec);
+  border-radius: 12px;
+}
+
+.ttn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ttn-box .ao-field select {
+  padding: 0.45rem 0.7rem;
+  font: inherit;
+  font-size: 0.86rem;
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  background: var(--c-paper);
+}
+
+.ao-ttn__make {
+  margin-top: 8px;
+  justify-self: start;
+}
+
+@media (max-width: 520px) {
+  .ttn-grid {
+    grid-template-columns: 1fr;
+  }
+}

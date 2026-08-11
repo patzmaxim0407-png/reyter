@@ -643,6 +643,61 @@ export default {
       return reply(res, res.ok ? 200 : 502, cors);
     }
 
+    /* --- Нова Пошта: кабінет договору ---
+       Ключ від кабінету дає право створювати накладні й списувати
+       гроші з рахунку, тому в браузер він не потрапляє: адмінка
+       просить воркер, а ключ лежить тут, поруч із рештою секретів.
+
+       Дозволені лише ті методи, які потрібні для накладної.
+       Інакше проксі перетворилося б на відкриті двері в кабінет
+       для будь-кого, хто знає адресу воркера. */
+
+    if (type === 'np') {
+      if (env.ADMIN_KEY && d.key !== env.ADMIN_KEY) {
+        return reply({ ok: false, error: 'Невірний ключ адміністратора (ADMIN_KEY)' }, 403, cors);
+      }
+      if (!env.NP_KEY) {
+        return reply({
+          ok: false,
+          error: 'у воркері не задано NP_KEY — ключ кабінету Нової Пошти (Settings → Variables and Secrets → Add → Secret → потім Deploy)'
+        }, 400, cors);
+      }
+
+      const ДОЗВОЛЕНО = {
+        Counterparty: ['getCounterparties', 'getCounterpartyContactPersons', 'getCounterpartyAddresses'],
+        InternetDocument: ['save', 'delete', 'getDocumentPrice', 'getDocumentDeliveryDate', 'printDocument'],
+        Address: ['getCities', 'getWarehouses', 'searchSettlements', 'searchSettlementStreets'],
+        AddressGeneral: ['getWarehouses'],
+        Common: ['getTypesOfPayers', 'getPaymentForms', 'getCargoTypes', 'getServiceTypes', 'getBackwardDeliveryCargoTypes']
+      };
+      const model = String(d.model || '');
+      const method = String(d.method || '');
+      if (!(ДОЗВОЛЕНО[model] || []).includes(method)) {
+        return reply({ ok: false, error: 'Метод не дозволено: ' + model + '.' + method }, 403, cors);
+      }
+
+      try {
+        const res = await fetch('https://api.novaposhta.ua/v2.0/json/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiKey: env.NP_KEY,
+            modelName: model,
+            calledMethod: method,
+            methodProperties: d.props && typeof d.props === 'object' ? d.props : {}
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        return reply({
+          ok: !!data.success,
+          data: data.data || [],
+          error: (data.errors || []).join('; ') || (data.warnings || []).join('; ') || ''
+        }, 200, cors);
+      } catch (e) {
+        return reply({ ok: false, error: 'немає звʼязку з Новою Поштою' }, 502, cors);
+      }
+    }
+
     /* --- Номер накладної покупцю --- */
 
     if (type === 'ttn') {

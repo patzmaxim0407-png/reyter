@@ -37,6 +37,7 @@ export default function OrdersQueue({
   onEdit,
   onField,
   onSendTtn,
+  onMakeTtn,
   onCopy,
   onPrint,
   onDelete
@@ -48,6 +49,7 @@ export default function OrdersQueue({
   onEdit?(o: AdminOrder): void;
   onField?(o: AdminOrder, field: 'ttn' | 'note', value: string): void;
   onSendTtn?(o: AdminOrder): void;
+  onMakeTtn?(o: AdminOrder): void;
   onCopy?(o: AdminOrder): void;
   onPrint?(o: AdminOrder): void;
   onDelete?(o: AdminOrder): void;
@@ -109,6 +111,7 @@ export default function OrdersQueue({
                     onEdit={onEdit ? () => onEdit(order) : undefined}
                     onField={onField ? (f, v) => onField(order, f, v) : undefined}
                     onSendTtn={onSendTtn ? () => onSendTtn(order) : undefined}
+                    onMakeTtn={onMakeTtn ? () => onMakeTtn(order) : undefined}
                     onCopy={onCopy ? () => onCopy(order) : undefined}
                     onPrint={onPrint ? () => onPrint(order) : undefined}
                     onDelete={onDelete ? () => onDelete(order) : undefined}

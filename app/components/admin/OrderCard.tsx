@@ -53,6 +53,7 @@ export default function OrderCard({
   parcel,
   embedded,
   onSendTtn,
+  onMakeTtn,
   onCopy,
   onPrint,
   onDelete
@@ -67,6 +68,8 @@ export default function OrderCard({
   onEdit?(): void;
   onField?(field: 'ttn' | 'note', value: string): void;
   onSendTtn?(): void;
+  /** Створити накладну просто звідси, у кабінеті перевізника. */
+  onMakeTtn?(): void;
   /** Що каже про посилку сам перевізник. */
   parcel?: Посилка;
   /** Картка стоїть під рядком черги, який уже сказав номер,
@@ -372,6 +375,15 @@ export default function OrderCard({
                   if (e.target.value !== (o.ttn ?? '')) onField?.('ttn', e.target.value);
                 }}
               />
+              {!маєТТН && onMakeTtn && st !== 'cancelled' && st !== 'done' ? (
+                <button
+                  className="btn btn--primary btn--sm ao-ttn__make"
+                  type="button"
+                  onClick={onMakeTtn}
+                >
+                  Створити накладну
+                </button>
+              ) : null}
               {маєТТН && onSendTtn ? (
                 <button
                   className="btn btn--ghost btn--sm ao-ttn__send"

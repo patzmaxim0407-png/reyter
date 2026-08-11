@@ -175,6 +175,16 @@ export interface NotifyDoc {
   fsEmail?: string;
   tgToken?: string;
   tgChatId?: string;
+  /** Ключ адміністратора воркера — ним підписані службові запити. */
+  adminKey?: string;
+  /** Звідки магазин відправляє: місто й відділення Нової Пошти.
+   *  Потрібне, щоб створювати накладні просто із замовлення. */
+  npCity?: string;
+  npCityRef?: string;
+  npWarehouse?: string;
+  npWarehouseRef?: string;
+  /** Типовий опис вкладення для митниці й накладної. */
+  npDescription?: string;
 }
 
 /** Значення полів форми як їх набрали. Нормалізує settingsFromForm. */

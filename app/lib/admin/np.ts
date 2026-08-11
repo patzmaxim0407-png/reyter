@@ -221,3 +221,150 @@ export async function trackAll(
   }
   return out;
 }
+
+/* ============================================================
+   КАБІНЕТ ДОГОВОРУ
+   ------------------------------------------------------------
+   Відстеження відкрите й ключа не потребує, а от створення
+   накладної списує гроші з рахунку — і ключ від кабінету дає
+   право це робити. У браузер він не потрапляє: адмінка віддає
+   свою збірку будь-кому, хто відкриє її адресу.
+
+   Тому всі такі запити йдуть через воркер сповіщень: ключ лежить
+   там, поруч із ключем пошти й токеном Telegram, і воркер
+   пропускає лише ті методи, які потрібні для накладної.
+   ============================================================ */
+
+export interface Кабінет {
+  workerUrl?: string;
+  adminKey?: string;
+}
+
+export async function npCall<T = Record<string, unknown>>(
+  cab: Кабінет | null,
+  model: string,
+  method: string,
+  props: Record<string, unknown> = {}
+): Promise<{ ok: boolean; data: T[]; error: string }> {
+  const url = String(cab?.workerUrl || '').trim().replace(/\/+$/, '');
+  if (!url) return { ok: false, data: [], error: 'не вказано адресу Worker у налаштуваннях' };
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'np', key: cab?.adminKey || '', model, method, props })
+    });
+    const d = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      data?: T[];
+      error?: string;
+    };
+    return { ok: !!d.ok, data: d.data || [], error: d.error || (d.ok ? '' : 'воркер відповів кодом ' + res.status) };
+  } catch {
+    return { ok: false, data: [], error: 'не вдалося звʼязатися з воркером' };
+  }
+}
+
+/** Хто відправник за договором: контрагент і контактна особа.
+ *  Їх у договорі зазвичай по одному, тож не питаємо — беремо. */
+export async function відправник(cab: Кабінет | null): Promise<
+  { ok: true; ref: string; contact: string; phone: string; name: string } | { ok: false; error: string }
+> {
+  const к = await npCall<{ Ref?: string; Description?: string }>(
+    cab, 'Counterparty', 'getCounterparties', { CounterpartyProperty: 'Sender', Page: '1' }
+  );
+  if (!к.ok || !к.data.length) return { ok: false, error: к.error || 'у договорі немає відправника' };
+  const ref = String(к.data[0].Ref || '');
+
+  const o = await npCall<{ Ref?: string; Phones?: string; Description?: string }>(
+    cab, 'Counterparty', 'getCounterpartyContactPersons', { Ref: ref, Page: '1' }
+  );
+  if (!o.ok || !o.data.length) return { ok: false, error: o.error || 'у відправника немає контактної особи' };
+
+  return {
+    ok: true,
+    ref,
+    contact: String(o.data[0].Ref || ''),
+    phone: String(o.data[0].Phones || ''),
+    name: String(к.data[0].Description || '')
+  };
+}
+
+export interface НоваНакладна {
+  /** Місто й відділення відправника — з налаштувань магазину. */
+  citySender: string;
+  senderWarehouse: string;
+  /** Кому. */
+  name: string;
+  phone: string;
+  cityRecipient: string;
+  warehouseRecipient: string;
+  /** Що всередині й скільки важить. */
+  description: string;
+  weight: number;
+  cost: number;
+  seats: number;
+  /** Хто платить за доставку: 'Sender' або 'Recipient'. */
+  payer: 'Sender' | 'Recipient';
+  /** Скільки повернути грошей за післяплатою; 0 — без неї. */
+  backMoney?: number;
+}
+
+/** Створити накладну. Повертає її номер. */
+export async function створитиНакладну(
+  cab: Кабінет | null,
+  n: НоваНакладна
+): Promise<{ ok: true; ttn: string; ref: string } | { ok: false; error: string }> {
+  const в = await відправник(cab);
+  if (!в.ok) return { ok: false, error: в.error };
+
+  const props: Record<string, unknown> = {
+    NewAddress: '1',
+    PayerType: n.payer,
+    PaymentMethod: 'Cash',
+    CargoType: 'Parcel',
+    /* Вага в кілограмах; менше 0,1 перевізник не приймає. */
+    Weight: String(Math.max(0.1, n.weight)),
+    ServiceType: 'WarehouseWarehouse',
+    SeatsAmount: String(Math.max(1, n.seats || 1)),
+    Description: n.description.slice(0, 100),
+    Cost: String(Math.max(1, Math.round(n.cost))),
+    CitySender: n.citySender,
+    Sender: в.ref,
+    SenderAddress: n.senderWarehouse,
+    ContactSender: в.contact,
+    SendersPhone: в.phone,
+    /* Отримувача не заводимо контрагентом: за NewAddress перевізник
+       створює його сам із назви міста, номера відділення й
+       телефону. Інакше на кожне замовлення в кабінеті осідав би
+       новий контрагент, і довідник за місяць став би непридатним. */
+    RecipientCityName: n.cityRecipient,
+    RecipientAddressName: n.warehouseRecipient,
+    RecipientName: n.name,
+    RecipientType: 'PrivatePerson',
+    RecipientsPhone: String(n.phone || '').replace(/\D/g, ''),
+    DateTime: сьогодні()
+  };
+
+  if (n.backMoney && n.backMoney > 0) {
+    props.BackwardDeliveryData = [
+      { PayerType: 'Recipient', CargoType: 'Money', RedeliveryString: String(Math.round(n.backMoney)) }
+    ];
+  }
+
+  const res = await npCall<{ IntDocNumber?: string; Ref?: string }>(
+    cab, 'InternetDocument', 'save', props
+  );
+  if (!res.ok || !res.data.length) return { ok: false, error: res.error || 'перевізник не створив накладну' };
+
+  const ttn = String(res.data[0].IntDocNumber || '');
+  if (!ttn) return { ok: false, error: 'перевізник не повернув номер накладної' };
+  return { ok: true, ttn, ref: String(res.data[0].Ref || '') };
+}
+
+/** Дата у вигляді, якого чекає перевізник: 11.08.2026 */
+function сьогодні(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear();
+}

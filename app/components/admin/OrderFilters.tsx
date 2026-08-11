@@ -179,24 +179,31 @@ export function BulkBar({
         <input type="checkbox" checked onChange={(e) => onSelectAll(e.target.checked)} /> Обрано:{' '}
         <b>{selected}</b>
       </label>
+      {/* Змінити статус і «зняти вибір» — різні за наслідками дії,
+          а виглядали однаково: вісім однакових кнопок поспіль око
+          читає як одну смугу й не бачить у ній нічого. Статуси
+          тепер у своїх кольорах, службові дії — окремою групою за
+          розділювачем. */}
       <span className="ao-bulk__actions">
+        <span className="ao-bulk__label">Змінити статус:</span>
         {STATUSES.map((x) => (
           <button
             key={x.id}
-            className="btn btn--ghost btn--sm"
+            className={'btn btn--sm ao-bulk__st st-' + x.id}
             type="button"
             onClick={() => onBulkStatus(x.id)}
           >
             {x.title}
           </button>
         ))}
+        <span className="ao-bulk__sep" aria-hidden="true" />
         <button className="btn btn--ghost btn--sm" type="button" onClick={onExport}>
           Експорт CSV
         </button>
         <button className="btn btn--ghost btn--sm" type="button" onClick={onPrint}>
           Друк
         </button>
-        <button className="btn btn--ghost btn--sm" type="button" onClick={onClear}>
+        <button className="btn btn--ghost btn--sm ao-bulk__off" type="button" onClick={onClear}>
           Зняти вибір
         </button>
       </span>

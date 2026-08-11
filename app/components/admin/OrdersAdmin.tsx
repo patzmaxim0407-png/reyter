@@ -5,6 +5,7 @@ import PublishControl from './PublishControl';
 import SettingsDialog from './SettingsDialog';
 import OrderCard from './OrderCard';
 import OrdersQueue from './OrdersQueue';
+import TtnCreate from './TtnCreate';
 import ManualOrder from './ManualOrder';
 import { ArchiveBar, BulkBar } from './OrderFilters';
 import OrderRow from './OrderRow';
@@ -37,11 +38,12 @@ import {
 import { todayISO } from '@/lib/admin/stock';
 import { orderDate, statusInfo } from '@/lib/admin/orders';
 import { watchInventory } from '@/lib/admin/live';
-import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { doc, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { fmt } from '@/lib/catalog';
 import { printSheet } from './printSheet';
 import { trackDelete, trackUpdate } from '@/lib/track';
 import { trackAll, статусЗаТрекером, type Посилка } from '@/lib/admin/np';
+import { parcelWeight } from '@/lib/customs';
 import type { OrderStatus, Stock } from '@/lib/types';
 
 /* ============================================================
@@ -136,6 +138,13 @@ export default function OrdersAdmin() {
   const [екран, setЕкран] = useState<'queue' | 'archive'>('queue');
   /** Яке замовлення розкрите в архіві. */
   const [розкрито, setРозкрито] = useState('');
+  /** Для якого замовлення зараз створюємо накладну. */
+  const [ттнДля, setТтнДля] = useState<AdminOrder | null>(null);
+  /** Налаштування воркера: там лежить ключ кабінету Нової Пошти. */
+  const [нала, setНала] = useState<Record<string, string>>({});
+  useEffect(() => {
+    void loadNotifySettings().then((s) => setНала((s || {}) as Record<string, string>));
+  }, []);
   useEffect(() => {
     try {
       const v = localStorage.getItem('reyter:orders-view');
@@ -552,6 +561,7 @@ export default function OrdersAdmin() {
               onEdit={(o) => setManual(o as never)}
               onField={(o, field, value) => void зберегтиПоле(o as never, field, value)}
               onSendTtn={(o) => void надіслатиТТН(o as never, String(o.ttn || '').trim())}
+              onMakeTtn={(o) => setТтнДля(o as never)}
               onCopy={(o) => void скопіювати(o as never)}
               onPrint={(o) => printPicked([o as never])}
               onDelete={(o) => void видалити(o as never)}
@@ -673,6 +683,51 @@ export default function OrdersAdmin() {
           )}
         </div>
       </div>
+      {ттнДля ? (
+        <TtnCreate
+          order={ттнДля}
+          cabinet={{ workerUrl: нала.workerUrl, adminKey: нала.adminKey }}
+          sender={{
+            city: нала.npCity || '',
+            cityRef: нала.npCityRef || '',
+            warehouse: нала.npWarehouse || '',
+            warehouseRef: нала.npWarehouseRef || ''
+          }}
+          weight={parcelWeight(
+            c,
+            /* Позиції замовлення мають той самий вигляд, що й
+               рядки кошика, — вага рахується тим самим кодом. */
+            ((ттнДля.items || []) as never[]).map((i) => i as never)
+          )}
+          description={нала.npDescription || 'Чоловіча білизна'}
+          onSaveSender={(v) => {
+            const d = db();
+            setНала((n) => ({
+              ...n,
+              npCity: v.city,
+              npCityRef: v.cityRef,
+              npWarehouse: v.warehouse,
+              npWarehouseRef: v.warehouseRef
+            }));
+            /* Відділення відправлення міняють раз на рік, тож
+               памʼятаємо його в налаштуваннях, а не питаємо
+               щоразу. */
+            if (d) void setDoc(doc(d, 'settings', 'notify'), {
+              npCity: v.city, npCityRef: v.cityRef,
+              npWarehouse: v.warehouse, npWarehouseRef: v.warehouseRef
+            }, { merge: true });
+          }}
+          onDone={async (ttn) => {
+            const o = ттнДля;
+            setТтнДля(null);
+            await зберегтиПоле(o, 'ttn', ttn);
+            if ((o.status || 'new') !== 'shipped') await onStatus(o, 'shipped');
+            toast('Накладну ' + ttn + ' створено ✓', 'success');
+          }}
+          onClose={() => setТтнДля(null)}
+        />
+      ) : null}
+
       <ManualOrder
         open={manual !== undefined}
         order={manual ?? null}
