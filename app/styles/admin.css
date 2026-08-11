@@ -5662,3 +5662,21 @@ label.a-promo-product i {
 .a-neworder .a-noitems + .btn {
   justify-self: start;
 }
+
+/* Поля в сітках не тягнуться на висоту сусіда. Під «Статусом»
+   стоїть підказка, тож його клітинка вища — і «Звідки» поруч
+   розтягувалось разом із нею, стаючи нижче свого підпису. */
+.a-neworder .a-grid-2 > .field,
+.a-neworder .a-grid-3 > .field,
+.a-grid-2 > .field,
+.a-grid-3 > .field {
+  align-content: start;
+}
+
+.a-neworder .a-grid-2 > .field > input,
+.a-neworder .a-grid-2 > .field > select,
+.a-neworder .a-grid-3 > .field > input,
+.a-neworder .a-grid-3 > .field > select {
+  align-self: start;
+  width: 100%;
+}
