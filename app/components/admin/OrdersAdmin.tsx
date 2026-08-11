@@ -41,7 +41,7 @@ import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { fmt } from '@/lib/catalog';
 import { printSheet } from './printSheet';
 import { trackDelete, trackUpdate } from '@/lib/track';
-import { trackAll, type Посилка } from '@/lib/admin/np';
+import { trackAll, статусЗаТрекером, type Посилка } from '@/lib/admin/np';
 import type { OrderStatus, Stock } from '@/lib/types';
 
 /* ============================================================
@@ -157,6 +157,27 @@ export default function OrdersAdmin() {
     .filter(Boolean)
     .join('|');
 
+  /* Чи дозволено перевізникові рухати статус самому. За
+     замовчуванням так: інакше «Відправлено» висить тижнями на
+     посилках, які давно забрали. Вимикач на пристрої — на
+     випадок, коли менеджер хоче вести статуси лише руками. */
+  const [авто, setАвто] = useState(true);
+  useEffect(() => {
+    try {
+      setАвто(localStorage.getItem('reyter:np-auto') !== 'off');
+    } catch {
+      /* приватне вікно — лишається типове */
+    }
+  }, []);
+  const перемкнутиАвто = (on: boolean) => {
+    setАвто(on);
+    try {
+      localStorage.setItem('reyter:np-auto', on ? 'on' : 'off');
+    } catch {
+      /* нічого не вдієш */
+    }
+  };
+
   useEffect(() => {
     const вДорозі = orders
       .filter((o) => o.status === 'shipped' && String(o.ttn || '').trim())
@@ -167,7 +188,9 @@ export default function OrdersAdmin() {
     const спитати = () => {
       if (document.hidden) return;
       void trackAll(вДорозі).then((m) => {
-        if (живий && m.size) setПосилки(m);
+        if (!живий || !m.size) return;
+        setПосилки(m);
+        if (авто) void підтягнутиСтатуси(m);
       });
     };
     спитати();
@@ -219,6 +242,51 @@ export default function OrdersAdmin() {
       }
     }),
     [askDialog]
+  );
+
+  /* Перевізник знає про посилку раніше за нас, тож нехай сам і
+     рухає статус: забрали — «Виконано», поїхала — «Відправлено».
+
+     Рухаємо тільки ВПЕРЕД і тільки два переходи. Повернення,
+     відмови й помилкові номери лишаються людині: за ними стоїть
+     рішення про склад і гроші, якого не можна вгадувати.
+
+     Записуємо від імені перевізника, а не менеджера: у журналі
+     має бути видно, хто саме це зробив, інакше через тиждень
+     ніхто не згадає, чому статус змінився сам. */
+  const підтягнутиСтатуси = useCallback(
+    async (m: Map<string, Посилка>) => {
+      const d = db();
+      if (!d) return;
+      for (const o of orders) {
+        const п = m.get(String(o.ttn || '').trim());
+        if (!п) continue;
+        const треба = статусЗаТрекером(п);
+        const зараз = o.status || 'new';
+        if (!треба || треба === зараз) continue;
+        if (зараз === 'cancelled' || зараз === 'done') continue;
+        if (треба === 'shipped' && зараз !== 'confirmed') continue;
+        if (треба === 'done' && зараз !== 'shipped') continue;
+
+        const res = await applyStatus(o, треба as OrderStatus, {
+          db: d,
+          c,
+          ask: dialogs,
+          now: new Date(),
+          by: 'Нова Пошта',
+          silent: true
+        });
+        if (res.ok) {
+          toast(
+            треба === 'done'
+              ? 'Нова Пошта: посилку №' + (o.num || '') + ' забрали — замовлення закрито'
+              : 'Нова Пошта: посилка №' + (o.num || '') + ' вирушила — статус «Відправлено»',
+            'success'
+          );
+        }
+      }
+    },
+    [orders, c, dialogs, toast]
   );
 
   function deps(silent = false) {
@@ -461,6 +529,18 @@ export default function OrdersAdmin() {
             >
               Архів і пошук
             </button>
+
+            {/* Статуси з Нової Пошти. Вимикач тут, а не в
+                налаштуваннях: це рішення міняють не раз на рік, а
+                тоді, коли перевізник почав помилятися. */}
+            <label className="ao-auto" title="Забрали — «Виконано», поїхала — «Відправлено». Повернення й помилки завжди лишаються вам.">
+              <input
+                type="checkbox"
+                checked={авто}
+                onChange={(e) => перемкнутиАвто(e.target.checked)}
+              />
+              <span>Статуси з Нової Пошти</span>
+            </label>
           </div>
 
           {екран === 'queue' ? (

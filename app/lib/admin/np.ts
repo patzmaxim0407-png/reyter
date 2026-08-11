@@ -38,6 +38,12 @@ export interface Посилка {
   place: string;
   /** Гроші, які перевізник поверне за післяплатою. */
   backMoney: number;
+  /** Коли перевізник обіцяє доставити. */
+  scheduled: string;
+  /** Місто отримувача. */
+  city: string;
+  /** Коли накладну створено. */
+  createdAt: string;
 }
 
 /* ---------- Що означають коди ----------
@@ -114,6 +120,18 @@ export function тривога(п: Посилка, порогУваги = 3, п�
   return 0;
 }
 
+/** Куди рухається замовлення за словами перевізника: 'shipped' —
+ *  посилка вже в руках Нової Пошти, 'done' — її забрали.
+ *  null — статус міняти не можна: або нічого не сталося, або
+ *  сталося те, у чому має розібратись людина (повернення,
+ *  помилковий номер). */
+export function статусЗаТрекером(п: Посилка): 'shipped' | 'done' | null {
+  const s = стан(п.code);
+  if (s === 'отримано') return 'done';
+  if (s === 'дорога' || s === 'чекає') return 'shipped';
+  return null;
+}
+
 /* ---------- Запит ---------- */
 
 interface Рядок {
@@ -125,6 +143,9 @@ interface Рядок {
   WarehouseRecipientAddress?: string;
   CityRecipient?: string;
   DateFirstDayStorage?: string;
+  ScheduledDeliveryDate?: string;
+  ActualDeliveryDate?: string;
+  DateCreated?: string;
   StorageAmount?: string | number;
   BackwardDeliverySubTypesActions?: unknown;
   RedeliverySum?: string | number;
@@ -170,8 +191,11 @@ async function пачка(items: { ttn: string; phone?: string }[]): Promise<П�
     status: String(r.Status || ''),
     gotAt: String(r.RecipientDateTime || ''),
     waiting: днів(r.DateFirstDayStorage),
-    place: String(r.WarehouseRecipient || r.WarehouseRecipientAddress || r.CityRecipient || ''),
-    backMoney: Number(r.RedeliverySum) || 0
+    place: String(r.WarehouseRecipient || r.WarehouseRecipientAddress || ''),
+    backMoney: Number(r.RedeliverySum) || 0,
+    scheduled: String(r.ScheduledDeliveryDate || ''),
+    city: String(r.CityRecipient || ''),
+    createdAt: String(r.DateCreated || '')
   }));
 }
 

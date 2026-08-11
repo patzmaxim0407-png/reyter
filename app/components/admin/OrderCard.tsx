@@ -300,6 +300,60 @@ export default function OrderCard({
             </button>
           ) : null}
 
+          {/* Дорога посилки словами перевізника. Менеджер
+              найчастіше відкриває картку саме заради цього: де
+              вона, коли обіцяють, чи вже забрали. */}
+          {parcel ? (
+            <div className={'ao-way u-' + рівень}>
+              <div className="ao-way__now">
+                <b>{підпис(parcel)}</b>
+                {parcel.status && parcel.status !== підпис(parcel) ? (
+                  <span>{parcel.status}</span>
+                ) : null}
+              </div>
+              <dl className="ao-way__list">
+                {parcel.city || parcel.place ? (
+                  <div>
+                    <dt>Куди</dt>
+                    <dd>{[parcel.city, parcel.place].filter(Boolean).join(' · ')}</dd>
+                  </div>
+                ) : null}
+                {parcel.scheduled ? (
+                  <div>
+                    <dt>Планова доставка</dt>
+                    <dd>{parcel.scheduled}</dd>
+                  </div>
+                ) : null}
+                {parcel.gotAt ? (
+                  <div>
+                    <dt>Забрали</dt>
+                    <dd>{parcel.gotAt}</dd>
+                  </div>
+                ) : null}
+                {parcel.createdAt ? (
+                  <div>
+                    <dt>Накладну створено</dt>
+                    <dd>{parcel.createdAt}</dd>
+                  </div>
+                ) : null}
+                {parcel.backMoney ? (
+                  <div>
+                    <dt>Післяплата</dt>
+                    <dd>{parcel.backMoney} грн</dd>
+                  </div>
+                ) : null}
+              </dl>
+              <a
+                className="ao-way__link"
+                href={'https://novaposhta.ua/tracking/?cargo_number=' + encodeURIComponent(String(o.ttn || ''))}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Відкрити в Новій Пошті →
+              </a>
+            </div>
+          ) : null}
+
           <div className="ao-card__grid">
             <label className={'ao-field ao-field--ttn' + (потрібнаТТН ? ' is-need' : '')}>
               <span>
