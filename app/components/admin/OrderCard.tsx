@@ -388,6 +388,29 @@ export default function OrderCard({
             </div>
           ) : null}
 
+          {/* Вбудована картка шапки не має, а разом із нею
+              зникав і перемикач статусу: лишались «наступний
+              крок» та «Скасувати». Але життя не завжди йде
+              вперед — замовлення повертають, відкочують, ставлять
+              наново. Тому всі стани тут, і поточний видно. */}
+          {embedded ? (
+            <div className="ao-setst">
+              <span className="ao-field__label">Статус</span>
+              <div className="ao-setst__row">
+                {STATUSES.map((x) => (
+                  <button
+                    key={x.id}
+                    type="button"
+                    className={'aq-badge st-' + x.id + (x.id === st ? ' is-on' : '')}
+                    onClick={() => x.id !== st && onStatus(x.id)}
+                  >
+                    {x.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div className="ao-card__grid">
             <label className={'ao-field ao-field--ttn' + (потрібнаТТН ? ' is-need' : '')}>
               <span>
