@@ -4305,3 +4305,67 @@ label.a-promo-product i {
 #askSelectField select {
   width: 100%;
 }
+
+/* ---------- Накладна в картці замовлення ----------
+   Найдорожча забудькуватість у цьому вікні — відправити посилку
+   й не вписати номер: покупець уже чекає, а сказати йому нічого.
+   Тому те, чого бракує, має бути найпомітнішим. */
+
+.ao-tag--warn {
+  background: #fdecea;
+  border-color: #f3b8b2;
+  color: #b3261e;
+  font-weight: 700;
+}
+
+.ao-tag--ttn {
+  background: #eef5ff;
+  border-color: #c3d8f5;
+  color: #014aad;
+}
+
+.ao-field--ttn.is-need input {
+  border-color: #e2827a;
+  background: #fff7f6;
+}
+
+.ao-field--ttn.is-need > span {
+  color: #b3261e;
+}
+
+.ao-ttn__warn {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #b3261e;
+}
+
+.ao-ttn__sent {
+  margin-left: 8px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  color: #15803d;
+}
+
+.ao-ttn__send {
+  margin-top: 8px;
+  justify-self: start;
+}
+
+/* Плитка «без ТТН» — єдина в ряду, на яку можна натиснути:
+   вона не звітує, а веде до роботи. */
+.ao-stat--warn {
+  border-color: #f3b8b2;
+  background: #fdecea;
+  color: #b3261e;
+  cursor: pointer;
+  font: inherit;
+  text-align: inherit;
+}
+
+.ao-stat--warn b {
+  color: #b3261e;
+}

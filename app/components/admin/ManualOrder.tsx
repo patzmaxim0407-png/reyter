@@ -196,7 +196,18 @@ export default function ManualOrder({
       if (r === 'alt') return 'alt';
       return r === true ? 'ok' : null;
     },
-    askWriteoff: async () => null
+    askWriteoff: async () => null,
+    askText: async (q) => {
+      const r = await askDialog({
+        title: q.title,
+        text: q.text,
+        okText: q.okText,
+        input: '',
+        label: q.label,
+        placeholder: q.placeholder
+      });
+      return typeof r === 'string' ? r : null;
+    }
   };
 
   function setRow(uid: string, patch: Partial<ManualRow>) {

@@ -27,6 +27,9 @@ export interface AdminOrder {
   shipping?: number;
   promoCode?: string;
   ttn?: string;
+  /** Коли номер накладної пішов покупцеві листом. */
+  ttnSentAt?: string;
+  lang?: string;
   note?: string;
   email?: string;
   message?: string;
@@ -46,6 +49,7 @@ export default function OrderCard({
   onStatus,
   onEdit,
   onField,
+  onSendTtn,
   onCopy,
   onPrint,
   onDelete
@@ -59,6 +63,7 @@ export default function OrderCard({
   onStatus(next: string): void;
   onEdit?(): void;
   onField?(field: 'ttn' | 'note', value: string): void;
+  onSendTtn?(): void;
   onCopy?(): void;
   onPrint?(): void;
   onDelete?(): void;
@@ -67,6 +72,10 @@ export default function OrderCard({
   const st = o.status || 'new';
   const c = o.customer ?? {};
   const next = NEXT_STEP[st as keyof typeof NEXT_STEP];
+  const маєТТН = !!String(o.ttn || '').trim();
+  /* Відправлено без накладної — найдорожча забудькуватість у
+     цьому вікні: покупець уже чекає, а сказати йому нічого. */
+  const потрібнаТТН = (st === 'shipped' || st === 'done') && !маєТТН;
 
   const delivery = addressLine(c as never);
   const units = (o.items ?? []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
@@ -108,6 +117,19 @@ export default function OrderCard({
             </option>
           ))}
         </select>
+
+        {/* Найпомітніша річ у картці — те, чого бракує. Червоний
+            значок видно навіть у згорнутому списку, тож замовлення
+            без накладної не загубиться серед решти. */}
+        {потрібнаТТН ? (
+          <span className="ao-tag ao-tag--warn" title="Відправлено без номера накладної">
+            без ТТН
+          </span>
+        ) : маєТТН ? (
+          <span className="ao-tag ao-tag--ttn" title={'ТТН ' + o.ttn}>
+            ТТН {o.ttnSentAt ? '✓' : '·'}
+          </span>
+        ) : null}
 
         {/* Позначка про списання: без неї не видно, чи залишки
             вже зрушені, і легко списати той самий товар двічі */}
@@ -245,8 +267,13 @@ export default function OrderCard({
           ) : null}
 
           <div className="ao-card__grid">
-            <label className="ao-field">
-              <span>ТТН</span>
+            <label className={'ao-field ao-field--ttn' + (потрібнаТТН ? ' is-need' : '')}>
+              <span>
+                ТТН
+                {o.ttnSentAt ? (
+                  <em className="ao-ttn__sent" title={'Надіслано ' + o.ttnSentAt}>надіслано ✓</em>
+                ) : null}
+              </span>
               <input
                 defaultValue={o.ttn ?? ''}
                 placeholder="номер накладної"
@@ -257,6 +284,20 @@ export default function OrderCard({
                   if (e.target.value !== (o.ttn ?? '')) onField?.('ttn', e.target.value);
                 }}
               />
+              {маєТТН && onSendTtn ? (
+                <button
+                  className="btn btn--ghost btn--sm ao-ttn__send"
+                  type="button"
+                  onClick={onSendTtn}
+                >
+                  {o.ttnSentAt ? 'Надіслати ще раз' : 'Надіслати покупцеві'}
+                </button>
+              ) : null}
+              {потрібнаТТН ? (
+                <em className="ao-ttn__warn">
+                  Посилка відправлена, а номера немає — покупець не знає, де вона.
+                </em>
+              ) : null}
             </label>
             <label className="ao-field">
               <span>Нотатка менеджера</span>

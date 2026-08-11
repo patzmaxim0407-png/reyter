@@ -118,6 +118,52 @@ export async function orderPlaced(
   return out;
 }
 
+/* ---------- Номер накладної покупцю ----------
+   Досі номер лишався в адмінці: менеджер його вписував, а
+   покупець про це не дізнавався. Тепер лист іде тим самим
+   воркером, що й підтвердження замовлення. */
+
+export interface TtnLetter {
+  to: string;
+  name: string;
+  orderNum: string;
+  ttn: string;
+  /** Куди їде посилка — одним рядком, як у листі про замовлення. */
+  delivery?: string;
+  lang?: Lang;
+}
+
+export async function sendTtn(
+  settings: NotifySettings | null,
+  letter: TtnLetter
+): Promise<{ ok: boolean; error: string }> {
+  const url = normalizeUrl(settings?.workerUrl);
+  if (!url) return { ok: false, error: 'не вказано адресу Worker у налаштуваннях' };
+  if (!letter.to) return { ok: false, error: 'у покупця немає пошти' };
+  if (!letter.ttn.trim()) return { ok: false, error: 'немає номера накладної' };
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'ttn',
+        to: letter.to,
+        name: letter.name || '',
+        orderNum: letter.orderNum || '',
+        ttn: letter.ttn.trim(),
+        delivery: letter.delivery || '',
+        lang: letter.lang || 'uk'
+      })
+    });
+    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    if (data.ok) return { ok: true, error: '' };
+    return { ok: false, error: data.error || 'воркер відповів кодом ' + res.status };
+  } catch {
+    return { ok: false, error: 'не вдалося звʼязатися з воркером' };
+  }
+}
+
 /* ---------- Лист із персональним промокодом ----------
    Персональний код видають конкретній людині, і надіслати його
    має магазин, а не сам покупець. Лист іде тим самим воркером,

@@ -10,7 +10,8 @@ import { useAdminUser } from './AdminGate';
 import { useAsk } from './AskProvider';
 import { useToast } from '../Toasts';
 import { copyText } from '@/lib/copy';
-import { db } from '@/lib/firebase';
+import { db, loadNotifySettings } from '@/lib/firebase';
+import { sendTtn } from '@/lib/notify';
 import { EMPTY_DRAFT, watchDraft, type Draft } from '@/lib/admin/store';
 import { watchOrders } from '@/lib/admin/live';
 import {
@@ -125,6 +126,17 @@ export default function OrdersAdmin() {
         if (r === 'alt') return 'alt';
         return r === true ? 'ok' : null;
       },
+      askText: async (q) => {
+        const r = await askDialog({
+          title: q.title,
+          text: q.text,
+          okText: q.okText,
+          input: '',
+          label: q.label,
+          placeholder: q.placeholder
+        });
+        return typeof r === 'string' ? r : null;
+      },
       askWriteoff: async (q) => {
         const r = await askDialog({
           title: q.title,
@@ -154,11 +166,47 @@ export default function OrdersAdmin() {
     return { db: d, c, ask: dialogs, now: new Date(), by: user.email ?? '', silent };
   }
 
+  /* Номер накладної покупцеві. Раніше він осідав в адмінці й
+     нікуди далі не йшов — людина писала «а де посилка?», хоча
+     посилка вже їхала. */
+  const надіслатиТТН = useCallback(
+    async (o: AdminOrder, ttn: string) => {
+      const пошта = o.customer?.email || o.email || '';
+      if (!пошта) {
+        toast('ТТН збережено, але надіслати нема куди — покупець не лишив пошти');
+        return;
+      }
+      const s = (await loadNotifySettings()) as { workerUrl?: string } | null;
+      const res = await sendTtn(s, {
+        to: пошта,
+        name: o.customer?.name || '',
+        orderNum: o.num || '',
+        ttn: ttn,
+        delivery: [o.customer?.carrier, o.customer?.city, o.customer?.branch]
+          .filter(Boolean)
+          .join(', '),
+        lang: (o.lang as 'uk' | 'en') || 'uk'
+      });
+      if (res.ok) {
+        const d = db();
+        if (d) void updateDoc(doc(d, 'orders', o._id), { ttnSentAt: new Date().toISOString() });
+        toast('ТТН надіслано покупцеві на ' + пошта + ' ✓', 'success');
+      } else {
+        toast('ТТН збережено, але лист не пішов: ' + res.error);
+      }
+    },
+    [toast]
+  );
+
   async function onStatus(o: AdminOrder, next: string) {
     const dd = deps();
     if (!dd) return;
     const res = await applyStatus(o, next as OrderStatus, dd);
     if (res.toast) toast(res.toast.text, res.toast.success ? 'success' : 'plain');
+    /* Накладну вписали просто в мить відправлення — тоді ж її й
+       надсилаємо: другого підходу до цього замовлення може вже
+       не бути. */
+    if (res.ok && res.ttn) void надіслатиТТН(o, res.ttn);
   }
 
   async function onBulk(next: string) {
@@ -246,6 +294,19 @@ export default function OrdersAdmin() {
               <b>{stats.units}</b>
               <span>одиниць товару</span>
             </div>
+            {/* Не статистика, а список справ: доки число не нуль,
+                хтось із покупців не знає, де його посилка. */}
+            {stats.noTtn ? (
+              <button
+                type="button"
+                className="ao-stat ao-stat--warn"
+                onClick={() => setF((v) => ({ ...v, q: '' , status: 'shipped' }))}
+                title="Показати відправлені — і вписати номери"
+              >
+                <b>{stats.noTtn}</b>
+                <span>без ТТН</span>
+              </button>
+            ) : null}
           </div>
 
           <PeriodBar f={f} set={(p) => setF((v) => ({ ...v, ...p }))} today={todayISO(new Date())} />
@@ -298,6 +359,9 @@ export default function OrdersAdmin() {
                          Без цього ТТН бачив би лише адмін. */
                       void trackUpdate({ ...o, ttn: value } as never, { ttn: value });
                       toast('ТТН збережено — покупець бачить його в кабінеті й у відстеженні ✓', 'success');
+                      /* Посилка вже в дорозі — номер має піти
+                         покупцеві одразу, без окремої кнопки. */
+                      if (value.trim() && o.status === 'shipped') void надіслатиТТН(o, value.trim());
                     } else {
                       toast('Нотатку збережено ✓', 'success');
                     }
@@ -305,6 +369,7 @@ export default function OrdersAdmin() {
                     toast(field === 'ttn' ? 'Не вдалося зберегти ТТН' : 'Не вдалося зберегти нотатку');
                   }
                 }}
+                onSendTtn={() => void надіслатиТТН(o, String(o.ttn || '').trim())}
                 onCopy={async () => {
                   const done = await copyText(o.message || buildOrderMessage(o as never, c));
                   toast(done ? 'Скопійовано ✓' : 'Не вдалося скопіювати', done ? 'success' : 'plain');

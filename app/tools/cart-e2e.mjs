@@ -486,6 +486,18 @@ await задати('coCountry', 'Пол');
 await wait(900);
 const країни = await опції('coCountry');
 ok('країна знаходиться за першими літерами', країни.includes('Польща'), JSON.stringify(країни));
+
+/* Картку кроку колись обрізало по заокругленню — і разом із нею
+   всі випадайки: список був у розмітці, але його не було видно. */
+const випадайка = await evalJs(`(() => {
+  const box = document.getElementById('coCountry').closest('.acombo');
+  const ul = box.querySelector('.acombo__list');
+  const card = box.closest('.cosec');
+  const r = ul.getBoundingClientRect();
+  return { видно: r.height > 40, обрізає: getComputedStyle(card).overflow !== 'visible' };
+})()`);
+ok('випадайку видно, а картка кроку її не обрізає',
+   випадайка.видно && !випадайка.обрізає, JSON.stringify(випадайка));
 await обрати('coCountry');
 await wait(900);
 const крок2 = await видно();

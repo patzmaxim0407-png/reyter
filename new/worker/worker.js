@@ -242,6 +242,94 @@ function promoHTML(d) {
   );
 }
 
+
+/* Лист «посилка вирушила»: номер накладної, посилання на
+   відстеження в перевізника і в кабінеті магазину.
+
+   Найдорожчий лист із усіх: саме його чекають найбільше, і саме
+   він досі не надсилався взагалі — номер лишався в адмінці. */
+function ttnHTML(d) {
+  const en = d.lang === 'en';
+  const T = en ? {
+    hi: 'Hello',
+    lead: 'Your parcel is on its way 📦',
+    num: 'Tracking number',
+    order: 'Order',
+    trackNp: 'Track at the carrier',
+    trackUs: 'Order status',
+    note: 'The carrier updates the status within a few hours after handover.',
+    slogan: 'Character is REYTER!'
+  } : {
+    hi: 'Вітаємо',
+    lead: 'Ваша посилка вирушила 📦',
+    num: 'Номер накладної',
+    order: 'Замовлення',
+    trackNp: 'Відстежити в перевізника',
+    trackUs: 'Статус замовлення',
+    note: 'Перевізник оновлює статус протягом кількох годин після передачі посилки.',
+    slogan: 'Характер — це REYTER!'
+  };
+
+  const siteUrl = 'https://reyter.men/new/' + (en ? '?lang=en' : '');
+  const ttn = clip(String(d.ttn || ''), 40);
+  const carrierUrl = 'https://novaposhta.ua/tracking/?cargo_number=' + encodeURIComponent(ttn);
+  const ourUrl = 'https://reyter.men/new/' + (en ? 'en/' : '') + 'track';
+
+  return (
+    '<div style="margin:0;padding:24px 12px;background:#fcf8f0;font-family:Helvetica,Arial,sans-serif">' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" ' +
+        'style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden">' +
+
+        '<tr><td style="background:' + BLUE + ';padding:30px 24px;text-align:center">' +
+          '<img src="' + LOGO + '" alt="REYTER" width="190" ' +
+            'style="display:block;margin:0 auto;max-width:190px;height:auto">' +
+        '</td></tr>' +
+
+        '<tr><td style="padding:30px 26px 6px;text-align:center">' +
+          '<p style="margin:0 0 6px;font-size:16px;color:#171b26">' +
+            T.hi + (d.name ? ', <strong>' + esc(clip(d.name, 80)) + '</strong>' : '') + '!</p>' +
+          '<p style="margin:0 0 22px;font-size:15px;color:#6e6a5e">' + T.lead + '</p>' +
+
+          '<div style="display:inline-block;border:2px dashed ' + BLUE + ';border-radius:14px;' +
+            'padding:16px 28px;background:rgba(1,74,173,.05)">' +
+            '<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6e6a5e">' +
+              T.num + '</div>' +
+            '<div style="font-size:24px;font-weight:800;letter-spacing:.06em;color:' + BLUE + '">' +
+              esc(ttn) + '</div>' +
+          '</div>' +
+
+          (d.orderNum
+            ? '<p style="margin:16px 0 0;font-size:14px;color:#6e6a5e">' +
+                T.order + ' №' + esc(clip(String(d.orderNum), 40)) + '</p>'
+            : '') +
+          (d.delivery
+            ? '<p style="margin:6px 0 0;font-size:14px;color:#6e6a5e">' +
+                esc(clip(String(d.delivery), 200)) + '</p>'
+            : '') +
+        '</td></tr>' +
+
+        '<tr><td style="padding:22px 26px 8px;text-align:center">' +
+          '<a href="' + carrierUrl + '" style="display:inline-block;background:' + BLUE + ';color:#ffffff;' +
+            'text-decoration:none;font-size:15px;font-weight:700;padding:13px 30px;border-radius:999px">' +
+            T.trackNp + '</a>' +
+          '<p style="margin:14px 0 0;font-size:13px">' +
+            '<a href="' + ourUrl + '" style="color:' + BLUE + '">' + T.trackUs + '</a>' +
+          '</p>' +
+          '<p style="margin:14px 0 0;font-size:12px;color:#6e6a5e">' + T.note + '</p>' +
+        '</td></tr>' +
+
+        '<tr><td style="padding:26px 24px;background:' + INK + ';text-align:center">' +
+          '<p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#ffffff">' + T.slogan + '</p>' +
+          '<p style="margin:0;font-size:12px">' +
+            '<a href="' + siteUrl + '" style="color:#ffffff;text-decoration:none">reyter.men</a>' +
+          '</p>' +
+        '</td></tr>' +
+
+      '</table>' +
+    '</div>'
+  );
+}
+
 /* Лист «товар знову в наявності» для підписки
    «Повідомити, коли зʼявиться» */
 function stockHTML(d) {
@@ -552,6 +640,23 @@ export default {
         ? 'Back in stock — ' + clip(d.product, 80) + ' | REYTER'
         : 'Знову в наявності — ' + clip(d.product, 80) + ' | REYTER';
       const res = await sendMail(env, to, subject, stockHTML(d));
+      return reply(res, res.ok ? 200 : 502, cors);
+    }
+
+    /* --- Номер накладної покупцю --- */
+
+    if (type === 'ttn') {
+      const to = String(d.to || '').trim();
+      if (!EMAIL_RE.test(to)) {
+        return reply({ ok: false, error: 'Некоректний email отримувача' }, 400, cors);
+      }
+      if (!String(d.ttn || '').trim()) {
+        return reply({ ok: false, error: 'Не вказано номер накладної' }, 400, cors);
+      }
+      const subject = d.lang === 'en'
+        ? 'Your parcel is on its way — ' + clip(String(d.ttn), 40) + ' | REYTER'
+        : 'Посилка вирушила — ' + clip(String(d.ttn), 40) + ' | REYTER';
+      const res = await sendMail(env, to, subject, ttnHTML(d));
       return reply(res, res.ok ? 200 : 502, cors);
     }
 

@@ -174,6 +174,10 @@ export interface AdminOrder {
   customer?: AdminCustomer;
   email?: string;
   ttn?: string;
+  /** Коли номер накладної пішов покупцеві листом. */
+  ttnSentAt?: string;
+  /** Мовою якої сторінки оформлено замовлення. */
+  lang?: string;
   note?: string;
   source?: string;
   uid?: string | null;
@@ -431,6 +435,8 @@ export interface OrderStats {
   /** Середній чек, теж без скасованих. */
   avg: number;
   units: number;
+  /** Відправлені посилки без номера накладної. */
+  noTtn: number;
 }
 
 /* Скасовані рахуються лише в загальній кількості: гроші за ними
@@ -443,7 +449,13 @@ export function orderStats(list: AdminOrder[]): OrderStats {
     newCount: list.filter((o) => (o.status || 'new') === 'new').length,
     revenue: revenue,
     avg: active.length ? Math.round(revenue / active.length) : 0,
-    units: active.reduce((s, o) => s + orderUnits(o), 0)
+    units: active.reduce((s, o) => s + orderUnits(o), 0),
+    /* Скільки посилок уже в дорозі без номера. Це не статистика,
+       а список справ: доки число не нуль, хтось із покупців не
+       знає, де його замовлення. */
+    noTtn: list.filter(
+      (o) => (o.status === 'shipped' || o.status === 'done') && !String(o.ttn || '').trim()
+    ).length
   };
 }
 
@@ -519,6 +531,14 @@ export interface OrderDialogs {
   ask(q: Question): Promise<'ok' | 'alt' | null>;
   /** null — передумали. */
   askWriteoff(q: WriteoffQuestion): Promise<WriteoffAnswer | null>;
+  /** Запитати рядок. null — передумали, '' — лишили порожнім. */
+  askText(q: {
+    title: string;
+    text: string;
+    label: string;
+    placeholder?: string;
+    okText?: string;
+  }): Promise<string | null>;
 }
 
 /** Повідомлення, яке адмінка показує тостом. */
@@ -651,9 +671,13 @@ export interface StatusChangeResult {
   /** true — статус справді змінили (або він уже був таким). */
   ok: boolean;
   /** 'same' — статус той самий; 'cancelled' — адмін передумав
-   *  у діалозі; 'error' — запис не пройшов. */
-  reason?: 'same' | 'cancelled' | 'error';
+   *  у діалозі; 'no-ttn' — відправлення без накладної;
+   *  'error' — запис не пройшов. */
+  reason?: 'same' | 'cancelled' | 'no-ttn' | 'error';
   toast: Toast | null;
+  /** Накладна, яку щойно вписали в діалозі: її треба зберегти
+   *  разом зі статусом і надіслати покупцеві. */
+  ttn?: string;
 }
 
 export async function applyStatus(
@@ -665,6 +689,39 @@ export async function applyStatus(
   if (prev === next) return { ok: true, reason: 'same', toast: null };
 
   const silent = !!deps.silent;
+
+  /* «Відправлено» без накладної не буває. Саме тут менеджер і
+     забуває: статус міняє, а номер лишається порожнім — і
+     покупець не дізнається, що посилка вже їде. Тому питаємо
+     номер просто в мить переходу, а не сподіваємось, що хтось
+     згадає повернутись у картку.
+
+     У масовій зміні діалогів немає, тож такі замовлення просто
+     не пропускаємо — і кажемо про це в підсумку. */
+  let свіжаТТН = '';
+  if (next === 'shipped' && !String(order.ttn || '').trim()) {
+    if (silent) return { ok: false, reason: 'no-ttn', toast: null };
+    const відповідь = await deps.ask.askText({
+      title: 'Номер накладної',
+      text:
+        'Замовлення №' + (order.num || '') +
+        ' переходить у «Відправлено». Впишіть ТТН — ми одразу надішлемо його покупцеві, ' +
+        'і він бачитиме рух посилки у своєму кабінеті.',
+      label: 'ТТН',
+      placeholder: 'напр.: 20450000000000',
+      okText: 'Відправити'
+    });
+    if (відповідь === null) return { ok: false, reason: 'cancelled', toast: null };
+    свіжаТТН = відповідь.trim();
+    if (!свіжаТТН) {
+      return {
+        ok: false,
+        reason: 'no-ttn',
+        toast: { text: 'Без номера накладної відправити не можна', success: false }
+      };
+    }
+  }
+
   const wasApplied = !!order.stockApplied;
   const willConsume = consumesStock(next);
   const s = stockState(deps.c);
@@ -757,6 +814,7 @@ export async function applyStatus(
 
     batch.update(doc(deps.db, ORDER_COL, order._id), {
       ...plan.update,
+      ...(свіжаТТН ? { ttn: свіжаТТН } : {}),
       statusLog: arrayUnion(plan.entry)
     });
     await batch.commit();
@@ -767,10 +825,11 @@ export async function applyStatus(
     void trackUpdate({
       ...order,
       status: next,
+      ttn: свіжаТТН || order.ttn || '',
       statusLog: (order.statusLog || []).concat([plan.entry])
     });
 
-    return { ok: true, toast: silent ? null : plan.toast };
+    return { ok: true, toast: silent ? null : plan.toast, ttn: свіжаТТН };
   } catch {
     return {
       ok: false,
@@ -830,12 +889,18 @@ export async function bulkStatus(
   deps.onStart?.({ text: 'Оновлюємо ' + toChange.length + ' замовлень…', success: false });
 
   let done = 0;
+  /* Пакетом ніхто не питає номер накладної, тож замовлення без
+     неї просто не пропускаємо — і кажемо про це прямо. Мовчазне
+     «оновлено 8» приховало б, що двоє покупців не дізнаються
+     про свої посилки. */
+  let безТТН = 0;
   for (let i = 0; i < toChange.length; i += BULK_CHUNK) {
     const chunk = toChange.slice(i, i + BULK_CHUNK);
     // послідовно, щоб не перевищити ліміт операцій у батчі
     for (const o of chunk) {
       const res = await applyStatus(o, next, { ...deps, silent: true });
       if (res.ok) done++;
+      else if (res.reason === 'no-ttn') безТТН++;
     }
   }
 
@@ -843,7 +908,14 @@ export async function bulkStatus(
     kind: 'done',
     done: done,
     total: toChange.length,
-    toast: { text: 'Оновлено замовлень: ' + done + ' ✓', success: true }
+    toast: безТТН
+      ? {
+          text:
+            'Оновлено: ' + done + '. Пропущено без ТТН: ' + безТТН +
+            ' — впишіть номер у картці й змініть статус там.',
+          success: false
+        }
+      : { text: 'Оновлено замовлень: ' + done + ' ✓', success: true }
   };
 }
 

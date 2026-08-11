@@ -336,5 +336,53 @@ ok('кількості показані пігулками', rinfo.includes('ao-
 ok('дата приходу — окремим рядком', rinfo.includes('ao-restock__date'));
 ok('дати показані словами, а не ISO', rinfo.includes('shortDate') && rinfo.includes('stamp'));
 
+
+/* ---------- Накладна: щоб менеджер не забув ----------
+   Найдорожча забудькуватість у вікні замовлень — відправити
+   посилку й не вписати номер. Покупець уже чекає, а сказати йому
+   нічого: досі статус мінявся мовчки. */
+
+{
+  const { applyStatus, orderStats } = await import('../lib/admin/orders.ts');
+
+  const замовлення = {
+    _id: 'x1', num: 'R-1', status: 'confirmed', total: 700,
+    items: [{ id: 'p1', name: 'товар', size: 'M', qty: 1, price: 700 }],
+    customer: { name: 'Тарас', phone: '+380', email: 'a@b.c' }
+  } as never;
+
+  const діалоги = (ttn: string | null) => ({
+    confirmAsk: async () => true,
+    ask: async () => 'ok' as const,
+    askWriteoff: async () => null,
+    askText: async () => ttn
+  });
+  const бази = { db: null as never, c: { products: [], stock: {} } as never, now: new Date(), by: 'a@b.c' };
+
+  const нічого = await applyStatus(замовлення, 'shipped', { ...бази, ask: діалоги('') as never });
+  ok('без номера у «Відправлено» не пускає', нічого.ok === false && нічого.reason === 'no-ttn');
+
+  const передумав = await applyStatus(замовлення, 'shipped', { ...бази, ask: діалоги(null) as never });
+  ok('закрив діалог — статус не змінився', передумав.ok === false && передумав.reason === 'cancelled');
+
+  const пакетом = await applyStatus(замовлення, 'shipped', { ...бази, ask: діалоги('123') as never, silent: true });
+  ok('масова зміна такі замовлення пропускає', пакетом.ok === false && пакетом.reason === 'no-ttn');
+
+  const зНомером = await applyStatus(
+    { ...(замовлення as object), ttn: '20450000000000' } as never,
+    'shipped',
+    { ...бази, ask: діалоги(null) as never }
+  );
+  ok('замовлення з номером про нього не перепитують', зНомером.reason !== 'no-ttn' && зНомером.reason !== 'cancelled');
+
+  const лік = orderStats([
+    { _id: '1', num: 'a', status: 'shipped', total: 100 },
+    { _id: '2', num: 'b', status: 'shipped', total: 100, ttn: '123' },
+    { _id: '3', num: 'c', status: 'done', total: 100 },
+    { _id: '4', num: 'd', status: 'new', total: 100 }
+  ] as never);
+  ok('лічильник «без ТТН» рахує відправлені й виконані', лік.noTtn === 2, String(лік.noTtn));
+}
+
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
 process.exit(failed ? 1 : 0);
