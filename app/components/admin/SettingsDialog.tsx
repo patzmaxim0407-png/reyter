@@ -88,7 +88,9 @@ export default function SettingsDialog({
   const form = settingsFromForm(values);
   const test = settingsForTest(form, legacy);
 
-  function rememberKey(v: string) {
+  function rememberKey(raw: string) {
+    // пробіл із буфера обміну коштує години пошуків
+    const v = raw.trim();
     setAdminKey(v);
     try {
       if (v) localStorage.setItem(KEY_WORKER, v);

@@ -154,7 +154,7 @@ export default function OrdersAdmin() {
   const [ключВоркера, setКлючВоркера] = useState('');
   useEffect(() => {
     try {
-      setКлючВоркера(localStorage.getItem(KEY_WORKER) ?? '');
+      setКлючВоркера((localStorage.getItem(KEY_WORKER) ?? '').trim());
     } catch {
       /* приватне вікно */
     }

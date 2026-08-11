@@ -252,7 +252,17 @@ export async function npCall<T = Record<string, unknown>>(
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'np', key: cab?.adminKey || '', model, method, props })
+      /* Ключ підрізаємо: при копіюванні з панелі Cloudflare до
+         нього легко чіпляється пробіл або перенос рядка, а
+         порівняння у воркері точне — і виходить «ключ не
+         збігається» там, де насправді збігається. */
+      body: JSON.stringify({
+        type: 'np',
+        key: String(cab?.adminKey || '').trim(),
+        model,
+        method,
+        props
+      })
     });
     const d = (await res.json().catch(() => ({}))) as {
       ok?: boolean;
