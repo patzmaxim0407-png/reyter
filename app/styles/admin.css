@@ -5299,3 +5299,16 @@ label.a-promo-product i {
   margin-top: 8px;
   justify-self: start;
 }
+
+/* Номер замовлення копіюється дотиком: його щодня переносять у
+   Telegram, у кабінет перевізника й у пошук. */
+.aq-row__num {
+  cursor: copy;
+  user-select: text;
+  border-bottom: 1px dashed #c9ced8;
+}
+
+.aq-row__num:hover {
+  color: #014aad;
+  border-bottom-color: #014aad;
+}

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { fmt } from '@/lib/catalog';
 
 /* ============================================================
@@ -61,6 +62,8 @@ export default function OrderRow({
   open?: boolean;
   onToggle(): void;
 }) {
+  const [скопійовано, setСкопійовано] = useState(false);
+
   return (
     <div className={'aq-row u-' + tone + (open ? ' is-open' : '')}>
       {onPick ? (
@@ -72,7 +75,28 @@ export default function OrderRow({
       <button className="aq-row__main" type="button" onClick={onToggle} aria-expanded={!!open}>
         <span className="aq-row__who">
           <b>{name || '—'}</b>
-          <em>№{num}</em>
+          {/* Номер копіюється дотиком: його щодня переносять у
+              Telegram, у кабінет перевізника й у пошук — а всередині
+              кнопки виділити його мишею неможливо.
+
+              Клік сюди не розкриває рядок: людина хотіла номер, а не
+              подробиці. */}
+          <em
+            className="aq-row__num"
+            title="Скопіювати номер"
+            onClick={(e) => {
+              e.stopPropagation();
+              void navigator.clipboard
+                ?.writeText(num)
+                .then(() => {
+                  setСкопійовано(true);
+                  setTimeout(() => setСкопійовано(false), 1200);
+                })
+                .catch(() => {});
+            }}
+          >
+            {скопійовано ? 'скопійовано ✓' : '№' + num}
+          </em>
         </span>
         <span className="aq-row__where" title={place}>
           {коротко(place) || '—'}
