@@ -262,6 +262,39 @@ ok('після закриття сторінка приймає натискан
   return !!(at && at.closest('a.pcard'));
 })()`));
 
+/* ---------- Повторне натискання ----------
+   Натискання на товар, який уже відкритий, не має нічого ламати.
+   Перехід на ту саму адресу спорожняв main: каталог зникав зовсім,
+   а на телефоні до картки каталогу можна дотягнутись і при
+   відкритій шторці. */
+
+await go(BASE + '/');
+await ev(`document.querySelector('.pgrid a[href*="/p/"]').click()`);
+await wait(1800);
+await ev(`document.querySelector('.pgrid a[href*="/p/"]').click()`);
+await wait(2000);
+const повтор = await ev(`({
+  карток: document.querySelectorAll('.pgrid .pcard').length,
+  відкрита: !!document.querySelector('.pmodal.is-open')
+})`);
+ok('повторне натискання на відкритий товар нічого не ламає',
+   повтор.карток > 0 && повтор.відкрита, JSON.stringify(повтор));
+
+await ev(`(() => {
+  const a = [...document.querySelectorAll('.pgrid a[href*="/p/"]')]
+    .find((x) => x.getAttribute('href') !== location.pathname);
+  a?.click();
+})()`);
+await wait(2000);
+const інший = await ev(`({
+  карток: document.querySelectorAll('.pgrid .pcard').length,
+  відкрита: !!document.querySelector('.pmodal.is-open')
+})`);
+ok('перехід на інший товар при відкритій картці теж',
+   інший.карток > 0 && інший.відкрита, JSON.stringify(інший));
+await ev(`document.querySelector('.pmodal__close')?.click()`);
+await wait(1800);
+
 /* ---------- Поява ----------
    Картка має виїжджати, а не зʼявлятися ривком. Вузол, вставлений
    одразу з класом is-open, переходити не має від чого. */

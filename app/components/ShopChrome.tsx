@@ -52,6 +52,26 @@ export default function ShopChrome() {
     return () => document.removeEventListener('pointerover', warm);
   }, [router]);
 
+  /* Натискання на товар, який уже відкритий, скасовуємо. Перехід
+     на ту саму адресу нічого не додає, зате Next перебудовує
+     сторінку — і каталог під карткою зникає зовсім: у main не
+     лишається жодного вузла. На телефоні до картки каталогу можна
+     дотягнутись і при відкритій шторці, тож випадок не рідкісний.
+
+     На перехопленні, а не на спливанні: до обробника Next це має
+     дійти вже скасованим. */
+  useEffect(() => {
+    const тойСамий = (event: MouseEvent) => {
+      const card = (event.target as HTMLElement)?.closest?.('a.pcard') as HTMLAnchorElement | null;
+      const href = card?.getAttribute('href');
+      if (!href || href !== window.location.pathname) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    document.addEventListener('click', тойСамий, true);
+    return () => document.removeEventListener('click', тойСамий, true);
+  }, []);
+
   /* Картка товару відкривається накладкою поверх каталогу, тож
      фон замикаємо вже на натисканні — поки йде запит, сторінка
      має стояти там, де людина її лишила. Слухаємо в оболонці:
