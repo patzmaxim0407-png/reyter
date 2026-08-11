@@ -269,7 +269,7 @@ export default function ManualOrder({
           <h5 className="ao-sub">Клієнт</h5>
           <div className="a-grid-3">
             <div className="field">
-              <label htmlFor="noName">ПІБ отримувача *</label>
+              <label htmlFor="noName">Прізвище та імʼя *</label>
               <input
                 id="noName"
                 autoComplete="off"
@@ -290,7 +290,7 @@ export default function ManualOrder({
               />
             </div>
             <div className="field">
-              <label htmlFor="noEmail">Email (для листа-підтвердження)</label>
+              <label htmlFor="noEmail">Пошта (для листа-підтвердження)</label>
               <input
                 id="noEmail"
                 type="email"
@@ -650,7 +650,7 @@ export default function ManualOrder({
               disabled={!form.email.trim()}
               onChange={(e) => setForm((v) => ({ ...v, notify: e.target.checked }))}
             />{' '}
-            Надіслати покупцю лист-підтвердження
+            Надіслати покупцеві лист-підтвердження
           </label>
 
           {progress ? <div className="a-publish__status is-wait">{progress}</div> : null}

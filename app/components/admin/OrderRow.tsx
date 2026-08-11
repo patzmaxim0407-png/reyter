@@ -107,8 +107,11 @@ export default function OrderRow({
           {meta ? <span>{meta}</span> : null}
         </span>
         <span className="aq-row__sum">{fmt(sum || 0)} грн</span>
+        {/* Один гліф, що повертається: два різні (⌃ і ⌄) мають
+            різні метрики, і рядок смикався на піксель у мить
+            розкриття. */}
         <span className="aq-row__chev" aria-hidden="true">
-          {open ? '⌃' : '⌄'}
+          ›
         </span>
       </button>
 

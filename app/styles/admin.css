@@ -5351,3 +5351,149 @@ label.a-promo-product i {
     height: 22px;
   }
 }
+
+/* ============================================================
+   ПРИБИРАННЯ ПІСЛЯ ОГЛЯДУ
+   ------------------------------------------------------------
+   Правила нижче правлять те саме, що описано вище, — свідомо:
+   так видно, що саме змінилось і чому, а не доводиться шукати
+   різницю в десяти місцях.
+   ============================================================ */
+
+/* Дії з накладною — окремим рядом, а не всередині підпису поля */
+.ao-ttn__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ao-ttn__acts:empty {
+  display: none;
+}
+
+.ao-ttn__make,
+.ao-ttn__drop,
+.ao-ttn__send {
+  margin: 0;
+}
+
+.ao-ttn__warn,
+.ao-ttn__pickup {
+  margin: 8px 0 0;
+}
+
+/* Рамки адмінки — одного відтінку. Змінної --a-line не існує
+   ніде в стилях, тож дев'ять місць працювали на запасному
+   кольорі, холоднішому й товщому за решту адмінки. */
+.aq-item,
+.aq-row,
+.ar-search,
+.ar-pick,
+.ar-dates input,
+.addr-reg,
+.ttn-from,
+.ao-setst__row,
+.cosec {
+  border-color: var(--c-line);
+}
+
+/* Один регулятор проміжків у відкритій картці замість пʼяти */
+.ao-card__details {
+  gap: 14px;
+}
+
+.ao-card__details > .ao-sums,
+.ao-card__details > .ao-editorder,
+.ao-card__details > .ao-way,
+.ao-card__details > .ao-setst,
+.aq-details .ao-card__grid {
+  margin-top: 0;
+}
+
+/* Архів і черга дихають однаково */
+.ao-list {
+  gap: 8px;
+}
+
+.aq-item + .aq-item {
+  margin-top: 0;
+}
+
+.aq-band {
+  display: grid;
+  gap: 8px;
+}
+
+.aq-band__head {
+  margin-bottom: 0;
+}
+
+/* Скасоване відкривають саме заради причини й журналу — вицвітати
+   їм ні до чого. Про скасування каже значок. */
+.ao-card--in.st-cancelled {
+  opacity: 1;
+}
+
+/* Перемикач статусу має читатись як перемикач, а не як підпис */
+.ao-setst__row .aq-badge {
+  opacity: 1;
+  background: #fff;
+  border-color: var(--c-line);
+  color: #5b6270;
+}
+
+.ao-setst__row .aq-badge.is-on {
+  box-shadow: none;
+  border-color: currentColor;
+}
+
+.ao-setst__row .aq-badge.st-new.is-on { color: #1d4ed8; background: #eef4ff; }
+.ao-setst__row .aq-badge.st-confirmed.is-on { color: #6d28d9; background: #f5f0ff; }
+.ao-setst__row .aq-badge.st-shipped.is-on { color: #b45309; background: #fff7ec; }
+.ao-setst__row .aq-badge.st-done.is-on { color: #15803d; background: #f0faf3; }
+.ao-setst__row .aq-badge.st-cancelled.is-on { color: #b3261e; background: #fdecea; }
+
+/* Двадцять синіх кнопок з ореолами — це не двадцять важливих
+   справ, а сіра стіна. У рядку кнопка спокійна. */
+.aq-row__act.btn--primary {
+  box-shadow: none;
+}
+
+.aq-row__act.btn--primary:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+@media (max-width: 720px) {
+  /* Головне дієслово екрана — на всю ширину, а не пігулкою
+     посеред картки */
+  .aq-row__act {
+    align-self: stretch;
+    width: auto;
+    margin: 0 12px 12px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 620px) {
+  /* Половина висоти першого екрана йшла на шапку сторінки */
+  .a-page__head p {
+    display: none;
+  }
+
+  .a-page__head h2 {
+    font-size: 1.2rem;
+  }
+}
+
+/* Стрілка повертається, а не міняється на іншу */
+.aq-row__chev {
+  transition: transform 0.15s ease;
+  transform: rotate(90deg);
+  display: inline-block;
+}
+
+.aq-item.is-open .aq-row__chev {
+  transform: rotate(-90deg);
+}

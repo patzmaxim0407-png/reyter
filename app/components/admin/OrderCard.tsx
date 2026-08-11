@@ -102,6 +102,10 @@ export default function OrderCard({
      привчає не звертати уваги на червоні значки взагалі. */
   const потрібнаТТН = st === 'shipped' && !маєТТН && !o.pickup;
   const рівень = parcel ? тривога(parcel) : 0;
+  /* Для закордону накладної Нової Пошти не буде: там інша
+     система й інші номери. Пропонувати кнопку, яка напевно
+     відмовить, — гірше, ніж не пропонувати нічого. */
+  const міжнародне = String(c.carrierId ?? '') === 'intl';
   /* Перевізник каже «отримано», а в нас усе ще «Відправлено» —
      значить, замовлення можна закривати, і сказати про це має
      сама картка, а не пам'ять менеджера. */
@@ -430,12 +434,18 @@ export default function OrderCard({
           <div className="ao-card__grid">
             <label className={'ao-field ao-field--ttn' + (потрібнаТТН ? ' is-need' : '')}>
               <span>
-                ТТН
+                Номер накладної (ТТН)
                 {o.ttnSentAt ? (
                   <em className="ao-ttn__sent" title={'Надіслано ' + o.ttnSentAt}>надіслано ✓</em>
                 ) : null}
               </span>
               <input
+                /* key змушує поле перечитати значення, коли номер
+                   змінився ззовні: інакше досить клацнути в нього
+                   й вийти, щоб порожній рядок затер номер, який
+                   щойно вписав інший менеджер або створення
+                   накладної. */
+                key={o.ttn ?? ''}
                 defaultValue={o.ttn ?? ''}
                 placeholder="номер накладної"
                 /* У виконаному замовленні номер уже нічого не
@@ -460,53 +470,11 @@ export default function OrderCard({
                   if (e.target.value !== (o.ttn ?? '')) onField?.('ttn', e.target.value);
                 }}
               />
-              {/* Створити накладну можна доти, доки її немає, —
-                  і в архіві теж. Виконане замовлення часом
-                  доводиться відправити ще раз: обмін, дослання
-                  забутої речі, повторна спроба після повернення. */}
-              {o.pickup ? (
-                <em className="ao-ttn__pickup">Самовиніс — накладної не буде</em>
-              ) : null}
-              {!маєТТН && !o.pickup && onMakeTtn && st !== 'cancelled' ? (
-                <button
-                  className="btn btn--primary btn--sm ao-ttn__make"
-                  type="button"
-                  onClick={onMakeTtn}
-                >
-                  Створити накладну
-                </button>
-              ) : null}
-              {/* Скасувати можна лише те, що ще не доїхало:
-                  перевізник видаляє накладну, доки посилку не
-                  прийняли, а виконане замовлення це вже минуле. */}
-              {маєТТН && onDropTtn && st !== 'done' && st !== 'cancelled' ? (
-                <button
-                  className="btn btn--ghost btn--sm ao-danger ao-ttn__drop"
-                  type="button"
-                  onClick={onDropTtn}
-                  title="Видалити накладну в кабінеті — щоб виправити замовлення"
-                >
-                  Скасувати накладну
-                </button>
-              ) : null}
-              {маєТТН && onSendTtn ? (
-                <button
-                  className="btn btn--ghost btn--sm ao-ttn__send"
-                  type="button"
-                  onClick={onSendTtn}
-                >
-                  {o.ttnSentAt ? 'Надіслати ще раз' : 'Надіслати покупцеві'}
-                </button>
-              ) : null}
-              {потрібнаТТН ? (
-                <em className="ao-ttn__warn">
-                  Посилка відправлена, а номера немає — покупець не знає, де вона.
-                </em>
-              ) : null}
             </label>
             <label className="ao-field">
               <span>Нотатка менеджера</span>
               <input
+                key={o.note ?? ''}
                 defaultValue={o.note ?? ''}
                 placeholder="напр.: передзвонити після 18:00"
                 onBlur={(e) => {
@@ -515,6 +483,56 @@ export default function OrderCard({
               />
             </label>
           </div>
+
+          {/* Дії з накладною — окремим рядом під полями. Доти
+              вони лежали всередині підпису «ТТН», через що ліва
+              клітинка сітки ставала вдвічі вищою за праву, і під
+              нотаткою зяяла діра. */}
+          <div className="ao-ttn__acts">
+            {/* Створити накладну можна доти, доки її немає, —
+                і в архіві теж. Виконане замовлення часом
+                доводиться відправити ще раз: обмін, дослання
+                забутої речі, повторна спроба після повернення. */}
+
+            {!маєТТН && !o.pickup && !міжнародне && onMakeTtn && st !== 'cancelled' ? (
+              <button
+                className="btn btn--primary btn--sm ao-ttn__make"
+                type="button"
+                onClick={onMakeTtn}
+              >
+                Створити накладну
+              </button>
+            ) : null}
+            {/* Скасувати можна лише те, що ще не доїхало:
+                перевізник видаляє накладну, доки посилку не
+                прийняли, а виконане замовлення це вже минуле. */}
+            {маєТТН && onDropTtn && st !== 'done' && st !== 'cancelled' ? (
+              <button
+                className="btn btn--ghost btn--sm ao-danger ao-ttn__drop"
+                type="button"
+                onClick={onDropTtn}
+                title="Видалити накладну в кабінеті — щоб виправити замовлення"
+              >
+                Скасувати накладну
+              </button>
+            ) : null}
+            {маєТТН && onSendTtn ? (
+              <button
+                className="btn btn--ghost btn--sm ao-ttn__send"
+                type="button"
+                onClick={onSendTtn}
+              >
+                {o.ttnSentAt ? 'Надіслати ще раз' : 'Надіслати покупцеві'}
+              </button>
+            ) : null}
+          </div>
+
+          {потрібнаТТН ? (
+            <p className="ao-ttn__warn">
+              Посилка відправлена, а номера немає — покупець не знає, де вона.
+            </p>
+          ) : null}
+          {o.pickup ? <p className="ao-ttn__pickup">Самовиніс — накладної не буде</p> : null}
 
           {/* Товар не повернули на склад — причина має бути видна
               прямо в картці, інакше через тиждень її вже не знайти */}

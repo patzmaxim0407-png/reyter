@@ -129,7 +129,15 @@ export const NEXT_STEP: Partial<Record<OrderStatus, { id: OrderStatus; label: st
    отже, і розсинхронізуватись нема чому.
    ============================================================ */
 
-export type BandId = 'confirm' | 'pack' | 'ttn' | 'waiting' | 'back' | 'close' | 'transit';
+export type BandId =
+  | 'confirm'
+  | 'pack'
+  | 'ttn'
+  | 'back'
+  | 'waiting'
+  | 'pickup'
+  | 'close'
+  | 'transit';
 
 export interface Band {
   id: BandId;
@@ -145,6 +153,9 @@ export const BANDS: readonly Band[] = [
   { id: 'ttn', icon: '🔖', title: 'Без номера накладної', action: 'Відкрити' },
   { id: 'back', icon: '↩', title: 'Повернення й помилки', action: 'Відкрити' },
   { id: 'waiting', icon: '⏳', title: 'Лежить у відділенні', action: 'Відкрити' },
+  /* Самовиніс має власну смугу: у «Отримано» він стверджував
+     факт, якого ще не сталося, — покупець тільки має прийти. */
+  { id: 'pickup', icon: '🏠', title: 'Самовиніс — чекає покупця', action: 'Відкрити' },
   { id: 'close', icon: '✓', title: 'Отримано — можна закрити', action: 'Закрити' },
   { id: 'transit', icon: '🚚', title: 'У дорозі', action: '' }
 ];
@@ -178,7 +189,16 @@ export function nextTask(
   const st = o.status || 'new';
   if (st === 'done' || st === 'cancelled') return null;
 
-  const від = orderDate(o);
+  /* Вік рахуємо від тієї події, про яку й кажемо: «підтверджено
+     дві години тому» має міряти час від підтвердження, а не від
+     оформлення. Інакше замовлення, підтверджене щойно, червоніє
+     за порогом, а підпис каже «підтверджено щойно тому». */
+  const коли = (статус: string): Date | null => {
+    const запис = [...(o.statusLog || [])].reverse().find((e) => e.status === статус);
+    const d = запис?.at ? new Date(запис.at) : null;
+    return d && !Number.isNaN(d.getTime()) ? d : null;
+  };
+  const від = (st === 'confirmed' ? коли('confirmed') : null) || orderDate(o);
   const hours = від ? Math.max(0, Math.floor((now.getTime() - від.getTime()) / ГОДИНА)) : 0;
 
   if (st === 'new') {
@@ -197,13 +217,13 @@ export function nextTask(
       band: 'pack',
       hours,
       urgency: hours >= 48 ? 2 : hours >= 24 ? 1 : 0,
-      why: 'підтверджено ' + годинами(hours) + ' тому'
+      why: hours < 1 ? 'підтверджено щойно' : 'підтверджено ' + годинами(hours) + ' тому'
     };
   }
 
   // далі — тільки відправлені
   if (o.pickup) {
-    return { band: 'close', hours, urgency: 0, why: 'самовиніс — чекає покупця' };
+    return { band: 'pickup', hours, urgency: hours >= 24 * 7 ? 1 : 0, why: 'чекає покупця' };
   }
   if (!String(o.ttn || '').trim()) {
     return { band: 'ttn', hours, urgency: 2, why: 'номера немає — покупець не знає, де посилка' };
@@ -771,6 +791,11 @@ export function planStatusChange(
   let toast: Toast = { text: 'Статус: ' + statusInfo(next).title + ' ✓', success: true };
 
   if (willConsume && !wasApplied) {
+    /* Товар списується заново — отже, попередня втрата вже не
+       описує дійсність. Інакше в картці назавжди лишався б
+       червоний рядок «Товар не повернувся на склад», який тепер
+       просто неправда. */
+    update.writeoff = null as unknown as undefined;
     stock = { kind: 'consume' };
     update.stockApplied = true;
     toast = { text: 'Статус оновлено, товар списано зі складу ✓', success: true };

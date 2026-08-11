@@ -526,7 +526,7 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
 
   const { nextTask } = await import('../lib/admin/orders.ts');
   const т = nextTask(зам({ pickup: true, date: new Date().toISOString() }), null, new Date());
-  ok('самовиніс у черзі чекає покупця, а не номера', т?.band === 'close', т?.band);
+  ok('самовиніс має власну смугу, а не «Отримано»', т?.band === 'pickup', т?.band);
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));

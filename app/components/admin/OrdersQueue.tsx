@@ -92,7 +92,7 @@ export default function OrdersQueue({
               {band.icon}
             </span>
             {band.title}
-            <i>{rows.length}</i>
+            {rows.length ? <i>{rows.length}</i> : null}
           </h3>
 
           {/* Значка статусу в рядку черги немає навмисно: смуга

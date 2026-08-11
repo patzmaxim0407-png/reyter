@@ -21,6 +21,7 @@ import {
   DEFAULT_FILTERS,
   PAGE_SIZE,
   applyStatus,
+  queue,
   buildOrderMessage,
   bulkStatus,
   csvName,
@@ -334,6 +335,17 @@ export default function OrdersAdmin() {
         if (!треба || треба === зараз) continue;
         if (зараз === 'cancelled' || зараз === 'done') continue;
         if (треба === 'shipped' && зараз !== 'confirmed') continue;
+        /* Менеджер міг свідомо відкотити «Відправлено →
+           Підтверджено»: домовились переоформити, покупець
+           передумав. Слід цього рішення є в журналі — і воно
+           важить більше за те, що посилка ще фізично лежить у
+           відділенні. */
+        if (
+          треба === 'shipped' &&
+          (o.statusLog || []).some((e) => e.status === 'shipped')
+        ) {
+          continue;
+        }
         if (треба === 'done' && зараз !== 'shipped') continue;
 
         const res = await applyStatus(o, треба as OrderStatus, {
@@ -471,11 +483,17 @@ export default function OrdersAdmin() {
     [askDialog, toast]
   );
 
-  /* Скільки справ у черзі — число на вкладці. */
-  const справ = orders.filter((o) => {
-    const st = o.status || 'new';
-    return st !== 'done' && st !== 'cancelled';
-  }).length;
+  /* Скільки справ у черзі — тим самим кодом, що й сама черга.
+     Інакше на вкладці «14», а робити треба три речі: решта
+     спокійно їде, і черга справами їх не вважає. На такий
+     лічильник перестають дивитися за тиждень. */
+  const справ = useMemo(
+    () =>
+      queue(orders as never, посилки as never, new Date())
+        .filter((s) => s.band.id !== 'transit' && s.band.id !== 'pickup')
+        .reduce((n, s) => n + s.rows.length, 0),
+    [orders, посилки]
+  );
 
   /** Що каже перевізник — для рядка списку. */
   function посилкаДляРядка(o: AdminOrder) {
@@ -550,6 +568,27 @@ export default function OrdersAdmin() {
 
   const підтягнутиРef = useRef(підтягнутиСтатуси);
   підтягнутиРef.current = підтягнутиСтатуси;
+
+  /* Накладна вже в кабінеті перевізника, а форма редагування
+     переписує імʼя, телефон і адресу — у накладній вони
+     лишаються старими. Тихо це робити не можна. */
+  const редагувати = useCallback(
+    async (o: AdminOrder) => {
+      if (String(o.ttn || '').trim()) {
+        const yes = await askDialog({
+          title: 'Накладна вже створена',
+          text:
+            'У замовленні є накладна ' + o.ttn + '. Зміни в імені, телефоні чи адресі в неї ' +
+            'НЕ потраплять — там лишиться те, що вже надруковано.' +
+            '\n\nЯкщо міняється саме доставка — спершу скасуйте накладну, а потім створіть нову.',
+          okText: 'Все одно редагувати'
+        });
+        if (yes !== true) return;
+      }
+      setManual(o);
+    },
+    [askDialog]
+  );
 
   async function onStatus(o: AdminOrder, next: string) {
     const dd = deps();
@@ -633,11 +672,6 @@ export default function OrdersAdmin() {
         <div className="a-orders a-orders--page">
           {/* Видно, що список живий: замовлення приходять самі,
               і сторінку не треба перезавантажувати */}
-          <div className="ao-toolbar">
-            <span className="ao-live">● live</span>
-            <span>Нові замовлення зʼявляються автоматично</span>
-          </div>
-
           {/* Два екрани одного вікна: у черзі — те, що треба
               зробити сьогодні; в архіві — усе, що вже сталося,
               разом із фільтрами, статистикою, CSV і друком. */}
@@ -682,7 +716,7 @@ export default function OrdersAdmin() {
               c={c}
               parcels={посилки}
               onStatus={(o, next) => void onStatus(o as never, next)}
-              onEdit={(o) => setManual(o as never)}
+              onEdit={(o) => void редагувати(o as never)}
               onField={(o, field, value) => void зберегтиПоле(o as never, field, value)}
               onSendTtn={(o) => void надіслатиТТН(o as never, String(o.ttn || '').trim())}
               onMakeTtn={(o) => setТтнДля(o as never)}
@@ -695,17 +729,19 @@ export default function OrdersAdmin() {
           <>
 
           <div className="ao-sum">
+            {/* «підпис: число» — так не треба узгоджувати число з
+                іменником і зрозуміло, що саме показано. */}
             <span>
-              <b>{stats.count}</b> замовлень
+              Замовлень: <b>{stats.count}</b>
             </span>
             <span>
-              <b>{fmt(stats.revenue)}</b> грн
+              Виручка: <b>{fmt(stats.revenue)} грн</b>
             </span>
             <span>
-              середній <b>{fmt(stats.avg)}</b>
+              Середній чек: <b>{fmt(stats.avg)} грн</b>
             </span>
             <span>
-              <b>{stats.units}</b> одиниць
+              Одиниць товару: <b>{stats.units}</b>
             </span>
           </div>
 
@@ -780,7 +816,7 @@ export default function OrdersAdmin() {
                       embedded
                       parcel={посилки.get(String(o.ttn || '').trim())}
                       onStatus={(next) => void onStatus(o, next)}
-                      onEdit={() => setManual(o)}
+                      onEdit={() => void редагувати(o)}
                       onField={(field, value) => void зберегтиПоле(o, field, value)}
                       onSendTtn={() => void надіслатиТТН(o, String(o.ttn || '').trim())}
                       onMakeTtn={() => setТтнДля(o)}
