@@ -281,6 +281,30 @@ if (np.opts > 0) {
       branch: document.getElementById('coBranch').value
     }))()`);
     ok('зміна міста скидає відділення', after.branch === '', `місто: ${after.city}, відділення: "${after.branch}"`);
+
+    /* Пішли з поля, не дочекавшись відповіді. Запізніла відповідь
+       не має розкривати список сама: інакше над уже заповненою
+       адресою висне підказка, і закрити її нема кому — саме так
+       вилазило «Не вдалося звʼязатися з Новою Поштою». */
+    await evalJs(`(() => {
+      const el = document.getElementById('coCity');
+      el.focus();
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(el, 'Львівщ');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('coName').focus();
+    })()`);
+    await wait(2500);
+    const late = await evalJs(`(() => {
+      const box = document.getElementById('coCity').closest('.acombo');
+      return {
+        hidden: box.querySelector('.acombo__list').hidden,
+        msg: box.querySelector('.acombo__msg')?.textContent || ''
+      };
+    })()`);
+    ok('запізніла відповідь не розкриває список сама',
+       late.hidden && !late.msg,
+       late.msg || 'список закритий');
   }
 }
 

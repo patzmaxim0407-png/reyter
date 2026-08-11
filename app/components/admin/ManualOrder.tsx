@@ -21,6 +21,7 @@ import {
   noTotal,
   normalizeSetRows,
   type AdminOrder,
+  type KnownCustomer,
   type ManualForm,
   type ManualRow,
   type NoPromoHint,
@@ -302,12 +303,21 @@ export default function ManualOrder({
             </div>
           </div>
 
+          {/* Плашка «впізнали покупця». Читається згори вниз:
+              хто це, чим уже був, і аж потім кнопка. Раніше все
+              лежало одним рядком суцільним текстом, і кнопка
+              висіла просто в реченні. */}
           {known ? (
             <div className="ao-known">
-              Здається, це <b>{String(known.customer.name ?? '')}</b>
-              {known.orders ? ` · замовлень: ${known.orders}` : ''}
+              <span className="ao-known__mark" aria-hidden="true">
+                ↺
+              </span>
+              <span className="ao-known__who">
+                <b>{String(known.customer.name ?? '') || 'Постійний покупець'}</b>
+                <i>{knownMeta(known)}</i>
+              </span>
               <button
-                className="btn btn--ghost btn--sm"
+                className="btn btn--ghost btn--sm ao-known__fill"
                 type="button"
                 onClick={() => {
                   /* Підставляємо все разом: імʼя, пошту й адресу.
@@ -707,4 +717,26 @@ export default function ManualOrder({
       </div>
     </div>
   );
+}
+
+/* Другий рядок плашки: скільки разів замовляв і куди возили
+   востаннє. Відділення скорочуємо до номера — повна назва
+   («Відділення №1: вул. Городоцька, 359») ламала б рядок і
+   нічого не додавала: адресу видно нижче у формі. */
+function knownMeta(known: KnownCustomer): string {
+  const c = known.customer as Record<string, unknown>;
+  const branch = String(c.branch ?? '');
+  const short = /№\s*\d+/.exec(branch)?.[0] || (branch ? 'відділення' : '');
+  return [ordersWord(known.orders), [c.city, short].filter(Boolean).join(', ')]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/** «1 замовлення», «2 замовлення», «5 замовлень». */
+function ordersWord(n: number): string {
+  if (!n) return '';
+  const two = n % 100;
+  const one = n % 10;
+  const word = two >= 11 && two <= 14 ? 'замовлень' : one === 1 || (one >= 2 && one <= 4) ? 'замовлення' : 'замовлень';
+  return n + ' ' + word;
 }

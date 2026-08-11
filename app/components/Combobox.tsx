@@ -87,6 +87,8 @@ export default function Combobox(props: {
 
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const typedHere = useRef(false);
 
   useEffect(
     () => () => {
@@ -104,6 +106,8 @@ export default function Combobox(props: {
       return;
     }
     const my = ++seq.current;
+    // з чого починали: поле під курсором чи його заповнили ззовні
+    typedHere.current = !!input.current && document.activeElement === input.current;
     setBusy(true);
     timer.current = setTimeout(async () => {
       let res: ComboItem[] | null = [];
@@ -117,8 +121,24 @@ export default function Combobox(props: {
       if (my !== seq.current) return;
 
       setBusy(false);
-      setOpen(true);
       setActive(-1);
+
+      /* Поки відповідь ішла, покупець уже пішов із поля — тоді
+         список розкривати не можна. Саме так і вилазило
+         «Не вдалося звʼязатися з Новою Поштою» над уже
+         заповненою адресою: людина дописувала місто, одразу
+         бралася за наступне поле, а запізніла відповідь сама
+         розкривала список — і закрити його вже не було кому.
+
+         Питаємо лише про поля, у яких справді набирали: коли
+         значення підставили ззовні, курсор і не мав тут бути. */
+      if (typedHere.current && document.activeElement !== input.current) {
+        setOpen(false);
+        setItems([]);
+        setNote('');
+        return;
+      }
+      setOpen(true);
 
       if (failed) {
         setItems([]);
@@ -136,7 +156,19 @@ export default function Combobox(props: {
     }, 260);
   }
 
+  /* Вибрали пункт — усе, що ще в дорозі, більше не потрібне.
+     Без цього відкладений запит за останніми літерами приходив
+     ПІСЛЯ вибору й сам розкривав список наново: у полі стоїть
+     «Львів», відділення вже підтяглись, а зверху висить
+     «Не вдалося звʼязатися з Новою Поштою». Саме це й бачив
+     власник. Тому глушимо таймер, знецінюємо відповідь і
+     прибираємо підпис. */
   function choose(item: ComboItem) {
+    if (timer.current) clearTimeout(timer.current);
+    seq.current++;
+    setBusy(false);
+    setNote('');
+    setItems([]);
     onPick(item);
     setOpen(false);
     setActive(-1);
@@ -174,6 +206,7 @@ export default function Combobox(props: {
       <div className="acombo__box">
         {chip}
         <input
+          ref={input}
           id={id}
           className={invalid ? 'is-invalid' : undefined}
           type="text"
