@@ -34,25 +34,30 @@ import {
 
 /** Скільки замовлень чекають на обробку. Значок на вкладці має
  *  бути на всіх розділах, а не лише там, де список уже відкритий. */
-export function useNewOrders(): number {
+export function useNewOrders(on = true): number {
   const [n, setN] = useState(0);
-  useEffect(
-    () =>
-      watchOrders((list) =>
-        setN(list.filter((o) => ((o as { status?: string }).status ?? 'new') === 'new').length)
-      ),
-    []
-  );
+  useEffect(() => {
+    if (!on) return;
+    return watchOrders((list) =>
+      setN(list.filter((o) => ((o as { status?: string }).status ?? 'new') === 'new').length)
+    );
+  }, [on]);
   return n;
 }
 
 export default function PublishControl({
   user,
   onSettings,
+  newOrders: newOrdersProp,
   children
 }: {
   user: User;
   onSettings(): void;
+  /** Скільки нових замовлень — коли сторінка їх уже читає. Без
+   *  цього шапка відкривала ДРУГУ підписку на ті самі пʼятсот
+   *  документів: мережею вони не подвоювались, а от у обʼєкти
+   *  розбирались і в стан лягали двічі на кожен знімок. */
+  newOrders?: number;
   /** Чернетка сторінки каталогу — щоб не тримати другу підписку
    *  там, де вона вже є. */
   children?: ReactNode;
@@ -62,7 +67,8 @@ export default function PublishControl({
   const [published, setPublished] = useState<PublishedDoc | null>(null);
   const [scheduled, setScheduled] = useState<ScheduledDoc | null>(null);
   const [open, setOpen] = useState(false);
-  const newOrders = useNewOrders();
+  const власні = useNewOrders(newOrdersProp === undefined);
+  const newOrders = newOrdersProp ?? власні;
 
   useEffect(
     () =>

@@ -452,10 +452,9 @@ export function orderStats(list: AdminOrder[]): OrderStats {
     units: active.reduce((s, o) => s + orderUnits(o), 0),
     /* Скільки посилок уже в дорозі без номера. Це не статистика,
        а список справ: доки число не нуль, хтось із покупців не
-       знає, де його замовлення. */
-    noTtn: list.filter(
-      (o) => (o.status === 'shipped' || o.status === 'done') && !String(o.ttn || '').trim()
-    ).length
+       знає, де його замовлення. Виконані не рахуємо — там
+       посилку вже забрали, і номер нічого не змінить. */
+    noTtn: list.filter((o) => o.status === 'shipped' && !String(o.ttn || '').trim()).length
   };
 }
 

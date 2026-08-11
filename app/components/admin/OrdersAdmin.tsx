@@ -250,7 +250,11 @@ export default function OrdersAdmin() {
 
   return (
     <>
-      <PublishControl user={user} onSettings={() => setSettingsOpen(true)} />
+      <PublishControl
+        user={user}
+        onSettings={() => setSettingsOpen(true)}
+        newOrders={orders.filter((o) => (o.status ?? 'new') === 'new').length}
+      />
 
       {/* Розкладка — як в admin.html: .admin-wrap це дві колонки
           каталогу з бічним списком категорій, і сторінці замовлень
@@ -300,7 +304,10 @@ export default function OrdersAdmin() {
               <button
                 type="button"
                 className="ao-stat ao-stat--warn"
-                onClick={() => setF((v) => ({ ...v, q: '' , status: 'shipped' }))}
+                /* Поля q у фільтрах немає — воно зветься search. Через
+                   цю дрібницю плитка не скидала пошук, і менеджер
+                   бачив порожній список замість роботи. */
+                onClick={() => setF((v) => ({ ...v, search: '', status: 'shipped' }))}
                 title="Показати відправлені — і вписати номери"
               >
                 <b>{stats.noTtn}</b>

@@ -381,7 +381,7 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
     { _id: '3', num: 'c', status: 'done', total: 100 },
     { _id: '4', num: 'd', status: 'new', total: 100 }
   ] as never);
-  ok('лічильник «без ТТН» рахує відправлені й виконані', лік.noTtn === 2, String(лік.noTtn));
+  ok('лічильник «без ТТН» рахує лише ті, що в дорозі', лік.noTtn === 1, String(лік.noTtn));
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));

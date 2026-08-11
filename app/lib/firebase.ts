@@ -41,6 +41,11 @@ import {
   limit,
   serverTimestamp,
   increment,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  terminate,
+  clearIndexedDbPersistence,
   type Firestore
 } from 'firebase/firestore';
 
@@ -67,8 +72,34 @@ function ready(): boolean {
   return !!app;
 }
 
+/* ---------- Кеш бази ----------
+   Досі база трималась у памʼяті вкладки, тобто фактично ніде:
+   кожне оновлення сторінки адмінки заново тягнуло всі пʼятсот
+   замовлень — близько двох мегабайтів. Постійний кеш лишає їх
+   у сховищі браузера: другий і кожен наступний захід малює
+   список одразу, а мережею їде лише різниця.
+
+   Багатовкладковий менеджер обовʼязковий: менеджери тримають
+   адмінку в кількох вкладках, і без нього кеш дістається лише
+   першій, а решта тихо працює по-старому.
+
+   initializeFirestore можна викликати рівно раз і тільки до
+   першого getFirestore, тому памʼятаємо створене. Приватне
+   вікно Safari сховища не дає — тоді відкочуємось на звичайну
+   базу, а не лишаємо адмінку без бази взагалі. */
+let store: Firestore | null = null;
+
 export function db(): Firestore | null {
-  return ready() ? getFirestore(app as FirebaseApp) : null;
+  if (!ready()) return null;
+  if (store) return store;
+  try {
+    store = initializeFirestore(app as FirebaseApp, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
+  } catch {
+    store = getFirestore(app as FirebaseApp);
+  }
+  return store;
 }
 
 export function auth(): Auth | null {
@@ -162,6 +193,20 @@ export async function resetPassword(email: string) {
 export async function logout() {
   const a = auth();
   if (a) await signOut(a);
+
+  /* Кеш лишається на диску й після виходу — а в ньому адреси й
+     телефони покупців, які читалися б офлайн з чужого ноутбука.
+     Тому при виході стираємо: база вже нікому не потрібна, а
+     наступний вхід збере її наново. */
+  try {
+    if (store) {
+      await terminate(store);
+      await clearIndexedDbPersistence(store);
+      store = null;
+    }
+  } catch {
+    /* база могла бути ще не створена або вже закрита */
+  }
 }
 
 /** Помилки авторизації людською мовою: коди Firebase покупцеві

@@ -91,8 +91,12 @@ const intlForm: AddressForm = {
   ...EMPTY_FORM,
   carrier: 'intl',
   countryCode: 'US',
+  /* Курʼєром на адресу: у відділення перевізник питає інше —
+     там ані вулиці, ані індексу не треба взагалі. */
+  intlMode: 'address',
   intlCity: 'Chicago',
-  street: '123 Main St',
+  street: 'Main St',
+  building: '123',
   zip: '60601'
 };
 ok(
@@ -101,23 +105,81 @@ ok(
   JSON.stringify(checkAddress(intlForm))
 );
 ok('зі штатом закордонна адреса проходить', checkAddress({ ...intlForm, state: 'IL' }) === null);
+ok(
+  'без номера будинку не проходить',
+  checkAddress({ ...intlForm, state: 'IL', building: '' })?.field === 'building'
+);
+ok(
+  'кирилицю в закордонній адресі не пропускаємо',
+  checkAddress({ ...intlForm, state: 'IL', street: 'Головна' })?.key === 'addr.needLatin'
+);
 
-const intlAddr = fromForm({ ...intlForm, state: 'IL', extra: 'apt 5' });
+/* У відділення все інакше: вулиця й індекс не потрібні, зате
+   пункт мусить бути обраний зі списку, а не набраний руками. */
+const пунктом: AddressForm = {
+  ...EMPTY_FORM,
+  carrier: 'intl',
+  countryCode: 'PL',
+  intlCity: 'Warsaw',
+  intlCityId: '22326',
+  intlBranch: '№04/2',
+  intlBranchId: '7'
+};
+ok('у відділення без вулиці й індексу — проходить', checkAddress(пунктом) === null);
+ok(
+  'набраний руками пункт не приймається',
+  checkAddress({ ...пунктом, intlBranchId: '' })?.key === 'addr.pickFromList'
+);
+ok(
+  'для Німеччини питаємо адресу реєстрації',
+  checkAddress({ ...пунктом, countryCode: 'DE' })?.field === 'regCity'
+);
+
+const intlAddr = fromForm({ ...intlForm, state: 'IL', flat: 'apt 5' });
 ok(
   'закордонна адреса дублює місто й вулицю в city/branch',
-  intlAddr.city === 'Chicago' && intlAddr.branch === '123 Main St, apt 5',
+  intlAddr.city === 'Chicago' && intlAddr.branch === 'Main St 123, apt 5',
   JSON.stringify({ city: intlAddr.city, branch: intlAddr.branch })
 );
 ok('назва країни підставляється за кодом', intlAddr.intl?.country === 'США', intlAddr.intl?.country);
+
+const пунктAddr = fromForm(пунктом);
+ok(
+  'у відділення в branch іде сам пункт, а не вулиця',
+  пунктAddr.branch === '№04/2' && !пунктAddr.intl?.street,
+  JSON.stringify({ branch: пунктAddr.branch, street: пунктAddr.intl?.street })
+);
 
 /* Адреса має пережити цикл «зберегли → відкрили форму знову» */
 const round = toForm(intlAddr);
 ok(
   'адреса відновлюється у форму без втрат',
-  round.countryCode === 'US' && round.state === 'IL' && round.zip === '60601' && round.street === '123 Main St',
+  round.countryCode === 'US' && round.state === 'IL' && round.zip === '60601' &&
+    round.street === 'Main St' && round.building === '123' && round.flat === 'apt 5' &&
+    round.intlMode === 'address',
   JSON.stringify(round)
 );
-const otherBack = toForm(fromForm({ ...EMPTY_FORM, carrier: 'intl', countryCode: 'other', countryOther: 'Portugal', intlCity: 'Lisboa', street: 'Rua A', zip: '1000' }));
+const roundПункт = toForm(пунктAddr);
+ok(
+  'вибір відділення теж повертається у форму',
+  roundПункт.intlMode === 'branch' && roundПункт.intlBranchId === '7' && roundПункт.intlCityId === '22326',
+  JSON.stringify(roundПункт)
+);
+
+/* Старі записи квартиру тримали в extra — вони мусять читатись */
+const староЗбережене = toForm({
+  carrier: 'Міжнародна доставка',
+  carrierId: 'intl',
+  city: 'Lisboa',
+  intl: { countryCode: 'PT', country: 'Португалія', city: 'Lisboa', street: 'Rua A 5', extra: 'apt 2', zip: '1000' }
+} as never);
+ok(
+  'стара адреса читається: квартира з extra, режим — адресний',
+  староЗбережене.flat === 'apt 2' && староЗбережене.intlMode === 'address',
+  JSON.stringify({ flat: староЗбережене.flat, mode: староЗбережене.intlMode })
+);
+
+const otherBack = toForm(fromForm({ ...EMPTY_FORM, carrier: 'intl', countryCode: 'other', countryOther: 'Portugal', intlCity: 'Lisboa', intlMode: 'address', street: 'Rua A', building: '5', zip: '1000' }));
 ok('країна поза списком повертається в своє поле', otherBack.countryOther === 'Portugal', otherBack.countryOther);
 
 /* ---------- Покупець ---------- */

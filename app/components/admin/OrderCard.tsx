@@ -74,8 +74,12 @@ export default function OrderCard({
   const next = NEXT_STEP[st as keyof typeof NEXT_STEP];
   const маєТТН = !!String(o.ttn || '').trim();
   /* Відправлено без накладної — найдорожча забудькуватість у
-     цьому вікні: покупець уже чекає, а сказати йому нічого. */
-  const потрібнаТТН = (st === 'shipped' || st === 'done') && !маєТТН;
+     цьому вікні: покупець уже чекає, а сказати йому нічого.
+
+     А от виконаному замовленню номер уже ні до чого: посилку
+     забрали, і червоний значок на ній — просто шум, який
+     привчає не звертати уваги на червоні значки взагалі. */
+  const потрібнаТТН = st === 'shipped' && !маєТТН;
 
   const delivery = addressLine(c as never);
   const units = (o.items ?? []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
