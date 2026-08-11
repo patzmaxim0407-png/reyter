@@ -51,6 +51,14 @@ const сумаБілого = underwearSum(біле.c, біле.lines);
 ok(сумаБілого === 1600, 'білизна рахується', String(сумаБілого));
 ok(freeReached(сумаБілого), 'від 1500 грн білизни — безкоштовно');
 
+const плавки = каталог({ price: 880, category: 'swim', qty: 2 });
+ok(
+  underwearSum(плавки.c, плавки.lines) === 1760,
+  'плавки зараховуються в поріг',
+  String(underwearSum(плавки.c, плавки.lines))
+);
+ok(freeReached(underwearSum(плавки.c, плавки.lines)), 'і дають безкоштовну доставку');
+
 const змішане = каталог(
   { price: 800, category: 'briefs', qty: 1 },
   { price: 2000, category: 'home-collection', qty: 1 }
