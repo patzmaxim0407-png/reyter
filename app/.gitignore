@@ -43,3 +43,6 @@ next-env.d.ts
 # збірка для Cloudflare
 /.open-next/
 /.wrangler/
+
+# знімки статики попередніх збірок (для вкладок, відкритих до викладки)
+.static-history/

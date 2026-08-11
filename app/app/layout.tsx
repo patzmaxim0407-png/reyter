@@ -64,6 +64,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="uk" className={`${inter.variable} ${unbounded.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: "document.documentElement.lang=location.pathname.startsWith('/new/en')?'en':'uk'" }} />
+        {/* Запасний шар на випадок, коли єдиний файл стилів не
+            доїхав: після викладки браузер може тримати сторінку
+            попередньої збірки, а вона просить файл, якого вже
+            немає. Без цих кількох рядків виходить голий HTML —
+            Times із засічками й картинки в натуральний зріст.
+
+            @layer навмисно: правила в шарі поступаються будь-яким
+            звичайним, тож коли справжні стилі на місці, цей блок
+            не важить нічого. */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html:
+              '@layer reyter-fallback{body{margin:0;background:#FCF8F0;color:#171B26;font-family:var(--font-inter),-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.6}img,svg,video{display:block;max-width:100%;height:auto}a{color:inherit;text-decoration:none}button{font:inherit}}'
+          }}
+        />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
       </head>
       <body>
