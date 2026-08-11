@@ -242,6 +242,123 @@ export async function npWarehouses(
   return shown;
 }
 
+/* ---------- Довідники Nova Post ----------
+   Міжнародні відправлення — інша система, ніж українська Нова
+   Пошта: у неї власний довідник міст, відділень і вулиць. Він
+   відкритий, ключа не потребує й віддає CORS — той самий, яким
+   працює калькулятор на сайті перевізника.
+
+   Шукає ЛАТИНКОЮ. «Варшава» він теж знаходить, але покладатись
+   на це не можна: підказка в полі просить писати латиницею. */
+
+const NOVAPOST_UI = 'https://api.novapost.com/ui/site/v.1.0';
+
+/* Довідник віддає назви мовою браузера, а перевізник приймає
+   міжнародну адресу лише латиницею. Просимо англійську явно —
+   інакше покупець обирає «Варшаву» зі списку, а вона ж потім не
+   проходить власну перевірку на латиницю. */
+const ЛАТИНОЮ = { 'Accept-Language': 'en' };
+
+export interface IntlPlace {
+  id: string;
+  name: string;
+  label: string;
+  region?: string;
+}
+
+const intlCityCache = new Map<string, IntlPlace[]>();
+const intlBranchCache = new Map<string, IntlBranch[]>();
+
+/** Міста країни призначення. */
+export async function intlSettlements(country: string, query?: string | null): Promise<IntlPlace[]> {
+  const q = String(query || '').trim();
+  if (!country || country === 'other' || q.length < 2) return [];
+  const key = country + '|' + q.toLowerCase();
+  const hit = cacheGet(intlCityCache, key);
+  if (hit) return hit;
+
+  const url =
+    NOVAPOST_UI + '/settlements?countryCode=' + encodeURIComponent(country) +
+    '&search=' + encodeURIComponent(q) + '&limit=20';
+  const json = (await (await fetch(url, { headers: ЛАТИНОЮ })).json()) as {
+    items?: { id?: number; name?: string; region?: { name?: string; parent?: { name?: string } } }[];
+  };
+  const list = (json.items || [])
+    .filter((x) => x.id && x.name)
+    .map((x) => {
+      const region = x.region?.parent?.name || x.region?.name || '';
+      return {
+        id: String(x.id),
+        name: String(x.name),
+        region: region,
+        label: region ? String(x.name) + ', ' + region : String(x.name)
+      };
+    });
+  cachePut(intlCityCache, key, list);
+  return list;
+}
+
+export interface IntlBranch {
+  id: string;
+  number: string;
+  label: string;
+  /** PostBranch | Postomat | PUDO — від цього залежить і тариф. */
+  type: string;
+}
+
+/** Відділення, поштомати й пункти видачі в місті. */
+export async function intlDivisions(
+  country: string,
+  settlementId?: string | null,
+  query?: string | null
+): Promise<IntlBranch[]> {
+  if (!country || !settlementId) return [];
+  const q = String(query || '').trim();
+  const key = country + '|' + settlementId + '|' + q.toLowerCase();
+  const hit = cacheGet(intlBranchCache, key);
+  if (hit) return hit;
+
+  /* Саме settlementIds[] — просте settlementId довідник мовчки
+     ігнорує й віддає пункти всієї країни. Помітити це на око
+     неможливо: відповідь виглядає цілком пристойно, просто в ній
+     не те місто. */
+  /* Пошуку по назві вулиці довідник не має: параметр search він
+     мовчки ковтає й віддає все підряд. Зате за номером шукає
+     точно. Тому цифри віддаємо йому, а слова відсіюємо самі —
+     з тієї сотні, що приїхала. */
+  const заНомером = /^[\d/\\-]+$/.test(q);
+  const url =
+    NOVAPOST_UI + '/divisions?countryCode=' + encodeURIComponent(country) +
+    '&settlementIds[]=' + encodeURIComponent(settlementId) + '&limit=100' +
+    (заНомером ? '&number=' + encodeURIComponent(q) : '');
+  const json = (await (await fetch(url, { headers: ЛАТИНОЮ })).json()) as {
+    items?: {
+      id?: number;
+      number?: string;
+      divisionCategory?: string;
+      name?: string;
+      addressParts?: { street?: string; building?: string };
+    }[];
+  };
+  const list = (json.items || [])
+    .filter((x) => x.id)
+    .map((x) => {
+      const адреса = [x.addressParts?.street, x.addressParts?.building].filter(Boolean).join(' ');
+      const номер = String(x.number || x.id);
+      return {
+        id: String(x.id),
+        number: номер,
+        type: String(x.divisionCategory || ''),
+        label: '№' + номер + (адреса ? ': ' + адреса : x.name ? ': ' + x.name : '')
+      };
+    });
+  const шукане = заНомером ? '' : q.toLowerCase();
+  const знайдені = шукане ? list.filter((x) => x.label.toLowerCase().includes(шукане)) : list;
+
+  cachePut(intlBranchCache, key, знайдені);
+  return знайдені;
+}
+
 /* ---------- Країни для міжнародної доставки ----------
    Список короткий навмисно: це напрямки, куди бренд реально
    відправляє. «Інша країна» лишає можливість вписати руками. */
@@ -271,6 +388,7 @@ export const COUNTRIES: readonly Country[] = [
   { code: 'DK', title: 'Данія', titleEn: 'Denmark' },
   { code: 'FI', title: 'Фінляндія', titleEn: 'Finland' },
   { code: 'CH', title: 'Швейцарія', titleEn: 'Switzerland' },
+  { code: 'MD', title: 'Молдова', titleEn: 'Moldova' },
   { code: 'LT', title: 'Литва', titleEn: 'Lithuania' },
   { code: 'LV', title: 'Латвія', titleEn: 'Latvia' },
   { code: 'EE', title: 'Естонія', titleEn: 'Estonia' },
@@ -289,8 +407,42 @@ export const COUNTRIES: readonly Country[] = [
   { code: 'other', title: 'Інша країна', titleEn: 'Other country' }
 ];
 
-/* Де штат/провінція обовʼязкові за поштовим стандартом */
-const STATE_REQUIRED: readonly string[] = ['US', 'CA', 'AU'];
+/* Де в Nova Post є куди приїхати, крім дверей: власні
+   відділення, поштомати або партнерські пункти видачі. Числа
+   перевірені 11.08.2026 запитами в /divisions. */
+const HAS_BRANCHES: readonly string[] = [
+  'PL', 'GB', 'ES', 'DE', 'IT', 'US', 'CZ', 'RO', 'SK', 'HU', 'AT', 'MD',
+  'LT', 'LV', 'EE', 'FR', 'NL', 'CA',
+  // лише партнерські пункти, але для покупця це той самий вибір
+  'PT', 'NO', 'BE', 'CH', 'SE', 'FI', 'IE', 'DK'
+];
+
+/** Чи можна в цій країні забрати з відділення або поштомата. */
+export function branchAvailable(country?: string | null): boolean {
+  return HAS_BRANCHES.includes(String(country || '').toUpperCase());
+}
+
+/* Де штат/провінція обовʼязкові. Не «за поштовим стандартом», а
+   за вимогою самого перевізника: US, IE, CA. Раніше тут стояла
+   Австралія, якої в цьому переліку немає, і бракувало Ірландії. */
+const STATE_REQUIRED: readonly string[] = ['US', 'IE', 'CA'];
+
+/* Країни, які вимагають ще й адресу реєстрації отримувача —
+   без неї відправлення не приймуть. */
+const REG_REQUIRED: readonly string[] = ['DE', 'SK', 'HU', 'FR'];
+
+/** Чи потрібна адреса реєстрації отримувача. */
+export function regRequired(country?: string | null): boolean {
+  return REG_REQUIRED.includes(String(country || '').toUpperCase());
+}
+
+/* Перевізник приймає міжнародну адресу лише латиницею. */
+const ЛАТИНКА = /^[\p{Script=Latin}\p{Nd}\s'’.,\/#()+-]*$/u;
+
+/** Рядок написано латиницею (порожній теж вважаємо правильним). */
+export function isLatin(v?: string | null): boolean {
+  return ЛАТИНКА.test(String(v || ''));
+}
 
 /* Підказка формату індексу — щоб не вписували «000000» */
 const ZIP_HINT: Record<string, string> = {
@@ -320,9 +472,25 @@ export type IntlAddress = {
   country?: string;
   state?: string;
   city?: string;
+  /** Ідентифікатор міста в довіднику перевізника. */
+  cityId?: string;
+  /** Куди везти: у відділення чи на адресу. */
+  mode?: 'branch' | 'address';
+  branch?: string;
+  branchId?: string;
+  branchType?: string;
+  /** Лише назва вулиці — номер будинку окремим полем. */
   street?: string;
-  extra?: string;
+  building?: string;
+  /** Квартира: у перевізника на це поле рівно 10 знаків. */
+  flat?: string;
+  /** Коментар курʼєру. */
+  note?: string;
   zip?: string;
+  /** Адреса реєстрації отримувача — для DE, SK, HU, FR. */
+  reg?: { city?: string; street?: string; building?: string; zip?: string };
+  /** Старі записи тримали квартиру тут. */
+  extra?: string;
 };
 
 export type Address = {
@@ -370,9 +538,20 @@ export interface AddressForm {
   countryOther: string;
   state: string;
   intlCity: string;
+  intlCityId: string;
+  intlMode: 'branch' | 'address';
+  intlBranch: string;
+  intlBranchId: string;
+  intlBranchType: string;
   street: string;
-  extra: string;
+  building: string;
+  flat: string;
+  note: string;
   zip: string;
+  regCity: string;
+  regStreet: string;
+  regBuilding: string;
+  regZip: string;
 }
 
 export const EMPTY_FORM: AddressForm = {
@@ -387,9 +566,22 @@ export const EMPTY_FORM: AddressForm = {
   countryOther: '',
   state: '',
   intlCity: '',
+  intlCityId: '',
+  /* Відділення першим: за кордоном це і дешевше, і найчастіший
+     вибір — власних пунктів у Nova Post десятки тисяч. */
+  intlMode: 'branch',
+  intlBranch: '',
+  intlBranchId: '',
+  intlBranchType: '',
   street: '',
-  extra: '',
-  zip: ''
+  building: '',
+  flat: '',
+  note: '',
+  zip: '',
+  regCity: '',
+  regStreet: '',
+  regBuilding: '',
+  regZip: ''
 };
 
 /** Збережена адреса → поля форми. Приводить будь-який вхід до
@@ -412,9 +604,23 @@ export function toForm(v?: Address | null): AddressForm {
     countryOther: intl.countryCode === 'other' ? intl.country || '' : '',
     state: intl.state || '',
     intlCity: intl.city || '',
+    intlCityId: intl.cityId || '',
+    /* Старі записи режиму не знали: якщо в них є вулиця — це
+       була адресна доставка, інакше нема з чого вибирати. */
+    intlMode: intl.mode || (intl.street ? 'address' : 'branch'),
+    intlBranch: intl.branch || '',
+    intlBranchId: intl.branchId || '',
+    intlBranchType: intl.branchType || '',
     street: intl.street || '',
-    extra: intl.extra || '',
-    zip: intl.zip || ''
+    building: intl.building || '',
+    // квартира колись лежала в extra — читаємо обидва
+    flat: intl.flat || intl.extra || '',
+    note: intl.note || '',
+    zip: intl.zip || '',
+    regCity: intl.reg?.city || '',
+    regStreet: intl.reg?.street || '',
+    regBuilding: intl.reg?.building || '',
+    regZip: intl.reg?.zip || ''
   };
 }
 
@@ -437,21 +643,42 @@ export function fromForm(f: AddressForm, lang: Lang = 'uk'): Address {
       ? f.countryOther.trim()
       : COUNTRIES.find((c) => c.code === f.countryCode)?.title || '';
 
+  const відділення = f.intlMode === 'branch';
+
   return {
     carrier: carrierTitle('intl', lang),
     carrierId: 'intl',
     /* city і branch дублюють закордонні поля навмисно: лист
        і адмінка друкують саме їх і про intl нічого не знають */
     city: f.intlCity.trim(),
-    branch: [f.street.trim(), f.extra.trim()].filter(Boolean).join(', '),
+    branch: відділення
+      ? f.intlBranch.trim()
+      : [[f.street.trim(), f.building.trim()].filter(Boolean).join(' '), f.flat.trim()]
+          .filter(Boolean)
+          .join(', '),
     intl: {
       countryCode: f.countryCode,
       country: country,
       state: f.state.trim(),
       city: f.intlCity.trim(),
-      street: f.street.trim(),
-      extra: f.extra.trim(),
-      zip: f.zip.trim()
+      cityId: f.intlCityId || '',
+      mode: f.intlMode,
+      branch: відділення ? f.intlBranch.trim() : '',
+      branchId: відділення ? f.intlBranchId || '' : '',
+      branchType: відділення ? f.intlBranchType || '' : '',
+      street: відділення ? '' : f.street.trim(),
+      building: відділення ? '' : f.building.trim(),
+      flat: відділення ? '' : f.flat.trim().slice(0, 10),
+      note: відділення ? '' : f.note.trim().slice(0, 100),
+      zip: відділення ? '' : f.zip.trim(),
+      reg: regRequired(f.countryCode)
+        ? {
+            city: f.regCity.trim(),
+            street: f.regStreet.trim(),
+            building: f.regBuilding.trim(),
+            zip: f.regZip.trim()
+          }
+        : undefined
     }
   };
 }
@@ -471,10 +698,34 @@ export function checkAddress(f: AddressForm): AddressProblem {
     return { field: 'countryOther', key: 'addr.needCountry' };
   }
   if (!f.intlCity.trim()) return { field: 'intlCity', key: 'addr.needCity' };
-  if (!f.street.trim()) return { field: 'street', key: 'addr.needStreet' };
-  if (!f.zip.trim()) return { field: 'zip', key: 'addr.needZip' };
-  if (stateRequired(f.countryCode) && !f.state.trim()) {
-    return { field: 'state', key: 'addr.needState' };
+  if (!isLatin(f.intlCity)) return { field: 'intlCity', key: 'addr.needLatin' };
+
+  /* Відділення знімає всі питання про вулицю й індекс: перевізник
+     і сам знає, де його пункт. */
+  if (f.intlMode === 'branch') {
+    /* Тут замало набраного тексту: пункт мусить бути справжнім,
+       інакше посилка поїде в нікуди. Тому вимагаємо саме вибір
+       зі списку — і міста, і пункту. */
+    if (!f.intlCityId) return { field: 'intlCity', key: 'addr.pickFromList' };
+    if (!f.intlBranch.trim()) return { field: 'intlBranch', key: 'addr.needBranch' };
+    if (!f.intlBranchId) return { field: 'intlBranch', key: 'addr.pickFromList' };
+  } else {
+    if (!f.street.trim()) return { field: 'street', key: 'addr.needStreet' };
+    if (!isLatin(f.street)) return { field: 'street', key: 'addr.needLatin' };
+    if (!f.building.trim()) return { field: 'building', key: 'addr.needBuilding' };
+    if (!f.zip.trim()) return { field: 'zip', key: 'addr.needZip' };
+    if (stateRequired(f.countryCode) && !f.state.trim()) {
+      return { field: 'state', key: 'addr.needState' };
+    }
+  }
+
+  /* Німеччина, Словаччина, Угорщина й Франція вимагають ще й
+     адресу реєстрації отримувача — без неї посилку не приймуть. */
+  if (regRequired(f.countryCode)) {
+    if (!f.regCity.trim()) return { field: 'regCity', key: 'addr.needRegCity' };
+    if (!f.regStreet.trim()) return { field: 'regStreet', key: 'addr.needRegStreet' };
+    if (!f.regBuilding.trim()) return { field: 'regBuilding', key: 'addr.needBuilding' };
+    if (!f.regZip.trim()) return { field: 'regZip', key: 'addr.needZip' };
   }
   return null;
 }
@@ -483,8 +734,12 @@ export function checkAddress(f: AddressForm): AddressProblem {
 export function addressLine(c?: Address | null): string {
   if (!c) return '';
   const intl = c.intl;
-  if (intl && (intl.country || intl.zip || intl.street)) {
-    return [intl.country, intl.state, intl.city, intl.street, intl.extra, intl.zip]
+  if (intl && (intl.country || intl.zip || intl.street || intl.branch)) {
+    if (intl.mode === 'branch' || (!intl.street && intl.branch)) {
+      return [intl.country, intl.city, intl.branch].filter(Boolean).join(', ');
+    }
+    const вулиця = [intl.street, intl.building].filter(Boolean).join(' ');
+    return [intl.country, intl.state, intl.city, вулиця, intl.flat || intl.extra, intl.zip]
       .filter(Boolean)
       .join(', ');
   }

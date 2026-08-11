@@ -157,14 +157,19 @@ async function містоIntl(country: string, name: string): Promise<number | n
   }
 }
 
-async function цінаIntl(country: string, settlementId: number, оголошена: number): Promise<number | null> {
+async function цінаIntl(
+  country: string,
+  settlementId: number,
+  оголошена: number,
+  спосіб: string
+): Promise<number | null> {
   try {
     const res = await fetch(`${NP_INTL}/shipments/delivery-calculations`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         sender: { countryCode: 'UA', settlementId: ВІДПРАВНИК_INTL, deliveryType: 'branch' },
-        recipient: { countryCode: country, settlementId, deliveryType: 'branch' },
+        recipient: { countryCode: country, settlementId, deliveryType: спосіб },
         parcels: [
           {
             cargoCategory: 'parcel',
@@ -205,6 +210,10 @@ export interface QuoteInput {
   /** Міжнародна: ISO-код країни й місто, як його написав покупець. */
   country?: string;
   city?: string;
+  /** Місто з довідника перевізника — точніше за пошук за назвою. */
+  cityId?: string;
+  /** branch | postomat | pudo | address — від цього залежить тариф. */
+  intlType?: string;
   /** Оголошена вартість — від неї залежить страхування. */
   declared: number;
   /** Кошик дотягнув до безкоштовної доставки по Україні. */
@@ -234,15 +243,25 @@ export async function quote(input: QuoteInput): Promise<Quote> {
   const country = String(input.country || '').toUpperCase();
   if (!country || country === 'OTHER') return НЕВІДОМО;
 
-  const ключ = `intl:${country}:${(input.city || '').toLowerCase()}:${Math.round(declared)}`;
+  const спосіб = input.intlType || 'branch';
+  const ключ = `intl:${country}:${input.cityId || (input.city || '').toLowerCase()}:${спосіб}:${Math.round(declared)}`;
   const було = памʼять.get(ключ);
   if (було) return було;
-  return await міжнародна(ключ, country, input.city || '', declared);
+  return await міжнародна(ключ, country, input.cityId || '', input.city || '', спосіб, declared);
 }
 
-async function міжнародна(ключ: string, country: string, city: string, declared: number): Promise<Quote> {
-  const id = city ? await містоIntl(country, city) : null;
-  const жива = id ? await цінаIntl(country, id, declared) : null;
+async function міжнародна(
+  ключ: string,
+  country: string,
+  cityId: string,
+  city: string,
+  спосіб: string,
+  declared: number
+): Promise<Quote> {
+  /* Місто з довідника точніше за пошук назвою: покупець міг
+     написати його як завгодно, а ціна залежить саме від пункту. */
+  const id = Number(cityId) || (city ? await містоIntl(country, city) : null);
+  const жива = id ? await цінаIntl(country, id, declared, спосіб) : null;
   const q: Quote = жива
     ? { cost: жива, free: false, estimate: false, unknown: false }
     : { cost: таблицяIntl(country), free: false, estimate: true, unknown: false };

@@ -107,5 +107,80 @@ ok(безКраїни.unknown, 'без країни нічого не вигад
 const порігНеДіє = await quote({ carrier: 'intl', country: 'PL', city: 'Warsaw', declared: 2000, free: true });
 ok(!порігНеДіє.free && порігНеДіє.cost > 0, 'безкоштовна доставка за кордон не поширюється');
 
+
+/* ---------- Довідники Nova Post для міжнародної ---------- */
+
+import { branchAvailable, intlDivisions, intlSettlements, isLatin, regRequired, stateRequired } from '../lib/address.ts';
+
+const міста = await intlSettlements('PL', 'Warsaw');
+ok(міста.length > 0, 'довідник міст відповідає', міста[0]?.label);
+
+const пункти = міста[0] ? await intlDivisions('PL', міста[0].id) : [];
+ok(пункти.length > 0, 'у Варшаві є пункти Nova Post', 'знайдено ' + пункти.length);
+/* Найпідступніша помилка тут — фільтр міста, який довідник тихо
+   ігнорує: відповідь виглядає правильною, просто пункти чужі. */
+const чужі = міста[0] ? await intlDivisions('PL', String(Number(міста[0].id) + 100000)) : [];
+ok(
+  пункти.map((x) => x.id).join() !== чужі.map((x) => x.id).join(),
+  'пункти справді фільтруються за містом',
+  'Варшава ' + (пункти[0]?.label || '') + ' проти ' + (чужі[0]?.label || 'порожньо')
+);
+ok(
+  пункти.some((x) => x.type === 'Postomat' || x.type === 'PUDO' || x.type === 'PostBranch'),
+  'пункти мають зрозумілий тип',
+  [...new Set(пункти.map((x) => x.type))].join(', ')
+);
+
+/* Пошук у полі відділення має справді звужувати список, а не
+   вдавати: довідник параметр search ігнорує. */
+const заНомером = міста[0] ? await intlDivisions('PL', міста[0].id, '04/2') : [];
+ok(заНомером.length > 0 && заНомером.length < пункти.length,
+   'пошук за номером звужує список', 'знайдено ' + заНомером.length);
+/* Беремо вулицю з тих пунктів, що вже приїхали: шукати те, чого
+   у вікні немає, — перевіряти не пошук, а щасливий випадок. */
+const вулиця = (пункти[0]?.label.split(': ')[1] || '').split(' ')[0];
+const заВулицею = міста[0] && вулиця ? await intlDivisions('PL', міста[0].id, вулиця) : [];
+ok(
+  заВулицею.length > 0 && заВулицею.every((x) => x.label.toLowerCase().includes(вулиця.toLowerCase())),
+  'пошук за вулицею відсіює зайве',
+  '«' + вулиця + '» → ' + заВулицею.length + ' із ' + пункти.length
+);
+
+ok(branchAvailable('PL') && branchAvailable('DE'), 'у Польщі й Німеччині є куди приїхати');
+ok(!branchAvailable('JP') && !branchAvailable('AU'), 'у Японії й Австралії — лише курʼєр');
+ok(stateRequired('US') && stateRequired('IE') && stateRequired('CA'), 'штат питаємо там, де його вимагають');
+ok(!stateRequired('AU'), 'і не питаємо там, де не вимагають');
+ok(regRequired('DE') && regRequired('SK') && regRequired('HU') && regRequired('FR'),
+   'адресу реєстрації питаємо для DE, SK, HU, FR');
+ok(!regRequired('PL'), 'і не питаємо для Польщі');
+ok(isLatin('Marszalkowska 12') && !isLatin('Маршалковська'), 'кирилицю в адресі впізнаємо');
+
+/* Перевірка форми: у відділення без вибору зі списку не пускаємо */
+import { EMPTY_FORM, checkAddress } from '../lib/address.ts';
+
+const набрав = { ...EMPTY_FORM, carrier: 'intl' as const, countryCode: 'PL', intlCity: 'Warsaw', intlBranch: 'Mars' };
+ok(checkAddress(набрав)?.key === 'addr.pickFromList', 'набране руками місто не приймається',
+   JSON.stringify(checkAddress(набрав)));
+const обрав = { ...набрав, intlCityId: '22326', intlBranchId: '7', intlBranch: '№04/2' };
+ok(checkAddress(обрав) === null, 'обране зі списку приймається');
+
+const адресою0 = { ...EMPTY_FORM, carrier: 'intl' as const, countryCode: 'US', intlMode: 'address' as const,
+  intlCity: 'Chicago', street: 'Main', building: '12', zip: '60601' };
+ok(checkAddress(адресою0)?.field === 'state', 'у США без штату не пускаємо');
+ok(checkAddress({ ...адресою0, state: 'IL' }) === null, 'зі штатом — усе гаразд');
+
+const німеччина = { ...EMPTY_FORM, carrier: 'intl' as const, countryCode: 'DE', intlMode: 'address' as const,
+  intlCity: 'Berlin', street: 'Alexanderplatz', building: '1', zip: '10178' };
+ok(checkAddress(німеччина)?.field === 'regCity', 'для Німеччини питаємо адресу реєстрації');
+
+const неЛатиниця = { ...адресою0, state: 'IL', street: 'Головна' };
+ok(checkAddress(неЛатиниця)?.key === 'addr.needLatin', 'кирилицю в адресі не пропускаємо');
+
+/* Ціна з довідниковим містом і різними способами отримання */
+const відділення = await quote({ carrier: 'intl', country: 'PL', cityId: міста[0]?.id, intlType: 'branch', declared: 2000 });
+const адресою = await quote({ carrier: 'intl', country: 'PL', cityId: міста[0]?.id, intlType: 'address', declared: 2000 });
+ok(відділення.cost > 0 && !відділення.estimate, 'ціна у відділення', відділення.cost + ' грн');
+ok(адресою.cost > 0 && !адресою.estimate, 'ціна курʼєром на адресу', адресою.cost + ' грн');
+
 console.log(провалів ? '\n✗ невдач: ' + провалів : '\n✓ усе зійшлося');
 process.exit(провалів ? 1 : 0);

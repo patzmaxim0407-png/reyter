@@ -5,8 +5,12 @@ import { useLang } from './LangProvider';
 import {
   CARRIERS,
   COUNTRIES,
+  branchAvailable,
+  intlDivisions,
+  intlSettlements,
   npCities,
   npWarehouses,
+  regRequired,
   stateRequired,
   zipHint,
   type AddressForm,
@@ -25,9 +29,15 @@ const FIELD_ID: Record<string, string> = {
   countryCode: 'Country',
   countryOther: 'CountryOther',
   intlCity: 'IntlCity',
+  intlBranch: 'IntlBranch',
   state: 'State',
   street: 'Street',
-  zip: 'Zip'
+  building: 'Building',
+  zip: 'Zip',
+  regCity: 'RegCity',
+  regStreet: 'RegStreet',
+  regBuilding: 'RegBuilding',
+  regZip: 'RegZip'
 };
 
 /** Перевести фокус у поле, якого бракує: у формі їх до девʼяти,
@@ -158,69 +168,230 @@ export default function AddressFields({
           />
         </div>
 
-        <div className="form-row">
-          <div className="field">
-            <label htmlFor={at('IntlCity')}>{t('addr.intlCity')}</label>
-            <input
-              id={at('IntlCity')}
-              className={invalid === 'intlCity' ? 'is-invalid' : undefined}
-              autoComplete="address-level2"
-              value={v.intlCity}
-              onChange={(e) => set({ intlCity: e.target.value })}
-            />
-          </div>
+        {/* Місто беремо з довідника перевізника, а не з голови:
+            за ним же рахується вартість і підтягуються відділення.
+            Довідник шукає латинкою. */}
+        <Combobox
+          id={at('IntlCity')}
+          label={t('addr.intlCity')}
+          value={v.intlCity}
+          placeholder={t('addr.intlCityPh')}
+          hint={t('addr.intlCityHint')}
+          invalid={invalid === 'intlCity'}
+          empty="addr.noCity"
+          needFirst="addr.pickCountryFirst"
+          search={async (q) => {
+            if (!v.countryCode || v.countryCode === 'other') return null;
+            const list = await intlSettlements(v.countryCode, q);
+            return list.map((x) => ({ ref: x.id, text: x.label, value: x.name, note: '' }));
+          }}
+          onType={(intlCity) => set({ intlCity, intlCityId: '', intlBranch: '', intlBranchId: '' })}
+          onPick={(it) =>
+            set({
+              intlCity: it.value,
+              intlCityId: it.ref,
+              intlBranch: '',
+              intlBranchId: '',
+              intlBranchType: ''
+            })
+          }
+        />
 
-          {/* Для США, Канади й Австралії без штату посилку не приймуть */}
-          <div className={'field' + (stateRequired(v.countryCode) ? ' is-required' : '')}>
-            <label htmlFor={at('State')}>{t('addr.state')}</label>
-            <input
-              id={at('State')}
-              className={invalid === 'state' ? 'is-invalid' : undefined}
-              autoComplete="address-level1"
-              value={v.state}
-              onChange={(e) => set({ state: e.target.value })}
-            />
-          </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor={at('Street')}>{t('addr.street')}</label>
-          <input
-            id={at('Street')}
-            className={invalid === 'street' ? 'is-invalid' : undefined}
-            autoComplete="address-line1"
-            placeholder={t('addr.streetPh')}
-            value={v.street}
-            onChange={(e) => set({ street: e.target.value })}
-          />
-        </div>
-
-        <div className="form-row">
-          <div className="field">
-            <label htmlFor={at('Extra')}>{t('addr.extra')}</label>
-            <input
-              id={at('Extra')}
-              autoComplete="address-line2"
-              placeholder={t('addr.extraPh')}
-              value={v.extra}
-              onChange={(e) => set({ extra: e.target.value })}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor={at('Zip')}>{t('addr.zip')}</label>
-            <input
-              id={at('Zip')}
-              className={invalid === 'zip' ? 'is-invalid' : undefined}
-              autoComplete="postal-code"
-              placeholder={zipHint(v.countryCode)}
-              value={v.zip}
-              onChange={(e) => set({ zip: e.target.value })}
-            />
+        {/* Куди саме везти. У відділення дешевше й простіше —
+            ані вулиці, ані індексу тоді не потрібно взагалі. */}
+        <div className="field intl-mode" hidden={!branchAvailable(v.countryCode)}>
+          <span className="field__label">{t('addr.intlMode')}</span>
+          <div className="ochips">
+            <label className="ochip">
+              <input
+                type="radio"
+                name={at('IntlMode')}
+                checked={v.intlMode === 'branch'}
+                onChange={() => set({ intlMode: 'branch' })}
+              />
+              <span>{t('addr.modeBranch')}</span>
+            </label>
+            <label className="ochip">
+              <input
+                type="radio"
+                name={at('IntlMode')}
+                checked={v.intlMode === 'address'}
+                onChange={() => set({ intlMode: 'address' })}
+              />
+              <span>{t('addr.modeAddress')}</span>
+            </label>
           </div>
         </div>
 
-        <p className="field__hint">{t('addr.intlHint')}</p>
+        {v.intlMode === 'branch' && branchAvailable(v.countryCode) ? (
+          <>
+            <Combobox
+              id={at('IntlBranch')}
+              label={t('addr.intlBranch')}
+              value={v.intlBranch}
+              disabled={!v.intlCityId}
+              openOnFocus
+              minChars={0}
+              placeholder={t('addr.branchPh')}
+              hint={t('addr.intlBranchHint')}
+              invalid={invalid === 'intlBranch'}
+              empty="addr.noBranch"
+              needFirst="addr.pickCityFirst"
+              search={async (q) => {
+                if (!v.intlCityId) return null;
+                const list = await intlDivisions(v.countryCode, v.intlCityId, q);
+                return list.map((x) => ({
+                  ref: x.id,
+                  text: x.label,
+                  value: x.label,
+                  note: x.type === 'Postomat' ? t('addr.postomat') : x.type === 'PUDO' ? t('addr.pudo') : ''
+                }));
+              }}
+              onType={(intlBranch) => set({ intlBranch, intlBranchId: '' })}
+              onPick={(it) => set({ intlBranch: it.value, intlBranchId: it.ref })}
+            />
+            <p className="field__hint">{t('addr.localPhone')}</p>
+          </>
+        ) : (
+          <>
+            {/* Штат обовʼязковий там, де без нього посилку не
+                приймуть: США, Ірландія, Канада. */}
+            <div className={'field' + (stateRequired(v.countryCode) ? ' is-required' : '')}>
+              <label htmlFor={at('State')}>{t('addr.state')}</label>
+              <input
+                id={at('State')}
+                className={invalid === 'state' ? 'is-invalid' : undefined}
+                autoComplete="address-level1"
+                value={v.state}
+                onChange={(e) => set({ state: e.target.value })}
+              />
+            </div>
+
+            {/* Вулиця й будинок — окремо: перевізник чекає саме
+                назву вулиці, а номер бере власним полем. */}
+            <div className="form-row form-row--street">
+              <div className="field">
+                <label htmlFor={at('Street')}>{t('addr.street')}</label>
+                <input
+                  id={at('Street')}
+                  className={invalid === 'street' ? 'is-invalid' : undefined}
+                  autoComplete="address-line1"
+                  placeholder={t('addr.streetPh')}
+                  maxLength={100}
+                  value={v.street}
+                  onChange={(e) => set({ street: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor={at('Building')}>{t('addr.building')}</label>
+                <input
+                  id={at('Building')}
+                  className={invalid === 'building' ? 'is-invalid' : undefined}
+                  placeholder="12"
+                  maxLength={100}
+                  value={v.building}
+                  onChange={(e) => set({ building: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="field">
+                <label htmlFor={at('Flat')}>{t('addr.flat')}</label>
+                <input
+                  id={at('Flat')}
+                  autoComplete="address-line2"
+                  placeholder={t('addr.flatPh')}
+                  /* у перевізника на це поле рівно десять знаків */
+                  maxLength={10}
+                  value={v.flat}
+                  onChange={(e) => set({ flat: e.target.value })}
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor={at('Zip')}>{t('addr.zip')}</label>
+                <input
+                  id={at('Zip')}
+                  className={invalid === 'zip' ? 'is-invalid' : undefined}
+                  autoComplete="postal-code"
+                  placeholder={zipHint(v.countryCode)}
+                  maxLength={10}
+                  value={v.zip}
+                  onChange={(e) => set({ zip: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="field">
+              <label htmlFor={at('Note')}>{t('addr.note')}</label>
+              <input
+                id={at('Note')}
+                placeholder={t('addr.notePh')}
+                maxLength={100}
+                value={v.note}
+                onChange={(e) => set({ note: e.target.value })}
+              />
+            </div>
+
+            <p className="field__hint">{t('addr.intlHint')}</p>
+          </>
+        )}
+
+        {/* Німеччина, Словаччина, Угорщина й Франція вимагають ще
+            й адресу реєстрації отримувача. */}
+        {regRequired(v.countryCode) ? (
+          <fieldset className="addr-reg">
+            <legend>{t('addr.reg')}</legend>
+            <p className="field__hint">{t('addr.regHint')}</p>
+            <div className="form-row">
+              <div className="field">
+                <label htmlFor={at('RegCity')}>{t('addr.intlCity')}</label>
+                <input
+                  id={at('RegCity')}
+                  className={invalid === 'regCity' ? 'is-invalid' : undefined}
+                  maxLength={100}
+                  value={v.regCity}
+                  onChange={(e) => set({ regCity: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor={at('RegZip')}>{t('addr.zip')}</label>
+                <input
+                  id={at('RegZip')}
+                  className={invalid === 'regZip' ? 'is-invalid' : undefined}
+                  placeholder={zipHint(v.countryCode)}
+                  maxLength={10}
+                  value={v.regZip}
+                  onChange={(e) => set({ regZip: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="form-row form-row--street">
+              <div className="field">
+                <label htmlFor={at('RegStreet')}>{t('addr.street')}</label>
+                <input
+                  id={at('RegStreet')}
+                  className={invalid === 'regStreet' ? 'is-invalid' : undefined}
+                  maxLength={100}
+                  value={v.regStreet}
+                  onChange={(e) => set({ regStreet: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor={at('RegBuilding')}>{t('addr.building')}</label>
+                <input
+                  id={at('RegBuilding')}
+                  className={invalid === 'regBuilding' ? 'is-invalid' : undefined}
+                  maxLength={100}
+                  value={v.regBuilding}
+                  onChange={(e) => set({ regBuilding: e.target.value })}
+                />
+              </div>
+            </div>
+          </fieldset>
+        ) : null}
+
       </div>
     </div>
   );

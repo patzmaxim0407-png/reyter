@@ -421,6 +421,33 @@ await wait(600);
 const разомНазад = число(await evalJs(`document.querySelector('.checkout-summary .sum span:last-child')?.textContent || ''`));
 ok('оплата у відділенні суму не чіпає', разомНазад === разомБуло, `${разомНазад} проти ${разомБуло}`);
 
+
+/* --- 12. Не турбувати ---
+   Хто не хоче дзвінків і повідомлень, ставить галочку — і решта
+   питань зникає разом із нею. */
+
+const доГалочки = await evalJs(`(() => ({
+  skip: !!document.querySelector('.co-confirm__skip input'),
+  parts: [...document.querySelectorAll('.co-confirm__part')].filter(x => !x.hidden).length
+}))()`);
+ok('галочка «не звʼязуватись» є', доГалочки.skip);
+ok('поки її не поставили — питання на місці', доГалочки.parts >= 2, 'видимих блоків: ' + доГалочки.parts);
+
+await evalJs(`document.querySelector('.co-confirm__skip input')?.click()`);
+await wait(500);
+const післяГалочки = await evalJs(`(() => ({
+  parts: [...document.querySelectorAll('.co-confirm__part')].filter(x => !x.hidden).length,
+  note: document.querySelector('.pinfo__order-note')?.textContent || ''
+}))()`);
+ok('після галочки питання зникають', післяГалочки.parts === 0, 'видимих блоків: ' + післяГалочки.parts);
+ok('і підпис під кнопкою вже не обіцяє дзвінка',
+   /лист/i.test(післяГалочки.note), післяГалочки.note);
+
+await evalJs(`document.querySelector('.co-confirm__skip input')?.click()`);
+await wait(500);
+ok('галочку зняли — питання повернулись',
+   (await evalJs(`[...document.querySelectorAll('.co-confirm__part')].filter(x => !x.hidden).length`)) >= 2);
+
 console.log('\nПомилки в консолі: ' + (errors.length ? '\n' + errors.join('\n') : 'немає'));
 
 ws.close();

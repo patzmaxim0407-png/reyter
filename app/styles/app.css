@@ -838,3 +838,105 @@
 .cosec {
   box-shadow: 0 1px 2px rgba(23, 27, 38, 0.04), 0 8px 24px -18px rgba(23, 27, 38, 0.35);
 }
+
+/* Галочка «не турбувати» стоїть першою: це рішення, яке знімає
+   всі наступні питання, тож питати його треба до них, а не після. */
+.field label.co-confirm__skip,
+.co-confirm__skip {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--c-line, #e6e0d6);
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.field label.co-confirm__skip {
+  /* Старі правила для .field label роблять із мітки блок із
+     власною вагою й кольором — тут потрібна саме рядкова. */
+  margin: 0;
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--c-ink, #171b26);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.co-confirm .co-confirm__skip input[type='checkbox'] {
+  /* .co-confirm input:not([type=radio]) розтягує поля на всю
+     ширину — прапорцеві це ні до чого, він від того роздувався
+     на всю картку й виштовхував текст за край. */
+  width: auto;
+  margin: 3px 0 0;
+  flex: 0 0 auto;
+}
+
+.co-confirm__skip > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.field label.co-confirm__skip em,
+.co-confirm__skip em {
+  display: block;
+  margin-top: 2px;
+  font-style: normal;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--c-muted, #7a7a7a);
+}
+
+.co-confirm__skip:has(input:checked) {
+  border-color: var(--c-ink, #171b26);
+  background: rgba(23, 27, 38, 0.03);
+}
+
+/* Заголовок сторінки не має злипатися з першою карткою */
+.checkout .section-title {
+  margin-bottom: 22px;
+}
+
+@media (max-width: 560px) {
+  .checkout .section-title {
+    margin-bottom: 16px;
+  }
+}
+
+/* ---------- Міжнародна адреса ----------
+   Вулиця й будинок стоять в одному рядку, але не порівну: назва
+   вулиці довга, номер — короткий. */
+
+.form-row--street {
+  grid-template-columns: 1fr 110px;
+}
+
+.intl-mode .ochips {
+  margin-top: 6px;
+}
+
+.addr-reg {
+  display: grid;
+  gap: 12px;
+  margin: 4px 0 0;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--c-line, #e6e0d6);
+  border-radius: 16px;
+}
+
+.addr-reg legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-ink, #171b26);
+}
+
+.addr-reg .field__hint {
+  margin: 0;
+}
+
+@media (max-width: 560px) {
+  .form-row--street {
+    grid-template-columns: 1fr 90px;
+  }
+}

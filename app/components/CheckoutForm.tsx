@@ -227,6 +227,17 @@ export default function CheckoutForm() {
   const branch = addr.branch;
   const country = addr.countryCode;
   const intlCity = addr.intlCity;
+  const intlCityId = addr.intlCityId;
+  /* Спосіб отримання міняє тариф: поштомат і пункт видачі
+     коштують не так, як власне відділення. */
+  const intlType =
+    addr.intlMode === 'address'
+      ? 'address'
+      : addr.intlBranchType === 'Postomat'
+        ? 'postomat'
+        : addr.intlBranchType === 'PUDO'
+          ? 'pudo'
+          : 'branch';
 
   useEffect(() => {
     let живий = true;
@@ -238,6 +249,8 @@ export default function CheckoutForm() {
       postomat: /поштомат|postomat/i.test(branch || ''),
       country,
       city: intlCity,
+      cityId: intlCityId,
+      intlType,
       declared: goods,
       free: freeShip
     }).then((q) => {
@@ -246,7 +259,7 @@ export default function CheckoutForm() {
     return () => {
       живий = false;
     };
-  }, [carrier, cityRef, branch, country, intlCity, goods, freeShip]);
+  }, [carrier, cityRef, branch, country, intlCity, intlCityId, intlType, goods, freeShip]);
 
   /* За кордон «оплачу у відділенні» не буває: для відправлень з
      України платить відправник. */
@@ -688,9 +701,26 @@ export default function CheckoutForm() {
           <div className="cosec__body form-grid">
             {/* Дзвінок прибрано свідомо: його однаково беруть не всі,
                 а менеджер пише в месенджер. Одна відповідь замість
-                двох — і на одне рішення покупцеві менше. */}
+                двох — і на одне рішення покупцеві менше.
+
+                А хто взагалі не хоче, щоб його турбували, ставить
+                галочку — і питання зникають разом із нею. */}
             <div className="field co-confirm">
-              <div className="co-confirm__part">
+              <label className="co-confirm__skip">
+                <input
+                  type="checkbox"
+                  checked={confirm.method === 'none'}
+                  onChange={(e) =>
+                    setConfirm((v) => ({ ...v, method: e.target.checked ? 'none' : 'messenger' }))
+                  }
+                />
+                <span>
+                  {t('co.noContact')}
+                  <em>{t('co.noContactHint')}</em>
+                </span>
+              </label>
+
+              <div className="co-confirm__part" hidden={confirm.method === 'none'}>
                 <span className="co-confirm__label">{t('cart.whichMessenger')}</span>
                 <div className="ochips">
                   {MESSENGERS.map((m) => (
@@ -707,7 +737,7 @@ export default function CheckoutForm() {
                 </div>
               </div>
 
-              <div className="co-confirm__part">
+              <div className="co-confirm__part" hidden={confirm.method === 'none'}>
                 <span className="co-confirm__label">{t('cart.contactPhone')}</span>
                 <div className="ochips">
                   <label className="ochip">
@@ -741,7 +771,10 @@ export default function CheckoutForm() {
 
               {/* Логін питаємо лише для Telegram: якщо номер прихований
                   налаштуваннями, без нього ми покупця не знайдемо */}
-              <div className="co-confirm__part" hidden={confirm.messenger !== 'telegram'}>
+              <div
+                className="co-confirm__part"
+                hidden={confirm.method === 'none' || confirm.messenger !== 'telegram'}
+              >
                 <span className="co-confirm__label">{t('cart.tgLogin')}</span>
                 <input
                   placeholder="@username"
@@ -776,7 +809,9 @@ export default function CheckoutForm() {
           <button className="btn btn--primary btn--order" type="submit" disabled={!canSubmit}>
             {sending ? t('cart.sending') : t('cart.submit')}
           </button>
-          <p className="pinfo__order-note">{t('cart.submitNote')}</p>
+          <p className="pinfo__order-note">
+            {confirm.method === 'none' ? t('co.noContactHint') : t('cart.submitNote')}
+          </p>
         </div>
       </form>
     </div>

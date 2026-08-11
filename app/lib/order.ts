@@ -17,7 +17,7 @@ import { addressLine, type Address } from './address';
 import type { CartLine, OrderItem, OrderPart } from './types';
 
 export interface Confirm {
-  method: 'call' | 'messenger';
+  method: 'call' | 'messenger' | 'none';
   messenger: string;
   phoneMode: 'main' | 'other';
   altPhone: string;
@@ -113,6 +113,10 @@ export function orderItems(c: Catalogue, lines: CartLine[]): OrderItem[] {
 export function confirmLine(customer: Customer, t: (k: string) => string): string {
   const c = customer.confirm;
   if (!c) return '';
+
+  /* Покупець може попросити не турбувати — і менеджер має це
+     побачити першим рядком, а не здогадатись із порожнечі. */
+  if (c.method === 'none') return t('co.noContact');
 
   const title = MESSENGERS.find((m) => m.id === c.messenger)?.title ?? '';
   const how = c.method === 'messenger' ? title || t('cart.byMessenger') : t('cart.byCall');
