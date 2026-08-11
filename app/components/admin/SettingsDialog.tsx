@@ -5,6 +5,7 @@ import { useAsk } from './AskProvider';
 import { useToast } from '../Toasts';
 import { copyText } from '@/lib/copy';
 import { db, forgetNotifySettings } from '@/lib/firebase';
+import { npCall } from '@/lib/admin/np';
 import {
   KEY_WORKER,
   FOUNDERS,
@@ -224,6 +225,33 @@ export default function SettingsDialog({
                   onClick={() => void run(() => testTelegram(test, adminKey))}
                 >
                   Тест Telegram
+                </button>
+
+                {/* Перевірка кабінету Нової Пошти. Навмисно
+                    читання, а не створення: справжня накладна
+                    коштує грошей, а тут потрібно лише знати, що
+                    ключ на місці й воркер його бачить. */}
+                <button
+                  className="btn btn--ghost btn--sm"
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      const res = await npCall<{ Description?: string }>(
+                        { workerUrl: form.workerUrl, adminKey },
+                        'Counterparty',
+                        'getCounterparties',
+                        { CounterpartyProperty: 'Sender', Page: '1' }
+                      );
+                      if (!res.ok) return { kind: 'err' as const, text: res.error };
+                      const хто = res.data[0]?.Description || '';
+                      return хто
+                        ? { kind: 'ok' as const, text: 'Кабінет на звʼязку. Відправник за договором: ' + хто }
+                        : { kind: 'err' as const, text: 'Ключ працює, але в договорі немає відправника' };
+                    })
+                  }
+                >
+                  Перевірити Нову Пошту
                 </button>
               </div>
 
