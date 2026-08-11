@@ -31,6 +31,15 @@ function номерВідділення(branch: string): string {
   return m ? m[1] : '';
 }
 
+/** Число з поля: українська розкладка дає кому, а Number('1,5')
+ *  це NaN — і накладна на півтора кілограма тихо йшла б як на
+ *  півкілограма, а перевізник перерахував би доставку у
+ *  відділенні. */
+function число(v: string): number {
+  const n = Number(String(v).replace(',', '.').trim());
+  return Number.isFinite(n) ? n : 0;
+}
+
 /** Чи годиться імʼя для накладної: щонайменше два слова. */
 function повнеІмʼя(v: string): boolean {
   return String(v || '')
@@ -126,11 +135,11 @@ export default function TtnCreate({
       cityRecipient: (c.city || '').replace(/^м\.\s*/i, ''),
       warehouseRecipient: номер,
       description: опис,
-      weight: Number(вага) || 0.5,
-      cost: Number(оцінка) || 1,
+      weight: число(вага) || 0.5,
+      cost: число(оцінка) || 1,
       seats: 1,
       payer: платник,
-      backMoney: Number(післяплата) || 0,
+      backMoney: число(післяплата) || 0,
       postomat: поштомат
     });
     setЙде(false);
@@ -287,15 +296,25 @@ export default function TtnCreate({
           Покупцеві піде лист із номером.
         </p>
 
-        <div className="ttn-foot">
-          <button className="btn btn--primary" type="button" disabled={йде} onClick={() => void створити()}>
-            {йде ? 'Створюємо…' : 'Створити накладну'}
-          </button>
+        </div>
+
+        {/* Підвал за межами прокрутки й у тому самому порядку, що
+            в решті вікон адмінки: головна кнопка праворуч. Доти
+            «Створити накладну» ховалася нижче згину, і її треба
+            було шукати гортанням. */}
+        <footer className="a-modal__foot">
           <button className="btn btn--ghost" type="button" onClick={onClose}>
             Скасувати
           </button>
-        </div>
-        </div>
+          <button
+            className="btn btn--primary"
+            type="button"
+            disabled={йде}
+            onClick={() => void створити()}
+          >
+            {йде ? 'Створюємо…' : 'Створити накладну'}
+          </button>
+        </footer>
       </div>
     </div>
   );

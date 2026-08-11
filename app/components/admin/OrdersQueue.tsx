@@ -6,14 +6,13 @@ import OrderRow from './OrderRow';
 import {
   BANDS,
   queue,
-  statusInfo,
   type AdminOrder,
   type Band,
   type ParcelHint,
   type Task
 } from '@/lib/admin/orders';
 import type { Catalogue } from '@/lib/catalog';
-import { підпис, тривога, type Посилка } from '@/lib/admin/np';
+import { коротко, тривога, type Посилка } from '@/lib/admin/np';
 
 /* ============================================================
    Черга справ
@@ -54,7 +53,7 @@ export default function OrdersQueue({
   orders: AdminOrder[];
   c: Catalogue;
   parcels: Map<string, Посилка>;
-  onStatus(o: AdminOrder, next: string): void;
+  onStatus(o: AdminOrder, next: string): void | Promise<void>;
   onEdit?(o: AdminOrder): void;
   onField?(o: AdminOrder, field: 'ttn' | 'note', value: string): void;
   onSendTtn?(o: AdminOrder): void;
@@ -65,6 +64,10 @@ export default function OrdersQueue({
   onDelete?(o: AdminOrder): void;
 }) {
   const [open, setOpen] = useState('');
+  /* Поки запис іде, кнопку блокуємо. Два кліки по «Підтвердити»
+     означають два списання того самого товару зі складу — і
+     полагодити це потім можна лише руками. */
+  const [йде, setЙде] = useState('');
   const смуги = queue(orders, parcels as unknown as Map<string, ParcelHint>);
   const справ = смуги
     .filter((s) => s.band.id !== 'transit')
@@ -92,20 +95,21 @@ export default function OrdersQueue({
             <i>{rows.length}</i>
           </h3>
 
+          {/* Значка статусу в рядку черги немає навмисно: смуга
+              вже однозначно його задає — у «Підтвердити» всі
+              «Нові», у «Зібрати» всі «Підтверджені». Двадцять
+              однакових значків поспіль крали б увагу в того, що
+              справді несе новину, — стану посилки. */}
           {rows.map(({ order, task }) => (
             <div key={order._id} className={'aq-item u-' + task.urgency + (open === order._id ? ' is-open' : '')}>
               <OrderRow
                 num={order.num || ''}
                 name={String((order.customer as Record<string, unknown>)?.name ?? '')}
                 place={куди(order)}
-                badge={{
-                  id: order.status || 'new',
-                  title: statusInfo(order.status || 'new').title
-                }}
                 parcel={(() => {
                   if (order.pickup) return { text: 'Самовиніс', tone: 0 as const };
-                  const п = parcels.get(String(order.ttn || '').trim());
-                  return п ? { text: підпис(п), tone: тривога(п) } : undefined;
+                  const п = parcels.get(String(order.ttn || '').replace(/\D/g, ''));
+                  return п ? { text: коротко(п), tone: тривога(п) } : undefined;
                 })()}
                 meta={task.why}
                 sum={order.total || 0}
@@ -114,7 +118,19 @@ export default function OrdersQueue({
                 onToggle={() => setOpen(open === order._id ? '' : order._id)}
                 action={
                   band.action
-                    ? { label: band.action, onClick: () => дія(order, band, onStatus, () => setOpen(order._id)) }
+                    ? {
+                        label: йде === order._id ? 'Хвилинку…' : band.action,
+                        busy: йде === order._id,
+                        onClick: async () => {
+                          if (йде) return;
+                          setЙде(order._id);
+                          try {
+                            await дія(order, band, onStatus, () => setOpen(order._id));
+                          } finally {
+                            setЙде('');
+                          }
+                        }
+                      }
                     : undefined
                 }
               />
@@ -150,10 +166,10 @@ export default function OrdersQueue({
    робимо його одразу. Там, де потрібні руки (вписати номер,
    розібратися з поверненням), відкриваємо картку: рішення там
    не одне, і вгадувати його за менеджера не можна. */
-function дія(
+async function дія(
   o: AdminOrder,
   band: Band,
-  onStatus: (o: AdminOrder, next: string) => void,
+  onStatus: (o: AdminOrder, next: string) => void | Promise<void>,
   розкрити: () => void
 ) {
   if (band.id === 'confirm') return onStatus(o, 'confirmed');

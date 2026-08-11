@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PublishControl from './PublishControl';
 import SettingsDialog from './SettingsDialog';
 import OrderCard from './OrderCard';
@@ -46,7 +46,7 @@ import { trackDelete, trackUpdate } from '@/lib/track';
 import {
   trackAll,
   видалитиНакладну,
-  підпис,
+  коротко,
   статусЗаТрекером,
   тривога,
   type Посилка
@@ -206,6 +206,12 @@ export default function OrdersAdmin() {
      посилках, які давно забрали. Вимикач на пристрої — на
      випадок, коли менеджер хоче вести статуси лише руками. */
   const [авто, setАвто] = useState(true);
+  /* Ефект опитування підписується один раз і застигає на тому,
+     що бачив у ту мить: знята галочка не діяла, а статуси
+     підтягувались за старим списком — і трекер закривав удруге
+     те, що менеджер щойно закрив руками. */
+  const автоRef = useRef(авто);
+  автоRef.current = авто;
   useEffect(() => {
     try {
       setАвто(localStorage.getItem('reyter:np-auto') !== 'off');
@@ -231,7 +237,11 @@ export default function OrdersAdmin() {
         (o) =>
           (o.status === 'shipped' || o.status === 'done') && String(o.ttn || '').trim()
       )
-      .slice(0, 100)
+      /* Спершу ті, що їдуть: у жваві дні сотня найновіших — це
+         переважно виконані, і саме ті посилки, заради яких усе
+         це робиться, у запит не потрапляли. */
+      .sort((a, b) => (a.status === 'shipped' ? -1 : 1) - (b.status === 'shipped' ? -1 : 1))
+      .slice(0, 200)
       .map((o) => ({ ttn: o.ttn, phone: String(o.customer?.phone || '') }));
     if (!вДорозі.length) return;
 
@@ -240,8 +250,15 @@ export default function OrdersAdmin() {
       if (document.hidden) return;
       void trackAll(вДорозі).then((m) => {
         if (!живий || !m.size) return;
-        setПосилки(m);
-        if (авто) void підтягнутиСтатуси(m);
+        /* Домішуємо, а не заміщаємо: якщо одна пачка не доїхала,
+           рядок «лежить пʼятий день» не має перетворюватись на
+           «у дорозі» саме тоді, коли на нього треба реагувати. */
+        setПосилки((старі) => {
+          const н = new Map(старі);
+          for (const [k, v] of m) н.set(k, v);
+          return н;
+        });
+        if (автоRef.current) void підтягнутиРef.current(m);
       });
     };
     спитати();
@@ -389,7 +406,7 @@ export default function OrdersAdmin() {
      розійдуться при першій же правці. */
 
   const зберегтиПоле = useCallback(
-    async (o: AdminOrder, field: 'ttn' | 'note', value: string) => {
+    async (o: AdminOrder, field: 'ttn' | 'note', value: string, лист = true) => {
       const d = db();
       if (!d) return;
       try {
@@ -400,7 +417,7 @@ export default function OrdersAdmin() {
           void trackUpdate({ ...o, ttn: value } as never, { ttn: value });
           toast('ТТН збережено — покупець бачить його в кабінеті й у відстеженні ✓', 'success');
           // посилка вже в дорозі — номер має піти покупцеві одразу
-          if (value.trim() && o.status === 'shipped') void надіслатиТТН(o, value.trim());
+          if (лист && value.trim() && o.status === 'shipped') void надіслатиТТН(o, value.trim());
         } else {
           toast('Нотатку збережено ✓', 'success');
         }
@@ -463,7 +480,7 @@ export default function OrdersAdmin() {
   /** Що каже перевізник — для рядка списку. */
   function посилкаДляРядка(o: AdminOrder) {
     const п = посилки.get(String(o.ttn || '').trim());
-    return п ? { text: підпис(п), tone: тривога(п) } : undefined;
+    return п ? { text: коротко(п), tone: тривога(п) } : undefined;
   }
 
   /** Коли це було — коротко, для рядка списку. */
@@ -508,8 +525,17 @@ export default function OrdersAdmin() {
 
       const d = db();
       if (d) {
-        await updateDoc(doc(d, 'orders', o._id), { ttn: '', ttnRef: '', ttnSentAt: '' });
-        void trackUpdate({ ...o, ttn: '' } as never, { ttn: '' });
+        try {
+          await updateDoc(doc(d, 'orders', o._id), { ttn: '', ttnRef: '', ttnSentAt: '' });
+          void trackUpdate({ ...o, ttn: '' } as never, { ttn: '' });
+        } catch {
+          /* У кабінеті вже видалено, а в нас номер лишився —
+             мовчати про це не можна: далі трекер шукав би
+             неіснуючу накладну й ставив замовлення в
+             «Повернення й помилки» з вигаданою причиною. */
+          toast('Накладну в кабінеті видалено, але номер у замовленні не стерся — зітріть його вручну');
+          return;
+        }
       }
       if ((o.status || 'new') === 'shipped') {
         /* Саме 'confirmed', а не 'new': товар уже підтверджений і
@@ -522,6 +548,9 @@ export default function OrdersAdmin() {
     [askDialog, toast, нала.workerUrl, ключ]
   );
 
+  const підтягнутиРef = useRef(підтягнутиСтатуси);
+  підтягнутиРef.current = підтягнутиСтатуси;
+
   async function onStatus(o: AdminOrder, next: string) {
     const dd = deps();
     if (!dd) return;
@@ -530,7 +559,11 @@ export default function OrdersAdmin() {
     /* Накладну вписали просто в мить відправлення — тоді ж її й
        надсилаємо: другого підходу до цього замовлення може вже
        не бути. */
-    if (res.ok && res.ttn) void надіслатиТТН(o, res.ttn);
+    /* Номер могли вписати руками ще до відправлення — тоді лист
+       не йшов узагалі: збереження шле його лише для вже
+       відправлених, а перехід — лише для щойно введеного. */
+    const номер = res.ttn || String(o.ttn || '').trim();
+    if (res.ok && next === 'shipped' && номер && !o.ttnSentAt) void надіслатиТТН(o, номер);
   }
 
   async function onBulk(next: string) {
@@ -638,6 +671,11 @@ export default function OrdersAdmin() {
             </label>
           </div>
 
+          {/* Помилка читання бази має бути видна на ОБОХ екранах:
+              інакше черга бадьоро малює «Усе зроблено» саме тоді,
+              коли замовлення є, а їх не видно. */}
+          {error ? <p className="ao-note ao-error">{error}</p> : null}
+
           {екран === 'queue' ? (
             <OrdersQueue
               orders={orders as never}
@@ -694,12 +732,18 @@ export default function OrdersAdmin() {
             onClear={() => setSelection(new Set())}
           />
 
-          {error ? <p className="ao-note">{error}</p> : null}
 
           <div className="ao-list">
           {visible.length ? (
             visible.map((o) => (
-              <div key={o._id} className={'aq-item' + (розкрито === o._id ? ' is-open' : '')}>
+              <div
+                key={o._id}
+                className={
+                  'aq-item u-' +
+                  (посилкаДляРядка(o)?.tone ?? 0) +
+                  (розкрито === o._id ? ' is-open' : '')
+                }
+              >
                 <OrderRow
                   num={o.num || ''}
                   name={String((o.customer as Record<string, unknown>)?.name ?? '')}
@@ -713,7 +757,6 @@ export default function OrdersAdmin() {
                   parcel={
                     o.pickup ? { text: 'Самовиніс', tone: 0 as const } : посилкаДляРядка(o)
                   }
-                  tone={посилкаДляРядка(o)?.tone ?? 0}
                   meta={shortWhen(o)}
                   sum={o.total || 0}
                   picked={selection.has(o._id)}
@@ -814,7 +857,8 @@ export default function OrdersAdmin() {
           onDone={async (ttn, ref) => {
             const o = ттнДля;
             setТтнДля(null);
-            await зберегтиПоле(o, 'ttn', ttn);
+            // лист надішлемо наприкінці самі — інакше їх буде два
+            await зберегтиПоле(o, 'ttn', ttn, false);
             /* Ідентифікатор документа знадобиться, якщо накладну
                доведеться скасувати: видаляють саме за ним. */
             const d0 = db();
@@ -825,7 +869,12 @@ export default function OrdersAdmin() {
                питала його вдруге, просто у вікні поверх щойно
                створеної накладної. */
             const свіже = { ...o, ttn } as AdminOrder;
-            if ((o.status || 'new') !== 'shipped') await onStatus(свіже, 'shipped');
+            /* Виконане замовлення накладна не відкочує назад:
+               накладну для нього створюють на обмін або дослання,
+               і «Відправлено» тут було б неправдою. */
+            if (['new', 'confirmed'].includes(o.status || 'new')) {
+              await onStatus(свіже, 'shipped');
+            }
 
             /* І лист. Сам він не пішов би: зберігання надсилає
                його лише тоді, коли замовлення вже «Відправлено»,

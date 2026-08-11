@@ -209,10 +209,19 @@ export default function OrderCard({
       </div>
       )}
 
-      <div className="ao-card__mid" hidden={embedded}>
+      {/* Контакти покупця. Були приховані разом із шапкою — і
+          виходило, що смуга «Підтвердити» каже «подзвони», а
+          номера на екрані немає взагалі. Тепер у вбудованій
+          картці вони стоять першими, без повтору імені: його вже
+          сказав рядок. */}
+      <div className="ao-card__mid">
         <div className="ao-card__customer">
-          <b>{String(c.name ?? '—')}</b>
-          {' · '}
+          {embedded ? null : (
+            <>
+              <b>{String(c.name ?? '—')}</b>
+              {' · '}
+            </>
+          )}
           <a href={'tel:' + phone.replace(/\s/g, '')}>{phone || '—'}</a>
           {email ? (
             <>
@@ -255,7 +264,7 @@ export default function OrderCard({
           ) : null}
         </div>
 
-        <button className="ao-toggle" type="button" onClick={() => setOpen((v) => !v)}>
+        <button className="ao-toggle" type="button" hidden={embedded} onClick={() => setOpen((v) => !v)}>
           {open ? 'Згорнути' : 'Деталі'} · {units} шт
         </button>
       </div>
@@ -545,7 +554,7 @@ export default function OrderCard({
         </div>
       ) : null}
 
-      {можнаЗакрити ? (
+      {можнаЗакрити && !embedded ? (
         <div className="ao-card__hint">
           <span>Перевізник каже: посилку отримано{parcel?.gotAt ? ' · ' + parcel.gotAt : ''}</span>
           <button className="btn btn--primary btn--sm" type="button" onClick={() => onStatus('done')}>
@@ -555,12 +564,15 @@ export default function OrderCard({
       ) : null}
 
       <div className="ao-card__actions">
-        {next ? (
+        {/* Статус міняється значками вище — тут його дублювати не
+            треба. Одна дія, запропонована чотири рази, змушує
+            щоразу вибирати, якими з однакових дверей увійти. */}
+        {next && !embedded ? (
           <button className="btn btn--primary btn--sm" type="button" onClick={() => onStatus(next.id)}>
             {next.label}
           </button>
         ) : null}
-        {st !== 'cancelled' && st !== 'done' ? (
+        {!embedded && st !== 'cancelled' && st !== 'done' ? (
           <button className="btn btn--ghost btn--sm" type="button" onClick={() => onStatus('cancelled')}>
             Скасувати
           </button>

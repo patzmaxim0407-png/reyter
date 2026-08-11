@@ -5312,3 +5312,42 @@ label.a-promo-product i {
   color: #014aad;
   border-bottom-color: #014aad;
 }
+
+/* Помилка читання бази — на видноті, а не сірим приміткою:
+   інакше черга малює «Усе зроблено» саме тоді, коли замовлення
+   є, а їх не видно. */
+.ao-error {
+  padding: 10px 14px;
+  border: 1px solid #f3b8b2;
+  border-radius: 12px;
+  background: #fdecea;
+  color: #b3261e;
+  font-weight: 600;
+}
+
+/* Прапорці вибору в рядку — такі самі, як усюди в адмінці */
+.aq-row__pick input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--c-blue);
+  cursor: pointer;
+}
+
+/* Вбудована картка не додає власних відступів: її ліва межа має
+   збігатися з іменем у рядку над нею. */
+.ao-card--in {
+  padding: 0;
+}
+
+@media (max-width: 720px) {
+  .aq-row__pick {
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .aq-row__pick input {
+    width: 22px;
+    height: 22px;
+  }
+}

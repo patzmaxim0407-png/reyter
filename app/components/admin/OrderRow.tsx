@@ -56,7 +56,7 @@ export default function OrderRow({
   sum: number;
   /** 0 — спокій, 1 — увага, 2 — горить. */
   tone?: 0 | 1 | 2;
-  action?: { label: string; onClick(): void };
+  action?: { label: string; onClick(): void; busy?: boolean };
   picked?: boolean;
   onPick?(on: boolean): void;
   open?: boolean;
@@ -116,6 +116,7 @@ export default function OrderRow({
         <button
           className="btn btn--primary btn--sm aq-row__act"
           type="button"
+          disabled={action.busy}
           onClick={action.onClick}
         >
           {action.label}

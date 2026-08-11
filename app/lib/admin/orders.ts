@@ -142,9 +142,9 @@ export interface Band {
 export const BANDS: readonly Band[] = [
   { id: 'confirm', icon: '☎', title: 'Підтвердити', action: 'Підтвердити' },
   { id: 'pack', icon: '📦', title: 'Зібрати й відправити', action: 'Відправити' },
-  { id: 'ttn', icon: '🔖', title: 'Без номера накладної', action: 'Вписати ТТН' },
-  { id: 'back', icon: '↩', title: 'Повернення й помилки', action: 'Розібратись' },
-  { id: 'waiting', icon: '⏳', title: 'Лежить у відділенні', action: 'Нагадати' },
+  { id: 'ttn', icon: '🔖', title: 'Без номера накладної', action: 'Відкрити' },
+  { id: 'back', icon: '↩', title: 'Повернення й помилки', action: 'Відкрити' },
+  { id: 'waiting', icon: '⏳', title: 'Лежить у відділенні', action: 'Відкрити' },
   { id: 'close', icon: '✓', title: 'Отримано — можна закрити', action: 'Закрити' },
   { id: 'transit', icon: '🚚', title: 'У дорозі', action: '' }
 ];
@@ -560,8 +560,16 @@ export function periodOrders(
 }
 
 /** Повністю відфільтровані та відсортовані. */
+/* Пошук важливіший за період: менеджер вставляє номер із
+   Telegram, а йому кажуть «за цими фільтрами нічого не знайдено»
+   — про фільтри, яких він не чіпав. Коли в полі є текст, шукаємо
+   по всьому, що приїхало. */
 export function filteredOrders(orders: AdminOrder[], f: OrderFilters, now: Date): AdminOrder[] {
-  const list = periodOrders(orders, f, now).filter((o) => {
+  /* Коли шукають — період не звужує. Інакше номер тримісячної
+     давнини не знаходиться, а екран каже «за цими фільтрами
+     нічого не знайдено» про фільтри, яких ніхто не чіпав. */
+  const джерело = f.search.trim() ? orders : periodOrders(orders, f, now);
+  const list = джерело.filter((o) => {
     if (f.status !== 'all' && (o.status || 'new') !== f.status) return false;
     return matchesSearch(o, f.search);
   });
@@ -860,7 +868,9 @@ export async function applyStatus(
       text:
         'Замовлення №' + (order.num || '') +
         ' переходить у «Відправлено». Впишіть ТТН — ми одразу надішлемо його покупцеві, ' +
-        'і він бачитиме рух посилки у своєму кабінеті.',
+        'і він бачитиме рух посилки у своєму кабінеті.\n\n' +
+        'Немає номера? Закрийте це вікно й натисніть у картці «Створити накладну» — ' +
+        'оформимо її в Новій Пошті самі, не переписуючи дані вручну.',
       label: 'ТТН',
       placeholder: 'напр.: 20450000000000',
       okText: 'Відправити'
@@ -1073,6 +1083,11 @@ export async function bulkStatus(
     };
   }
 
+  /* Пакетом ніхто не питає, повертати товар на склад чи списати:
+     діалогів у тихому режимі немає, і за менеджера вирішує
+     «повернути». Сказати про це треба ДО, а не після. */
+  const зіСкладу = toChange.filter((o) => o.stockApplied && !consumesStock(next)).length;
+
   const okBulk = await deps.ask.confirmAsk({
     title: 'Масова зміна статусу',
     text:
@@ -1080,7 +1095,12 @@ export async function bulkStatus(
       statusInfo(next).title +
       '» для ' +
       toChange.length +
-      ' замовлень?',
+      ' замовлень?' +
+      (зіСкладу
+        ? '\n\nУ ' + зіСкладу + ' із них товар списаний зі складу — він ПОВЕРНЕТЬСЯ ' +
+          'у залишки. Якщо якісь речі не повернулись, міняйте такі замовлення поодинці: ' +
+          'там можна вказати причину списання.'
+        : ''),
     okText: 'Змінити'
   });
   if (!okBulk) return { kind: 'cancelled' };
