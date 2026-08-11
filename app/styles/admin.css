@@ -4369,3 +4369,34 @@ label.a-promo-product i {
 .ao-stat--warn b {
   color: #b3261e;
 }
+
+/* ---------- Що каже перевізник ---------- */
+
+.ao-parcel {
+  background: #eef5ff;
+  border-color: #c3d8f5;
+  color: #014aad;
+}
+
+.ao-parcel--wait {
+  background: #fff6e6;
+  border-color: #f0d29a;
+  color: #8a5a00;
+}
+
+/* Смужка «можна закрити» — єдине місце в картці, яке саме
+   пропонує дію, а не звітує. */
+.ao-card__hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 14px 12px;
+  padding: 10px 14px;
+  border: 1px solid #bfe3cd;
+  border-radius: 12px;
+  background: #f1faf4;
+  font-size: 13px;
+  color: #15803d;
+}

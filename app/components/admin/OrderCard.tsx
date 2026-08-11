@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { addressLine } from '@/lib/address';
 import { fmt, type Catalogue } from '@/lib/catalog';
 import { NEXT_STEP, STATUSES, confirmText, itemCat, orderDate, statusInfo } from '@/lib/admin/orders';
+import { підпис, стан, тривога, type Посилка } from '@/lib/admin/np';
 import type { OrderItem } from '@/lib/types';
 
 /* ============================================================
@@ -49,6 +50,7 @@ export default function OrderCard({
   onStatus,
   onEdit,
   onField,
+  parcel,
   onSendTtn,
   onCopy,
   onPrint,
@@ -64,6 +66,8 @@ export default function OrderCard({
   onEdit?(): void;
   onField?(field: 'ttn' | 'note', value: string): void;
   onSendTtn?(): void;
+  /** Що каже про посилку сам перевізник. */
+  parcel?: Посилка;
   onCopy?(): void;
   onPrint?(): void;
   onDelete?(): void;
@@ -80,6 +84,11 @@ export default function OrderCard({
      забрали, і червоний значок на ній — просто шум, який
      привчає не звертати уваги на червоні значки взагалі. */
   const потрібнаТТН = st === 'shipped' && !маєТТН;
+  const рівень = parcel ? тривога(parcel) : 0;
+  /* Перевізник каже «отримано», а в нас усе ще «Відправлено» —
+     значить, замовлення можна закривати, і сказати про це має
+     сама картка, а не пам'ять менеджера. */
+  const можнаЗакрити = st === 'shipped' && parcel && стан(parcel.code) === 'отримано';
 
   const delivery = addressLine(c as never);
   const units = (o.items ?? []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
@@ -121,6 +130,18 @@ export default function OrderCard({
             </option>
           ))}
         </select>
+
+        {/* Що каже сам перевізник. Це не прикраса: «лежить
+            пʼятий день» і «повертається» — саме ті дві новини,
+            через які замовлення втрачають гроші. */}
+        {parcel ? (
+          <span
+            className={'ao-tag ao-parcel' + (рівень === 2 ? ' ao-tag--warn' : рівень === 1 ? ' ao-parcel--wait' : '')}
+            title={(parcel.status || '') + (parcel.place ? ' · ' + parcel.place : '')}
+          >
+            {підпис(parcel)}
+          </span>
+        ) : null}
 
         {/* Найпомітніша річ у картці — те, чого бракує. Червоний
             значок видно навіть у згорнутому списку, тож замовлення
@@ -350,6 +371,15 @@ export default function OrderCard({
           ) : (
             <p className="ao-note">Історія порожня — статус ще не змінювався.</p>
           )}
+        </div>
+      ) : null}
+
+      {можнаЗакрити ? (
+        <div className="ao-card__hint">
+          <span>Перевізник каже: посилку отримано{parcel?.gotAt ? ' · ' + parcel.gotAt : ''}</span>
+          <button className="btn btn--primary btn--sm" type="button" onClick={() => onStatus('done')}>
+            Закрити замовлення
+          </button>
         </div>
       ) : null}
 

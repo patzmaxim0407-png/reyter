@@ -38,6 +38,7 @@ import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { fmt } from '@/lib/catalog';
 import { printSheet } from './printSheet';
 import { trackDelete, trackUpdate } from '@/lib/track';
+import { trackAll, type Посилка } from '@/lib/admin/np';
 import type { OrderStatus, Stock } from '@/lib/types';
 
 /* ============================================================
@@ -115,6 +116,46 @@ export default function OrdersAdmin() {
       return next.size === sel.size ? sel : next;
     });
   }, [list]);
+
+  /* ---------- Де зараз посилки ----------
+     Перевізник знає про них більше за нас: чи доїхала, чи лежить
+     пʼятий день, чи вже повертається назад. Питаємо його самі —
+     ключа для цього не треба.
+
+     Опитуємо лише те, що в дорозі й має номер, і лише поки
+     вкладка на очах: смикати чужий сервер, коли адмінку згорнули
+     й пішли, — ні до чого. */
+  const [посилки, setПосилки] = useState<Map<string, Посилка>>(new Map());
+  const вДорозіКлюч = orders
+    .map((o) => (o.status === 'shipped' ? o._id + ':' + (o.ttn || '') : ''))
+    .filter(Boolean)
+    .join('|');
+
+  useEffect(() => {
+    const вДорозі = orders
+      .filter((o) => o.status === 'shipped' && String(o.ttn || '').trim())
+      .map((o) => ({ ttn: o.ttn, phone: String(o.customer?.phone || '') }));
+    if (!вДорозі.length) return;
+
+    let живий = true;
+    const спитати = () => {
+      if (document.hidden) return;
+      void trackAll(вДорозі).then((m) => {
+        if (живий && m.size) setПосилки(m);
+      });
+    };
+    спитати();
+    const t = setInterval(спитати, 10 * 60 * 1000);
+    document.addEventListener('visibilitychange', спитати);
+    return () => {
+      живий = false;
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', спитати);
+    };
+    /* Перезапитуємо, коли міняється склад посилок у дорозі, а не
+       на кожен рендер списку. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [вДорозіКлюч]);
 
   /* ---------- Залежності для зміни статусу ---------- */
 
@@ -376,6 +417,7 @@ export default function OrdersAdmin() {
                     toast(field === 'ttn' ? 'Не вдалося зберегти ТТН' : 'Не вдалося зберегти нотатку');
                   }
                 }}
+                parcel={посилки.get(String(o.ttn || '').trim())}
                 onSendTtn={() => void надіслатиТТН(o, String(o.ttn || '').trim())}
                 onCopy={async () => {
                   const done = await copyText(o.message || buildOrderMessage(o as never, c));
