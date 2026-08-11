@@ -43,7 +43,14 @@ import { doc, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { fmt } from '@/lib/catalog';
 import { printSheet } from './printSheet';
 import { trackDelete, trackUpdate } from '@/lib/track';
-import { trackAll, підпис, статусЗаТрекером, тривога, type Посилка } from '@/lib/admin/np';
+import {
+  trackAll,
+  видалитиНакладну,
+  підпис,
+  статусЗаТрекером,
+  тривога,
+  type Посилка
+} from '@/lib/admin/np';
 import { parcelWeight } from '@/lib/customs';
 import type { OrderStatus, Stock } from '@/lib/types';
 
@@ -456,6 +463,54 @@ export default function OrdersAdmin() {
       : '';
   }
 
+  /* Скасувати накладну. Доки посилку не прийняли у відділенні,
+     перевізник дозволяє це — і саме тоді замовлення ще можна
+     виправити: розмір, склад, адресу. Після скасування статус
+     відкочуємо на «Підтверджено», інакше замовлення лишалося б
+     «Відправленим» без жодної посилки. */
+  const скасуватиНакладну = useCallback(
+    async (o: AdminOrder) => {
+      const ttn = String(o.ttn || '').trim();
+      if (!ttn) return;
+
+      const yes = await askDialog({
+        title: 'Скасувати накладну?',
+        text:
+          'Накладна ' + ttn + ' буде видалена в кабінеті Нової Пошти, а замовлення ' +
+          'повернеться в «Підтверджено» — його знову можна буде редагувати.' +
+          '\n\nЦе працює, доки посилку не прийняли у відділенні. Якщо вона вже в дорозі, ' +
+          'перевізник відмовить.',
+        okText: 'Скасувати накладну',
+        danger: true
+      });
+      if (yes !== true) return;
+
+      const res = await видалитиНакладну(
+        { workerUrl: нала.workerUrl, adminKey: ключВоркера },
+        ttn,
+        o.ttnRef
+      );
+      if (!res.ok) {
+        toast('Накладну не скасовано: ' + res.error);
+        return;
+      }
+
+      const d = db();
+      if (d) {
+        await updateDoc(doc(d, 'orders', o._id), { ttn: '', ttnRef: '', ttnSentAt: '' });
+        void trackUpdate({ ...o, ttn: '' } as never, { ttn: '' });
+      }
+      if ((o.status || 'new') === 'shipped') {
+        /* Саме 'confirmed', а не 'new': товар уже підтверджений і
+           списаний, і повертати його на склад тут нема потреби —
+           замовлення просто чекає нової накладної. */
+        await onStatus({ ...o, ttn: '' } as AdminOrder, 'confirmed');
+      }
+      toast('Накладну скасовано — замовлення знову можна редагувати ✓', 'success');
+    },
+    [askDialog, toast, нала.workerUrl, ключВоркера]
+  );
+
   async function onStatus(o: AdminOrder, next: string) {
     const dd = deps();
     if (!dd) return;
@@ -582,6 +637,7 @@ export default function OrdersAdmin() {
               onField={(o, field, value) => void зберегтиПоле(o as never, field, value)}
               onSendTtn={(o) => void надіслатиТТН(o as never, String(o.ttn || '').trim())}
               onMakeTtn={(o) => setТтнДля(o as never)}
+              onDropTtn={(o) => void скасуватиНакладну(o as never)}
               onCopy={(o) => void скопіювати(o as never)}
               onPrint={(o) => printPicked([o as never])}
               onDelete={(o) => void видалити(o as never)}
@@ -674,6 +730,7 @@ export default function OrdersAdmin() {
                       onField={(field, value) => void зберегтиПоле(o, field, value)}
                       onSendTtn={() => void надіслатиТТН(o, String(o.ttn || '').trim())}
                       onMakeTtn={() => setТтнДля(o)}
+                      onDropTtn={() => void скасуватиНакладну(o)}
                       onCopy={() => void скопіювати(o)}
                       onPrint={() => printPicked([o])}
                       onDelete={() => void видалити(o)}
@@ -743,10 +800,14 @@ export default function OrdersAdmin() {
               npWarehouse: v.warehouse, npWarehouseRef: v.warehouseRef
             }, { merge: true });
           }}
-          onDone={async (ttn) => {
+          onDone={async (ttn, ref) => {
             const o = ттнДля;
             setТтнДля(null);
             await зберегтиПоле(o, 'ttn', ttn);
+            /* Ідентифікатор документа знадобиться, якщо накладну
+               доведеться скасувати: видаляють саме за ним. */
+            const d0 = db();
+            if (d0 && ref) void updateDoc(doc(d0, 'orders', o._id), { ttnRef: ref });
 
             /* Далі — з ОНОВЛЕНОЮ копією замовлення. Зі старою
                перевірка не бачила щойно створеного номера й

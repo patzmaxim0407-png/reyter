@@ -5294,3 +5294,8 @@ label.a-promo-product i {
   user-select: text;
   word-break: break-word;
 }
+
+.ao-ttn__drop {
+  margin-top: 8px;
+  justify-self: start;
+}

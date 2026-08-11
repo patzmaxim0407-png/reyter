@@ -44,6 +44,8 @@ export interface Посилка {
   city: string;
   /** Коли накладну створено. */
   createdAt: string;
+  /** Ідентифікатор документа в кабінеті — за ним його й видаляють. */
+  ref: string;
 }
 
 /* ---------- Що означають коди ----------
@@ -139,6 +141,7 @@ interface Рядок {
   StatusCode?: string;
   Status?: string;
   RecipientDateTime?: string;
+  RefEW?: string;
   WarehouseRecipient?: string;
   WarehouseRecipientAddress?: string;
   CityRecipient?: string;
@@ -195,7 +198,8 @@ async function пачка(items: { ttn: string; phone?: string }[]): Promise<П�
     backMoney: Number(r.RedeliverySum) || 0,
     scheduled: String(r.ScheduledDeliveryDate || ''),
     city: String(r.CityRecipient || ''),
-    createdAt: String(r.DateCreated || '')
+    createdAt: String(r.DateCreated || ''),
+    ref: String(r.RefEW || '')
   }));
 }
 
@@ -415,6 +419,33 @@ export async function створитиНакладну(
 /** Обʼєм коробки в кубометрах — саме в них його чекають. */
 function обʼєм(b: { length: number; width: number; height: number }): number {
   return Math.round(((b.length * b.width * b.height) / 1_000_000) * 10_000) / 10_000;
+}
+
+/** Скасувати накладну. Перевізник дозволяє це, доки посилку не
+ *  прийняли у відділенні — далі вона вже їде, і скасувати нічого.
+ *
+ *  Видаляють за ідентифікатором документа, а не за номером. Якщо
+ *  ідентифікатора немає (накладну вписали руками або створили до
+ *  того, як ми почали його зберігати) — беремо з відстеження:
+ *  воно віддає його полем RefEW. */
+export async function видалитиНакладну(
+  cab: Кабінет | null,
+  ttn: string,
+  ref?: string | null
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  let документ = String(ref || '').trim();
+
+  if (!документ) {
+    const знайдені = await trackAll([{ ttn }]);
+    документ = знайдені.get(String(ttn).trim())?.ref || '';
+  }
+  if (!документ) {
+    return { ok: false, error: 'перевізник не знає такої накладної — можливо, її вже видалено' };
+  }
+
+  const res = await npCall(cab, 'InternetDocument', 'delete', { DocumentRefs: [документ] });
+  if (!res.ok) return { ok: false, error: res.error || 'перевізник не видалив накладну' };
+  return { ok: true };
 }
 
 /** Дата у вигляді, якого чекає перевізник: 11.08.2026 */

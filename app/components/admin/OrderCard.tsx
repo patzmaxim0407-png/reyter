@@ -30,6 +30,8 @@ export interface AdminOrder {
   ttn?: string;
   /** Коли номер накладної пішов покупцеві листом. */
   ttnSentAt?: string;
+  /** Ідентифікатор накладної в кабінеті перевізника. */
+  ttnRef?: string;
   /** Покупець забирає сам — накладної не буде й не треба. */
   pickup?: boolean;
   lang?: string;
@@ -56,6 +58,7 @@ export default function OrderCard({
   embedded,
   onSendTtn,
   onMakeTtn,
+  onDropTtn,
   onCopy,
   onPrint,
   onDelete
@@ -72,6 +75,8 @@ export default function OrderCard({
   onSendTtn?(): void;
   /** Створити накладну просто звідси, у кабінеті перевізника. */
   onMakeTtn?(): void;
+  /** Скасувати створену накладну, щоб виправити замовлення. */
+  onDropTtn?(): void;
   /** Що каже про посилку сам перевізник. */
   parcel?: Посилка;
   /** Картка стоїть під рядком черги, який уже сказав номер,
@@ -445,6 +450,16 @@ export default function OrderCard({
                   onClick={onMakeTtn}
                 >
                   Створити накладну
+                </button>
+              ) : null}
+              {маєТТН && onDropTtn ? (
+                <button
+                  className="btn btn--ghost btn--sm ao-danger ao-ttn__drop"
+                  type="button"
+                  onClick={onDropTtn}
+                  title="Видалити накладну в кабінеті — щоб виправити замовлення"
+                >
+                  Скасувати накладну
                 </button>
               ) : null}
               {маєТТН && onSendTtn ? (

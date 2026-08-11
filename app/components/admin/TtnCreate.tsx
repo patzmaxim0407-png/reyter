@@ -57,7 +57,7 @@ export default function TtnCreate({
   weight: number;
   description: string;
   onSaveSender(v: { city: string; cityRef: string; warehouse: string; warehouseRef: string }): void;
-  onDone(ttn: string): void;
+  onDone(ttn: string, ref: string): void;
   onClose(): void;
 }) {
   const toast = useToast();
@@ -137,7 +137,7 @@ export default function TtnCreate({
       return;
     }
     onSaveSender(від);
-    onDone(res.ttn);
+    onDone(res.ttn, res.ref);
   }
 
   return (
