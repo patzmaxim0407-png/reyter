@@ -403,12 +403,71 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
   ok('повертається — завжди тривога', тривога({ ...лежить, code: '102', waiting: 0 }) === 2);
   ok('підпис каже дні, а не код', підпис(лежить) === 'У відділенні 5 дн.', підпис(лежить));
 
-  /* Живий запит: перевізник має відповісти навіть на вигаданий
-     номер — кодом «не знайдено». Якщо не відповів зовсім, це
-     новина про API, а не про наш код. */
-  const жива = await trackAll([{ ttn: '20450000000000', phone: '' }]);
+  /* Живий запит на СПРАВЖНЮ накладну: вигаданий номер дає код
+     «не знайдено» і мовчить про решту полів, тож на ньому не
+     видно ні дат, ні відділення — тобто нічого з того, що
+     насправді читає менеджер. */
+  const жива = await trackAll([{ ttn: '20451507134336', phone: '' }]);
+  const п = жива.get('20451507134336');
   ok('перевізник відповідає без ключа', жива.size === 1, 'посилок у відповіді: ' + жива.size);
+  ok('справжня накладна читається', !!п && !!п.code, JSON.stringify(п));
+  ok('відділення видно', !!п?.place, п?.place);
+  ok('дати перевізника розбираються', !!п && !Number.isNaN(п.waiting), String(п?.waiting));
   ok('порожні номери не питаємо', (await trackAll([{ ttn: '', phone: '' }])).size === 0);
+}
+
+
+/* ---------- Черга справ ---------- */
+
+{
+  const { nextTask, queue, BANDS } = await import('../lib/admin/orders.ts');
+  const тепер = new Date('2026-08-11T12:00:00');
+  const годину = (h: number) => new Date(тепер.getTime() - h * 3600_000).toISOString();
+
+  const зам = (o: Record<string, unknown>) =>
+    ({ _id: 'x', num: 'R-1', total: 700, date: годину(1), ...o }) as never;
+
+  ok('виконане в чергу не потрапляє', nextTask(зам({ status: 'done' }), null, тепер) === null);
+  ok('скасоване теж', nextTask(зам({ status: 'cancelled' }), null, тепер) === null);
+  ok('нове — підтвердити', nextTask(зам({ status: 'new' }), null, тепер)?.band === 'confirm');
+  ok(
+    'нове, що висить пів дня, — терміново',
+    nextTask(зам({ status: 'new', date: годину(13) }), null, тепер)?.urgency === 2
+  );
+  ok('підтверджене — зібрати', nextTask(зам({ status: 'confirmed' }), null, тепер)?.band === 'pack');
+  ok(
+    'відправлене без номера — окрема смуга',
+    nextTask(зам({ status: 'shipped' }), null, тепер)?.band === 'ttn'
+  );
+  ok(
+    'отримане — пропонуємо закрити',
+    nextTask(зам({ status: 'shipped', ttn: '1' }), { code: '9' }, тепер)?.band === 'close'
+  );
+  ok(
+    'повертається — у смугу помилок',
+    nextTask(зам({ status: 'shipped', ttn: '1' }), { code: '102' }, тепер)?.band === 'back'
+  );
+  ok(
+    'лежить два дні — ще не привід турбувати',
+    nextTask(зам({ status: 'shipped', ttn: '1' }), { code: '7', waiting: 2 }, тепер)?.band === 'transit'
+  );
+  const лежить5 = nextTask(зам({ status: 'shipped', ttn: '1' }), { code: '7', waiting: 5 }, тепер);
+  ok('лежить пʼятий день — смуга «лежить», і горить', лежить5?.band === 'waiting' && лежить5?.urgency === 2);
+
+  const q = queue(
+    [
+      зам({ _id: '1', status: 'new' }),
+      зам({ _id: '2', status: 'done' }),
+      зам({ _id: '3', status: 'confirmed', date: годину(50) }),
+      зам({ _id: '4', status: 'confirmed', date: годину(2) })
+    ],
+    new Map(),
+    тепер
+  );
+  ok('смуги в сталому порядку', q.map((x) => x.band.id).join(',') === BANDS.map((b) => b.id).join(','));
+  ok('виконане в чергу не приїхало', q.every((s) => !s.rows.find((r) => r.order._id === '2')));
+  const pack = q.find((x) => x.band.id === 'pack');
+  ok('усередині смуги найтерміновіше зверху', pack?.rows[0]?.order._id === '3', pack?.rows.map((r) => r.order._id).join(','));
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));

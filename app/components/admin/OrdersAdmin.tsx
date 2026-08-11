@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import PublishControl from './PublishControl';
 import SettingsDialog from './SettingsDialog';
 import OrderCard from './OrderCard';
+import OrdersQueue from './OrdersQueue';
 import ManualOrder from './ManualOrder';
 import { BulkBar, PeriodBar, StatusBar } from './OrderFilters';
 import { useAdminUser } from './AdminGate';
@@ -126,6 +127,27 @@ export default function OrdersAdmin() {
      вкладка на очах: смикати чужий сервер, коли адмінку згорнули
      й пішли, — ні до чого. */
   const [посилки, setПосилки] = useState<Map<string, Посилка>>(new Map());
+
+  /* Який екран показувати. Памʼять на пристрої, не в базі: у двох
+     менеджерів можуть бути різні звички, а перемикач має
+     вимикатись будь-якої миті без викладки. */
+  const [екран, setЕкран] = useState<'queue' | 'archive'>('queue');
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('reyter:orders-view');
+      if (v === 'archive' || v === 'queue') setЕкран(v);
+    } catch {
+      /* приватне вікно — лишається типове */
+    }
+  }, []);
+  const обратиЕкран = (v: 'queue' | 'archive') => {
+    setЕкран(v);
+    try {
+      localStorage.setItem('reyter:orders-view', v);
+    } catch {
+      /* нічого не вдієш */
+    }
+  };
   const вДорозіКлюч = orders
     .map((o) => (o.status === 'shipped' ? o._id + ':' + (o.ttn || '') : ''))
     .filter(Boolean)
@@ -239,6 +261,83 @@ export default function OrdersAdmin() {
     [toast]
   );
 
+
+  /* Ці три дії однакові на обох екранах, тож живуть тут, а не в
+     розмітці картки: інакше довелося б тримати дві копії, які
+     розійдуться при першій же правці. */
+
+  const зберегтиПоле = useCallback(
+    async (o: AdminOrder, field: 'ttn' | 'note', value: string) => {
+      const d = db();
+      if (!d) return;
+      try {
+        await updateDoc(doc(d, 'orders', o._id), { [field]: value });
+        if (field === 'ttn') {
+          /* Номер накладної має доїхати й до публічного запису —
+             саме його читає гість у відстеженні. */
+          void trackUpdate({ ...o, ttn: value } as never, { ttn: value });
+          toast('ТТН збережено — покупець бачить його в кабінеті й у відстеженні ✓', 'success');
+          // посилка вже в дорозі — номер має піти покупцеві одразу
+          if (value.trim() && o.status === 'shipped') void надіслатиТТН(o, value.trim());
+        } else {
+          toast('Нотатку збережено ✓', 'success');
+        }
+      } catch {
+        toast(field === 'ttn' ? 'Не вдалося зберегти ТТН' : 'Не вдалося зберегти нотатку');
+      }
+    },
+    [toast, надіслатиТТН]
+  );
+
+  const скопіювати = useCallback(
+    async (o: AdminOrder) => {
+      const done = await copyText(o.message || buildOrderMessage(o as never, c));
+      toast(done ? 'Скопійовано ✓' : 'Не вдалося скопіювати', done ? 'success' : 'plain');
+    },
+    [c, toast]
+  );
+
+  const видалити = useCallback(
+    async (o: AdminOrder) => {
+      /* Про списаний товар попереджаємо окремо: видалення його НЕ
+         повертає, і після нього залишки вже нічим не полагодити. */
+      const yes = await askDialog({
+        title: 'Видалити замовлення?',
+        text:
+          `№${o.num} зникне назавжди.` +
+          (o.stockApplied
+            ? '\n\nТовар за цим замовленням списаний зі складу. При видаленні ' +
+              'він автоматично НЕ повернеться — спершу переведіть замовлення ' +
+              'у «Скасовано», якщо потрібне повернення залишків.'
+            : '\n\nДію не можна скасувати.'),
+        okText: 'Видалити',
+        danger: true
+      });
+      if (yes !== true) return;
+      const d = db();
+      if (!d) return;
+      try {
+        setSelection((sel) => {
+          const next = new Set(sel);
+          next.delete(o._id);
+          return next;
+        });
+        await deleteDoc(doc(d, 'orders', o._id));
+        // разом із замовленням прибираємо й публічне відстеження
+        if (o.trackKey) void trackDelete(o.trackKey);
+      } catch {
+        toast('Немає прав видаляти');
+      }
+    },
+    [askDialog, toast]
+  );
+
+  /* Скільки справ у черзі — число на вкладці. */
+  const справ = orders.filter((o) => {
+    const st = o.status || 'new';
+    return st !== 'done' && st !== 'cancelled';
+  }).length;
+
   async function onStatus(o: AdminOrder, next: string) {
     const dd = deps();
     if (!dd) return;
@@ -322,6 +421,43 @@ export default function OrdersAdmin() {
             <span>Нові замовлення зʼявляються автоматично</span>
           </div>
 
+          {/* Два екрани одного вікна: у черзі — те, що треба
+              зробити сьогодні; в архіві — усе, що вже сталося,
+              разом із фільтрами, статистикою, CSV і друком. */}
+          <div className="ao-tabs">
+            <button
+              type="button"
+              className={'ao-tab' + (екран === 'queue' ? ' is-on' : '')}
+              onClick={() => обратиЕкран('queue')}
+            >
+              Черга
+              {справ ? <i>{справ}</i> : null}
+            </button>
+            <button
+              type="button"
+              className={'ao-tab' + (екран === 'archive' ? ' is-on' : '')}
+              onClick={() => обратиЕкран('archive')}
+            >
+              Архів і пошук
+            </button>
+          </div>
+
+          {екран === 'queue' ? (
+            <OrdersQueue
+              orders={orders as never}
+              c={c}
+              parcels={посилки}
+              onStatus={(o, next) => void onStatus(o as never, next)}
+              onEdit={(o) => setManual(o as never)}
+              onField={(o, field, value) => void зберегтиПоле(o as never, field, value)}
+              onSendTtn={(o) => void надіслатиТТН(o as never, String(o.ttn || '').trim())}
+              onCopy={(o) => void скопіювати(o as never)}
+              onPrint={(o) => printPicked([o as never])}
+              onDelete={(o) => void видалити(o as never)}
+            />
+          ) : (
+          <>
+
           <div className="ao-stats">
             <div className="ao-stat">
               <b>{stats.count}</b>
@@ -396,66 +532,12 @@ export default function OrdersAdmin() {
                 }
                 onStatus={(next) => void onStatus(o, next)}
                 onEdit={() => setManual(o)}
-                onField={async (field, value) => {
-                  const d = db();
-                  if (!d) return;
-                  try {
-                    await updateDoc(doc(d, 'orders', o._id), { [field]: value });
-                    if (field === 'ttn') {
-                      /* Номер накладної має доїхати й до публічного
-                         запису — саме його читає гість у відстеженні.
-                         Без цього ТТН бачив би лише адмін. */
-                      void trackUpdate({ ...o, ttn: value } as never, { ttn: value });
-                      toast('ТТН збережено — покупець бачить його в кабінеті й у відстеженні ✓', 'success');
-                      /* Посилка вже в дорозі — номер має піти
-                         покупцеві одразу, без окремої кнопки. */
-                      if (value.trim() && o.status === 'shipped') void надіслатиТТН(o, value.trim());
-                    } else {
-                      toast('Нотатку збережено ✓', 'success');
-                    }
-                  } catch {
-                    toast(field === 'ttn' ? 'Не вдалося зберегти ТТН' : 'Не вдалося зберегти нотатку');
-                  }
-                }}
+                onField={(field, value) => void зберегтиПоле(o, field, value)}
                 parcel={посилки.get(String(o.ttn || '').trim())}
                 onSendTtn={() => void надіслатиТТН(o, String(o.ttn || '').trim())}
-                onCopy={async () => {
-                  const done = await copyText(o.message || buildOrderMessage(o as never, c));
-                  toast(done ? 'Скопійовано ✓' : 'Не вдалося скопіювати', done ? 'success' : 'plain');
-                }}
+                onCopy={() => void скопіювати(o)}
                 onPrint={() => printPicked([o])}
-                onDelete={async () => {
-                  /* Про списаний товар попереджаємо окремо: видалення
-                     його НЕ повертає, і після нього залишки вже
-                     нічим не полагодити — тільки руками. */
-                  const yes = await askDialog({
-                    title: 'Видалити замовлення?',
-                    text:
-                      `№${o.num} зникне назавжди.` +
-                      (o.stockApplied
-                        ? '\n\nТовар за цим замовленням списаний зі складу. При видаленні ' +
-                          'він автоматично НЕ повернеться — спершу переведіть замовлення ' +
-                          'у «Скасовано», якщо потрібне повернення залишків.'
-                        : '\n\nДію не можна скасувати.'),
-                    okText: 'Видалити',
-                    danger: true
-                  });
-                  if (yes !== true) return;
-                  const d = db();
-                  if (!d) return;
-                  try {
-                    setSelection((sel) => {
-                      const next = new Set(sel);
-                      next.delete(o._id);
-                      return next;
-                    });
-                    await deleteDoc(doc(d, 'orders', o._id));
-                    // разом із замовленням прибираємо й публічне відстеження
-                    if (o.trackKey) void trackDelete(o.trackKey);
-                  } catch {
-                    toast('Немає прав видаляти');
-                  }
-                }}
+                onDelete={() => void видалити(o)}
               />
             ))
           ) : (
@@ -481,6 +563,8 @@ export default function OrdersAdmin() {
           ) : list.length ? (
             <p className="ao-note ao-count">Показано всі {list.length}</p>
           ) : null}
+          </>
+          )}
         </div>
       </div>
       <ManualOrder

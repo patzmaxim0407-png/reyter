@@ -111,6 +111,152 @@ export const NEXT_STEP: Partial<Record<OrderStatus, { id: OrderStatus; label: st
   shipped: { id: 'done', label: 'Виконано' }
 };
 
+
+/* ============================================================
+   ЧЕРГА СПРАВ
+   ------------------------------------------------------------
+   Головне питання робочого вікна — не «які в мене замовлення»,
+   а «що зробити просто зараз». Тому список групується не за
+   статусом, а за дією: підтвердити, зібрати, вписати номер,
+   розібратися з тим, що лежить, закрити отримане.
+
+   Порядок смуг жорсткий і не міняється ніколи: рука памʼятає
+   місце, а не число. Порожня смуга не зникає, а гасне — інакше
+   екран перестрибує щоразу, коли остання справа закінчилась.
+
+   Це чиста функція від документа замовлення й останнього знімка
+   трекера. Жодної нової колекції, нічого зберігати не треба —
+   отже, і розсинхронізуватись нема чому.
+   ============================================================ */
+
+export type BandId = 'confirm' | 'pack' | 'ttn' | 'waiting' | 'back' | 'close' | 'transit';
+
+export interface Band {
+  id: BandId;
+  icon: string;
+  title: string;
+  /** Що робить головна кнопка рядка. */
+  action: string;
+}
+
+export const BANDS: readonly Band[] = [
+  { id: 'confirm', icon: '☎', title: 'Підтвердити', action: 'Підтвердити' },
+  { id: 'pack', icon: '📦', title: 'Зібрати й відправити', action: 'Відправити' },
+  { id: 'ttn', icon: '🔖', title: 'Без номера накладної', action: 'Вписати ТТН' },
+  { id: 'back', icon: '↩', title: 'Повернення й помилки', action: 'Розібратись' },
+  { id: 'waiting', icon: '⏳', title: 'Лежить у відділенні', action: 'Нагадати' },
+  { id: 'close', icon: '✓', title: 'Отримано — можна закрити', action: 'Закрити' },
+  { id: 'transit', icon: '🚚', title: 'У дорозі', action: '' }
+];
+
+export interface Task {
+  band: BandId;
+  /** Скільки годин замовлення чекає цієї дії. */
+  hours: number;
+  /** 0 — спокій, 1 — увага, 2 — горить. */
+  urgency: 0 | 1 | 2;
+  /** Рядок під номером: чому воно тут. */
+  why: string;
+}
+
+/** Стан посилки в тому вигляді, в якому він потрібен черзі. */
+export interface ParcelHint {
+  code?: string;
+  waiting?: number;
+  gotAt?: string;
+}
+
+const ГОДИНА = 3_600_000;
+
+/** Яка справа за цим замовленням. null — його місце в архіві. */
+export function nextTask(
+  o: AdminOrder,
+  parcel?: ParcelHint | null,
+  now: Date = new Date(),
+  пороги = { увага: 3, біда: 5, новеГодин: 4 }
+): Task | null {
+  const st = o.status || 'new';
+  if (st === 'done' || st === 'cancelled') return null;
+
+  const від = orderDate(o);
+  const hours = від ? Math.max(0, Math.floor((now.getTime() - від.getTime()) / ГОДИНА)) : 0;
+
+  if (st === 'new') {
+    return {
+      band: 'confirm',
+      hours,
+      /* Нове замовлення, яке висить пів дня, — це людина, яка вже
+         почала сумніватись. */
+      urgency: hours >= пороги.новеГодин * 3 ? 2 : hours >= пороги.новеГодин ? 1 : 0,
+      why: hours ? 'чекає ' + годинами(hours) : 'щойно'
+    };
+  }
+
+  if (st === 'confirmed') {
+    return {
+      band: 'pack',
+      hours,
+      urgency: hours >= 48 ? 2 : hours >= 24 ? 1 : 0,
+      why: 'підтверджено ' + годинами(hours) + ' тому'
+    };
+  }
+
+  // далі — тільки відправлені
+  if (!String(o.ttn || '').trim()) {
+    return { band: 'ttn', hours, urgency: 2, why: 'номера немає — покупець не знає, де посилка' };
+  }
+
+  const code = String(parcel?.code || '');
+  const лежить = Number(parcel?.waiting) || 0;
+
+  if (code === '9' || code === '10' || code === '11') {
+    return { band: 'close', hours, urgency: 0, why: 'перевізник каже: отримано' };
+  }
+  if (code === '3') {
+    return { band: 'back', hours, urgency: 2, why: 'перевізник не знає такого номера' };
+  }
+  if (['2', '102', '103', '105', '106', '111', '112'].includes(code)) {
+    return { band: 'back', hours, urgency: 2, why: 'посилка повертається' };
+  }
+  if ((code === '7' || code === '8') && лежить >= пороги.увага) {
+    return {
+      band: 'waiting',
+      hours,
+      urgency: лежить >= пороги.біда ? 2 : 1,
+      why: 'лежить у відділенні ' + лежить + ' дн.'
+    };
+  }
+
+  return { band: 'transit', hours, urgency: 0, why: 'у дорозі' };
+}
+
+function годинами(h: number): string {
+  if (h < 1) return 'щойно';
+  if (h < 24) return h + ' год';
+  const d = Math.floor(h / 24);
+  return d + (d === 1 ? ' день' : d < 5 ? ' дні' : ' днів');
+}
+
+/** Черга: смуги з замовленнями, у сталому порядку. */
+export function queue(
+  list: AdminOrder[],
+  parcels: Map<string, ParcelHint>,
+  now: Date = new Date()
+): { band: Band; rows: { order: AdminOrder; task: Task }[] }[] {
+  const по: Record<string, { order: AdminOrder; task: Task }[]> = {};
+  for (const o of list) {
+    const t = nextTask(o, parcels.get(String(o.ttn || '').trim()), now);
+    if (!t) continue;
+    (по[t.band] ||= []).push({ order: o, task: t });
+  }
+  /* Усередині смуги — найтерміновіше зверху, а за рівної
+     терміновості найстаріше: воно чекає найдовше. */
+  for (const k of Object.keys(по)) {
+    по[k].sort((a, b) => b.task.urgency - a.task.urgency || b.task.hours - a.task.hours);
+  }
+  return BANDS.map((band) => ({ band, rows: по[band.id] || [] }));
+}
+
 /** Скільки замовлень показуємо за раз. */
 export const PAGE_SIZE = 25;
 /** Розмір порції для масових дій. */

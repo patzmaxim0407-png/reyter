@@ -4400,3 +4400,240 @@ label.a-promo-product i {
   font-size: 13px;
   color: #15803d;
 }
+
+/* ============================================================
+   ЧЕРГА СПРАВ
+   ------------------------------------------------------------
+   Екран відповідає на питання «що зробити зараз», тому головне
+   тут — не картка, а рядок і кнопка дієсловом. Рядок вузький
+   навмисно: чим більше справ видно одразу, тим менше листання.
+   ============================================================ */
+
+.ao-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+
+.ao-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border: 1px solid var(--a-line, #e3e6ec);
+  border-radius: 999px;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #444b58;
+  cursor: pointer;
+}
+
+.ao-tab.is-on {
+  border-color: #171b26;
+  background: #171b26;
+  color: #fff;
+}
+
+.ao-tab i {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.ao-tab.is-on i {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.aq {
+  display: grid;
+  gap: 16px;
+}
+
+/* Порожня смуга не зникає, а гасне: рука памʼятає місце */
+.aq-band.is-empty {
+  opacity: 0.4;
+}
+
+.aq-band.is-empty .aq-band__head {
+  margin-bottom: 0;
+}
+
+.aq-band__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #444b58;
+}
+
+.aq-band__icon {
+  font-size: 15px;
+}
+
+.aq-band__head i {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eef0f4;
+  color: #5b6270;
+}
+
+.aq-item + .aq-item {
+  margin-top: 6px;
+}
+
+.aq-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  border: 1px solid var(--a-line, #e3e6ec);
+  border-left: 3px solid #cfd4dd;
+  border-radius: 12px;
+  background: #fff;
+}
+
+/* Терміновість — кольором лівої смужки, а не всієї картки:
+   червоне тло на пів екрана перестають помічати вже на третій
+   день. */
+.aq-row.u-1 {
+  border-left-color: #e8b04b;
+}
+
+.aq-row.u-2 {
+  border-left-color: #d24b3e;
+}
+
+.aq-row.is-open {
+  border-color: #171b26;
+}
+
+.aq-row__main {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.2fr) minmax(0, 1.6fr) minmax(90px, auto) auto;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.aq-row__who b {
+  display: block;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.aq-row__who em {
+  font-style: normal;
+  font-size: 11px;
+  color: #8a909c;
+}
+
+.aq-row__where {
+  min-width: 0;
+  font-size: 12.5px;
+  color: #5b6270;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aq-row__why {
+  font-size: 12px;
+  color: #8a909c;
+}
+
+.aq-row.u-1 .aq-row__why {
+  color: #8a5a00;
+}
+
+.aq-row.u-2 .aq-row__why {
+  color: #b3261e;
+  font-weight: 600;
+}
+
+.aq-row__sum {
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.aq-row__act {
+  align-self: center;
+  margin-right: 10px;
+  white-space: nowrap;
+}
+
+.aq-details {
+  margin: 6px 0 0;
+}
+
+/* Картку всередині черги вже не треба обводити вдруге */
+.aq-details .ao-card {
+  border-color: #e9ecf1;
+}
+
+.aq-empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 56px 20px;
+  border: 1px dashed var(--a-line, #e3e6ec);
+  border-radius: 18px;
+  background: #fff;
+  text-align: center;
+}
+
+.aq-empty b {
+  font-size: 34px;
+  line-height: 1;
+  color: #15803d;
+}
+
+.aq-empty span {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.aq-empty em {
+  font-style: normal;
+  font-size: 13px;
+  color: #8a909c;
+}
+
+@media (max-width: 720px) {
+  .aq-row__main {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: 'who sum' 'where where' 'why why';
+    gap: 4px 10px;
+  }
+
+  .aq-row__who { grid-area: who; }
+  .aq-row__sum { grid-area: sum; }
+  .aq-row__where { grid-area: where; white-space: normal; }
+  .aq-row__why { grid-area: why; }
+
+  .aq-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .aq-row__act {
+    margin: 0 12px 12px;
+  }
+}
