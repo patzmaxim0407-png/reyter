@@ -4637,3 +4637,136 @@ label.a-promo-product i {
     margin: 0 12px 12px;
   }
 }
+
+/* Стрічка з чисел замість плиток: в архіві вони довідка, а не
+   робота, тож займати чверть екрана їм ні до чого. */
+.ao-sum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #5b6270;
+}
+
+.ao-sum b {
+  font-size: 15px;
+  color: #171b26;
+}
+
+/* ---------- Смуга архіву ---------- */
+
+.ar-bar {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.ar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--a-line, #e3e6ec);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.ar-search span {
+  font-size: 16px;
+  color: #8a909c;
+}
+
+.ar-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 11px 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.ar-search button {
+  border: 0;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  color: #8a909c;
+  cursor: pointer;
+}
+
+.ar-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ar-pick {
+  flex: 1 1 160px;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--a-line, #e3e6ec);
+  border-radius: 12px;
+  background: #fff;
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.ar-dates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ar-dates input {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid var(--a-line, #e3e6ec);
+  border-radius: 12px;
+  background: #fff;
+  font: inherit;
+  font-size: 13.5px;
+}
+
+/* ---------- Рядок: вибір і стрілка ---------- */
+
+.aq-row__pick {
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+}
+
+.aq-row__chev {
+  font-size: 12px;
+  color: #b6bcc7;
+}
+
+.aq-row__main {
+  grid-template-columns: minmax(140px, 1.2fr) minmax(0, 1.6fr) minmax(90px, auto) auto 14px;
+}
+
+/* Вбудована картка вже не картка: рамку й тінь дає рядок над нею */
+.ao-card--in {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+}
+
+.ao-card--in .ao-card__details {
+  padding-top: 0;
+}
+
+@media (max-width: 720px) {
+  .aq-row__main {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: 'who sum' 'where where' 'why why';
+  }
+
+  .aq-row__chev {
+    display: none;
+  }
+}

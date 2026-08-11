@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import OrderCard from './OrderCard';
+import OrderRow from './OrderRow';
 import { BANDS, queue, type AdminOrder, type Band, type ParcelHint, type Task } from '@/lib/admin/orders';
-import { fmt, type Catalogue } from '@/lib/catalog';
+import type { Catalogue } from '@/lib/catalog';
 import type { Посилка } from '@/lib/admin/np';
 
 /* ============================================================
@@ -81,13 +82,20 @@ export default function OrdersQueue({
 
           {rows.map(({ order, task }) => (
             <div key={order._id} className="aq-item">
-              <Row
-                o={order}
-                task={task}
-                band={band}
+              <OrderRow
+                num={order.num || ''}
+                name={String((order.customer as Record<string, unknown>)?.name ?? '')}
+                place={куди(order)}
+                meta={task.why}
+                sum={order.total || 0}
+                tone={task.urgency}
                 open={open === order._id}
-                onOpen={() => setOpen(open === order._id ? '' : order._id)}
-                onAct={() => дія(order, band, onStatus, () => setOpen(order._id))}
+                onToggle={() => setOpen(open === order._id ? '' : order._id)}
+                action={
+                  band.action
+                    ? { label: band.action, onClick: () => дія(order, band, onStatus, () => setOpen(order._id)) }
+                    : undefined
+                }
               />
 
               {open === order._id ? (
@@ -95,6 +103,7 @@ export default function OrdersQueue({
                   <OrderCard
                     o={order as never}
                     c={c}
+                    embedded
                     parcel={parcels.get(String(order.ttn || '').trim())}
                     onStatus={(next) => onStatus(order, next)}
                     onEdit={onEdit ? () => onEdit(order) : undefined}
@@ -130,43 +139,8 @@ function дія(
   розкрити();
 }
 
-function Row({
-  o,
-  task,
-  band,
-  open,
-  onOpen,
-  onAct
-}: {
-  o: AdminOrder;
-  task: Task;
-  band: Band;
-  open: boolean;
-  onOpen(): void;
-  onAct(): void;
-}) {
+/** Куди їде — одним рядком. */
+function куди(o: AdminOrder): string {
   const c = (o.customer ?? {}) as Record<string, unknown>;
-  const куди = [c.city, c.branch].filter(Boolean).join(', ');
-
-  return (
-    <div className={'aq-row u-' + task.urgency + (open ? ' is-open' : '')}>
-      <button className="aq-row__main" type="button" onClick={onOpen}>
-        <span className="aq-row__who">
-          <b>{String(c.name ?? '—')}</b>
-          <em>№{o.num}</em>
-        </span>
-        <span className="aq-row__where" title={куди}>
-          {куди || '—'}
-        </span>
-        <span className="aq-row__why">{task.why}</span>
-        <span className="aq-row__sum">{fmt(o.total || 0)} грн</span>
-      </button>
-
-      {band.action ? (
-        <button className="btn btn--primary btn--sm aq-row__act" type="button" onClick={onAct}>
-          {band.action}
-        </button>
-      ) : null}
-    </div>
-  );
+  return [c.city, c.branch].filter(Boolean).join(', ');
 }

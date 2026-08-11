@@ -6,7 +6,8 @@ import SettingsDialog from './SettingsDialog';
 import OrderCard from './OrderCard';
 import OrdersQueue from './OrdersQueue';
 import ManualOrder from './ManualOrder';
-import { BulkBar, PeriodBar, StatusBar } from './OrderFilters';
+import { ArchiveBar, BulkBar } from './OrderFilters';
+import OrderRow from './OrderRow';
 import { useAdminUser } from './AdminGate';
 import { useAsk } from './AskProvider';
 import { useToast } from '../Toasts';
@@ -34,6 +35,7 @@ import {
   type OrderFilters
 } from '@/lib/admin/orders';
 import { todayISO } from '@/lib/admin/stock';
+import { orderDate, statusInfo } from '@/lib/admin/orders';
 import { watchInventory } from '@/lib/admin/live';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { fmt } from '@/lib/catalog';
@@ -132,6 +134,8 @@ export default function OrdersAdmin() {
      менеджерів можуть бути різні звички, а перемикач має
      вимикатись будь-якої миті без викладки. */
   const [екран, setЕкран] = useState<'queue' | 'archive'>('queue');
+  /** Яке замовлення розкрите в архіві. */
+  const [розкрито, setРозкрито] = useState('');
   useEffect(() => {
     try {
       const v = localStorage.getItem('reyter:orders-view');
@@ -255,7 +259,16 @@ export default function OrdersAdmin() {
         if (d) void updateDoc(doc(d, 'orders', o._id), { ttnSentAt: new Date().toISOString() });
         toast('ТТН надіслано покупцеві на ' + пошта + ' ✓', 'success');
       } else {
-        toast('ТТН збережено, але лист не пішов: ' + res.error);
+        /* «Порожнє замовлення» від воркера означає рівно одне:
+           там ще стара версія, яка не знає листа з накладною, і
+           запит провалився в гілку замовлення. Сказати про це
+           прямо дешевше, ніж дати менеджеру гадати. */
+        const старий = /порожнє замовлення/i.test(res.error);
+        toast(
+          старий
+            ? 'Лист не пішов: воркер сповіщень ще не оновлено. Скопіюйте new/worker/worker.js у Cloudflare і натисніть Deploy.'
+            : 'ТТН збережено, але лист не пішов: ' + res.error
+        );
       }
     },
     [toast]
@@ -337,6 +350,14 @@ export default function OrdersAdmin() {
     const st = o.status || 'new';
     return st !== 'done' && st !== 'cancelled';
   }).length;
+
+  /** Коли це було — коротко, для рядка списку. */
+  function shortWhen(o: AdminOrder): string {
+    const d = orderDate(o);
+    return d.getTime()
+      ? d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' })
+      : '';
+  }
 
   async function onStatus(o: AdminOrder, next: string) {
     const dd = deps();
@@ -458,43 +479,27 @@ export default function OrdersAdmin() {
           ) : (
           <>
 
-          <div className="ao-stats">
-            <div className="ao-stat">
-              <b>{stats.count}</b>
-              <span>замовлень</span>
-            </div>
-            <div className="ao-stat">
-              <b>{fmt(stats.revenue)}</b>
-              <span>грн виручки</span>
-            </div>
-            <div className="ao-stat">
-              <b>{fmt(stats.avg)}</b>
-              <span>середній чек</span>
-            </div>
-            <div className="ao-stat">
-              <b>{stats.units}</b>
-              <span>одиниць товару</span>
-            </div>
-            {/* Не статистика, а список справ: доки число не нуль,
-                хтось із покупців не знає, де його посилка. */}
-            {stats.noTtn ? (
-              <button
-                type="button"
-                className="ao-stat ao-stat--warn"
-                /* Поля q у фільтрах немає — воно зветься search. Через
-                   цю дрібницю плитка не скидала пошук, і менеджер
-                   бачив порожній список замість роботи. */
-                onClick={() => setF((v) => ({ ...v, search: '', status: 'shipped' }))}
-                title="Показати відправлені — і вписати номери"
-              >
-                <b>{stats.noTtn}</b>
-                <span>без ТТН</span>
-              </button>
-            ) : null}
+          <div className="ao-sum">
+            <span>
+              <b>{stats.count}</b> замовлень
+            </span>
+            <span>
+              <b>{fmt(stats.revenue)}</b> грн
+            </span>
+            <span>
+              середній <b>{fmt(stats.avg)}</b>
+            </span>
+            <span>
+              <b>{stats.units}</b> одиниць
+            </span>
           </div>
 
-          <PeriodBar f={f} set={(p) => setF((v) => ({ ...v, ...p }))} today={todayISO(new Date())} />
-          <StatusBar f={f} set={(p) => setF((v) => ({ ...v, ...p }))} scope={scope} />
+          <ArchiveBar
+            f={f}
+            set={(p) => setF((v) => ({ ...v, ...p }))}
+            scope={scope}
+            today={todayISO(new Date())}
+          />
 
           <BulkBar
             visible={visible.length}
@@ -517,28 +522,49 @@ export default function OrdersAdmin() {
           <div className="ao-list">
           {visible.length ? (
             visible.map((o) => (
-              <OrderCard
-                key={o._id}
-                o={o as never}
-                c={c}
-                picked={selection.has(o._id)}
-                onPick={(on) =>
-                  setSelection((sel) => {
-                    const next = new Set(sel);
-                    if (on) next.add(o._id);
-                    else next.delete(o._id);
-                    return next;
-                  })
-                }
-                onStatus={(next) => void onStatus(o, next)}
-                onEdit={() => setManual(o)}
-                onField={(field, value) => void зберегтиПоле(o, field, value)}
-                parcel={посилки.get(String(o.ttn || '').trim())}
-                onSendTtn={() => void надіслатиТТН(o, String(o.ttn || '').trim())}
-                onCopy={() => void скопіювати(o)}
-                onPrint={() => printPicked([o])}
-                onDelete={() => void видалити(o)}
-              />
+              <div key={o._id} className="aq-item">
+                <OrderRow
+                  num={o.num || ''}
+                  name={String((o.customer as Record<string, unknown>)?.name ?? '')}
+                  place={[
+                    (o.customer as Record<string, unknown>)?.city,
+                    (o.customer as Record<string, unknown>)?.branch
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
+                  meta={statusInfo(o.status || 'new').title + ' · ' + shortWhen(o)}
+                  sum={o.total || 0}
+                  picked={selection.has(o._id)}
+                  onPick={(on) =>
+                    setSelection((sel) => {
+                      const next = new Set(sel);
+                      if (on) next.add(o._id);
+                      else next.delete(o._id);
+                      return next;
+                    })
+                  }
+                  open={розкрито === o._id}
+                  onToggle={() => setРозкрито(розкрито === o._id ? '' : o._id)}
+                />
+
+                {розкрито === o._id ? (
+                  <div className="aq-details">
+                    <OrderCard
+                      o={o as never}
+                      c={c}
+                      embedded
+                      parcel={посилки.get(String(o.ttn || '').trim())}
+                      onStatus={(next) => void onStatus(o, next)}
+                      onEdit={() => setManual(o)}
+                      onField={(field, value) => void зберегтиПоле(o, field, value)}
+                      onSendTtn={() => void надіслатиТТН(o, String(o.ttn || '').trim())}
+                      onCopy={() => void скопіювати(o)}
+                      onPrint={() => printPicked([o])}
+                      onDelete={() => void видалити(o)}
+                    />
+                  </div>
+                ) : null}
+              </div>
             ))
           ) : (
             /* Порожньо через фільтр і порожньо взагалі — різні речі,

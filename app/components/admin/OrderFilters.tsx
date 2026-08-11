@@ -203,3 +203,112 @@ export function BulkBar({
     </div>
   );
 }
+
+/* ============================================================
+   Смуга архіву
+   ------------------------------------------------------------
+   Дві доріжки чіпів займали пів екрана, а користувались ними
+   раз на день. В архіві головне — пошук: менеджер приходить
+   сюди по конкретне замовлення, а не гортати. Тож пошук
+   широкий і перший, а період, статус і сортування — три
+   компактні списки поруч.
+
+   Чіпи не викинуто: вони лишились у файлі й у старому екрані,
+   доки власник не скаже прибирати.
+   ============================================================ */
+
+export function ArchiveBar({
+  f,
+  set,
+  scope,
+  today
+}: {
+  f: Filters;
+  set(patch: Partial<Filters>): void;
+  scope: AdminOrder[];
+  today: string;
+}) {
+  const counts: Record<string, number> = { all: scope.length };
+  STATUSES.forEach((s) => {
+    counts[s.id] = scope.filter((o) => (o.status || 'new') === s.id).length;
+  });
+
+  return (
+    <div className="ar-bar">
+      <label className="ar-search">
+        <span aria-hidden="true">⌕</span>
+        <input
+          value={f.search}
+          placeholder="Номер, імʼя, телефон, ТТН, місто, товар"
+          onChange={(e) => set({ search: e.target.value })}
+        />
+        {f.search ? (
+          <button type="button" onClick={() => set({ search: '' })} aria-label="Очистити">
+            ×
+          </button>
+        ) : null}
+      </label>
+
+      <div className="ar-picks">
+        <select
+          className="ar-pick"
+          value={f.period}
+          onChange={(e) => set({ period: e.target.value as PeriodId })}
+        >
+          {PERIODS.map(([id, title]) => (
+            <option key={id} value={id}>
+              {title}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className="ar-pick"
+          value={f.status}
+          onChange={(e) => set({ status: e.target.value })}
+        >
+          <option value="all">Усі статуси ({counts.all})</option>
+          {STATUSES.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.title} ({counts[s.id] ?? 0})
+            </option>
+          ))}
+        </select>
+
+        <select
+          className="ar-pick"
+          value={f.sort}
+          onChange={(e) => set({ sort: e.target.value as SortId })}
+        >
+          {SORTS.map(([id, title]) => (
+            <option key={id} value={id}>
+              {title}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Свій період відкривається лише коли його обрали: два
+          поля дат, які ніколи не використовують, — це два поля,
+          повз які щоразу треба дивитись. */}
+      {f.period === 'custom' ? (
+        <div className="ar-dates">
+          <input
+            type="date"
+            value={f.from}
+            max={f.to || today}
+            onChange={(e) => set({ from: e.target.value })}
+          />
+          <span>—</span>
+          <input
+            type="date"
+            value={f.to}
+            min={f.from}
+            max={today}
+            onChange={(e) => set({ to: e.target.value })}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}

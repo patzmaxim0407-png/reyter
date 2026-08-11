@@ -51,6 +51,7 @@ export default function OrderCard({
   onEdit,
   onField,
   parcel,
+  embedded,
   onSendTtn,
   onCopy,
   onPrint,
@@ -68,11 +69,17 @@ export default function OrderCard({
   onSendTtn?(): void;
   /** Що каже про посилку сам перевізник. */
   parcel?: Посилка;
+  /** Картка стоїть під рядком черги, який уже сказав номер,
+   *  імʼя, адресу й суму. Повторювати це вдруге — не «докладно»,
+   *  а шум; та й розкривати вдруге те, що вже розкрито, нікому
+   *  не хочеться. Тому в цьому режимі картка починається одразу
+   *  з подробиць. */
+  embedded?: boolean;
   onCopy?(): void;
   onPrint?(): void;
   onDelete?(): void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!embedded);
   const st = o.status || 'new';
   const c = o.customer ?? {};
   const next = NEXT_STEP[st as keyof typeof NEXT_STEP];
@@ -109,7 +116,8 @@ export default function OrderCard({
   const confirm = confirmText(c as never);
 
   return (
-    <article className={'ao-card st-' + st + (open ? ' is-open' : '')}>
+    <article className={'ao-card st-' + st + (open ? ' is-open' : '') + (embedded ? ' ao-card--in' : '')}>
+      {embedded ? null : (
       <div className="ao-card__top">
         {onPick ? (
           <label className="ao-pick">
@@ -167,8 +175,9 @@ export default function OrderCard({
         <span className="ao-card__date">{dateFull}</span>
         <span className="ao-card__sum">{fmt(o.total)} грн</span>
       </div>
+      )}
 
-      <div className="ao-card__mid">
+      <div className="ao-card__mid" hidden={embedded}>
         <div className="ao-card__customer">
           <b>{String(c.name ?? '—')}</b>
           {' · '}
