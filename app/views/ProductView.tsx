@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import AddToCart from '@/components/AddToCart';
 import ProductGallery from '@/components/ProductGallery';
+import { StatusChip, StockProvider } from '@/components/StockStatus';
 import { loadCatalog, loadStock } from '@/lib/firestore';
 import { availability, getProduct, productColors, uah } from '@/lib/catalog';
 import { t, tf, tx } from '@/lib/i18n';
@@ -145,14 +146,16 @@ export default async function ProductView({
       <div className="pmodal__scroll">
         <ProductGallery images={p.images} alt={name} lang={lang} />
 
+        {/* Значок наявності стоїть над ціною, а розміри — під нею.
+            Спільна памʼять їх звʼязує: обрали розмір, якого мало —
+            значок став «Закінчується». */}
+        <StockProvider soldOut={av.soldOut}>
         <div className="pmodal__info">
           <p className="pinfo__category">{catTitle}</p>
           <h1 className="pinfo__name" id="pmName">{name}</h1>
 
           <div className="pinfo__meta">
-            <span className={'status-chip status-chip--' + (av.soldOut ? 'no' : 'ok')}>
-              {t(av.soldOut ? 'p.soldOut' : 'p.inStock', lang)}
-            </span>
+            <StatusChip lang={lang} />
             <span className="pinfo__article">
               {t('p.article', lang)}: {p.id}
             </span>
@@ -269,6 +272,7 @@ export default async function ProductView({
             <div className="note-card" dangerouslySetInnerHTML={{ __html: t('p.note3', lang) }} />
           </div>
         </div>
+        </StockProvider>
       </div>
     </article>
   );

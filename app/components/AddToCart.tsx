@@ -15,6 +15,7 @@ import { t, tx } from '@/lib/i18n';
 import type { Lang, Product } from '@/lib/types';
 import ProductSizeGuide from './ProductSizeGuide';
 import RestockNotice from './RestockNotice';
+import { usePublishStock } from './StockStatus';
 
 /* Єдиний інтерактивний острівець на сторінці товару.
    Решта сторінки — статичний HTML із сервера: так вона зʼявляється
@@ -84,6 +85,9 @@ export default function AddToCart({
     }, Infinity);
     return left <= 2;
   }, [isComplect, picks, parts, c, size, av.low]);
+
+  /* Значок наявності над ціною читає саме це. */
+  usePublishStock({ soldOut: av.soldOut, low: !av.soldOut && low });
 
   function pick(partId: string, value: string) {
     setPicks((prev) => prev.map((x) => (x.id === partId ? { ...x, size: value } : x)));
@@ -278,9 +282,6 @@ export default function AddToCart({
         )}
       </div>
 
-      {!av.soldOut && low ? (
-        <p className="pinfo__sale-note">{t('p.fewLeft', lang)}</p>
-      ) : null}
     </>
   );
 }

@@ -177,6 +177,50 @@ if (пілюлі) {
   console.log('· у цього товару немає розмірної сітки');
 }
 
+/* ---------- Значок наявності ----------
+   Він показує не «чи є товар взагалі», а чи є ОБРАНИЙ розмір:
+   обрав той, якого лишилось мало — значок став «Закінчується».
+   Так було на попередньому сайті. */
+
+await go(BASE + '/p/SWBK-001');
+const чіп = () =>
+  ev(`(() => {
+    const s = document.querySelector('.status-chip');
+    return s ? s.className + '|' + s.textContent : '';
+  })()`);
+
+ok('значок є', (await чіп()).includes('status-chip'));
+ok('нема рядка «залишилось мало» під кнопкою',
+   !(await ev(`[...document.querySelectorAll('.pinfo__sale-note')].some((x) => /алишилось мало/.test(x.textContent))`)));
+
+const звичайний = await ev(`(() => {
+  const el = [...document.querySelectorAll('.sizes .size-pill:not(.size-pill--low) input')][0];
+  if (!el) return '';
+  el.click();
+  return el.value;
+})()`);
+if (звичайний) {
+  await wait(400);
+  ok('на звичайному розмірі — «В наявності»', (await чіп()).includes('--ok'), await чіп());
+}
+
+const мало = await ev(`(() => {
+  const el = document.querySelector('.sizes .size-pill--low input');
+  if (!el) return '';
+  el.click();
+  return el.value;
+})()`);
+if (мало) {
+  await wait(400);
+  ok('на розмірі, якого мало — «Закінчується»', (await чіп()).includes('--low'), await чіп());
+} else {
+  console.log('· у цього товару немає розміру, якого мало');
+}
+
+await go(BASE + '/p/SW-003');
+ok('у розпроданого товару — «Продано»', (await чіп()).includes('--no'), await чіп());
+await go(BASE + '/');
+
 /* ---------- Кольори ----------
    Зразок має бути кружком 38 px, а не крапкою: колись він був
    вкладений у посилання й через це стискався до нуля. */

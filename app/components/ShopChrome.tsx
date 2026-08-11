@@ -24,16 +24,17 @@ export default function ShopChrome() {
     noteNavigation();
   }, [pathname]);
 
-  /* Картку підвантажуємо заздалегідь — але лише там, де є мишею
-     що наводити. На дотику так робити не можна: iOS витрачає
-     перший тап на «наведення», якщо в цю мить щось відбувається,
-     і картка відкривалася аж із другого разу.
+  /* Картку підвантажуємо заздалегідь, щойно видно намір: мишею —
+     на наведенні, пальцем — на дотику. Між наміром і натисканням
+     минає від десятої секунди до кількох, і цього досить, щоб
+     картка відкрилась миттєво.
 
-     Втрата невелика: сторінки й так віддаються з кешу за десяту
-     секунди. А от перший тап, який нічого не робить, помічає
-     кожен.
+     Не наперед: у каталозі три десятки товарів, і тягнути їх усі
+     означало б кілька мегабайтів мобільного трафіку заради одного
+     дотику. Кожну адресу гріємо один раз.
 
-     Кожну адресу гріємо один раз. */
+     Два окремі обробники, а не один: на дотикових екранах
+     «наведення» — це перший тап, і слухати його там не можна. */
   useEffect(() => {
     if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
 
@@ -50,6 +51,30 @@ export default function ShopChrome() {
 
     document.addEventListener('pointerover', warm, { passive: true });
     return () => document.removeEventListener('pointerover', warm);
+  }, [router]);
+
+  /* На дотику наводити нічим, тож гріємо на дотику пальця. Між
+     ним і натисканням минає близько десятої секунди — цього
+     досить, щоб картка встигла приїхати.
+
+     Раніше я цього не робив, боячись, що iOS витратить перший тап
+     на «наведення». Причина того тапу була не тут, а в стилях
+     .pcard:hover, і вони вже вимкнені там, де наводити нічим. */
+  useEffect(() => {
+    if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
+    const warmed = new Set<string>();
+    const warm = (event: TouchEvent) => {
+      const target = event.target as HTMLElement | null;
+      const card = target?.closest?.('a.pcard') as HTMLAnchorElement | null;
+      const href = card?.getAttribute('href');
+      if (!href || warmed.has(href)) return;
+      warmed.add(href);
+      router.prefetch(href.replace(/^\/new/, '') || '/');
+    };
+
+    document.addEventListener('touchstart', warm, { passive: true });
+    return () => document.removeEventListener('touchstart', warm);
   }, [router]);
 
   /* Натискання на товар, який уже відкритий, скасовуємо. Перехід
