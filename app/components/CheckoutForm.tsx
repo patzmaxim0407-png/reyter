@@ -21,7 +21,8 @@ import {
   type AddressForm,
   type SavedAddress
 } from '@/lib/address';
-import { buildOrder, checkCustomer, MESSENGERS, type Confirm, type Customer } from '@/lib/order';
+import { buildMessage, buildOrder, checkCustomer, MESSENGERS, type Confirm, type Customer } from '@/lib/order';
+import { freeReached, quote, underwearSum, type Quote } from '@/lib/delivery';
 import { orderPlaced } from '@/lib/notify';
 import { promoCheck, promoMessage, promoSaveCode, promoSavedCode, type Promo } from '@/lib/promo';
 
@@ -207,7 +208,55 @@ export default function CheckoutForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const total = Math.max(0, subtotal - discount);
+  /* ---------- Вартість доставки ----------
+     Перевізник має назвати ціну ще до «Підтвердити»: людина
+     мусить розуміти, у що їй стане замовлення, а не дізнаватись
+     це у відділенні.
+
+     Хто платить — вибір покупця. По Україні звично платити при
+     отриманні, тож так і стоїть за замовчуванням. За кордон
+     платить відправник, тобто ми, — там вибору немає, і сума
+     входить у замовлення. */
+  const goods = Math.max(0, subtotal - discount);
+  const freeShip = freeReached(underwearSum(c, lines));
+  const [ship, setShip] = useState<Quote | null>(null);
+  const [payShip, setPayShip] = useState<'branch' | 'order'>('branch');
+
+  const carrier = addr.carrier;
+  const cityRef = addr.cityRef;
+  const branch = addr.branch;
+  const country = addr.countryCode;
+  const intlCity = addr.intlCity;
+
+  useEffect(() => {
+    let живий = true;
+    setShip(null);
+    void quote({
+      carrier,
+      cityRef,
+      // ознаки поштомата у формі немає — впізнаємо за назвою
+      postomat: /поштомат|postomat/i.test(branch || ''),
+      country,
+      city: intlCity,
+      declared: goods,
+      free: freeShip
+    }).then((q) => {
+      if (живий) setShip(q);
+    });
+    return () => {
+      живий = false;
+    };
+  }, [carrier, cityRef, branch, country, intlCity, goods, freeShip]);
+
+  /* За кордон «оплачу у відділенні» не буває: для відправлень з
+     України платить відправник. */
+  useEffect(() => {
+    if (carrier === 'intl') setPayShip('order');
+  }, [carrier]);
+
+  const shipCost = ship && !ship.unknown && !ship.free ? ship.cost : 0;
+  const shipInTotal = payShip === 'order' ? shipCost : 0;
+  const total = goods + shipInTotal;
 
   const canSubmit = lines.length > 0 && !sending;
 
@@ -304,6 +353,12 @@ export default function CheckoutForm() {
         subtotal,
         discount: off,
         promoCode: code,
+        shipping: shipInTotal,
+        /* Коли платить отримувач, сума в замовлення не входить —
+           але менеджер має її бачити, інакше рахунок і каса
+           розійдуться. */
+        shippingNote:
+          shipCost && payShip === 'branch' ? `≈${shipCost} грн, оплата у відділенні` : '',
         now: new Date(),
         t
       });
@@ -318,7 +373,21 @@ export default function CheckoutForm() {
       /* Спершу база — це єдине, що не можна втратити. Решта
          (відстеження, лист, Telegram, лічильник промокоду) вже
          необовʼязкова: замовлення видно в адмінці й без них. */
-      const id = await fb.createOrder(order, { trackKey: key, lang: 'uk' });
+      let id = await fb.createOrder(order, { trackKey: key, lang: 'uk' });
+
+      /* Правила бази перевіряють суму замовлення й доти, доки в
+         них не додано доставку, запис із нею не пройде. Мовчки
+         втратити замовлення через це не можна: пробуємо ще раз,
+         лишивши доставку довідковою. Менеджер побачить її в
+         тексті й додасть у рахунок — а покупець не втратить
+         заповнену форму. */
+      if (!id && order.shipping) {
+        order.shipping = 0;
+        order.total = goods;
+        order.shippingNote = `≈${shipCost} грн`;
+        order.message = buildMessage(order, t);
+        id = await fb.createOrder(order, { trackKey: key, lang: 'uk' });
+      }
 
       /* Запис відстеження створюємо лише коли замовлення справді
          лягло в базу. Інакше покупець бачив би статус замовлення,
@@ -392,24 +461,73 @@ export default function CheckoutForm() {
           </div>
         ))}
 
-        {discount ? (
-          <>
-            <div>
-              <span>{t('cart.subtotal')}</span>
-              <span>{uah(subtotal, lang)}</span>
-            </div>
-            <div className="is-off">
-              <span>{t('cart.discount')} · {promo?.code}</span>
-              <span>−{uah(discount, lang)}</span>
-            </div>
-          </>
+        {discount || ship ? (
+          <div>
+            <span>{t('cart.subtotal')}</span>
+            <span>{uah(subtotal, lang)}</span>
+          </div>
         ) : null}
+        {discount ? (
+          <div className="is-off">
+            <span>{t('cart.discount')} · {promo?.code}</span>
+            <span>−{uah(discount, lang)}</span>
+          </div>
+        ) : null}
+
+        {/* Рядок доставки не зникає ніколи: поки міста немає —
+            підказує, що зробити; коли перевізник мовчить — стоїть
+            слово «орієнтовно». Порожнє місце тут гірше за
+            приблизне число. */}
+        <div className="checkout-ship">
+          <span>
+            {t('cart.delivery')}
+            {ship?.estimate ? <em className="checkout-parts">{t('dlv.about')}</em> : null}
+            {shipCost && payShip === 'branch' ? (
+              <em className="checkout-parts">{t('dlv.atBranch')}</em>
+            ) : null}
+          </span>
+          <span>
+            {!ship ? '…' : ship.free ? t('dlv.free') : ship.unknown
+              ? <em className="checkout-ship__hint">{carrier === 'intl' ? t('dlv.pickIntl') : t('dlv.pick')}</em>
+              : uah(ship.cost, lang)}
+          </span>
+        </div>
 
         <div className="sum">
           <span>{t('cart.total')}</span>
           <span>{uah(total, lang)}</span>
         </div>
       </div>
+
+      {/* Хто платить за доставку — питаємо лише там, де вибір
+          справді є. За кордон платить відправник, тож там замість
+          вибору стоїть пояснення. */}
+      {shipCost && carrier === 'np' ? (
+        <fieldset className="ship-pay">
+          <legend>{t('dlv.who')}</legend>
+          <label>
+            <input
+              type="radio"
+              name="ship-pay"
+              checked={payShip === 'branch'}
+              onChange={() => setPayShip('branch')}
+            />{' '}
+            {t('dlv.branch')}
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="ship-pay"
+              checked={payShip === 'order'}
+              onChange={() => setPayShip('order')}
+            />{' '}
+            {t('dlv.order')}
+          </label>
+        </fieldset>
+      ) : null}
+      {shipCost && carrier === 'intl' ? (
+        <p className="ship-pay__note">{t('dlv.intlNote')}</p>
+      ) : null}
 
       <PromoField
         promo={promo}

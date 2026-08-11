@@ -361,6 +361,66 @@ ok('назад на українську веде на /p/',
    (await evalJs(`[...document.querySelectorAll('.lang-btn')].find(x => x.textContent === 'UA')?.getAttribute('href')`))?.startsWith(at('/p/')),
    await evalJs(`[...document.querySelectorAll('.lang-btn')].find(x => x.textContent === 'UA')?.getAttribute('href')`));
 
+
+/* --- 11. Вартість доставки ---
+   Найдорожча помилка тут не в розмітці, а в арифметиці: покупець
+   обирає, платити доставку разом із замовленням чи у відділенні,
+   і сума «Разом» мусить іти за цим вибором копійка в копійку. */
+
+await go(BASE + '/');
+const товар = await evalJs(`(() => {
+  const a = document.querySelector('.pgrid a[href*="/p/"]');
+  return a ? a.getAttribute('href').split('/p/')[1] : '';
+})()`);
+await evalJs(`localStorage.setItem('reyter:cart', JSON.stringify([{ id: ${JSON.stringify('')} + decodeURIComponent(${JSON.stringify(товар)}), size: 'M', qty: 1 }]))`);
+/* Місто зі СПРАВЖНІМ ідентифікатором Нової Пошти — інакше
+   перевізникові нема за чим рахувати. Львів. */
+await evalJs(`localStorage.setItem('reyter:profile', JSON.stringify({
+  name: 'Тарас', phone: '+380971112233',
+  addresses: [{ id: 'd1', label: 'Дім', carrier: 'Нова Пошта', carrierId: 'np',
+    city: 'Львів', cityRef: 'db5c88f5-391c-11dd-90d9-001a92567626',
+    branch: 'Відділення №1', branchRef: 'w1' }],
+  defaultAddressId: 'd1'
+}))`);
+await go(BASE + '/checkout');
+
+let рядок = null;
+for (let i = 0; i < 20; i += 1) {
+  await wait(500);
+  рядок = await evalJs(`(() => {
+    const el = document.querySelector('.checkout-ship');
+    if (!el) return null;
+    const сума = document.querySelector('.checkout-summary .sum span:last-child')?.textContent || '';
+    return {
+      text: el.textContent || '',
+      hint: !!el.querySelector('.checkout-ship__hint'),
+      pay: document.querySelectorAll('.ship-pay input').length,
+      total: сума
+    };
+  })()`);
+  if (рядок && !рядок.hint && /\d/.test(рядок.text)) break;
+}
+
+ok('рядок доставки є', !!рядок, JSON.stringify(рядок));
+ok('перевізник назвав ціну', !!рядок && /\d/.test(рядок.text) && !рядок.hint, рядок?.text);
+ok('є вибір, хто платить за доставку', рядок?.pay === 2, 'перемикачів: ' + рядок?.pay);
+
+const число = (s) => Number(String(s).replace(/[^\d]/g, '')) || 0;
+const доставка = число(рядок?.text);
+const разомБуло = число(рядок?.total);
+
+await evalJs(`[...document.querySelectorAll('.ship-pay input')][1]?.click()`);
+await wait(600);
+const разомСтало = число(await evalJs(`document.querySelector('.checkout-summary .sum span:last-child')?.textContent || ''`));
+ok('оплата разом із замовленням додає доставку в суму',
+   разомСтало === разомБуло + доставка,
+   `${разомБуло} + ${доставка} = ${разомСтало}`);
+
+await evalJs(`[...document.querySelectorAll('.ship-pay input')][0]?.click()`);
+await wait(600);
+const разомНазад = число(await evalJs(`document.querySelector('.checkout-summary .sum span:last-child')?.textContent || ''`));
+ok('оплата у відділенні суму не чіпає', разомНазад === разомБуло, `${разомНазад} проти ${разомБуло}`);
+
 console.log('\nПомилки в консолі: ' + (errors.length ? '\n' + errors.join('\n') : 'немає'));
 
 ws.close();

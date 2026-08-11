@@ -5,6 +5,7 @@ import { useLang } from './LangProvider';
 import Link from 'next/link';
 import { useCart } from './CartProvider';
 import { catTitle, getProduct, uah, FREE_DELIVERY_FROM } from '@/lib/catalog';
+import { freeLeft, underwearSum } from '@/lib/delivery';
 import { lockScroll, unlockScroll } from '@/lib/scroll-lock';
 
 /* Панель кошика. Розмітка й класи ті самі, що в index.html
@@ -14,10 +15,16 @@ export default function CartDrawer() {
   const { t, lang } = useLang();
   const { c, lines, subtotal, isOpen, close, setQty, remove } = useCart();
 
-  /* Поріг рахуємо від суми товарів: знижку тут ще не знають,
-     а обіцяти безкоштовну доставку й потім забрати не можна */
-  const left = Math.max(0, FREE_DELIVERY_FROM - subtotal);
-  const pct = Math.min(100, Math.round((subtotal / FREE_DELIVERY_FROM) * 100));
+  /* Поріг рахуємо лише по білизні — рівно те, що обіцяє текст:
+     «безкоштовна доставка білизни по Україні». Домашній одяг,
+     сорочки й пляжне сюди не входять, інакше обіцянку довелося б
+     забирати назад уже в оформленні.
+
+     І від суми ДО знижки: промокод тут іще не введено, а
+     пообіцяти безкоштовну доставку й потім відняти її не можна. */
+  const біле = underwearSum(c, lines);
+  const left = freeLeft(біле);
+  const pct = Math.min(100, Math.round((біле / FREE_DELIVERY_FROM) * 100));
 
   /* Поки панель відкрита, сторінка під нею не має скролитись —
      інакше на мобільному палець тягне фон замість списку */

@@ -43,9 +43,15 @@ export interface Order {
   subtotal: number;
   discount: number;
   promoCode: string;
+  /** Вартість доставки, яка входить у суму замовлення. Нуль, коли
+   *  покупець платить перевізникові сам при отриманні. */
+  shipping: number;
   total: number;
   customer: Customer;
   message?: string;
+  /** Скільки коштує доставка, коли її платить отримувач. Лише для
+   *  тексту замовлення — у суму це не входить. */
+  shippingNote?: string;
 }
 
 export const MESSENGERS = [
@@ -146,6 +152,8 @@ export function buildMessage(order: Order, t: (k: string) => string): string {
     lines.push('Сума: ' + fmt(order.subtotal) + ' грн');
     lines.push('Промокод ' + order.promoCode + ': −' + fmt(order.discount) + ' грн');
   }
+  if (order.shipping) lines.push('Доставка: ' + fmt(order.shipping) + ' грн');
+  else if (order.shippingNote) lines.push('Доставка: ' + order.shippingNote);
   lines.push('Разом: ' + fmt(order.total) + ' грн');
   lines.push('');
   lines.push('👤 ' + order.customer.name);
@@ -168,6 +176,10 @@ export function buildOrder(input: {
   subtotal: number;
   discount: number;
   promoCode: string;
+  /** Доставка, яку покупець платить разом із замовленням. */
+  shipping?: number;
+  /** Довідковий рядок для тих, хто платить у відділенні. */
+  shippingNote?: string;
   now: Date;
   t: (k: string) => string;
 }): Order {
@@ -178,9 +190,11 @@ export function buildOrder(input: {
     subtotal: input.subtotal,
     discount: input.discount,
     promoCode: input.promoCode,
-    total: Math.max(0, input.subtotal - input.discount),
+    shipping: Math.max(0, Math.round(input.shipping ?? 0)),
+    total: Math.max(0, input.subtotal - input.discount) + Math.max(0, Math.round(input.shipping ?? 0)),
     customer: input.customer
   };
+  if (input.shippingNote) order.shippingNote = input.shippingNote;
   order.message = buildMessage(order, input.t);
   return order;
 }

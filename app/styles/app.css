@@ -649,3 +649,51 @@
   flex: 1 1 auto;
   width: 100%;
 }
+
+/* ---------- Вартість доставки ----------
+   Рядок доставки стоїть у підсумку поруч зі знижкою, а вибір
+   «хто платить» — під самим підсумком: спершу число, потім
+   рішення, а не навпаки. */
+
+.checkout-ship {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.checkout-ship__hint {
+  font-style: normal;
+  font-size: 13px;
+  color: var(--c-muted, #7a7a7a);
+  text-align: right;
+}
+
+.ship-pay {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--c-line, #e6e0d6);
+  border-radius: 14px;
+}
+
+.ship-pay legend {
+  padding: 0 6px;
+  font-size: 13px;
+  color: var(--c-muted, #7a7a7a);
+}
+
+.ship-pay label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.ship-pay__note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--c-muted, #7a7a7a);
+}

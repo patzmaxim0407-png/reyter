@@ -272,6 +272,7 @@ export interface NewOrder {
   subtotal: number;
   discount: number;
   promoCode: string;
+  shipping?: number;
   total: number;
   customer: { email?: string; phone?: string; [k: string]: unknown };
   message?: string;
@@ -299,6 +300,7 @@ export async function createOrder(
       subtotal: Number(order.subtotal) || Number(order.total) || 0,
       discount: Number(order.discount) || 0,
       promoCode: order.promoCode || '',
+      shipping: Number(order.shipping) || 0,
       total: order.total,
       customer: order.customer,
       message: order.message ?? '',
