@@ -81,7 +81,7 @@ export default function OrdersQueue({
           </h3>
 
           {rows.map(({ order, task }) => (
-            <div key={order._id} className="aq-item">
+            <div key={order._id} className={'aq-item u-' + task.urgency + (open === order._id ? ' is-open' : '')}>
               <OrderRow
                 num={order.num || ''}
                 name={String((order.customer as Record<string, unknown>)?.name ?? '')}

@@ -522,7 +522,7 @@ export default function OrdersAdmin() {
           <div className="ao-list">
           {visible.length ? (
             visible.map((o) => (
-              <div key={o._id} className="aq-item">
+              <div key={o._id} className={'aq-item' + (розкрито === o._id ? ' is-open' : '')}>
                 <OrderRow
                   num={o.num || ''}
                   name={String((o.customer as Record<string, unknown>)?.name ?? '')}

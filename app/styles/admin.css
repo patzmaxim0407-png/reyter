@@ -4770,3 +4770,93 @@ label.a-promo-product i {
     display: none;
   }
 }
+
+/* ============================================================
+   ОДНА КАРТКА НА ЗАМОВЛЕННЯ
+   ------------------------------------------------------------
+   Було так: рядок — біла коробка з рамкою, а подробиці під ним —
+   кремове поле без жодного звʼязку з нею. Дві різні речі там,
+   де насправді одна.
+
+   Тепер картка — це .aq-item: рядок у ній шапка, подробиці —
+   тіло. Рамка одна, тінь одна, і коли картка відкрита, видно, що
+   відкрилась саме вона.
+   ============================================================ */
+
+.aq-item {
+  border: 1px solid var(--a-line, #e3e6ec);
+  border-left: 3px solid #dfe3ea;
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.aq-item + .aq-item {
+  margin-top: 8px;
+}
+
+/* Терміновість — на всю картку зліва, а не тільки на шапку */
+.aq-item.u-1 { border-left-color: #e8b04b; }
+.aq-item.u-2 { border-left-color: #d24b3e; }
+
+.aq-item.is-open {
+  border-color: #171b26;
+  box-shadow: 0 10px 30px -22px rgba(23, 27, 38, 0.55);
+}
+
+.aq-item.is-open.u-1 { border-left-color: #e8b04b; }
+.aq-item.is-open.u-2 { border-left-color: #d24b3e; }
+
+/* Рядок усередині картки власної рамки вже не має */
+.aq-item .aq-row,
+.aq-item .aq-row.is-open,
+.aq-item .aq-row.u-1,
+.aq-item .aq-row.u-2 {
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.aq-item.is-open .aq-row {
+  border-bottom: 1px solid #eef0f4;
+}
+
+.aq-details {
+  margin: 0;
+  padding: 14px 16px 16px;
+  background: #fff;
+}
+
+.aq-details .ao-card--in {
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.aq-details .ao-card__details {
+  padding: 0;
+  border: 0;
+}
+
+.aq-details .ao-card__actions {
+  padding: 14px 0 0;
+  margin: 14px 0 0;
+  border-top: 1px solid #eef0f4;
+}
+
+.aq-details .ao-card__grid {
+  margin-top: 14px;
+}
+
+/* Смужка «можна закрити» всередині картки вже не потребує
+   власних відступів по краях */
+.aq-details .ao-card__hint {
+  margin: 0 0 12px;
+}
+
+@media (max-width: 720px) {
+  .aq-details {
+    padding: 12px;
+  }
+}

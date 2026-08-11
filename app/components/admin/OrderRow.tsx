@@ -14,6 +14,20 @@ import { fmt } from '@/lib/catalog';
    й одна прикмета стану. Усе інше — під ним, за дотиком.
    ============================================================ */
 
+/* Адреса відділення буває на півтора рядки: «Відділення №250
+   (до 10 кг): вул. Євгена Чикаленка, 45/2 (м. "Площа
+   Українських Героїв")». У списку з неї потрібні дві речі —
+   місто й номер; решта є в картці й у підказці. */
+function коротко(place: string): string {
+  const частини = place.split(',').map((x) => x.trim());
+  const місто = частини[0] || '';
+  const пункт = частини[1] || '';
+  const номер = пункт.match(/№\s*\d+/);
+  const тип = /поштомат/i.test(пункт) ? 'Поштомат' : /відділен/i.test(пункт) ? 'Відділення' : '';
+  if (номер && тип) return місто + ' · ' + тип + ' ' + номер[0].replace(/\s+/, '');
+  return частини.slice(0, 2).join(', ');
+}
+
 export default function OrderRow({
   num,
   name,
@@ -55,7 +69,7 @@ export default function OrderRow({
           <em>№{num}</em>
         </span>
         <span className="aq-row__where" title={place}>
-          {place || '—'}
+          {коротко(place) || '—'}
         </span>
         <span className="aq-row__why">{meta}</span>
         <span className="aq-row__sum">{fmt(sum || 0)} грн</span>
