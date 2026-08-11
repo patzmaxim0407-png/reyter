@@ -448,6 +448,58 @@ await wait(500);
 ok('галочку зняли — питання повернулись',
    (await evalJs(`[...document.querySelectorAll('.co-confirm__part')].filter(x => !x.hidden).length`)) >= 2);
 
+
+/* --- 13. Поетапний вибір адреси ---
+   Форма міжнародної доставки має розкриватись кроками: доти,
+   доки немає країни, питати місто нема сенсу, а вулицю з
+   індексом — тим паче. */
+
+await evalJs(`localStorage.removeItem('reyter:profile')`);
+await go(BASE + '/checkout');
+
+const видно = async () => evalJs(`(() => {
+  const пок = (s) => { const x = document.querySelector(s); if (!x) return false;
+    return !!(x.offsetParent || x.getClientRects().length); };
+  return { місто: пок('#coIntlCity'), спосіб: пок('.intl-mode'), пункт: пок('#coIntlBranch'),
+           вулиця: пок('#coStreet'), індекс: пок('#coZip'), відділенняНП: пок('#coBranch') };
+})()`);
+
+const задати = (id, val) => evalJs(`(() => { const el=document.getElementById('${id}');
+  const proto = el.tagName==='SELECT' ? window.HTMLSelectElement.prototype : window.HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(proto,'value').set.call(el, ${JSON.stringify(val)});
+  el.dispatchEvent(new Event(el.tagName==='SELECT'?'change':'input',{bubbles:true})); return true; })()`);
+
+const початок = await видно();
+ok('поки міста немає — відділення Нової Пошти не питаємо', !початок.відділенняНП, JSON.stringify(початок));
+
+await задати('coCarrier', 'intl');
+await wait(800);
+const крок1 = await видно();
+ok('на початку міжнародної видно лише країну',
+   !крок1.місто && !крок1.спосіб && !крок1.вулиця && !крок1.індекс, JSON.stringify(крок1));
+
+await задати('coCountry', 'PL');
+await wait(900);
+const крок2 = await видно();
+ok('після країни зʼявляється місто', крок2.місто && !крок2.спосіб && !крок2.вулиця, JSON.stringify(крок2));
+
+await задати('coIntlCity', 'Warsaw');
+await wait(3000);
+await evalJs(`document.getElementById('coIntlCity').closest('.acombo').querySelector('.acombo__opt')?.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}))`);
+await wait(2000);
+const крок3 = await видно();
+ok('після міста — вибір способу й пункт',
+   крок3.спосіб && крок3.пункт && !крок3.вулиця && !крок3.індекс, JSON.stringify(крок3));
+ok('місто прийшло латиницею',
+   /^[\x20-\x7E]+$/.test(await evalJs(`document.getElementById('coIntlCity')?.value || ''`)),
+   await evalJs(`document.getElementById('coIntlCity')?.value`));
+
+await evalJs(`[...document.querySelectorAll('.intl-mode input')][1]?.click()`);
+await wait(700);
+const крок4 = await видно();
+ok('курʼєром на адресу — зʼявляються вулиця й індекс',
+   крок4.вулиця && крок4.індекс && !крок4.пункт, JSON.stringify(крок4));
+
 console.log('\nПомилки в консолі: ' + (errors.length ? '\n' + errors.join('\n') : 'немає'));
 
 ws.close();

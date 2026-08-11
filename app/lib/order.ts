@@ -52,6 +52,8 @@ export interface Order {
   /** Скільки коштує доставка, коли її платить отримувач. Лише для
    *  тексту замовлення — у суму це не входить. */
   shippingNote?: string;
+  /** Готовий перелік для митної декларації (тільки за кордон). */
+  customs?: string;
 }
 
 export const MESSENGERS = [
@@ -170,6 +172,13 @@ export function buildMessage(order: Order, t: (k: string) => string): string {
   if (confirm) lines.push('☎️ Підтвердження: ' + confirm);
   if (order.customer.comment) lines.push('💬 ' + order.customer.comment);
 
+  /* Декларація потрібна лише за кордон — по Україні це зайвий
+     шум у повідомленні, яке власник читає з телефона. */
+  if (order.customs) {
+    lines.push('');
+    lines.push(order.customs);
+  }
+
   return lines.join('\n');
 }
 
@@ -184,6 +193,8 @@ export function buildOrder(input: {
   shipping?: number;
   /** Довідковий рядок для тих, хто платить у відділенні. */
   shippingNote?: string;
+  /** Перелік для митниці — коли посилка їде за кордон. */
+  customs?: string;
   now: Date;
   t: (k: string) => string;
 }): Order {
@@ -199,6 +210,7 @@ export function buildOrder(input: {
     customer: input.customer
   };
   if (input.shippingNote) order.shippingNote = input.shippingNote;
+  if (input.customs) order.customs = input.customs;
   order.message = buildMessage(order, input.t);
   return order;
 }

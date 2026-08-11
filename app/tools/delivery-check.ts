@@ -182,5 +182,38 @@ const адресою = await quote({ carrier: 'intl', country: 'PL', cityId: м�
 ok(відділення.cost > 0 && !відділення.estimate, 'ціна у відділення', відділення.cost + ' грн');
 ok(адресою.cost > 0 && !адресою.estimate, 'ціна курʼєром на адресу', адресою.cost + ' грн');
 
+
+/* ---------- Митна декларація ---------- */
+
+import { customsBlock, customsItems, parcelWeight } from '../lib/customs.ts';
+
+const мит = каталог(
+  { price: 800, category: 'briefs', qty: 2 },
+  { price: 600, category: 'tanks', qty: 1 },
+  { price: 900, category: 'swim', qty: 1 }
+);
+const позиції = customsItems(мит.c, мит.lines);
+ok(позиції.length === 3, 'позиції декларації розкладені за типами', позиції.map((x) => x.hs).join(', '));
+ok(позиції.every((x) => /^\d{8}$/.test(x.hs)), 'коди УКТЗЕД восьмизначні', позиції.map((x) => x.hs).join(', '));
+ok(позиції.every((x) => /^[\x20-\x7E]+$/.test(x.en)), 'опис англійською — латиницею', позиції[0]?.en);
+ok(
+  позиції.reduce((s, x) => s + x.cost, 0) === 800 * 2 + 600 + 900,
+  'сума декларації дорівнює сумі кошика',
+  String(позиції.reduce((s, x) => s + x.cost, 0))
+);
+ok(позиції.every((x) => x.weight > 0), 'у кожної позиції є вага', позиції.map((x) => x.weight).join('/'));
+
+const вагаПосилки = parcelWeight(мит.c, мит.lines);
+ok(вагаПосилки > 0.3 && вагаПосилки < 2, 'вага посилки в межах глузду', вагаПосилки + ' кг');
+
+const текст = customsBlock(мит.c, мит.lines);
+ok(текст.includes('61079100') && текст.includes('Разом'), 'блок для менеджера зібрано');
+ok(customsBlock(мит.c, []) === '', 'на порожньому кошику декларації немає');
+
+/* Ціна має рахуватись від справжньої ваги, а не від вигаданої */
+const легка = await quote({ carrier: 'intl', country: 'PL', cityId: міста[0]?.id, declared: 2000, weight: 0.3 });
+const важка = await quote({ carrier: 'intl', country: 'PL', cityId: міста[0]?.id, declared: 2000, weight: 4 });
+ok(важка.cost > легка.cost, 'важча посилка дорожча', `0,3 кг → ${легка.cost}, 4 кг → ${важка.cost}`);
+
 console.log(провалів ? '\n✗ невдач: ' + провалів : '\n✓ усе зійшлося');
 process.exit(провалів ? 1 : 0);

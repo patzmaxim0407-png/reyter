@@ -110,6 +110,10 @@ export default function AddressFields({
           }
         />
 
+        {/* Відділення показуємо аж тоді, коли є місто: доти
+            вибирати нема з чого, а порожнє поле лише лякає
+            довжиною форми. */}
+        <div hidden={!v.cityRef}>
         <Combobox
           id={at('Branch')}
           label={t('addr.branch')}
@@ -135,6 +139,7 @@ export default function AddressFields({
           onType={(branch) => set({ branch, branchRef: '' })}
           onPick={(it) => set({ branch: it.value, branchRef: it.ref })}
         />
+        </div>
       </div>
 
       <div className="addr__intl" hidden={!intl}>
@@ -168,9 +173,15 @@ export default function AddressFields({
           />
         </div>
 
+        {/* Далі — крок за кроком. Кожне наступне поле зʼявляється
+            тоді, коли попереднє заповнене: інакше покупець бачить
+            одразу десяток порожніх рядків, половина з яких у його
+            випадку взагалі не потрібна. */}
+
         {/* Місто беремо з довідника перевізника, а не з голови:
             за ним же рахується вартість і підтягуються відділення.
             Довідник шукає латинкою. */}
+        <div hidden={!v.countryCode || (v.countryCode === 'other' && !v.countryOther.trim())}>
         <Combobox
           id={at('IntlCity')}
           label={t('addr.intlCity')}
@@ -196,10 +207,14 @@ export default function AddressFields({
             })
           }
         />
+        </div>
 
         {/* Куди саме везти. У відділення дешевше й простіше —
             ані вулиці, ані індексу тоді не потрібно взагалі. */}
-        <div className="field intl-mode" hidden={!branchAvailable(v.countryCode)}>
+        <div
+          className="field intl-mode"
+          hidden={!branchAvailable(v.countryCode) || !v.intlCity.trim()}
+        >
           <span className="field__label">{t('addr.intlMode')}</span>
           <div className="ochips">
             <label className="ochip">
@@ -223,7 +238,7 @@ export default function AddressFields({
           </div>
         </div>
 
-        {v.intlMode === 'branch' && branchAvailable(v.countryCode) ? (
+        {!v.intlCity.trim() ? null : v.intlMode === 'branch' && branchAvailable(v.countryCode) ? (
           <>
             <Combobox
               id={at('IntlBranch')}

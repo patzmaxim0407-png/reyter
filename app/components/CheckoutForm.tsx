@@ -23,6 +23,7 @@ import {
 } from '@/lib/address';
 import { buildMessage, buildOrder, checkCustomer, MESSENGERS, type Confirm, type Customer } from '@/lib/order';
 import { freeReached, quote, underwearSum, type Quote } from '@/lib/delivery';
+import { customsBlock, parcelWeight } from '@/lib/customs';
 import { orderPlaced } from '@/lib/notify';
 import { promoCheck, promoMessage, promoSaveCode, promoSavedCode, type Promo } from '@/lib/promo';
 
@@ -252,6 +253,7 @@ export default function CheckoutForm() {
       cityId: intlCityId,
       intlType,
       declared: goods,
+      weight: parcelWeight(c, lines),
       free: freeShip
     }).then((q) => {
       if (живий) setShip(q);
@@ -372,6 +374,10 @@ export default function CheckoutForm() {
            розійдуться. */
         shippingNote:
           shipCost && payShip === 'branch' ? `≈${shipCost} грн, оплата у відділенні` : '',
+        /* За кордон посилка не поїде без декларації, а збирати її
+           щоразу вручну — найкоротший шлях до помилки в коді
+           товару. Тому замовлення несе готовий перелік. */
+        customs: carrier === 'intl' ? customsBlock(c, lines) : '',
         now: new Date(),
         t
       });

@@ -161,7 +161,8 @@ async function цінаIntl(
   country: string,
   settlementId: number,
   оголошена: number,
-  спосіб: string
+  спосіб: string,
+  вага?: number
 ): Promise<number | null> {
   try {
     const res = await fetch(`${NP_INTL}/shipments/delivery-calculations`, {
@@ -175,7 +176,8 @@ async function цінаIntl(
             cargoCategory: 'parcel',
             insuranceCost: Math.max(300, Math.round(оголошена)),
             // калькулятор чекає грами й міліметри
-            actualWeight: Math.round(ПАКУНОК.вага * 1000),
+            // грами, і перевізник округлює їх до десятків униз
+            actualWeight: Math.round((вага || ПАКУНОК.вага) * 100) * 10,
             length: ПАКУНОК.довжина * 10,
             width: ПАКУНОК.ширина * 10,
             height: ПАКУНОК.висота * 10
@@ -216,6 +218,8 @@ export interface QuoteInput {
   intlType?: string;
   /** Оголошена вартість — від неї залежить страхування. */
   declared: number;
+  /** Вага посилки, кг. Без неї беремо типову. */
+  weight?: number;
   /** Кошик дотягнув до безкоштовної доставки по Україні. */
   free?: boolean;
 }
@@ -244,10 +248,10 @@ export async function quote(input: QuoteInput): Promise<Quote> {
   if (!country || country === 'OTHER') return НЕВІДОМО;
 
   const спосіб = input.intlType || 'branch';
-  const ключ = `intl:${country}:${input.cityId || (input.city || '').toLowerCase()}:${спосіб}:${Math.round(declared)}`;
+  const ключ = `intl:${country}:${input.cityId || (input.city || '').toLowerCase()}:${спосіб}:${Math.round(declared)}:${input.weight || 0}`;
   const було = памʼять.get(ключ);
   if (було) return було;
-  return await міжнародна(ключ, country, input.cityId || '', input.city || '', спосіб, declared);
+  return await міжнародна(ключ, country, input.cityId || '', input.city || '', спосіб, declared, input.weight);
 }
 
 async function міжнародна(
@@ -256,12 +260,13 @@ async function міжнародна(
   cityId: string,
   city: string,
   спосіб: string,
-  declared: number
+  declared: number,
+  вага?: number
 ): Promise<Quote> {
   /* Місто з довідника точніше за пошук назвою: покупець міг
      написати його як завгодно, а ціна залежить саме від пункту. */
   const id = Number(cityId) || (city ? await містоIntl(country, city) : null);
-  const жива = id ? await цінаIntl(country, id, declared, спосіб) : null;
+  const жива = id ? await цінаIntl(country, id, declared, спосіб, вага) : null;
   const q: Quote = жива
     ? { cost: жива, free: false, estimate: false, unknown: false }
     : { cost: таблицяIntl(country), free: false, estimate: true, unknown: false };
