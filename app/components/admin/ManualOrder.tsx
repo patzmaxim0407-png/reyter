@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import AddressFields from '../AddressFields';
 import Combobox from '../Combobox';
+import ProductChip from './ProductChip';
 import { useAsk } from './AskProvider';
 import { useToast } from '../Toasts';
 import { db } from '@/lib/firebase';
 import { EMPTY_FORM, fromForm, toForm, type AddressForm } from '@/lib/address';
-import { ALL_SIZES, fmt, isSet, setParts } from '@/lib/catalog';
+import { ALL_SIZES, catTitle, fmt, isSet, setParts } from '@/lib/catalog';
 import type { Catalogue } from '@/lib/catalog';
 import {
   STATUSES,
@@ -363,21 +364,60 @@ export default function ManualOrder({
               return (
                 <div className={'a-norow' + (short ? ' is-short' : '')} key={row.uid}>
                   <span className="a-norow__product">
+                    {/* Той самий вибір, що й у приході на складі: з
+                        фото, артикулом, категорією й ціною. У каталозі
+                        є позиції з майже однаковими назвами — «Бріфи
+                        classic» і «Бріфи classic Black», «Майка black»
+                        двічі — і за самим рядком не видно, що саме
+                        обрано. Фото знімає це питання одразу, а помилка
+                        тут коштує неправильно зібраної посилки. */}
                     <Combobox
                       id={'noProd-' + row.uid}
                       label=""
+                      className="acombo a-nopick"
+                      chip={p ? <ProductChip p={p} /> : null}
                       value={p ? p.name : ''}
                       placeholder="оберіть товар — назва або артикул"
-                      empty="addr.noCity"
+                      empty="Нічого не знайдено"
                       minChars={0}
                       openOnFocus
                       search={async (q) => {
                         const s = q.trim().toLowerCase();
                         return c.products
                           .filter((x) => !x.hidden)
-                          .filter((x) => !s || (x.name + ' ' + x.id).toLowerCase().includes(s))
+                          .filter(
+                            (x) =>
+                              !s ||
+                              (x.name + ' ' + x.id + ' ' + catTitle(c, x.category))
+                                .toLowerCase()
+                                .includes(s)
+                          )
                           .slice(0, 40)
-                          .map((x) => ({ ref: x.id, text: x.name, value: x.name, note: x.id }));
+                          .map((x) => ({
+                            ref: x.id,
+                            text: x.name,
+                            value: x.name,
+                            cls: 'a-pick',
+                            node: (
+                              <>
+                                <img
+                                  className="a-pick__img"
+                                  src={x.images?.[0] ?? ''}
+                                  alt=""
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.visibility = 'hidden';
+                                  }}
+                                />
+                                <span className="a-pick__body">
+                                  <b>{x.name}</b>
+                                  <i>
+                                    {x.id} · {catTitle(c, x.category)} · {fmt(x.price)} грн
+                                  </i>
+                                </span>
+                              </>
+                            )
+                          }));
                       }}
                       onType={() => setRow(row.uid, { pid: '', size: '', parts: null })}
                       onPick={(it) => {
