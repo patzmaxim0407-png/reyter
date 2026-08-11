@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useLang } from './LangProvider';
 import { noteNavigation } from '@/lib/nav-depth';
 import { lockScrollAhead } from '@/lib/scroll-lock';
+import ChunkGuard from './ChunkGuard';
 
 /** Спільні мовні елементи оболонки. Мова лишається частиною URL,
  *  а атрибут html синхронізуємо так само, як це робив старий i18n.js. */
@@ -75,6 +76,9 @@ export default function ShopChrome() {
 
   return (
     <>
+      {/* Вкладка, відкрита до викладки, просить файли, яких уже
+          немає. Без цього вона тихо ламається. */}
+      <ChunkGuard />
       <a className="skip-link" href="#main-content">
         {t('nav.skip')}
       </a>

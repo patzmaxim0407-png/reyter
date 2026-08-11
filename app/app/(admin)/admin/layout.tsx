@@ -4,6 +4,7 @@ import AdminGate from '@/components/admin/AdminGate';
 import AskProvider from '@/components/admin/AskProvider';
 import LangProvider from '@/components/LangProvider';
 import Toasts from '@/components/Toasts';
+import ChunkGuard from '@/components/ChunkGuard';
 
 /* Адмінка — не частина сайту для покупця: ні шапки, ні кошика,
    ні каталогу в розмітці. Усе, що всередині, рендериться лише
@@ -24,6 +25,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           Toasts — щоб «Збережено», «Немає прав» тощо було видно:
           без обгортки підказки мовчки зникали. */}
       <LangProvider>
+        <ChunkGuard />
         <Toasts>
           <AskProvider>
             <div className="admin-body">{children}</div>
