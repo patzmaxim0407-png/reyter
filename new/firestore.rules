@@ -162,11 +162,15 @@ service cloud.firestore {
         && d.total is number && d.total >= 0 && d.total < 1000000
         && d.subtotal is number && d.subtotal >= 0 && d.subtotal < 1000000
         && d.discount is number && d.discount >= 0
-        // Доставка входить у суму лише тоді, коли покупець обрав
-        // платити її разом із замовленням. Обрав платити у
-        // відділенні — тут нуль, а число живе в тексті замовлення.
-        && d.shipping is number && d.shipping >= 0 && d.shipping < 100000
-        && d.total == d.subtotal - d.discount + d.shipping
+        // Доставка лежить окремим полем. Сайт пише суму БЕЗ неї —
+        // так приймають і ці правила, і ті, що діяли до них.
+        // Другий вигляд лишаємо дозволеним: адмінка при ручному
+        // створенні кладе доставку всередину суми.
+        && (!('shipping' in d) || (d.shipping is number && d.shipping >= 0 && d.shipping < 100000))
+        && (
+          d.total == d.subtotal - d.discount
+          || d.total == d.subtotal - d.discount + d.shipping
+        )
         && d.items is list && d.items.size() > 0 && d.items.size() <= 50
         && d.customer is map
         && discountAllowed();

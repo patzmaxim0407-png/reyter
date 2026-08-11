@@ -59,12 +59,14 @@ function workerBody(order: Order, lang: Lang, t: (k: string) => string) {
         (x) => (x.category ? x.category + ' · ' : '') + (x.name || x.id) + (x.size ? ' · ' + x.size : '')
       )
     })),
-    total: uah(order.total, lang),
+    /* Разом = товари − знижка + доставка. У самому замовленні
+       доставка лежить окремо (правила бази не дозволяють інакше),
+       тож повну суму збираємо тут — покупець має бачити те саме
+       число, що бачив у кошику. */
+    total: uah(order.total + (order.shipping || 0), lang),
     subtotal: uah(order.subtotal, lang),
     discount: order.discount ? uah(order.discount, lang) : '',
-    // Доставку рахує магазин уже після підтвердження — на цьому
-    // етапі її ще немає, і поле лишається порожнім
-    shipping: '',
+    shipping: order.shipping ? uah(order.shipping, lang) : '',
     promoCode: order.promoCode || '',
     delivery: addressLine(c),
     comment: c.comment || '',

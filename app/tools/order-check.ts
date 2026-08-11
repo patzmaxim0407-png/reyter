@@ -296,6 +296,40 @@ const SITE_ORDER_KEYS = [
 const extraKeys = SITE_ORDER_KEYS.filter((k) => !ALLOWED_ORDER_KEYS.includes(k));
 ok('сайт не пише полів поза правилами', !extraKeys.length, extraKeys.join(', ') || 'зайвих немає');
 
+
+/* ---------- Доставка й сума замовлення ----------
+   Одне міжнародне замовлення вже зникло через це мовчки: сума з
+   доставкою всередині не проходить правила бази, а покупець
+   бачить «прийнято». Тому тут перевіряється саме те, що йде в
+   базу, а не те, що показано на екрані. */
+
+{
+  const зам = buildOrder({
+    c: { products: [], stock: {} } as never,
+    lines: [],
+    customer: { name: 'Тест', phone: '+380' } as never,
+    subtotal: 1250,
+    discount: 0,
+    promoCode: '',
+    shipping: 540,
+    now: new Date(),
+    t: (k: string) => k
+  });
+  ok('доставка лежить окремим полем', зам.shipping === 540, String(зам.shipping));
+  ok(
+    'а в суму замовлення НЕ входить — інакше база відкине запис',
+    зам.total === 1250,
+    String(зам.total)
+  );
+  ok('знижка з суми віднімається як і раніше',
+     buildOrder({
+       c: { products: [], stock: {} } as never, lines: [],
+       customer: { name: 'Т', phone: '+380' } as never,
+       subtotal: 1000, discount: 100, promoCode: 'X', shipping: 50,
+       now: new Date(), t: (k: string) => k
+     }).total === 900);
+}
+
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
 console.log('\n--- повідомлення в Telegram ---\n' + msg);
 process.exit(failed ? 1 : 0);

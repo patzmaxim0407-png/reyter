@@ -5,6 +5,7 @@ import { useLang } from './LangProvider';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart } from './CartProvider';
+import { useToast } from './Toasts';
 import AddressFields, { focusAddressField } from './AddressFields';
 import PromoField from './PromoField';
 import type { User } from 'firebase/auth';
@@ -48,6 +49,7 @@ const EMPTY_CONFIRM: Confirm = {
 export default function CheckoutForm() {
   const { t, lang } = useLang();
   const { c, lines, subtotal, clear } = useCart();
+  const toast = useToast();
   const router = useRouter();
 
   const [name, setName] = useState('');
@@ -394,18 +396,25 @@ export default function CheckoutForm() {
          необовʼязкова: замовлення видно в адмінці й без них. */
       let id = await fb.createOrder(order, { trackKey: key, lang: 'uk' });
 
-      /* Правила бази перевіряють суму замовлення й доти, доки в
-         них не додано доставку, запис із нею не пройде. Мовчки
-         втратити замовлення через це не можна: пробуємо ще раз,
-         лишивши доставку довідковою. Менеджер побачить її в
-         тексті й додасть у рахунок — а покупець не втратить
-         заповнену форму. */
-      if (!id && order.shipping) {
+      /* Остання лінія оборони: якщо базі щось не сподобалось —
+         пробуємо ще раз без поля доставки взагалі. Мовчки
+         втратити замовлення не можна: воно вже пішло в Telegram і
+         листом, тобто магазин про нього знає, а в адмінці його
+         немає — і саме так одне міжнародне замовлення й зникло. */
+      if (!id) {
         order.shipping = 0;
-        order.total = goods;
-        order.shippingNote = `≈${shipCost} грн`;
+        order.shippingNote = shipCost ? `≈${shipCost} грн` : '';
         order.message = buildMessage(order, t);
         id = await fb.createOrder(order, { trackKey: key, lang: 'uk' });
+      }
+
+      /* І якщо навіть це не пройшло — кажемо прямо. «Прийнято»
+         поверх втраченого замовлення гірше за будь-яку помилку. */
+      if (!id) {
+        toast(
+          'Замовлення прийнято й уже надіслано менеджеру, але не збереглося в кабінеті. ' +
+            'Збережіть номер ' + order.num + ' — менеджер звʼяжеться з вами.'
+        );
       }
 
       /* Запис відстеження створюємо лише коли замовлення справді

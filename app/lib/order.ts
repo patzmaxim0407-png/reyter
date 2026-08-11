@@ -206,7 +206,17 @@ export function buildOrder(input: {
     discount: input.discount,
     promoCode: input.promoCode,
     shipping: Math.max(0, Math.round(input.shipping ?? 0)),
-    total: Math.max(0, input.subtotal - input.discount) + Math.max(0, Math.round(input.shipping ?? 0)),
+    /* Доставка лежить окремим полем і В СУМУ НЕ ВХОДИТЬ.
+       Причина не в бухгалтерії, а в правилах бази: вони
+       перевіряють «сума = товари − знижка», і запис із доставкою
+       всередині вони відкидають. Мовчки: замовлення просто не
+       зʼявляється в адмінці, хоч покупець бачить «прийнято», а
+       магазин отримує лист і повідомлення в Telegram.
+
+       Саме так і сталося з першим міжнародним замовленням.
+       Тому рахунок збирає той, хто його виставляє: адмінка
+       додає доставку сама, лист показує її окремим рядком. */
+    total: Math.max(0, input.subtotal - input.discount),
     customer: input.customer
   };
   if (input.shippingNote) order.shippingNote = input.shippingNote;
