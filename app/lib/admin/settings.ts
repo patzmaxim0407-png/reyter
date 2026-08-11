@@ -175,6 +175,19 @@ export interface NotifyDoc {
   fsEmail?: string;
   tgToken?: string;
   tgChatId?: string;
+  /** Ключ службових запитів до воркера (ADMIN_KEY).
+   *
+   *  Лежить тут, а не лише в браузері, з простої причини: інакше
+   *  кожен новий менеджер бачив би порожнє поле й не міг ані
+   *  перевірити воркер, ані створити накладну, доки хтось не
+   *  продиктує йому ключ.
+   *
+   *  Читати цей документ можуть тільки адміністратори — ті самі
+   *  люди, які й так бачать усі замовлення з телефонами й
+   *  адресами. Тобто доступу він не розширює. Але коли менеджер
+   *  іде — ключ треба перевипустити, як і будь-який спільний
+   *  пароль. */
+  adminKey?: string;
   /** Звідки магазин відправляє: місто й відділення Нової Пошти.
    *  Потрібне, щоб створювати накладні просто із замовлення. */
   npCity?: string;
@@ -236,13 +249,16 @@ export interface SettingsScreen {
    *  адмін має бачити рівно те, що збережено. */
   values: SettingsFormValues;
   legacy: LegacyTg | null;
+  /** Спільний ключ службових запитів до воркера. */
+  adminKey: string;
 }
 
 export function settingsScreen(s: NotifyDoc | null): SettingsScreen {
   const src = s || {};
   return {
     values: { workerUrl: src.workerUrl || '', fsEmail: src.fsEmail || '' },
-    legacy: legacyTgFrom(src)
+    legacy: legacyTgFrom(src),
+    adminKey: String(src.adminKey || '').trim()
   };
 }
 

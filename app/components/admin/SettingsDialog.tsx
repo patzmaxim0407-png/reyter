@@ -5,6 +5,7 @@ import { useAsk } from './AskProvider';
 import { useToast } from '../Toasts';
 import { copyText } from '@/lib/copy';
 import { db, forgetNotifySettings } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import { npCall } from '@/lib/admin/np';
 import {
   KEY_WORKER,
@@ -70,7 +71,9 @@ export default function SettingsDialog({
     setStatus(null);
     setChats(null);
     try {
-      setAdminKey(localStorage.getItem(KEY_WORKER) ?? '');
+      /* Спершу свій, потім спільний із налаштувань: у нового
+         менеджера свого ще немає, і поле не має бути порожнім. */
+      setAdminKey((localStorage.getItem(KEY_WORKER) || '').trim());
     } catch {
       /* приватний режим */
     }
@@ -79,6 +82,20 @@ export default function SettingsDialog({
     void openSettings(d).then((screen) => {
       setValues(screen.values);
       setLegacy(screen.legacy);
+      /* Свій ключ важить більше за спільний: менеджер міг вписати
+         власний. Але коли свого немає — беремо спільний, інакше
+         новий адміністратор дивиться в порожнє поле. */
+      setAdminKey((було) => {
+        if (було) return було;
+        if (screen.adminKey) {
+          try {
+            localStorage.setItem(KEY_WORKER, screen.adminKey);
+          } catch {
+            /* приватний режим */
+          }
+        }
+        return screen.adminKey;
+      });
     });
     void loadAdmins(d).then(setAdmins);
   }, [open]);
@@ -92,6 +109,10 @@ export default function SettingsDialog({
     // пробіл із буфера обміну коштує години пошуків
     const v = raw.trim();
     setAdminKey(v);
+    /* І в спільні налаштування: наступний менеджер, який
+       відкриє адмінку, побачить ключ уже заповненим. */
+    const d = db();
+    if (d) void setDoc(doc(d, 'settings', 'notify'), { adminKey: v }, { merge: true });
     try {
       if (v) localStorage.setItem(KEY_WORKER, v);
       else localStorage.removeItem(KEY_WORKER);
@@ -166,7 +187,10 @@ export default function SettingsDialog({
                   value={adminKey}
                   onChange={(e) => rememberKey(e.target.value)}
                 />
-                <p className="field__hint">Зберігається лише у вашому браузері.</p>
+                <p className="field__hint">
+                  Спільний для всіх адміністраторів: інший менеджер побачить його вже
+                  заповненим. Коли хтось із них іде — перевипустіть ключ у воркері.
+                </p>
               </div>
 
               <div className="field">

@@ -166,6 +166,12 @@ export default function OrdersAdmin() {
       /* приватне вікно */
     }
   }, [settingsOpen]);
+
+  /* Свого ключа може не бути зовсім — у менеджера, який щойно
+     сів за адмінку. Тоді беремо спільний із налаштувань: інакше
+     він не створить жодної накладної, доки хтось не продиктує
+     йому рядок. */
+  const ключ = ключВоркера || String(нала.adminKey || '').trim();
   useEffect(() => {
     try {
       const v = localStorage.getItem('reyter:orders-view');
@@ -486,7 +492,7 @@ export default function OrdersAdmin() {
       if (yes !== true) return;
 
       const res = await видалитиНакладну(
-        { workerUrl: нала.workerUrl, adminKey: ключВоркера },
+        { workerUrl: нала.workerUrl, adminKey: ключ },
         ttn,
         o.ttnRef
       );
@@ -508,7 +514,7 @@ export default function OrdersAdmin() {
       }
       toast('Накладну скасовано — замовлення знову можна редагувати ✓', 'success');
     },
-    [askDialog, toast, нала.workerUrl, ключВоркера]
+    [askDialog, toast, нала.workerUrl, ключ]
   );
 
   async function onStatus(o: AdminOrder, next: string) {
@@ -769,7 +775,7 @@ export default function OrdersAdmin() {
       {ттнДля ? (
         <TtnCreate
           order={ттнДля}
-          cabinet={{ workerUrl: нала.workerUrl, adminKey: ключВоркера }}
+          cabinet={{ workerUrl: нала.workerUrl, adminKey: ключ }}
           sender={{
             city: нала.npCity || '',
             cityRef: нала.npCityRef || '',
