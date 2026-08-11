@@ -30,6 +30,8 @@ export interface AdminOrder {
   ttn?: string;
   /** Коли номер накладної пішов покупцеві листом. */
   ttnSentAt?: string;
+  /** Покупець забирає сам — накладної не буде й не треба. */
+  pickup?: boolean;
   lang?: string;
   note?: string;
   email?: string;
@@ -93,7 +95,7 @@ export default function OrderCard({
      А от виконаному замовленню номер уже ні до чого: посилку
      забрали, і червоний значок на ній — просто шум, який
      привчає не звертати уваги на червоні значки взагалі. */
-  const потрібнаТТН = st === 'shipped' && !маєТТН;
+  const потрібнаТТН = st === 'shipped' && !маєТТН && !o.pickup;
   const рівень = parcel ? тривога(parcel) : 0;
   /* Перевізник каже «отримано», а в нас усе ще «Відправлено» —
      значить, замовлення можна закривати, і сказати про це має
@@ -433,7 +435,10 @@ export default function OrderCard({
                   і в архіві теж. Виконане замовлення часом
                   доводиться відправити ще раз: обмін, дослання
                   забутої речі, повторна спроба після повернення. */}
-              {!маєТТН && onMakeTtn && st !== 'cancelled' ? (
+              {o.pickup ? (
+                <em className="ao-ttn__pickup">Самовиніс — накладної не буде</em>
+              ) : null}
+              {!маєТТН && !o.pickup && onMakeTtn && st !== 'cancelled' ? (
                 <button
                   className="btn btn--primary btn--sm ao-ttn__make"
                   type="button"

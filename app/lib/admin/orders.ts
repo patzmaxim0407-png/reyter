@@ -202,6 +202,9 @@ export function nextTask(
   }
 
   // далі — тільки відправлені
+  if (o.pickup) {
+    return { band: 'close', hours, urgency: 0, why: 'самовиніс — чекає покупця' };
+  }
   if (!String(o.ttn || '').trim()) {
     return { band: 'ttn', hours, urgency: 2, why: 'номера немає — покупець не знає, де посилка' };
   }
@@ -322,6 +325,8 @@ export interface AdminOrder {
   ttn?: string;
   /** Коли номер накладної пішов покупцеві листом. */
   ttnSentAt?: string;
+  /** Покупець забирає сам — накладної не буде й не треба. */
+  pickup?: boolean;
   /** Мовою якої сторінки оформлено замовлення. */
   lang?: string;
   note?: string;
@@ -844,7 +849,9 @@ export async function applyStatus(
      У масовій зміні діалогів немає, тож такі замовлення просто
      не пропускаємо — і кажемо про це в підсумку. */
   let свіжаТТН = '';
-  if (next === 'shipped' && !String(order.ttn || '').trim()) {
+  let самовиніс = !!order.pickup;
+
+  if (next === 'shipped' && !String(order.ttn || '').trim() && !самовиніс) {
     if (silent) return { ok: false, reason: 'no-ttn', toast: null };
     const відповідь = await deps.ask.askText({
       title: 'Номер накладної',
@@ -866,6 +873,50 @@ export async function applyStatus(
       };
     }
   }
+
+  /* «Виконано» означає, що замовлення дійшло до покупця. Без
+     накладної воно дійти не могло — хіба що покупець забрав сам.
+     Тому питаємо прямо, а не пропускаємо мовчки: закрите
+     замовлення без сліду доставки згодом неможливо ані
+     перевірити, ані знайти. */
+  if (next === 'done' && !String(order.ttn || '').trim() && !самовиніс) {
+    if (silent) return { ok: false, reason: 'no-ttn', toast: null };
+    const відповідь = await deps.ask.ask({
+      title: 'Немає накладної',
+      text:
+        'Замовлення №' + (order.num || '') +
+        ' закривається без номера накладної. Так буває лише тоді, коли покупець забрав ' +
+        'замовлення сам. Якщо ж посилку відправляли — впишіть номер, інакше згодом ' +
+        'ніхто не доведе, що вона доїхала.',
+      okText: 'Вписати номер',
+      altText: 'Це самовиніс'
+    });
+    if (відповідь === null) return { ok: false, reason: 'cancelled', toast: null };
+    if (відповідь === 'alt') {
+      самовиніс = true;
+    } else {
+      const номер = await deps.ask.askText({
+        title: 'Номер накладної',
+        text: 'Впишіть ТТН — ми одразу надішлемо його покупцеві.',
+        label: 'ТТН',
+        placeholder: 'напр.: 20450000000000',
+        okText: 'Зберегти'
+      });
+      const чистий = String(номер || '').trim();
+      if (!чистий) {
+        return {
+          ok: false,
+          reason: 'no-ttn',
+          toast: {
+            text: 'Без номера накладної або позначки «самовиніс» закрити не можна',
+            success: false
+          }
+        };
+      }
+      свіжаТТН = чистий;
+    }
+  }
+
 
   const wasApplied = !!order.stockApplied;
   const willConsume = consumesStock(next);
@@ -960,6 +1011,7 @@ export async function applyStatus(
     batch.update(doc(deps.db, ORDER_COL, order._id), {
       ...plan.update,
       ...(свіжаТТН ? { ttn: свіжаТТН } : {}),
+      ...(самовиніс && !order.pickup ? { pickup: true } : {}),
       statusLog: arrayUnion(plan.entry)
     });
     await batch.commit();

@@ -101,6 +101,7 @@ export default function OrdersQueue({
                   title: statusInfo(order.status || 'new').title
                 }}
                 parcel={(() => {
+                  if (order.pickup) return { text: 'Самовиніс', tone: 0 as const };
                   const п = parcels.get(String(order.ttn || '').trim());
                   return п ? { text: підпис(п), tone: тривога(п) } : undefined;
                 })()}

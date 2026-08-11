@@ -487,5 +487,42 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
   ok('накладна лише створена — ще не «Відправлено»', статусЗаТрекером(п('1')) === null);
 }
 
+
+/* ---------- «Виконано» без сліду доставки ---------- */
+
+{
+  const { applyStatus } = await import('../lib/admin/orders.ts');
+  const зам = (o: Record<string, unknown>) =>
+    ({ _id: 'x', num: 'R-9', total: 700, status: 'shipped',
+       items: [{ id: 'p', name: 'т', size: 'M', qty: 1, price: 700 }],
+       customer: { name: 'Т', phone: '+380' }, ...o }) as never;
+  const діалоги = (відповідь: 'ok' | 'alt' | null, ttn: string | null = null) => ({
+    confirmAsk: async () => true,
+    ask: async () => відповідь,
+    askWriteoff: async () => null,
+    askText: async () => ttn
+  });
+  const бази = { db: null as never, c: { products: [], stock: {} } as never, now: new Date(), by: 'a@b.c' };
+
+  const мовчки = await applyStatus(зам({}), 'done', { ...бази, ask: діалоги('ok') as never, silent: true });
+  ok('пакетом не закриваємо без накладної', мовчки.ok === false && мовчки.reason === 'no-ttn');
+
+  const передумав = await applyStatus(зам({}), 'done', { ...бази, ask: діалоги(null) as never });
+  ok('закрив діалог — статус лишився', передумав.reason === 'cancelled');
+
+  const безНомера = await applyStatus(зам({}), 'done', { ...бази, ask: діалоги('ok', '') as never });
+  ok('порожній номер не приймається', безНомера.ok === false && безНомера.reason === 'no-ttn');
+
+  const самовиніс = await applyStatus(зам({ pickup: true }), 'done', { ...бази, ask: діалоги(null) as never });
+  ok('позначене самовинесенням закривається без питань', самовиніс.reason !== 'no-ttn' && самовиніс.reason !== 'cancelled');
+
+  const зНомером = await applyStatus(зам({ ttn: '20450000000000' }), 'done', { ...бази, ask: діалоги(null) as never });
+  ok('із накладною теж не перепитуємо', зНомером.reason !== 'no-ttn' && зНомером.reason !== 'cancelled');
+
+  const { nextTask } = await import('../lib/admin/orders.ts');
+  const т = nextTask(зам({ pickup: true, date: new Date().toISOString() }), null, new Date());
+  ok('самовиніс у черзі чекає покупця, а не номера', т?.band === 'close', т?.band);
+}
+
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
 process.exit(failed ? 1 : 0);

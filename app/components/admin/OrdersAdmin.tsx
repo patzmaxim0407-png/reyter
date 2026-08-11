@@ -652,7 +652,9 @@ export default function OrdersAdmin() {
                     .filter(Boolean)
                     .join(', ')}
                   badge={{ id: o.status || 'new', title: statusInfo(o.status || 'new').title }}
-                  parcel={посилкаДляРядка(o)}
+                  parcel={
+                    o.pickup ? { text: 'Самовиніс', tone: 0 as const } : посилкаДляРядка(o)
+                  }
                   tone={посилкаДляРядка(o)?.tone ?? 0}
                   meta={shortWhen(o)}
                   sum={o.total || 0}
@@ -680,6 +682,7 @@ export default function OrdersAdmin() {
                       onEdit={() => setManual(o)}
                       onField={(field, value) => void зберегтиПоле(o, field, value)}
                       onSendTtn={() => void надіслатиТТН(o, String(o.ttn || '').trim())}
+                      onMakeTtn={() => setТтнДля(o)}
                       onCopy={() => void скопіювати(o)}
                       onPrint={() => printPicked([o])}
                       onDelete={() => void видалити(o)}
