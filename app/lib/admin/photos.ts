@@ -28,7 +28,13 @@
      цим станом володіє.
    ============================================================ */
 
-import { ref, uploadBytes, getDownloadURL, type FirebaseStorage } from 'firebase/storage';
+import {
+  ref,
+  uploadBytes,
+  updateMetadata,
+  getDownloadURL,
+  type FirebaseStorage
+} from 'firebase/storage';
 import { doc, getDoc, setDoc, writeBatch, type Firestore } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import type { Product } from '../types';
@@ -156,7 +162,16 @@ export async function storageUpload(
   if (!deps.user) throw new Error('Увійдіть акаунтом адміністратора');
 
   try {
-    const res = await uploadBytes(ref(deps.storage, path), blob, { contentType: 'image/webp' });
+    /* Сховище за замовчуванням віддає фото з «private, max-age=0»
+       — тобто браузер не кешує їх узагалі й перезавантажує
+       щоразу. У списку товарів це означає кілька мегабайтів на
+       кожне відкриття випадайки. Імʼя файла містить відбиток
+       часу, тож старе фото ніколи не приходить під новим
+       посиланням, і кешувати його можна назавжди. */
+    const res = await uploadBytes(ref(deps.storage, path), blob, {
+      contentType: 'image/webp',
+      cacheControl: 'public, max-age=31536000, immutable'
+    });
     return await getDownloadURL(res.ref);
   } catch (err) {
     /* Відмова сховища майже завжди означає одне: правила у
@@ -258,6 +273,34 @@ export async function uploadPhotos(
 /* Все, що не починається з http(s), — шлях у репозиторії. */
 function isOldPath(src: unknown): boolean {
   return !/^https?:/i.test(String(src || ''));
+}
+
+/* Тим фото, що вже лежать у сховищі, кеш прописуємо окремо: це
+   зміна метаданих, файл нікуди не їде. Одна дія — і адмінка
+   перестає щоразу тягнути ті самі мегабайти.
+
+   Повертає, скільки файлів полагоджено. */
+export async function fixPhotoCache(
+  deps: StorageDeps,
+  urls: string[],
+  onStep?: (готово: number, усього: number) => void
+): Promise<{ ok: number; fail: number }> {
+  const свої = [...new Set(urls.filter((u) => /firebasestorage/.test(String(u || ''))))];
+  let ok = 0;
+  let fail = 0;
+
+  for (let i = 0; i < свої.length; i += 1) {
+    try {
+      await updateMetadata(ref(deps.storage, свої[i]), {
+        cacheControl: 'public, max-age=31536000, immutable'
+      });
+      ok += 1;
+    } catch {
+      fail += 1;
+    }
+    onStep?.(i + 1, свої.length);
+  }
+  return { ok, fail };
 }
 
 export interface MigrateDeps extends StorageDeps {

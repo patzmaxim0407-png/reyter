@@ -5520,7 +5520,9 @@ label.a-promo-product i {
 }
 
 .a-norow {
-  grid-template-columns: minmax(180px, 2.6fr) 118px 84px 124px 96px 34px;
+  /* Сумі — свій простір: із «Разом:» вона не вміщалась і налазила
+     на хрестик. */
+  grid-template-columns: minmax(180px, 2.6fr) 118px 78px 118px 110px 36px;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
@@ -5684,4 +5686,21 @@ label.a-promo-product i {
 .a-neworder .a-grid-3 > .field > select {
   align-self: start;
   width: 100%;
+}
+
+/* Клітинка суми не наїжджає на сусідів */
+.a-norow__sum {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.a-norow__del {
+  justify-self: end;
+}
+
+/* Фото в списку товарів має знати свій розмір ще до завантаження:
+   інакше рядки стрибають, поки картинки приходять. */
+.a-pick__img,
+.a-pick__chip img {
+  background: var(--c-cream-dark);
 }

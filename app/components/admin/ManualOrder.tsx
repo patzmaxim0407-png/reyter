@@ -409,7 +409,11 @@ export default function ManualOrder({
                                 .toLowerCase()
                                 .includes(s)
                           )
-                          .slice(0, 40)
+                          /* Дванадцять, а не сорок: кожен рядок
+                             тягне фото, і сорок штук — це кілька
+                             мегабайтів на одне відкриття списку.
+                             Хто шукає далі, дописує ще літеру. */
+                          .slice(0, 12)
                           .map((x) => ({
                             ref: x.id,
                             text: x.name,
@@ -522,7 +526,10 @@ export default function ManualOrder({
                     грн
                   </span>
 
-                  <span className="a-norow__sum">Разом: {fmt(row.price * row.qty)} грн</span>
+                  {/* Без «Разом:» — стовпець уже підписано «Сума»
+                      вгорі, а зайве слово розпирало клітинку й
+                      налазило на хрестик. */}
+                  <span className="a-norow__sum">{fmt(row.price * row.qty)} грн</span>
 
                   <button
                     className="a-norow__del"

@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import { useAsk } from './AskProvider';
 import { useToast } from '../Toasts';
 import { copyText } from '@/lib/copy';
-import { db, forgetNotifySettings } from '@/lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { auth, db, forgetNotifySettings } from '@/lib/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+import { fixPhotoCache } from '@/lib/admin/photos';
 import { npCall } from '@/lib/admin/np';
 import {
   KEY_WORKER,
@@ -239,6 +241,45 @@ export default function SettingsDialog({
                   }
                 >
                   Перевірити воркер
+                </button>
+
+                {/* Сховище віддає фото з «private, max-age=0», тож
+                    браузер їх не кешує й тягне заново щоразу. Для
+                    нових знімків це вже виправлено при
+                    вивантаженні, а старим кеш прописуємо тут —
+                    файли нікуди не їдуть, міняються лише
+                    метадані. */}
+                <button
+                  className="btn btn--ghost btn--sm"
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      const d = db();
+                      if (!d) return { kind: 'err' as const, text: 'Немає звʼязку з базою' };
+                      const снапшот = await getDoc(doc(d, 'catalog', 'products'));
+                      const товари = (снапшот.data()?.items ?? []) as { images?: string[] }[];
+                      const усі = товари.flatMap((p) => p.images ?? []);
+                      if (!усі.length) {
+                        return { kind: 'err' as const, text: 'У каталозі немає фото' };
+                      }
+                      /* Сховищу потрібен сам обʼєкт користувача, а
+                         тут лежить лише його пошта. */
+                      const res = await fixPhotoCache(
+                        { storage: getStorage(), user: auth()?.currentUser ?? null },
+                        усі
+                      );
+                      return {
+                        kind: res.ok ? ('ok' as const) : ('err' as const),
+                        text:
+                          'Кеш прописано для ' + res.ok + ' фото' +
+                          (res.fail ? ', не вдалося: ' + res.fail : '') +
+                          '. Тепер браузер тримає їх у себе, а не качає щоразу.'
+                      };
+                    })
+                  }
+                >
+                  Прискорити фото
                 </button>
 
                 <button
