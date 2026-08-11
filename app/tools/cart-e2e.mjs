@@ -478,14 +478,24 @@ const крок1 = await видно();
 ok('на початку міжнародної видно лише країну',
    !крок1.місто && !крок1.спосіб && !крок1.вулиця && !крок1.індекс, JSON.stringify(крок1));
 
-await задати('coCountry', 'PL');
+const обрати = (id) => evalJs(`document.getElementById('${id}').closest('.acombo').querySelector('.acombo__opt')?.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}))`);
+const опції = (id) => evalJs(`(() => { const b=document.getElementById('${id}').closest('.acombo');
+  return [...b.querySelectorAll('.acombo__opt span')].slice(0,3).map(x=>x.textContent); })()`);
+
+await задати('coCountry', 'Пол');
+await wait(900);
+const країни = await опції('coCountry');
+ok('країна знаходиться за першими літерами', країни.includes('Польща'), JSON.stringify(країни));
+await обрати('coCountry');
 await wait(900);
 const крок2 = await видно();
 ok('після країни зʼявляється місто', крок2.місто && !крок2.спосіб && !крок2.вулиця, JSON.stringify(крок2));
 
-await задати('coIntlCity', 'Warsaw');
+await задати('coIntlCity', 'Wars');
 await wait(3000);
-await evalJs(`document.getElementById('coIntlCity').closest('.acombo').querySelector('.acombo__opt')?.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}))`);
+ok('місто знаходиться за початком назви',
+   (await опції('coIntlCity'))[0]?.startsWith('Warsaw'), JSON.stringify(await опції('coIntlCity')));
+await обрати('coIntlCity');
 await wait(2000);
 const крок3 = await видно();
 ok('після міста — вибір способу й пункт',
@@ -499,6 +509,17 @@ await wait(700);
 const крок4 = await видно();
 ok('курʼєром на адресу — зʼявляються вулиця й індекс',
    крок4.вулиця && крок4.індекс && !крок4.пункт, JSON.stringify(крок4));
+
+ok('область підставилась із міста, а не питається',
+   /voivodeship|Masovian/i.test(await evalJs(`document.getElementById('coState')?.value || ''`)),
+   await evalJs(`document.getElementById('coState')?.value`));
+
+await задати('coStreet', 'Marsza');
+await wait(3000);
+const вулиці = await опції('coStreet');
+ok('вулиця знаходиться за частиною назви', вулиці.length > 0, JSON.stringify(вулиці));
+ok('і всі вулиці — саме цього міста',
+   вулиці.every((x) => /Marsza/i.test(x)), JSON.stringify(вулиці));
 
 console.log('\nПомилки в консолі: ' + (errors.length ? '\n' + errors.join('\n') : 'немає'));
 

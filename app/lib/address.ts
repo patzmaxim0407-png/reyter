@@ -359,6 +359,55 @@ export async function intlDivisions(
   return знайдені;
 }
 
+const intlStreetCache = new Map<string, IntlPlace[]>();
+
+/** Вулиці міста. Довідник шукає за будь-якою частиною назви й
+ *  розуміє написання без діакритики: «Marsza» знайде
+ *  «Marszałkowska». Прив'язки до міста в запиті немає — параметр
+ *  settlementIds[] він тут ігнорує, — тож відсіюємо самі. */
+export async function intlStreets(
+  country: string,
+  settlementId?: string | null,
+  query?: string | null
+): Promise<IntlPlace[]> {
+  const q = String(query || '').trim();
+  if (!country || country === 'other' || q.length < 2) return [];
+  const key = country + '|' + (settlementId || '') + '|' + q.toLowerCase();
+  const hit = cacheGet(intlStreetCache, key);
+  if (hit) return hit;
+
+  const url =
+    NOVAPOST_UI + '/streets?countryCode=' + encodeURIComponent(country) +
+    '&name=' + encodeURIComponent(q) + '&limit=100';
+  const json = (await (await fetch(url, { headers: ЛАТИНОЮ })).json()) as {
+    items?: { id?: number; name?: string; settlement?: { id?: number; name?: string } }[];
+  };
+  const усі = (json.items || [])
+    .filter((x) => x.name)
+    .map((x) => ({
+      id: String(x.id ?? ''),
+      name: String(x.name),
+      label: String(x.name),
+      region: x.settlement?.name || ''
+    }));
+
+  /* Лишаємо тільки вулиці обраного міста. Прив'язки в запиті
+     немає — довідник шукає по всій країні, — тож без цього
+     фільтра покупцеві пропонувалася б вулиця з іншого міста,
+     і він би її спокійно обрав. Краще не показати нічого:
+     тоді підказка каже вписати назву як є. */
+  const list = settlementId
+    ? усі.filter(
+        (x) =>
+          String((json.items || []).find((y) => String(y.id) === x.id)?.settlement?.id || '') ===
+          settlementId
+      )
+    : усі;
+
+  cachePut(intlStreetCache, key, list);
+  return list;
+}
+
 /* ---------- Країни для міжнародної доставки ----------
    Список короткий навмисно: це напрямки, куди бренд реально
    відправляє. «Інша країна» лишає можливість вписати руками. */
@@ -535,6 +584,8 @@ export interface AddressForm {
   branch: string;
   branchRef: string;
   countryCode: string;
+  /** Те, що написано в полі країни: список шукається набором. */
+  countryText: string;
   countryOther: string;
   state: string;
   intlCity: string;
@@ -563,6 +614,7 @@ export const EMPTY_FORM: AddressForm = {
   branch: '',
   branchRef: '',
   countryCode: '',
+  countryText: '',
   countryOther: '',
   state: '',
   intlCity: '',
@@ -596,6 +648,10 @@ export function toForm(v?: Address | null): AddressForm {
     branch: a.branch || '',
     branchRef: a.branchRef || '',
     countryCode: intl.countryCode || '',
+    countryText:
+      intl.countryCode === 'other'
+        ? intl.country || ''
+        : COUNTRIES.find((c) => c.code === intl.countryCode)?.title || '',
     /* Країну поза списком зберігали текстом у country — вона
        належить окремому полю, а не випадайці, тож повертаємо її
        туди, звідки вона прийшла. Ознака саме код 'other': він

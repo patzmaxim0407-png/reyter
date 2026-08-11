@@ -8,6 +8,7 @@ import {
   branchAvailable,
   intlDivisions,
   intlSettlements,
+  intlStreets,
   npCities,
   npWarehouses,
   regRequired,
@@ -143,22 +144,48 @@ export default function AddressFields({
       </div>
 
       <div className="addr__intl" hidden={!intl}>
-        <div className="field">
-          <label htmlFor={at('Country')}>{t('addr.country')}</label>
-          <select
-            id={at('Country')}
-            className={invalid === 'countryCode' ? 'is-invalid' : undefined}
-            value={v.countryCode}
-            onChange={(e) => set({ countryCode: e.target.value })}
-          >
-            <option value="">{t('addr.pickCountry')}</option>
-            {COUNTRIES.map((x) => (
-              <option value={x.code} key={x.code}>
-                {tf(x, 'title')}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Країн три десятки, і гортати їх списком — робота. Тут
+            той самий комбобокс, що й для міст: набрав «Пол» —
+            побачив Польщу. */}
+        <Combobox
+          id={at('Country')}
+          label={t('addr.country')}
+          value={v.countryText}
+          openOnFocus
+          minChars={0}
+          placeholder={t('addr.pickCountry')}
+          invalid={invalid === 'countryCode'}
+          empty="addr.noCountry"
+          search={async (q) => {
+            const шукане = q.trim().toLowerCase();
+            return COUNTRIES.filter((x) => {
+              if (!шукане) return true;
+              return (
+                x.title.toLowerCase().startsWith(шукане) ||
+                x.titleEn.toLowerCase().startsWith(шукане) ||
+                x.title.toLowerCase().includes(шукане) ||
+                x.titleEn.toLowerCase().includes(шукане)
+              );
+            }).map((x) => ({ ref: x.code, text: tf(x, 'title'), value: tf(x, 'title'), note: '' }));
+          }}
+          onType={(countryText) => set({ countryText, countryCode: '' })}
+          onPick={(it) =>
+            /* Разом із країною скидаємо все, що від неї залежить:
+               інакше лишилася б пара «нова країна + чуже місто». */
+            set({
+              countryText: it.value,
+              countryCode: it.ref,
+              intlCity: '',
+              intlCityId: '',
+              intlBranch: '',
+              intlBranchId: '',
+              intlBranchType: '',
+              state: '',
+              street: '',
+              zip: ''
+            })
+          }
+        />
 
         {/* Країни поза списком вписують текстом — напрямків
             більше, ніж ми готові перелічити наперед */}
@@ -194,7 +221,8 @@ export default function AddressFields({
           search={async (q) => {
             if (!v.countryCode || v.countryCode === 'other') return null;
             const list = await intlSettlements(v.countryCode, q);
-            return list.map((x) => ({ ref: x.id, text: x.label, value: x.name, note: '' }));
+            // область їде в note: комбобокс віддає її разом із вибором
+            return list.map((x) => ({ ref: x.id, text: x.label, value: x.name, note: x.region || '' }));
           }}
           onType={(intlCity) => set({ intlCity, intlCityId: '', intlBranch: '', intlBranchId: '' })}
           onPick={(it) =>
@@ -203,7 +231,10 @@ export default function AddressFields({
               intlCityId: it.ref,
               intlBranch: '',
               intlBranchId: '',
-              intlBranchType: ''
+              intlBranchType: '',
+              /* Область довідник знає сам — питати її після міста
+                 означало б питати те, що вже відомо. */
+              state: it.note || ''
             })
           }
         />
@@ -286,15 +317,20 @@ export default function AddressFields({
                 назву вулиці, а номер бере власним полем. */}
             <div className="form-row form-row--street">
               <div className="field">
-                <label htmlFor={at('Street')}>{t('addr.street')}</label>
-                <input
+                <Combobox
                   id={at('Street')}
-                  className={invalid === 'street' ? 'is-invalid' : undefined}
-                  autoComplete="address-line1"
-                  placeholder={t('addr.streetPh')}
-                  maxLength={100}
+                  label={t('addr.street')}
                   value={v.street}
-                  onChange={(e) => set({ street: e.target.value })}
+                  placeholder={t('addr.streetPh')}
+                  invalid={invalid === 'street'}
+                  empty="addr.noStreet"
+                  search={async (q) => {
+                    if (!v.countryCode || v.countryCode === 'other') return null;
+                    const list = await intlStreets(v.countryCode, v.intlCityId, q);
+                    return list.map((x) => ({ ref: x.id, text: x.label, value: x.name, note: '' }));
+                  }}
+                  onType={(street) => set({ street })}
+                  onPick={(it) => set({ street: it.value })}
                 />
               </div>
               <div className="field">
