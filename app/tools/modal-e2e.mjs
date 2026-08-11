@@ -177,6 +177,35 @@ if (пілюлі) {
   console.log('· у цього товару немає розмірної сітки');
 }
 
+/* ---------- Стягування мишею ----------
+   Картка стала шторкою й на компʼютері, смужку на ній видно —
+   отже, за неї мають тягнути. Дотиком це працювало давно, мишею
+   не працювало зовсім. */
+
+await go(BASE + '/p/WW-001');
+const смужка = await ev(`(() => {
+  const e = document.querySelector('.pmodal__handle');
+  if (!e) return null;
+  const r = e.getBoundingClientRect();
+  return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2),
+    курсор: getComputedStyle(e).cursor };
+})()`);
+if (смужка) {
+  ok('курсор каже, що смужку можна тягнути', смужка.курсор === 'grab', смужка.курсор);
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: смужка.x, y: смужка.y, button: 'left', clickCount: 1 });
+  for (const dy of [40, 100, 170]) {
+    await wait(60);
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: смужка.x, y: смужка.y + dy, button: 'left' });
+  }
+  const їде = await ev(`getComputedStyle(document.querySelector('.pmodal__panel')).transform`);
+  ok('панель їде за курсором', /matrix\(1, 0, 0, 1, 0, 1\d\d/.test(їде), їде);
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: смужка.x, y: смужка.y + 170, button: 'left', clickCount: 1 });
+  await wait(1800);
+  ok('після стягування картка закрилась', !(await ev(`!!document.querySelector('.pmodal')`)),
+     await ev('location.pathname'));
+}
+await go(BASE + '/');
+
 /* ---------- Значок наявності ----------
    Він показує не «чи є товар взагалі», а чи є ОБРАНИЙ розмір:
    обрав той, якого лишилось мало — значок став «Закінчується».

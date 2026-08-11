@@ -246,6 +246,37 @@ function ProductSheet({ children, lang }: { children: React.ReactNode; lang: Lan
       target.addEventListener('touchend', onEnd);
       target.addEventListener('touchcancel', onEnd);
     }
+
+    /* Те саме мишею — але тільки за смужку. Картка стала шторкою й
+       на компʼютері, смужка на ній видна, і тягнути її очікувано.
+       З вмісту мишею не тягнемо: там прокрутка, і будь-який рух із
+       затиснутою кнопкою означав би виділення тексту, а не жест. */
+    const мишею = (event: MouseEvent) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      startY = event.clientY;
+      shift = 0;
+      dragging = true;
+      fromHandle = true;
+      panel.style.transition = 'none';
+
+      const рух = (e: MouseEvent) => {
+        if (!dragging) return;
+        const dy = e.clientY - startY;
+        shift = Math.max(0, dy);
+        panel.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+        if (backdrop) backdrop.style.opacity = String(Math.max(0.15, 1 - shift / 450));
+      };
+      const кінець = () => {
+        document.removeEventListener('mousemove', рух);
+        document.removeEventListener('mouseup', кінець);
+        onEnd();
+      };
+      document.addEventListener('mousemove', рух);
+      document.addEventListener('mouseup', кінець);
+    };
+    handle?.addEventListener('mousedown', мишею);
+
     return () => {
       for (const target of targets) {
         target.removeEventListener('touchstart', onStart);
@@ -253,6 +284,7 @@ function ProductSheet({ children, lang }: { children: React.ReactNode; lang: Lan
         target.removeEventListener('touchend', onEnd);
         target.removeEventListener('touchcancel', onEnd);
       }
+      handle?.removeEventListener('mousedown', мишею);
     };
   }, [close]);
 
