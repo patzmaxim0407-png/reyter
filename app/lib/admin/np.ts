@@ -334,6 +334,8 @@ export interface НоваНакладна {
   seats: number;
   /** Хто платить за доставку: 'Sender' або 'Recipient'. */
   payer: 'Sender' | 'Recipient';
+  /** Габарити місця, см. Без них договір накладну не приймає. */
+  box?: { length: number; width: number; height: number };
   /** Скільки повернути грошей за післяплатою; 0 — без неї. */
   backMoney?: number;
 }
@@ -345,6 +347,8 @@ export async function створитиНакладну(
 ): Promise<{ ok: true; ttn: string; ref: string } | { ok: false; error: string }> {
   const в = await відправник(cab);
   if (!в.ok) return { ok: false, error: в.error };
+
+  const коробка = n.box || { length: 30, width: 20, height: 10 };
 
   const props: Record<string, unknown> = {
     NewAddress: '1',
@@ -371,7 +375,21 @@ export async function створитиНакладну(
     RecipientName: n.name,
     RecipientType: 'PrivatePerson',
     RecipientsPhone: String(n.phone || '').replace(/\D/g, ''),
-    DateTime: сьогодні()
+    DateTime: сьогодні(),
+    /* Габарити місця. Перевізник вимагає їх окремо від ваги —
+       «param OptionsSeat required», — бо за обʼємом він рахує
+       свою вагу й може взяти більшу з двох. Розміри ті самі, що
+       й у розрахунку доставки на сайті: одна коробка, одні
+       числа. */
+    OptionsSeat: [
+      {
+        volumetricVolume: String(обʼєм(коробка)),
+        volumetricWidth: String(коробка.width),
+        volumetricLength: String(коробка.length),
+        volumetricHeight: String(коробка.height),
+        weight: String(Math.max(0.1, n.weight))
+      }
+    ]
   };
 
   if (n.backMoney && n.backMoney > 0) {
@@ -388,6 +406,11 @@ export async function створитиНакладну(
   const ttn = String(res.data[0].IntDocNumber || '');
   if (!ttn) return { ok: false, error: 'перевізник не повернув номер накладної' };
   return { ok: true, ttn, ref: String(res.data[0].Ref || '') };
+}
+
+/** Обʼєм коробки в кубометрах — саме в них його чекають. */
+function обʼєм(b: { length: number; width: number; height: number }): number {
+  return Math.round(((b.length * b.width * b.height) / 1_000_000) * 10_000) / 10_000;
 }
 
 /** Дата у вигляді, якого чекає перевізник: 11.08.2026 */
