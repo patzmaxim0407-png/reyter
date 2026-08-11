@@ -6,5 +6,5 @@ export const generateStaticParams = productParams;
 
 export default async function ProductModalPageEn({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <ProductModal lang="en"><ProductView id={id} lang="en" modal /></ProductModal>;
+  return <ProductModal lang="en" selfPath={`/en/p/${id}`}><ProductView id={id} lang="en" modal /></ProductModal>;
 }

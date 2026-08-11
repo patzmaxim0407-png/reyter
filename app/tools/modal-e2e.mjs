@@ -174,10 +174,16 @@ if (swatches) {
   ok('решта кольорів — посилання', swatches.links === swatches.n - 1, JSON.stringify(swatches));
 
   /* Перехід між кольорами міняє адресу, але не має ані закривати
-     картку, ані зрушувати каталог під нею */
+     картку, ані зрушувати каталог під нею. І не має програвати
+     появу заново: для покупця це одна картка, у якій змінився
+     вміст, а не «закрилась і відкрилась інша». */
   const wasName = await ev(`document.querySelector('#pmName').textContent`);
   await ev(`document.querySelector('a.swatch').click()`);
   await wait(1500);
+  ok('зміна кольору не програє появу заново',
+     (await ev(`getComputedStyle(document.querySelector('.pmodal__panel')).opacity`)) === '1');
+  ok('картка при зміні кольору лишається одна',
+     (await ev(`document.querySelectorAll('.pmodal').length`)) === 1);
   ok('колір перемкнувся', (await ev(`document.querySelector('#pmName')?.textContent`)) !== wasName,
      await ev(`document.querySelector('#pmName')?.textContent`));
   ok('картка лишилась відкритою', await ev(`!!document.querySelector('.pmodal.is-open')`));
