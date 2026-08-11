@@ -97,7 +97,7 @@ await wait(700);
 
 await ev(`window.__firstImg = document.querySelector('.pgrid .pcard__media img')`);
 const beforeY = await ev(`Math.round(window.scrollY)`);
-const beforeTop = await anchorTop();
+let beforeTop = await anchorTop();
 ok('каталог прокручено', beforeY > 800, 'y=' + beforeY);
 
 /* Беремо товар із родиною кольорів: на першій-ліпшій картці
@@ -248,7 +248,21 @@ if (мало) {
 
 await go(BASE + '/p/SW-003');
 ok('у розпроданого товару — «Продано»', (await чіп()).includes('--no'), await чіп());
+
+/* Перевірка значка водила нас окремими сторінками, тож повертаємо
+   те, з чого починали: прокручений каталог і відкриту поверх нього
+   картку товару з родиною кольорів. Далі йдуть саме ті перевірки,
+   яким потрібен каталог ПІД карткою. */
 await go(BASE + '/');
+await ev(`window.scrollTo(0, 1800)`);
+await wait(700);
+await ev(`window.__firstImg = document.querySelector('.pgrid .pcard__media img')`);
+beforeTop = await anchorTop();
+await ev(
+  `document.querySelector('.pgrid a[href="' + ${JSON.stringify(cardHref)} + '"]').click()`
+);
+await wait(1500);
+ok('картка знову відкрита — є що перевіряти далі', await ev(`!!document.querySelector('.pmodal.is-open')`));
 
 /* ---------- Кольори ----------
    Зразок має бути кружком 38 px, а не крапкою: колись він був
@@ -293,7 +307,8 @@ if (swatches) {
 
 /* ---------- Закриття ---------- */
 
-await ev(`document.querySelector('.pmodal__close').click()`);
+ok('перед закриттям картка на місці', await ev(`!!document.querySelector('.pmodal__close')`));
+await ev(`document.querySelector('.pmodal__close')?.click()`);
 await wait(1600);
 
 ok('картка закрилась', await ev(`!document.querySelector('.pmodal')`));
