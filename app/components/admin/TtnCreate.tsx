@@ -31,6 +31,14 @@ function номерВідділення(branch: string): string {
   return m ? m[1] : '';
 }
 
+/** Чи годиться імʼя для накладної: щонайменше два слова. */
+function повнеІмʼя(v: string): boolean {
+  return String(v || '')
+    .trim()
+    .split(/\s+/)
+    .filter((x) => x.length >= 2).length >= 2;
+}
+
 export default function TtnCreate({
   order,
   cabinet,
@@ -56,12 +64,22 @@ export default function TtnCreate({
   const c = (order.customer ?? {}) as Record<string, string>;
 
   const [від, setВід] = useState(sender);
+  /* Імʼя й телефон беремо із замовлення, але дозволяємо
+     виправити: перевізник заводить отримувача як приватну особу
+     й вимагає щонайменше прізвище та імʼя. Покупець же в кошику
+     часто пише «Костя» — і накладна не створюється зовсім. */
+  const [імʼя, setІмʼя] = useState(String(c.name || '').trim());
+  const [тел, setТел] = useState(String(c.phone || '').trim());
   const [вага, setВага] = useState(String(weight || 0.5));
   const [опис, setОпис] = useState(description || 'Чоловіча білизна');
   const [оцінка, setОцінка] = useState(String(order.total || 0));
   const [платник, setПлатник] = useState<'Sender' | 'Recipient'>('Recipient');
   const [післяплата, setПісляплата] = useState('');
   const [йде, setЙде] = useState(false);
+  /* Відмову перевізника лишаємо у вікні, а не в тості: вона
+     називає рівно одне поле, якого бракує, і саме її треба
+     прочитати уважно — а тост гасне за три секунди. */
+  const [відмова, setВідмова] = useState('');
 
   const номер = номерВідділення(c.branch || '');
   /* Поштомат і відділення — різні послуги в перевізника, і
@@ -83,12 +101,24 @@ export default function TtnCreate({
       toast('У замовленні не видно номера відділення отримувача — впишіть ТТН руками');
       return;
     }
+    if (!повнеІмʼя(імʼя)) {
+      setВідмова(
+        'Перевізник заводить отримувача як приватну особу й вимагає щонайменше прізвище та імʼя. ' +
+          'Допишіть їх у полі «Отримувач» — у замовленні лишиться те, що написав покупець.'
+      );
+      return;
+    }
+    if (String(тел).replace(/\D/g, '').length < 10) {
+      setВідмова('Телефон отримувача неповний — перевізник не прийме такий номер.');
+      return;
+    }
     setЙде(true);
+    setВідмова('');
     const res = await створитиНакладну(cabinet, {
       citySender: від.cityRef,
       senderWarehouse: від.warehouseRef,
-      name: c.name || '',
-      phone: c.phone || '',
+      name: імʼя.trim(),
+      phone: тел,
       cityRecipient: (c.city || '').replace(/^м\.\s*/i, ''),
       warehouseRecipient: номер,
       description: опис,
@@ -102,7 +132,8 @@ export default function TtnCreate({
     setЙде(false);
 
     if (!res.ok) {
-      toast('Накладну не створено: ' + res.error);
+      setВідмова(res.error);
+      toast('Накладну не створено');
       return;
     }
     onSaveSender(від);
@@ -123,8 +154,6 @@ export default function TtnCreate({
         <div className="ttn-box">
 
         <div className="ttn-to">
-          <b>{c.name || '—'}</b>
-          <span>{c.phone || '—'}</span>
           <span>
             {c.city || '—'}
             {номер
@@ -132,6 +161,25 @@ export default function TtnCreate({
               : ' · номера відділення не видно'}
           </span>
         </div>
+
+        <div className="ttn-grid">
+          <label className="ao-field">
+            <span>Отримувач</span>
+            <input
+              value={імʼя}
+              placeholder="Прізвище та імʼя"
+              onChange={(e) => setІмʼя(e.target.value)}
+            />
+          </label>
+          <label className="ao-field">
+            <span>Телефон</span>
+            <input value={тел} inputMode="tel" onChange={(e) => setТел(e.target.value)} />
+          </label>
+        </div>
+        <p className="ao-note">
+          Перевізник заводить отримувача як приватну особу, тож імені з одного слова не приймає —
+          потрібні прізвище та імʼя. У самому замовленні лишиться те, що написав покупець.
+        </p>
 
         <div className="ttn-from">
           <span className="ao-field__label">Звідки відправляємо</span>
@@ -207,6 +255,20 @@ export default function TtnCreate({
             />
           </label>
         </div>
+
+        {відмова ? (
+          <div className="ttn-err">
+            <b>Перевізник не створив накладну</b>
+            <p>{відмова}</p>
+            <button
+              className="btn btn--ghost btn--sm"
+              type="button"
+              onClick={() => void navigator.clipboard?.writeText(відмова).then(() => toast('Скопійовано ✓', 'success'))}
+            >
+              Скопіювати текст
+            </button>
+          </div>
+        ) : null}
 
         <p className="ao-note">
           Накладна створюється у вашому кабінеті Нової Пошти й одразу лягає в замовлення.
