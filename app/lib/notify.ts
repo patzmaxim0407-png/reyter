@@ -160,7 +160,15 @@ export async function sendTtn(
     });
     const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
     if (data.ok) return { ok: true, error: '' };
-    return { ok: false, error: data.error || 'воркер відповів кодом ' + res.status };
+    const err = data.error || 'воркер відповів кодом ' + res.status;
+    /* Стара версія воркера не знає листа з накладною й провалює
+       запит у гілку замовлення — звідти «Порожнє замовлення». */
+    return {
+      ok: false,
+      error: /порожнє замовлення/i.test(err)
+        ? 'воркер сповіщень ще не оновлено — скопіюйте new/worker/worker.js у Cloudflare і натисніть Deploy'
+        : err
+    };
   } catch {
     return { ok: false, error: 'не вдалося звʼязатися з воркером' };
   }

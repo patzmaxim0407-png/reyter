@@ -259,10 +259,28 @@ export async function npCall<T = Record<string, unknown>>(
       data?: T[];
       error?: string;
     };
-    return { ok: !!d.ok, data: d.data || [], error: d.error || (d.ok ? '' : 'воркер відповів кодом ' + res.status) };
+    const помилка = d.error || (d.ok ? '' : 'воркер відповів кодом ' + res.status);
+    return { ok: !!d.ok, data: d.data || [], error: пояснити(помилка) };
   } catch {
     return { ok: false, data: [], error: 'не вдалося звʼязатися з воркером' };
   }
+}
+
+/* Воркер старої версії не знає типу «np» і провалює запит у гілку
+   замовлення — звідти й береться «Порожнє замовлення». Сказати
+   про це прямо дешевше, ніж дати менеджеру гадати над відповіддю,
+   яка до накладної не має жодного стосунку. */
+function пояснити(err: string): string {
+  if (/порожнє замовлення/i.test(err)) {
+    return 'воркер сповіщень ще не оновлено — скопіюйте new/worker/worker.js у Cloudflare і натисніть Deploy';
+  }
+  if (/NP_KEY/i.test(err)) {
+    return 'у воркері не задано ключ кабінету Нової Пошти (NP_KEY) — додайте його як Secret і натисніть Deploy';
+  }
+  if (/ключ адміністратора/i.test(err)) {
+    return 'ключ адміністратора не збігається з ADMIN_KEY у воркері — перевірте його в налаштуваннях';
+  }
+  return err;
 }
 
 /** Хто відправник за договором: контрагент і контактна особа.
