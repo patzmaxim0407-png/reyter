@@ -5151,3 +5151,77 @@ label.a-promo-product i {
 .aq-badge.np-0 { color: #35618f; background: #f1f6fd; border-color: #cfdff2; }
 .aq-badge.np-1 { color: #8a5a00; background: #fff7ec; border-color: #f0d29a; }
 .aq-badge.np-2 { color: #b3261e; background: #fdecea; border-color: #f3b8b2; }
+
+/* ---------- Стрічка дороги ----------
+   Перевізник журналу подій не веде — його API каже лише те, що з
+   посилкою зараз, плюс кілька дат. Тому стрічку збираємо самі:
+   три кроки, пройдені підсвічені. */
+
+.ao-way__steps {
+  display: grid;
+  gap: 0;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.ao-way__steps li {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 0 0 10px 20px;
+  color: #9aa1ad;
+}
+
+.ao-way__steps li::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  background: #fff;
+}
+
+/* Лінія між кружками — саме між, а не після останнього */
+.ao-way__steps li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 15px;
+  bottom: 0;
+  width: 2px;
+  background: currentColor;
+  opacity: 0.35;
+}
+
+.ao-way__steps li:last-child {
+  padding-bottom: 0;
+}
+
+.ao-way__steps li.is-done {
+  color: #15803d;
+}
+
+.ao-way__steps li.is-done::before {
+  background: currentColor;
+}
+
+.ao-way__steps li.is-now {
+  color: #014aad;
+  font-weight: 600;
+}
+
+.ao-way__steps b {
+  font-size: 13px;
+  color: inherit;
+}
+
+.ao-way__steps span {
+  font-size: 12px;
+  color: #6b7280;
+}

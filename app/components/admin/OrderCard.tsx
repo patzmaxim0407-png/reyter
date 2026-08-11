@@ -100,6 +100,28 @@ export default function OrderCard({
      сама картка, а не пам'ять менеджера. */
   const можнаЗакрити = st === 'shipped' && parcel && стан(parcel.code) === 'отримано';
 
+  /* Перевізник не веде журналу подій — його API віддає лише те,
+     що з посилкою ЗАРАЗ, і кілька дат. Тому стрічку збираємо самі
+     з того, що є: створено — обіцяли — забрали. Крок, до якого
+     дійшло, підсвічений; майбутні стоять сірими. */
+  const кроки = parcel
+    ? [
+        { title: 'Накладну створено', when: parcel.createdAt, done: !!parcel.createdAt, now: стан(parcel.code) === 'створено' },
+        {
+          title: стан(parcel.code) === 'чекає' ? 'У відділенні' : 'У дорозі',
+          when: parcel.scheduled ? 'орієнтовно ' + parcel.scheduled : '',
+          done: ['чекає', 'отримано'].includes(стан(parcel.code)),
+          now: ['дорога', 'чекає'].includes(стан(parcel.code))
+        },
+        {
+          title: 'Отримано',
+          when: parcel.gotAt,
+          done: стан(parcel.code) === 'отримано',
+          now: стан(parcel.code) === 'отримано'
+        }
+      ]
+    : [];
+
   const delivery = addressLine(c as never);
   const units = (o.items ?? []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
   const goods = (o.items ?? []).reduce((n, i) => n + (Number(i.price) || 0) * (Number(i.qty) || 0), 0);
@@ -314,6 +336,15 @@ export default function OrderCard({
                   <span>{parcel.status}</span>
                 ) : null}
               </div>
+              <ol className="ao-way__steps">
+                {кроки.map((к) => (
+                  <li key={к.title} className={к.done ? 'is-done' : к.now ? 'is-now' : ''}>
+                    <b>{к.title}</b>
+                    <span>{к.when || '—'}</span>
+                  </li>
+                ))}
+              </ol>
+
               <dl className="ao-way__list">
                 {parcel.city || parcel.place ? (
                   <div>
@@ -375,7 +406,11 @@ export default function OrderCard({
                   if (e.target.value !== (o.ttn ?? '')) onField?.('ttn', e.target.value);
                 }}
               />
-              {!маєТТН && onMakeTtn && st !== 'cancelled' && st !== 'done' ? (
+              {/* Створити накладну можна доти, доки її немає, —
+                  і в архіві теж. Виконане замовлення часом
+                  доводиться відправити ще раз: обмін, дослання
+                  забутої речі, повторна спроба після повернення. */}
+              {!маєТТН && onMakeTtn && st !== 'cancelled' ? (
                 <button
                   className="btn btn--primary btn--sm ao-ttn__make"
                   type="button"
