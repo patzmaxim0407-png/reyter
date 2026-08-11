@@ -36,6 +36,7 @@ import {
   type OrderFilters
 } from '@/lib/admin/orders';
 import { todayISO } from '@/lib/admin/stock';
+import { KEY_WORKER } from '@/lib/admin/settings';
 import { orderDate, statusInfo } from '@/lib/admin/orders';
 import { watchInventory } from '@/lib/admin/live';
 import { doc, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
@@ -145,6 +146,19 @@ export default function OrdersAdmin() {
   useEffect(() => {
     void loadNotifySettings().then((s) => setНала((s || {}) as Record<string, string>));
   }, []);
+
+  /* Ключ адміністратора воркера живе лише в браузері — у базу він
+     не потрапляє навмисно: з нього можна створювати накладні за
+     чужі гроші. Беремо його звідти ж, звідки його кладе вікно
+     налаштувань. */
+  const [ключВоркера, setКлючВоркера] = useState('');
+  useEffect(() => {
+    try {
+      setКлючВоркера(localStorage.getItem(KEY_WORKER) ?? '');
+    } catch {
+      /* приватне вікно */
+    }
+  }, [settingsOpen]);
   useEffect(() => {
     try {
       const v = localStorage.getItem('reyter:orders-view');
@@ -686,7 +700,7 @@ export default function OrdersAdmin() {
       {ттнДля ? (
         <TtnCreate
           order={ттнДля}
-          cabinet={{ workerUrl: нала.workerUrl, adminKey: нала.adminKey }}
+          cabinet={{ workerUrl: нала.workerUrl, adminKey: ключВоркера }}
           sender={{
             city: нала.npCity || '',
             cityRef: нала.npCityRef || '',
