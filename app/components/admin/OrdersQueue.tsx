@@ -3,9 +3,17 @@
 import { useState } from 'react';
 import OrderCard from './OrderCard';
 import OrderRow from './OrderRow';
-import { BANDS, queue, type AdminOrder, type Band, type ParcelHint, type Task } from '@/lib/admin/orders';
+import {
+  BANDS,
+  queue,
+  statusInfo,
+  type AdminOrder,
+  type Band,
+  type ParcelHint,
+  type Task
+} from '@/lib/admin/orders';
 import type { Catalogue } from '@/lib/catalog';
-import type { Посилка } from '@/lib/admin/np';
+import { підпис, тривога, type Посилка } from '@/lib/admin/np';
 
 /* ============================================================
    Черга справ
@@ -88,6 +96,14 @@ export default function OrdersQueue({
                 num={order.num || ''}
                 name={String((order.customer as Record<string, unknown>)?.name ?? '')}
                 place={куди(order)}
+                badge={{
+                  id: order.status || 'new',
+                  title: statusInfo(order.status || 'new').title
+                }}
+                parcel={(() => {
+                  const п = parcels.get(String(order.ttn || '').trim());
+                  return п ? { text: підпис(п), tone: тривога(п) } : undefined;
+                })()}
                 meta={task.why}
                 sum={order.total || 0}
                 tone={task.urgency}

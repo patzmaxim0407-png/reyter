@@ -33,6 +33,8 @@ export default function OrderRow({
   name,
   place,
   meta,
+  badge,
+  parcel,
   sum,
   tone = 0,
   action,
@@ -44,8 +46,12 @@ export default function OrderRow({
   num: string;
   name: string;
   place: string;
-  /** Чому воно тут: «чекає 3 год», «лежить 5 дн.», «Виконано». */
+  /** Чому воно тут: «чекає 3 год», «лежить 5 дн.», «10 серп.». */
   meta: string;
+  /** Статус замовлення кольоровим значком. */
+  badge?: { id: string; title: string };
+  /** Що каже перевізник — другим значком. */
+  parcel?: { text: string; tone: 0 | 1 | 2 };
   sum: number;
   /** 0 — спокій, 1 — увага, 2 — горить. */
   tone?: 0 | 1 | 2;
@@ -71,7 +77,11 @@ export default function OrderRow({
         <span className="aq-row__where" title={place}>
           {коротко(place) || '—'}
         </span>
-        <span className="aq-row__why">{meta}</span>
+        <span className="aq-row__why">
+          {badge ? <b className={'aq-badge st-' + badge.id}>{badge.title}</b> : null}
+          {parcel ? <b className={'aq-badge np-' + parcel.tone}>{parcel.text}</b> : null}
+          {meta ? <span>{meta}</span> : null}
+        </span>
         <span className="aq-row__sum">{fmt(sum || 0)} грн</span>
         <span className="aq-row__chev" aria-hidden="true">
           {open ? '⌃' : '⌄'}

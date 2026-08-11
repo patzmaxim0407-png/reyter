@@ -43,7 +43,7 @@ import { doc, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { fmt } from '@/lib/catalog';
 import { printSheet } from './printSheet';
 import { trackDelete, trackUpdate } from '@/lib/track';
-import { trackAll, статусЗаТрекером, type Посилка } from '@/lib/admin/np';
+import { trackAll, підпис, статусЗаТрекером, тривога, type Посилка } from '@/lib/admin/np';
 import { parcelWeight } from '@/lib/customs';
 import type { OrderStatus, Stock } from '@/lib/types';
 
@@ -176,7 +176,9 @@ export default function OrdersAdmin() {
     }
   };
   const вДорозіКлюч = orders
-    .map((o) => (o.status === 'shipped' ? o._id + ':' + (o.ttn || '') : ''))
+    .map((o) =>
+      o.status === 'shipped' || o.status === 'done' ? o._id + ':' + (o.ttn || '') : ''
+    )
     .filter(Boolean)
     .join('|');
 
@@ -202,8 +204,15 @@ export default function OrdersAdmin() {
   };
 
   useEffect(() => {
+    /* Питаємо і про відправлені, і про недавно закриті: в архіві
+       менеджер теж хоче бачити, чим скінчилось, а не порожнє
+       місце там, де в черзі був стан посилки. */
     const вДорозі = orders
-      .filter((o) => o.status === 'shipped' && String(o.ttn || '').trim())
+      .filter(
+        (o) =>
+          (o.status === 'shipped' || o.status === 'done') && String(o.ttn || '').trim()
+      )
+      .slice(0, 100)
       .map((o) => ({ ttn: o.ttn, phone: String(o.customer?.phone || '') }));
     if (!вДорозі.length) return;
 
@@ -442,6 +451,12 @@ export default function OrdersAdmin() {
     return st !== 'done' && st !== 'cancelled';
   }).length;
 
+  /** Що каже перевізник — для рядка списку. */
+  function посилкаДляРядка(o: AdminOrder) {
+    const п = посилки.get(String(o.ttn || '').trim());
+    return п ? { text: підпис(п), tone: тривога(п) } : undefined;
+  }
+
   /** Коли це було — коротко, для рядка списку. */
   function shortWhen(o: AdminOrder): string {
     const d = orderDate(o);
@@ -636,7 +651,10 @@ export default function OrdersAdmin() {
                   ]
                     .filter(Boolean)
                     .join(', ')}
-                  meta={statusInfo(o.status || 'new').title + ' · ' + shortWhen(o)}
+                  badge={{ id: o.status || 'new', title: statusInfo(o.status || 'new').title }}
+                  parcel={посилкаДляРядка(o)}
+                  tone={посилкаДляРядка(o)?.tone ?? 0}
+                  meta={shortWhen(o)}
                   sum={o.total || 0}
                   picked={selection.has(o._id)}
                   onPick={(on) =>

@@ -5109,3 +5109,45 @@ label.a-promo-product i {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Статус значком ----------
+   Слово «Виконано» сірим текстом поруч із датою читається як
+   частина дати. Значок кольором відповідає тому ж статусу в
+   картці й у смузі масових дій — щоб колір усюди означав те
+   саме. */
+
+.aq-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.aq-badge.st-new { color: #1d4ed8; background: #eef4ff; }
+.aq-badge.st-confirmed { color: #6d28d9; background: #f5f0ff; }
+.aq-badge.st-shipped { color: #b45309; background: #fff7ec; }
+.aq-badge.st-done { color: #15803d; background: #f0faf3; }
+.aq-badge.st-cancelled { color: #b3261e; background: #fdecea; }
+
+.aq-row__why {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+  .aq-row__why {
+    gap: 6px;
+  }
+}
+
+/* Стан посилки другим значком — приглушеніший за статус
+   замовлення: статус наш, а це чужа новина. */
+.aq-badge.np-0 { color: #35618f; background: #f1f6fd; border-color: #cfdff2; }
+.aq-badge.np-1 { color: #8a5a00; background: #fff7ec; border-color: #f0d29a; }
+.aq-badge.np-2 { color: #b3261e; background: #fdecea; border-color: #f3b8b2; }
