@@ -5704,3 +5704,92 @@ label.a-promo-product i {
 .a-pick__chip img {
   background: var(--c-cream-dark);
 }
+
+/* ============================================================
+   ЧЕРГА: СМУГИ Й ЗАГОЛОВКИ
+   ------------------------------------------------------------
+   Було вісім заголовків, із них сім порожніх — екран із самих
+   підписів. Тепер показуємо тільки те, де є робота, а решту
+   згортаємо в один тихий рядок унизу: знати, що ці справи
+   існують, корисно, а читати сім порожніх підписів — ні.
+   ============================================================ */
+
+.aq {
+  gap: 22px;
+}
+
+.aq-band__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--c-line);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5b6270;
+}
+
+.aq-band__title {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Число праворуч, як лічильник, а не як частина назви */
+.aq-band__head i {
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #eef0f4;
+  color: #444b58;
+}
+
+/* Смуги, де зволікання коштує грошей, підписані своїм кольором */
+.aq-band--ttn .aq-band__head,
+.aq-band--back .aq-band__head {
+  color: #b3261e;
+  border-bottom-color: #f3b8b2;
+}
+
+.aq-band--ttn .aq-band__head i,
+.aq-band--back .aq-band__head i {
+  background: #fdecea;
+  color: #b3261e;
+}
+
+.aq-band--waiting .aq-band__head {
+  color: #8a5a00;
+  border-bottom-color: #f0d29a;
+}
+
+.aq-band--waiting .aq-band__head i {
+  background: #fff7ec;
+  color: #8a5a00;
+}
+
+.aq-band--close .aq-band__head {
+  color: #15803d;
+  border-bottom-color: #bfe3cd;
+}
+
+.aq-band--close .aq-band__head i {
+  background: #f0faf3;
+  color: #15803d;
+}
+
+/* «У дорозі» — не робота, а довідка: тихіше за решту */
+.aq-band--transit .aq-band__head {
+  color: #8a909c;
+}
+
+.aq-none {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #9aa1ad;
+}

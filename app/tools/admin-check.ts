@@ -529,5 +529,15 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
   ok('самовиніс має власну смугу, а не «Отримано»', т?.band === 'pickup', т?.band);
 }
 
+
+/* ---------- Черга показує тільки роботу ---------- */
+
+{
+  const файл = readFileSync(new URL('../components/admin/OrdersQueue.tsx', import.meta.url), 'utf8');
+  ok('порожні смуги не малюються заголовками', файл.includes('живі.map'), 'живі.map');
+  ok('а перелічені одним рядком унизу', файл.includes('aq-none'));
+  ok('емодзі в заголовках смуг не малюються', !файл.includes('band.icon'));
+}
+
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
 process.exit(failed ? 1 : 0);

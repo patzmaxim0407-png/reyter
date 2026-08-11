@@ -83,16 +83,16 @@ export default function OrdersQueue({
     );
   }
 
+  const живі = смуги.filter((s) => s.rows.length);
+  const порожні = смуги.filter((s) => !s.rows.length);
+
   return (
     <div className="aq">
-      {смуги.map(({ band, rows }) => (
-        <section key={band.id} className={'aq-band' + (rows.length ? '' : ' is-empty')}>
+      {живі.map(({ band, rows }) => (
+        <section key={band.id} className={'aq-band aq-band--' + band.id}>
           <h3 className="aq-band__head">
-            <span className="aq-band__icon" aria-hidden="true">
-              {band.icon}
-            </span>
-            {band.title}
-            {rows.length ? <i>{rows.length}</i> : null}
+            <span className="aq-band__title">{band.title}</span>
+            <i>{rows.length}</i>
           </h3>
 
           {/* Значка статусу в рядку черги немає навмисно: смуга
@@ -158,6 +158,16 @@ export default function OrdersQueue({
           ))}
         </section>
       ))}
+
+      {/* Порожні смуги — одним рядком унизу, а не сімома
+          заголовками вгорі. Знати, що ці справи існують і зараз
+          їх немає, корисно; читати сім порожніх підписів щоразу —
+          ні. */}
+      {порожні.length ? (
+        <p className="aq-none">
+          Порожньо: {порожні.map((s) => s.band.title.toLowerCase()).join(' · ')}
+        </p>
+      ) : null}
     </div>
   );
 }
