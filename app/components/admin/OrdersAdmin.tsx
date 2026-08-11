@@ -747,7 +747,18 @@ export default function OrdersAdmin() {
             const o = ттнДля;
             setТтнДля(null);
             await зберегтиПоле(o, 'ttn', ttn);
-            if ((o.status || 'new') !== 'shipped') await onStatus(o, 'shipped');
+
+            /* Далі — з ОНОВЛЕНОЮ копією замовлення. Зі старою
+               перевірка не бачила щойно створеного номера й
+               питала його вдруге, просто у вікні поверх щойно
+               створеної накладної. */
+            const свіже = { ...o, ttn } as AdminOrder;
+            if ((o.status || 'new') !== 'shipped') await onStatus(свіже, 'shipped');
+
+            /* І лист. Сам він не пішов би: зберігання надсилає
+               його лише тоді, коли замовлення вже «Відправлено»,
+               а в цю мить воно ще не було. */
+            void надіслатиТТН(свіже, ttn);
             toast('Накладну ' + ttn + ' створено ✓', 'success');
           }}
           onClose={() => setТтнДля(null)}
