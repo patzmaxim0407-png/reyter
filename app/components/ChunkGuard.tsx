@@ -30,26 +30,26 @@ import { useEffect } from 'react';
    втратить своє місце ні за що.
    ============================================================ */
 
-const КЛЮЧ = 'reyter:chunk-reload';
+const KEY = 'reyter:chunk-reload';
 /** Скільки разів дозволено перечитувати за один сеанс. */
-const СПРОБ = 2;
+const MAX_TRIES = 2;
 /** І не частіше, ніж раз на хвилину. */
-const ПАУЗА = 60_000;
+const PAUSE = 60_000;
 
-const ЦЕ_ЧАНК =
+const CHUNK_RE =
   /ChunkLoadError|Loading chunk|Failed to load chunk|error loading dynamically imported module|Importing a module script failed/i;
 
-const свій = (url: string) => url.includes('/_next/static/');
+const isOurs = (url: string) => url.includes('/_next/static/');
 
-type Спроби = { n: number; t: number };
+type Tries = { n: number; t: number };
 
-function спроби(): Спроби {
+function tries(): Tries {
   try {
-    const raw = sessionStorage.getItem(КЛЮЧ);
+    const raw = sessionStorage.getItem(KEY);
     if (!raw) return { n: 0, t: 0 };
     // до цього тут лежала одиниця — стару мітку читаємо як одну спробу
     if (raw === '1') return { n: 1, t: 0 };
-    const v = JSON.parse(raw) as Спроби;
+    const v = JSON.parse(raw) as Tries;
     return { n: Number(v.n) || 0, t: Number(v.t) || 0 };
   } catch {
     return { n: 0, t: 0 };
@@ -64,19 +64,19 @@ function спроби(): Спроби {
    тоді посилання лишається чистим. Друга — з міткою часу в запиті:
    такої адреси в кеші немає напевно. Третьої не буде: якщо не
    допомогло двічі, зациклити перечитування гірше за саму поломку. */
-async function перечитати() {
-  const було = спроби();
-  if (було.n >= СПРОБ) return;
-  if (було.t && Date.now() - було.t < ПАУЗА) return;
+async function reloadPage() {
+  const prev = tries();
+  if (prev.n >= MAX_TRIES) return;
+  if (prev.t && Date.now() - prev.t < PAUSE) return;
 
-  const тепер = Date.now();
+  const now = Date.now();
   try {
-    sessionStorage.setItem(КЛЮЧ, JSON.stringify({ n: було.n + 1, t: тепер }));
+    sessionStorage.setItem(KEY, JSON.stringify({ n: prev.n + 1, t: now }));
   } catch {
     /* приватний режим без сховища — тоді просто пробуємо */
   }
 
-  if (було.n === 0) {
+  if (prev.n === 0) {
     // оновлюємо копію документа в кеші браузера й перечитуємо адресу
     try {
       await fetch(location.href, { cache: 'reload', credentials: 'same-origin' });
@@ -88,63 +88,63 @@ async function перечитати() {
   }
 
   const url = new URL(location.href);
-  url.searchParams.set('r', String(тепер));
+  url.searchParams.set('r', String(now));
   location.replace(url.toString());
 }
 
 export default function ChunkGuard() {
   useEffect(() => {
-    let зайнято = false;
+    let busy = false;
 
     /* ---------- шматок коду не приїхав ---------- */
-    const післяЧанка = async (текст: string) => {
-      if (!ЦЕ_ЧАНК.test(текст) || зайнято) return;
-      зайнято = true;
+    const onChunkError = async (text: string) => {
+      if (!CHUNK_RE.test(text) || busy) return;
+      busy = true;
 
       /* Чи справді файли збірки зникли. Беремо будь-який СКРИПТ,
          який ця сторінка вже завантажила: якщо його більше немає —
          була викладка. Саме скрипт, а не будь-який файл із chunks:
          першим там завжди йде файл стилів, і питати треба не його. */
-      const відомий = performance
+      const known = performance
         .getEntriesByType('resource')
         .map((r) => r.name)
-        .find((n) => свій(n) && n.endsWith('.js'));
-      if (відомий) {
+        .find((n) => isOurs(n) && n.endsWith('.js'));
+      if (known) {
         try {
-          const res = await fetch(відомий, { cache: 'no-store' });
+          const res = await fetch(known, { cache: 'no-store' });
           if (res.ok) {
             // файл на місці — то була випадковість (обірвана мережа
             // в метро), і перечитувати сторінку не можна
-            зайнято = false;
+            busy = false;
             return;
           }
         } catch {
-          зайнято = false;
+          busy = false;
           return;
         }
       }
-      await перечитати();
+      await reloadPage();
     };
 
     /* ---------- стилі не приїхали ---------- */
-    const голаСторінка = async () => {
-      if (зайнято) return;
+    const checkStyles = async () => {
+      if (busy) return;
       const link = Array.from(
         document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
-      ).find((l) => свій(l.href));
+      ).find((l) => isOurs(l.href));
       if (!link) return;
 
       /* Рахуємо ПРАВИЛА, а не аркуші: коли файл не приїхав, Chrome
          усе одно лишає порожній styleSheet, і styleSheets.length
          показує ту саму двійку, що й на справній сторінці. */
-      const аркуш = Array.from(document.styleSheets).find((s) => s.href === link.href);
-      let правил = 0;
+      const sheet = Array.from(document.styleSheets).find((s) => s.href === link.href);
+      let rules = 0;
       try {
-        правил = аркуш?.cssRules.length ?? 0;
+        rules = sheet?.cssRules.length ?? 0;
       } catch {
         return; // чужий домен — не наша справа
       }
-      if (правил > 0) return;
+      if (rules > 0) return;
 
       /* Порожній аркуш ще не означає біду: на повільній мережі
          браузер міг просто не встигнути його розібрати. Тому
@@ -155,39 +155,39 @@ export default function ChunkGuard() {
          оновлювалась сама на кожному повільному завантаженні: у
          покупця це виглядало як перезавантаження при відкритті
          картки товару й при її закритті. */
-      зайнято = true;
+      busy = true;
       try {
         const res = await fetch(link.href, { cache: 'no-store' });
         if (res.ok) {
           // файл на місці — стилі ось-ось застосуються самі
-          зайнято = false;
+          busy = false;
           return;
         }
       } catch {
         // мережі немає — перечитування не поможе
-        зайнято = false;
+        busy = false;
         return;
       }
-      await перечитати();
+      await reloadPage();
     };
 
     /* Помилки завантаження файлів не спливають до window, тож
        слухаємо їх на перехопленні. І пізнаємо не за текстом —
        у такої помилки він порожній, — а за самим елементом. */
-    const наПомилку = (event: Event) => {
-      const ціль = event.target as HTMLElement | null;
-      if (ціль instanceof HTMLLinkElement && свій(ціль.href)) return void голаСторінка();
-      if (ціль instanceof HTMLScriptElement && свій(ціль.src)) return void післяЧанка('Loading chunk failed');
+    const onError = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      if (target instanceof HTMLLinkElement && isOurs(target.href)) return void checkStyles();
+      if (target instanceof HTMLScriptElement && isOurs(target.src)) return void onChunkError('Loading chunk failed');
       const e = event as ErrorEvent;
-      if (typeof e.message === 'string' && e.message) void післяЧанка(e.message);
+      if (typeof e.message === 'string' && e.message) void onChunkError(e.message);
     };
-    const наВідмову = (event: PromiseRejectionEvent) => {
+    const onRejection = (event: PromiseRejectionEvent) => {
       const r = event.reason as { message?: string; name?: string } | undefined;
-      void післяЧанка(String(r?.name ?? '') + ' ' + String(r?.message ?? event.reason ?? ''));
+      void onChunkError(String(r?.name ?? '') + ' ' + String(r?.message ?? event.reason ?? ''));
     };
 
-    window.addEventListener('error', наПомилку, true);
-    window.addEventListener('unhandledrejection', наВідмову);
+    window.addEventListener('error', onError, true);
+    window.addEventListener('unhandledrejection', onRejection);
 
     /* Перевіряємо й самі: помилку завантаження можна проґавити
        (вона трапляється до того, як цей код почав слухати), а от
@@ -197,16 +197,16 @@ export default function ChunkGuard() {
        секунди понад те. Раніше тут стояли голі 800 мс від
        монтування — на повільній мережі стилі просто не встигали,
        і сторож перечитував цілком здорову сторінку. */
-    let перевірка: ReturnType<typeof setTimeout> | null = null;
-    const запустити = () => {
-      перевірка = setTimeout(() => void голаСторінка(), 1500);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const start = () => {
+      timer = setTimeout(() => void checkStyles(), 1500);
     };
-    if (document.readyState === 'complete') запустити();
-    else window.addEventListener('load', запустити, { once: true });
+    if (document.readyState === 'complete') start();
+    else window.addEventListener('load', start, { once: true });
 
     /* Сторінка ожила — прибираємо з адреси мітку, якою ми обходили
        кеш при перечитуванні. Покупцеві її бачити ні до чого. */
-    const прибрати = setTimeout(() => {
+    const cleanup = setTimeout(() => {
       if (!new URL(location.href).searchParams.has('r')) return;
       const url = new URL(location.href);
       url.searchParams.delete('r');
@@ -214,11 +214,11 @@ export default function ChunkGuard() {
     }, 1200);
 
     return () => {
-      if (перевірка) clearTimeout(перевірка);
-      window.removeEventListener('load', запустити);
-      clearTimeout(прибрати);
-      window.removeEventListener('error', наПомилку, true);
-      window.removeEventListener('unhandledrejection', наВідмову);
+      if (timer) clearTimeout(timer);
+      window.removeEventListener('load', start);
+      clearTimeout(cleanup);
+      window.removeEventListener('error', onError, true);
+      window.removeEventListener('unhandledrejection', onRejection);
     };
   }, []);
 

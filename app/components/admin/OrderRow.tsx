@@ -19,14 +19,14 @@ import { fmt } from '@/lib/catalog';
    (до 10 кг): вул. Євгена Чикаленка, 45/2 (м. "Площа
    Українських Героїв")». У списку з неї потрібні дві речі —
    місто й номер; решта є в картці й у підказці. */
-function коротко(place: string): string {
-  const частини = place.split(',').map((x) => x.trim());
-  const місто = частини[0] || '';
-  const пункт = частини[1] || '';
-  const номер = пункт.match(/№\s*\d+/);
-  const тип = /поштомат/i.test(пункт) ? 'Поштомат' : /відділен/i.test(пункт) ? 'Відділення' : '';
-  if (номер && тип) return місто + ' · ' + тип + ' ' + номер[0].replace(/\s+/, '');
-  return частини.slice(0, 2).join(', ');
+function shortLabel(place: string): string {
+  const parts = place.split(',').map((x) => x.trim());
+  const city = parts[0] || '';
+  const point = parts[1] || '';
+  const num = point.match(/№\s*\d+/);
+  const kind = /поштомат/i.test(point) ? 'Поштомат' : /відділен/i.test(point) ? 'Відділення' : '';
+  if (num && kind) return city + ' · ' + kind + ' ' + num[0].replace(/\s+/, '');
+  return parts.slice(0, 2).join(', ');
 }
 
 export default function OrderRow({
@@ -62,7 +62,7 @@ export default function OrderRow({
   open?: boolean;
   onToggle(): void;
 }) {
-  const [скопійовано, setСкопійовано] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   return (
     <div className={'aq-row u-' + tone + (open ? ' is-open' : '')}>
@@ -89,17 +89,17 @@ export default function OrderRow({
               void navigator.clipboard
                 ?.writeText(num)
                 .then(() => {
-                  setСкопійовано(true);
-                  setTimeout(() => setСкопійовано(false), 1200);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1200);
                 })
                 .catch(() => {});
             }}
           >
-            {скопійовано ? 'скопійовано ✓' : '№' + num}
+            {copied ? 'скопійовано ✓' : '№' + num}
           </em>
         </span>
         <span className="aq-row__where" title={place}>
-          {коротко(place) || '—'}
+          {shortLabel(place) || '—'}
         </span>
         <span className="aq-row__why">
           {badge ? <b className={'aq-badge st-' + badge.id}>{badge.title}</b> : null}

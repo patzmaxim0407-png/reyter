@@ -283,22 +283,22 @@ function isOldPath(src: unknown): boolean {
 export async function fixPhotoCache(
   deps: StorageDeps,
   urls: string[],
-  onStep?: (готово: number, усього: number) => void
+  onStep?: (loaded: number, total: number) => void
 ): Promise<{ ok: number; fail: number }> {
-  const свої = [...new Set(urls.filter((u) => /firebasestorage/.test(String(u || ''))))];
+  const ours = [...new Set(urls.filter((u) => /firebasestorage/.test(String(u || ''))))];
   let ok = 0;
   let fail = 0;
 
-  for (let i = 0; i < свої.length; i += 1) {
+  for (let i = 0; i < ours.length; i += 1) {
     try {
-      await updateMetadata(ref(deps.storage, свої[i]), {
+      await updateMetadata(ref(deps.storage, ours[i]), {
         cacheControl: 'public, max-age=31536000, immutable'
       });
       ok += 1;
     } catch {
       fail += 1;
     }
-    onStep?.(i + 1, свої.length);
+    onStep?.(i + 1, ours.length);
   }
   return { ok, fail };
 }

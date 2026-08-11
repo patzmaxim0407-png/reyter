@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Combobox from '../Combobox';
 import { useToast } from '../Toasts';
 import { npCities, npWarehouses } from '@/lib/address';
-import { створитиНакладну, type Кабінет } from '@/lib/admin/np';
+import { createWaybill, type Cabinet } from '@/lib/admin/np';
 import type { AdminOrder } from '@/lib/admin/orders';
 
 /* ============================================================
@@ -26,7 +26,7 @@ import type { AdminOrder } from '@/lib/admin/orders';
    ============================================================ */
 
 /** Номер відділення з його назви: «Відділення №20 (до 30 кг…)» → 20 */
-function номерВідділення(branch: string): string {
+function branchNumber(branch: string): string {
   const m = String(branch || '').match(/№\s*(\d+)/);
   return m ? m[1] : '';
 }
@@ -35,13 +35,13 @@ function номерВідділення(branch: string): string {
  *  це NaN — і накладна на півтора кілограма тихо йшла б як на
  *  півкілограма, а перевізник перерахував би доставку у
  *  відділенні. */
-function число(v: string): number {
+function toNumber(v: string): number {
   const n = Number(String(v).replace(',', '.').trim());
   return Number.isFinite(n) ? n : 0;
 }
 
 /** Чи годиться імʼя для накладної: щонайменше два слова. */
-function повнеІмʼя(v: string): boolean {
+function fullName(v: string): boolean {
   return String(v || '')
     .trim()
     .split(/\s+/)
@@ -59,7 +59,7 @@ export default function TtnCreate({
   onClose
 }: {
   order: AdminOrder;
-  cabinet: Кабінет | null;
+  cabinet: Cabinet | null;
   /** Звідки відправляємо — з налаштувань магазину. */
   sender: { city: string; cityRef: string; warehouse: string; warehouseRef: string };
   /** Порахована вага посилки, кг. */
@@ -72,28 +72,28 @@ export default function TtnCreate({
   const toast = useToast();
   const c = (order.customer ?? {}) as Record<string, string>;
 
-  const [від, setВід] = useState(sender);
+  const [since, setSince] = useState(sender);
   /* Імʼя й телефон беремо із замовлення, але дозволяємо
      виправити: перевізник заводить отримувача як приватну особу
      й вимагає щонайменше прізвище та імʼя. Покупець же в кошику
      часто пише «Костя» — і накладна не створюється зовсім. */
-  const [імʼя, setІмʼя] = useState(String(c.name || '').trim());
-  const [тел, setТел] = useState(String(c.phone || '').trim());
-  const [вага, setВага] = useState(String(weight || 0.5));
-  const [опис, setОпис] = useState(description || 'Чоловіча білизна');
-  const [оцінка, setОцінка] = useState(String(order.total || 0));
-  const [платник, setПлатник] = useState<'Sender' | 'Recipient'>('Recipient');
-  const [післяплата, setПісляплата] = useState('');
-  const [йде, setЙде] = useState(false);
+  const [name, setName] = useState(String(c.name || '').trim());
+  const [phone, setPhone] = useState(String(c.phone || '').trim());
+  const [weightText, setWeight] = useState(String(weight || 0.5));
+  const [descr, setDesc] = useState(description || 'Чоловіча білизна');
+  const [declared, setDeclared] = useState(String(order.total || 0));
+  const [payer, setPayer] = useState<'Sender' | 'Recipient'>('Recipient');
+  const [backMoney, setCod] = useState('');
+  const [sending, setSending] = useState(false);
   /* Відмову перевізника лишаємо у вікні, а не в тості: вона
      називає рівно одне поле, якого бракує, і саме її треба
      прочитати уважно — а тост гасне за три секунди. */
-  const [відмова, setВідмова] = useState('');
+  const [refusal, setRefusal] = useState('');
 
-  const номер = номерВідділення(c.branch || '');
+  const num = branchNumber(c.branch || '');
   /* Поштомат і відділення — різні послуги в перевізника, і
      переплутати їх означає не створити накладну взагалі. */
-  const поштомат = /поштомат/i.test(c.branch || '');
+  const postomat = /поштомат/i.test(c.branch || '');
 
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -101,55 +101,55 @@ export default function TtnCreate({
     return () => document.removeEventListener('keydown', esc);
   }, [onClose]);
 
-  async function створити() {
-    if (!від.cityRef || !від.warehouseRef) {
+  async function submit() {
+    if (!since.cityRef || !since.warehouseRef) {
       toast('Спершу вкажіть, звідки відправляєте — місто й відділення');
       return;
     }
-    if (!номер) {
+    if (!num) {
       toast('У замовленні не видно номера відділення отримувача — впишіть ТТН руками');
       return;
     }
-    if (!повнеІмʼя(імʼя)) {
-      setВідмова(
+    if (!fullName(name)) {
+      setRefusal(
         'Перевізник заводить отримувача як приватну особу й вимагає щонайменше прізвище та імʼя. ' +
           'Допишіть їх у полі «Отримувач» — у замовленні лишиться те, що написав покупець.'
       );
       return;
     }
-    if (String(тел).replace(/\D/g, '').length < 10) {
-      setВідмова(
+    if (String(phone).replace(/\D/g, '').length < 10) {
+      setRefusal(
         'Телефон у замовленні неповний — перевізник не прийме такий номер. Виправте його ' +
           'в самому замовленні («Редагувати замовлення»), щоб номер на накладній і в ' +
           'замовленні лишались тим самим.'
       );
       return;
     }
-    setЙде(true);
-    setВідмова('');
-    const res = await створитиНакладну(cabinet, {
-      citySender: від.cityRef,
-      senderWarehouse: від.warehouseRef,
-      name: імʼя.trim(),
-      phone: тел,
+    setSending(true);
+    setRefusal('');
+    const res = await createWaybill(cabinet, {
+      citySender: since.cityRef,
+      senderWarehouse: since.warehouseRef,
+      name: name.trim(),
+      phone: phone,
       cityRecipient: (c.city || '').replace(/^м\.\s*/i, ''),
-      warehouseRecipient: номер,
-      description: опис,
-      weight: число(вага) || 0.5,
-      cost: число(оцінка) || 1,
+      warehouseRecipient: num,
+      description: descr,
+      weight: toNumber(weightText) || 0.5,
+      cost: toNumber(declared) || 1,
       seats: 1,
-      payer: платник,
-      backMoney: число(післяплата) || 0,
-      postomat: поштомат
+      payer: payer,
+      backMoney: toNumber(backMoney) || 0,
+      postomat: postomat
     });
-    setЙде(false);
+    setSending(false);
 
     if (!res.ok) {
-      setВідмова(res.error);
+      setRefusal(res.error);
       toast('Накладну не створено');
       return;
     }
-    onSaveSender(від);
+    onSaveSender(since);
     onDone(res.ttn, res.ref);
   }
 
@@ -169,8 +169,8 @@ export default function TtnCreate({
         <div className="ttn-to">
           <span>
             {c.city || '—'}
-            {номер
-              ? ' · ' + (поштомат ? 'поштомат' : 'відділення') + ' №' + номер
+            {num
+              ? ' · ' + (postomat ? 'поштомат' : 'відділення') + ' №' + num
               : ' · номера відділення не видно'}
           </span>
         </div>
@@ -179,9 +179,9 @@ export default function TtnCreate({
           <label className="ao-field">
             <span>Отримувач</span>
             <input
-              value={імʼя}
+              value={name}
               placeholder="Прізвище та імʼя"
-              onChange={(e) => setІмʼя(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
             />
           </label>
           {/* Телефон не редагується тут навмисно. Саме за ним
@@ -192,7 +192,7 @@ export default function TtnCreate({
               виправляйте в самому замовленні. */}
           <label className="ao-field">
             <span>Телефон</span>
-            <input value={тел} readOnly title="Той самий номер, що в замовленні" />
+            <input value={phone} readOnly title="Той самий номер, що в замовленні" />
           </label>
         </div>
         <p className="ao-note">
@@ -207,60 +207,60 @@ export default function TtnCreate({
           <Combobox
             id="ttnCity"
             label="Місто"
-            value={від.city}
+            value={since.city}
             placeholder="почніть вводити назву"
             empty="addr.noCity"
             search={async (q) => {
               const list = await npCities(q);
               return list.map((x) => ({ ref: x.ref, text: x.label, value: x.name, note: '' }));
             }}
-            onType={(city) => setВід((v) => ({ ...v, city, cityRef: '' }))}
+            onType={(city) => setSince((v) => ({ ...v, city, cityRef: '' }))}
             onPick={(it) =>
-              setВід({ city: it.value, cityRef: it.ref, warehouse: '', warehouseRef: '' })
+              setSince({ city: it.value, cityRef: it.ref, warehouse: '', warehouseRef: '' })
             }
           />
           <Combobox
             id="ttnWarehouse"
             label="Відділення"
-            value={від.warehouse}
-            disabled={!від.cityRef}
+            value={since.warehouse}
+            disabled={!since.cityRef}
             openOnFocus
             minChars={0}
             placeholder="номер або вулиця"
             empty="addr.noBranch"
             needFirst="addr.pickCityFirst"
             search={async (q) => {
-              if (!від.cityRef) return null;
-              const list = await npWarehouses(від.cityRef, q);
+              if (!since.cityRef) return null;
+              const list = await npWarehouses(since.cityRef, q);
               return list.map((x) => ({ ref: x.ref, text: x.label, value: x.label, note: '' }));
             }}
-            onType={(warehouse) => setВід((v) => ({ ...v, warehouse, warehouseRef: '' }))}
-            onPick={(it) => setВід((v) => ({ ...v, warehouse: it.value, warehouseRef: it.ref }))}
+            onType={(warehouse) => setSince((v) => ({ ...v, warehouse, warehouseRef: '' }))}
+            onPick={(it) => setSince((v) => ({ ...v, warehouse: it.value, warehouseRef: it.ref }))}
           />
         </div>
 
         <div className="ttn-grid">
           <label className="ao-field">
             <span>Вага, кг</span>
-            <input value={вага} inputMode="decimal" onChange={(e) => setВага(e.target.value)} />
+            <input value={weightText} inputMode="decimal" onChange={(e) => setWeight(e.target.value)} />
           </label>
           <label className="ao-field">
             <span>Оголошена вартість, грн</span>
-            <input value={оцінка} inputMode="numeric" onChange={(e) => setОцінка(e.target.value)} />
+            <input value={declared} inputMode="numeric" onChange={(e) => setDeclared(e.target.value)} />
           </label>
         </div>
 
         <label className="ao-field">
           <span>Опис вкладення</span>
-          <input value={опис} maxLength={100} onChange={(e) => setОпис(e.target.value)} />
+          <input value={descr} maxLength={100} onChange={(e) => setDesc(e.target.value)} />
         </label>
 
         <div className="ttn-grid">
           <label className="ao-field">
             <span>Доставку платить</span>
             <select
-              value={платник}
-              onChange={(e) => setПлатник(e.target.value as 'Sender' | 'Recipient')}
+              value={payer}
+              onChange={(e) => setPayer(e.target.value as 'Sender' | 'Recipient')}
             >
               <option value="Recipient">Отримувач</option>
               <option value="Sender">Ми</option>
@@ -269,22 +269,22 @@ export default function TtnCreate({
           <label className="ao-field">
             <span>Післяплата, грн</span>
             <input
-              value={післяплата}
+              value={backMoney}
               inputMode="numeric"
               placeholder="0 — без неї"
-              onChange={(e) => setПісляплата(e.target.value)}
+              onChange={(e) => setCod(e.target.value)}
             />
           </label>
         </div>
 
-        {відмова ? (
+        {refusal ? (
           <div className="ttn-err">
             <b>Перевізник не створив накладну</b>
-            <p>{відмова}</p>
+            <p>{refusal}</p>
             <button
               className="btn btn--ghost btn--sm"
               type="button"
-              onClick={() => void navigator.clipboard?.writeText(відмова).then(() => toast('Скопійовано ✓', 'success'))}
+              onClick={() => void navigator.clipboard?.writeText(refusal).then(() => toast('Скопійовано ✓', 'success'))}
             >
               Скопіювати текст
             </button>
@@ -309,10 +309,10 @@ export default function TtnCreate({
           <button
             className="btn btn--primary"
             type="button"
-            disabled={йде}
-            onClick={() => void створити()}
+            disabled={sending}
+            onClick={() => void submit()}
           >
-            {йде ? 'Створюємо…' : 'Створити накладну'}
+            {sending ? 'Створюємо…' : 'Створити накладну'}
           </button>
         </footer>
       </div>

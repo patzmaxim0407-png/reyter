@@ -35,19 +35,19 @@ import type { CartLine } from './types';
 /* ---------- Сталі магазину ---------- */
 
 /** Місто, з якого REYTER відправляє (Київ). */
-const ВІДПРАВНИК_NP = '8d5a980d-391c-11dd-90d9-001a92567626';
+const SENDER_NP = '8d5a980d-391c-11dd-90d9-001a92567626';
 /** Він же в довіднику міжнародного калькулятора. */
-const ВІДПРАВНИК_INTL = 118064;
+const SENDER_INTL = 118064;
 
 /** Пакунок: мала коробка, вага з запасом. */
-const ПАКУНОК = { вага: 0.5, довжина: 30, ширина: 20, висота: 10 };
+const PARCEL = { weight: 0.5, length: 30, width: 20, height: 10 };
 
 /* Категорії, на які поширюється безкоштовна доставка. Обіцянка в
    рухомому рядку — «на білизну по Україні», тож домашній одяг
    (свічки, дифузори) і сорочки сюди не входять. Список навмисно
    в коді, а не в базі: він міняється разом із асортиментом, і
    мовчазна зміна тут коштувала б грошей. */
-const БІЛИЗНА = [
+const UNDERWEAR = [
   'boxers',
   'briefs',
   'slips',
@@ -74,7 +74,7 @@ export interface Quote {
   unknown: boolean;
 }
 
-const НЕВІДОМО: Quote = { cost: 0, free: false, estimate: false, unknown: true };
+const UNKNOWN_QUOTE: Quote = { cost: 0, free: false, estimate: false, unknown: true };
 
 /* Позиції приходять аргументом, а не читаються з кошика: той
    живе в сховищі браузера, і модуль, який туди лізе, неможливо
@@ -84,7 +84,7 @@ const НЕВІДОМО: Quote = { cost: 0, free: false, estimate: false, unknown
 export function underwearSum(c: Catalogue, lines: CartLine[]): number {
   return lines.reduce((s, i) => {
     const p = getProduct(c, i.id);
-    if (!p || !БІЛИЗНА.includes(String(p.category))) return s;
+    if (!p || !UNDERWEAR.includes(String(p.category))) return s;
     return s + p.price * i.qty;
   }, 0);
 }
@@ -109,13 +109,13 @@ const NP_URL = 'https://api.novaposhta.ua/v2.0/json/';
    понад 500. Село дорожче ще на 30, але чи село це — з боку
    сайту не видно, тому не вгадуємо: краще показати менше й
    написати «орієнтовно», ніж вигадати надбавку. */
-function таблицяNP(оголошена: number, поштомат: boolean): number {
-  const база = 90 + (поштомат ? 10 : 0);
-  const страхування = оголошена > 500 ? Math.round((оголошена - 500) * 0.005) : 0;
-  return база + страхування;
+function tableNp(declaredCost: number, postomat: boolean): number {
+  const base = 90 + (postomat ? 10 : 0);
+  const insurance = declaredCost > 500 ? Math.round((declaredCost - 500) * 0.005) : 0;
+  return base + insurance;
 }
 
-async function цінаNP(cityRef: string, оголошена: number, поштомат: boolean): Promise<number | null> {
+async function priceNp(cityRef: string, declaredCost: number, postomat: boolean): Promise<number | null> {
   try {
     const res = await fetch(NP_URL, {
       method: 'POST',
@@ -125,11 +125,11 @@ async function цінаNP(cityRef: string, оголошена: number, пошт�
         modelName: 'InternetDocument',
         calledMethod: 'getDocumentPrice',
         methodProperties: {
-          CitySender: ВІДПРАВНИК_NP,
+          CitySender: SENDER_NP,
           CityRecipient: cityRef,
-          Weight: String(ПАКУНОК.вага),
-          ServiceType: поштомат ? 'WarehousePostomat' : 'WarehouseWarehouse',
-          Cost: String(Math.max(300, Math.round(оголошена))),
+          Weight: String(PARCEL.weight),
+          ServiceType: postomat ? 'WarehousePostomat' : 'WarehouseWarehouse',
+          Cost: String(Math.max(300, Math.round(declaredCost))),
           CargoType: 'Parcel',
           SeatsAmount: '1'
         }
@@ -150,16 +150,16 @@ const NP_INTL = 'https://api.novapost.com/ui/site/v.1.0';
 /* Нижні межі з офіційної сторінки тарифів — на випадок, коли
    калькулятор мовчить. Це саме «від», тому поруч завжди має
    стояти слово «орієнтовно». */
-const ЄВРОПА = ['PL','DE','CZ','SK','HU','RO','BG','AT','IT','ES','PT','FR','NL','BE','LU','DK','SE','NO','FI','EE','LV','LT','IE','GB','CH','GR','HR','SI','RS','MD','ME','MK','AL','BA','IS','CY','MT'];
-function таблицяIntl(country: string): number {
-  if (ЄВРОПА.includes(country)) return 385;
+const EUROPE = ['PL','DE','CZ','SK','HU','RO','BG','AT','IT','ES','PT','FR','NL','BE','LU','DK','SE','NO','FI','EE','LV','LT','IE','GB','CH','GR','HR','SI','RS','MD','ME','MK','AL','BA','IS','CY','MT'];
+function tableIntl(country: string): number {
+  if (EUROPE.includes(country)) return 385;
   if (country === 'CN' || country === 'HK') return 2035;
   return 2145;
 }
 
 /** Місто в довіднику перевізника. Шукає латинкою, тож кирилиця
  *  тут не спрацює — і це не поламка, а межа їхнього довідника. */
-async function містоIntl(country: string, name: string): Promise<number | null> {
+async function intlCityId(country: string, name: string): Promise<number | null> {
   try {
     const url = `${NP_INTL}/settlements?countryCode=${encodeURIComponent(country)}&search=${encodeURIComponent(name)}&limit=1`;
     const json = (await (await fetch(url)).json()) as { items?: { id?: number }[] };
@@ -169,30 +169,30 @@ async function містоIntl(country: string, name: string): Promise<number | n
   }
 }
 
-async function цінаIntl(
+async function priceIntl(
   country: string,
   settlementId: number,
-  оголошена: number,
-  спосіб: string,
-  вага?: number
+  declaredCost: number,
+  deliveryType: string,
+  weightText?: number
 ): Promise<number | null> {
   try {
     const res = await fetch(`${NP_INTL}/shipments/delivery-calculations`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        sender: { countryCode: 'UA', settlementId: ВІДПРАВНИК_INTL, deliveryType: 'branch' },
-        recipient: { countryCode: country, settlementId, deliveryType: спосіб },
+        sender: { countryCode: 'UA', settlementId: SENDER_INTL, deliveryType: 'branch' },
+        recipient: { countryCode: country, settlementId, deliveryType: deliveryType },
         parcels: [
           {
             cargoCategory: 'parcel',
-            insuranceCost: Math.max(300, Math.round(оголошена)),
+            insuranceCost: Math.max(300, Math.round(declaredCost)),
             // калькулятор чекає грами й міліметри
             // грами, і перевізник округлює їх до десятків униз
-            actualWeight: Math.round((вага || ПАКУНОК.вага) * 100) * 10,
-            length: ПАКУНОК.довжина * 10,
-            width: ПАКУНОК.ширина * 10,
-            height: ПАКУНОК.висота * 10
+            actualWeight: Math.round((weightText || PARCEL.weight) * 100) * 10,
+            length: PARCEL.length * 10,
+            width: PARCEL.width * 10,
+            height: PARCEL.height * 10
           }
         ]
       })
@@ -201,8 +201,8 @@ async function цінаIntl(
     if (!Array.isArray(json?.services) || !json.services.length) return null;
     /* Сума всіх послуг, а не лише перевезення: до ціни окремим
        рядком додається надбавка, яку відділення однаково візьме. */
-    const сума = json.services.reduce((s, x) => s + (Number(x.cost) || 0), 0);
-    return сума > 0 ? Math.round(сума) : null;
+    const sum = json.services.reduce((s, x) => s + (Number(x.cost) || 0), 0);
+    return sum > 0 ? Math.round(sum) : null;
   } catch {
     return null;
   }
@@ -213,7 +213,7 @@ async function цінаIntl(
 /* Ті самі питання повторюються на кожну зміну форми, а перевізник
    не любить, коли його смикають на кожну літеру. Памʼять живе до
    перезавантаження сторінки — тарифи за цей час не міняються. */
-const памʼять = new Map<string, Quote>();
+const cache = new Map<string, Quote>();
 
 export interface QuoteInput {
   carrier: CarrierId;
@@ -242,46 +242,46 @@ export async function quote(input: QuoteInput): Promise<Quote> {
   if (carrier === 'np') {
     // Поріг діє лише по Україні — так написано і в обіцянці на сайті
     if (input.free) return { cost: 0, free: true, estimate: false, unknown: false };
-    if (!input.cityRef) return НЕВІДОМО;
+    if (!input.cityRef) return UNKNOWN_QUOTE;
 
-    const ключ = `np:${input.cityRef}:${input.postomat ? 1 : 0}:${Math.round(declared)}`;
-    const було = памʼять.get(ключ);
-    if (було) return було;
+    const workerKey = `np:${input.cityRef}:${input.postomat ? 1 : 0}:${Math.round(declared)}`;
+    const prev = cache.get(workerKey);
+    if (prev) return prev;
 
-    const жива = await цінаNP(input.cityRef, declared, !!input.postomat);
-    const q: Quote = жива
-      ? { cost: жива, free: false, estimate: false, unknown: false }
-      : { cost: таблицяNP(declared, !!input.postomat), free: false, estimate: true, unknown: false };
-    памʼять.set(ключ, q);
+    const live = await priceNp(input.cityRef, declared, !!input.postomat);
+    const q: Quote = live
+      ? { cost: live, free: false, estimate: false, unknown: false }
+      : { cost: tableNp(declared, !!input.postomat), free: false, estimate: true, unknown: false };
+    cache.set(workerKey, q);
     return q;
   }
 
   const country = String(input.country || '').toUpperCase();
-  if (!country || country === 'OTHER') return НЕВІДОМО;
+  if (!country || country === 'OTHER') return UNKNOWN_QUOTE;
 
-  const спосіб = input.intlType || 'branch';
-  const ключ = `intl:${country}:${input.cityId || (input.city || '').toLowerCase()}:${спосіб}:${Math.round(declared)}:${input.weight || 0}`;
-  const було = памʼять.get(ключ);
-  if (було) return було;
-  return await міжнародна(ключ, country, input.cityId || '', input.city || '', спосіб, declared, input.weight);
+  const deliveryType = input.intlType || 'branch';
+  const workerKey = `intl:${country}:${input.cityId || (input.city || '').toLowerCase()}:${deliveryType}:${Math.round(declared)}:${input.weight || 0}`;
+  const prev = cache.get(workerKey);
+  if (prev) return prev;
+  return await intlQuote(workerKey, country, input.cityId || '', input.city || '', deliveryType, declared, input.weight);
 }
 
-async function міжнародна(
-  ключ: string,
+async function intlQuote(
+  workerKey: string,
   country: string,
   cityId: string,
   city: string,
-  спосіб: string,
+  deliveryType: string,
   declared: number,
-  вага?: number
+  weightText?: number
 ): Promise<Quote> {
   /* Місто з довідника точніше за пошук назвою: покупець міг
      написати його як завгодно, а ціна залежить саме від пункту. */
-  const id = Number(cityId) || (city ? await містоIntl(country, city) : null);
-  const жива = id ? await цінаIntl(country, id, declared, спосіб, вага) : null;
-  const q: Quote = жива
-    ? { cost: жива, free: false, estimate: false, unknown: false }
-    : { cost: таблицяIntl(country), free: false, estimate: true, unknown: false };
-  памʼять.set(ключ, q);
+  const id = Number(cityId) || (city ? await intlCityId(country, city) : null);
+  const live = id ? await priceIntl(country, id, declared, deliveryType, weightText) : null;
+  const q: Quote = live
+    ? { cost: live, free: false, estimate: false, unknown: false }
+    : { cost: tableIntl(country), free: false, estimate: true, unknown: false };
+  cache.set(workerKey, q);
   return q;
 }

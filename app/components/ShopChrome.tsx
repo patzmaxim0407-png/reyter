@@ -86,15 +86,15 @@ export default function ShopChrome() {
      На перехопленні, а не на спливанні: до обробника Next це має
      дійти вже скасованим. */
   useEffect(() => {
-    const тойСамий = (event: MouseEvent) => {
+    const sameProduct = (event: MouseEvent) => {
       const card = (event.target as HTMLElement)?.closest?.('a.pcard') as HTMLAnchorElement | null;
       const href = card?.getAttribute('href');
       if (!href || href !== window.location.pathname) return;
       event.preventDefault();
       event.stopPropagation();
     };
-    document.addEventListener('click', тойСамий, true);
-    return () => document.removeEventListener('click', тойСамий, true);
+    document.addEventListener('click', sameProduct, true);
+    return () => document.removeEventListener('click', sameProduct, true);
   }, []);
 
   /* Картка товару відкривається накладкою поверх каталогу, тож

@@ -392,11 +392,11 @@ ok('назад на українську веде на /p/',
    і сума «Разом» мусить іти за цим вибором копійка в копійку. */
 
 await go(BASE + '/');
-const товар = await evalJs(`(() => {
+const productId = await evalJs(`(() => {
   const a = document.querySelector('.pgrid a[href*="/p/"]');
   return a ? a.getAttribute('href').split('/p/')[1] : '';
 })()`);
-await evalJs(`localStorage.setItem('reyter:cart', JSON.stringify([{ id: ${JSON.stringify('')} + decodeURIComponent(${JSON.stringify(товар)}), size: 'M', qty: 1 }]))`);
+await evalJs(`localStorage.setItem('reyter:cart', JSON.stringify([{ id: ${JSON.stringify('')} + decodeURIComponent(${JSON.stringify(productId)}), size: 'M', qty: 1 }]))`);
 /* Місто зі СПРАВЖНІМ ідентифікатором Нової Пошти — інакше
    перевізникові нема за чим рахувати. Львів. */
 await evalJs(`localStorage.setItem('reyter:profile', JSON.stringify({
@@ -408,10 +408,10 @@ await evalJs(`localStorage.setItem('reyter:profile', JSON.stringify({
 }))`);
 await go(BASE + '/checkout');
 
-let рядок = null;
+let row = null;
 for (let i = 0; i < 20; i += 1) {
   await wait(500);
-  рядок = await evalJs(`(() => {
+  row = await evalJs(`(() => {
     const el = document.querySelector('.checkout-ship');
     if (!el) return null;
     const сума = document.querySelector('.checkout-summary .sum span:last-child')?.textContent || '';
@@ -422,50 +422,50 @@ for (let i = 0; i < 20; i += 1) {
       total: сума
     };
   })()`);
-  if (рядок && !рядок.hint && /\d/.test(рядок.text)) break;
+  if (row && !row.hint && /\d/.test(row.text)) break;
 }
 
-ok('рядок доставки є', !!рядок, JSON.stringify(рядок));
-ok('перевізник назвав ціну', !!рядок && /\d/.test(рядок.text) && !рядок.hint, рядок?.text);
-ok('є вибір, хто платить за доставку', рядок?.pay === 2, 'перемикачів: ' + рядок?.pay);
+ok('рядок доставки є', !!row, JSON.stringify(row));
+ok('перевізник назвав ціну', !!row && /\d/.test(row.text) && !row.hint, row?.text);
+ok('є вибір, хто платить за доставку', row?.pay === 2, 'перемикачів: ' + row?.pay);
 
-const число = (s) => Number(String(s).replace(/[^\d]/g, '')) || 0;
-const доставка = число(рядок?.text);
-const разомБуло = число(рядок?.total);
+const toNumber = (s) => Number(String(s).replace(/[^\d]/g, '')) || 0;
+const shipping = toNumber(row?.text);
+const totalBefore = toNumber(row?.total);
 
 await evalJs(`[...document.querySelectorAll('.ship-pay input')][1]?.click()`);
 await wait(600);
-const разомСтало = число(await evalJs(`document.querySelector('.checkout-summary .sum span:last-child')?.textContent || ''`));
+const totalAfter = toNumber(await evalJs(`document.querySelector('.checkout-summary .sum span:last-child')?.textContent || ''`));
 ok('оплата разом із замовленням додає доставку в суму',
-   разомСтало === разомБуло + доставка,
-   `${разомБуло} + ${доставка} = ${разомСтало}`);
+   totalAfter === totalBefore + shipping,
+   `${totalBefore} + ${shipping} = ${totalAfter}`);
 
 await evalJs(`[...document.querySelectorAll('.ship-pay input')][0]?.click()`);
 await wait(600);
-const разомНазад = число(await evalJs(`document.querySelector('.checkout-summary .sum span:last-child')?.textContent || ''`));
-ok('оплата у відділенні суму не чіпає', разомНазад === разомБуло, `${разомНазад} проти ${разомБуло}`);
+const totalBack = toNumber(await evalJs(`document.querySelector('.checkout-summary .sum span:last-child')?.textContent || ''`));
+ok('оплата у відділенні суму не чіпає', totalBack === totalBefore, `${totalBack} проти ${totalBefore}`);
 
 
 /* --- 12. Не турбувати ---
    Хто не хоче дзвінків і повідомлень, ставить галочку — і решта
    питань зникає разом із нею. */
 
-const доГалочки = await evalJs(`(() => ({
+const before = await evalJs(`(() => ({
   skip: !!document.querySelector('.co-confirm__skip input'),
   parts: [...document.querySelectorAll('.co-confirm__part')].filter(x => !x.hidden).length
 }))()`);
-ok('галочка «не звʼязуватись» є', доГалочки.skip);
-ok('поки її не поставили — питання на місці', доГалочки.parts >= 2, 'видимих блоків: ' + доГалочки.parts);
+ok('галочка «не звʼязуватись» є', before.skip);
+ok('поки її не поставили — питання на місці', before.parts >= 2, 'видимих блоків: ' + before.parts);
 
 await evalJs(`document.querySelector('.co-confirm__skip input')?.click()`);
 await wait(500);
-const післяГалочки = await evalJs(`(() => ({
+const after = await evalJs(`(() => ({
   parts: [...document.querySelectorAll('.co-confirm__part')].filter(x => !x.hidden).length,
   note: document.querySelector('.pinfo__order-note')?.textContent || ''
 }))()`);
-ok('після галочки питання зникають', післяГалочки.parts === 0, 'видимих блоків: ' + післяГалочки.parts);
+ok('після галочки питання зникають', after.parts === 0, 'видимих блоків: ' + after.parts);
 ok('і підпис під кнопкою вже не обіцяє дзвінка',
-   /лист/i.test(післяГалочки.note), післяГалочки.note);
+   /лист/i.test(after.note), after.note);
 
 await evalJs(`document.querySelector('.co-confirm__skip input')?.click()`);
 await wait(500);
@@ -481,81 +481,81 @@ ok('галочку зняли — питання повернулись',
 await evalJs(`localStorage.removeItem('reyter:profile')`);
 await go(BASE + '/checkout');
 
-const видно = async () => evalJs(`(() => {
-  const пок = (s) => { const x = document.querySelector(s); if (!x) return false;
+const visible = async () => evalJs(`(() => {
+  const shown = (s) => { const x = document.querySelector(s); if (!x) return false;
     return !!(x.offsetParent || x.getClientRects().length); };
-  return { місто: пок('#coIntlCity'), спосіб: пок('.intl-mode'), пункт: пок('#coIntlBranch'),
-           вулиця: пок('#coStreet'), індекс: пок('#coZip'), відділенняНП: пок('#coBranch') };
+  return { city: shown('#coIntlCity'), mode: shown('.intl-mode'), point: shown('#coIntlBranch'),
+           street: shown('#coStreet'), zip: shown('#coZip'), npBranch: shown('#coBranch') };
 })()`);
 
-const задати = (id, val) => evalJs(`(() => { const el=document.getElementById('${id}');
+const setField = (id, val) => evalJs(`(() => { const el=document.getElementById('${id}');
   const proto = el.tagName==='SELECT' ? window.HTMLSelectElement.prototype : window.HTMLInputElement.prototype;
   Object.getOwnPropertyDescriptor(proto,'value').set.call(el, ${JSON.stringify(val)});
   el.dispatchEvent(new Event(el.tagName==='SELECT'?'change':'input',{bubbles:true})); return true; })()`);
 
-const початок = await видно();
-ok('поки міста немає — відділення Нової Пошти не питаємо', !початок.відділенняНП, JSON.stringify(початок));
+const start = await visible();
+ok('поки міста немає — відділення Нової Пошти не питаємо', !start.npBranch, JSON.stringify(start));
 
-await задати('coCarrier', 'intl');
+await setField('coCarrier', 'intl');
 await wait(800);
-const крок1 = await видно();
+const step1 = await visible();
 ok('на початку міжнародної видно лише країну',
-   !крок1.місто && !крок1.спосіб && !крок1.вулиця && !крок1.індекс, JSON.stringify(крок1));
+   !step1.city && !step1.mode && !step1.street && !step1.zip, JSON.stringify(step1));
 
-const обрати = (id) => evalJs(`document.getElementById('${id}').closest('.acombo').querySelector('.acombo__opt')?.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}))`);
-const опції = (id) => evalJs(`(() => { const b=document.getElementById('${id}').closest('.acombo');
+const pick = (id) => evalJs(`document.getElementById('${id}').closest('.acombo').querySelector('.acombo__opt')?.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}))`);
+const options = (id) => evalJs(`(() => { const b=document.getElementById('${id}').closest('.acombo');
   return [...b.querySelectorAll('.acombo__opt span')].slice(0,3).map(x=>x.textContent); })()`);
 
-await задати('coCountry', 'Пол');
+await setField('coCountry', 'Пол');
 await wait(900);
-const країни = await опції('coCountry');
-ok('країна знаходиться за першими літерами', країни.includes('Польща'), JSON.stringify(країни));
+const countries = await options('coCountry');
+ok('країна знаходиться за першими літерами', countries.includes('Польща'), JSON.stringify(countries));
 
 /* Картку кроку колись обрізало по заокругленню — і разом із нею
    всі випадайки: список був у розмітці, але його не було видно. */
-const випадайка = await evalJs(`(() => {
+const dropdown = await evalJs(`(() => {
   const box = document.getElementById('coCountry').closest('.acombo');
   const ul = box.querySelector('.acombo__list');
   const card = box.closest('.cosec');
   const r = ul.getBoundingClientRect();
-  return { видно: r.height > 40, обрізає: getComputedStyle(card).overflow !== 'visible' };
+  return { visible: r.height > 40, clipped: getComputedStyle(card).overflow !== 'visible' };
 })()`);
 ok('випадайку видно, а картка кроку її не обрізає',
-   випадайка.видно && !випадайка.обрізає, JSON.stringify(випадайка));
-await обрати('coCountry');
+   dropdown.visible && !dropdown.clipped, JSON.stringify(dropdown));
+await pick('coCountry');
 await wait(900);
-const крок2 = await видно();
-ok('після країни зʼявляється місто', крок2.місто && !крок2.спосіб && !крок2.вулиця, JSON.stringify(крок2));
+const step2 = await visible();
+ok('після країни зʼявляється місто', step2.city && !step2.mode && !step2.street, JSON.stringify(step2));
 
-await задати('coIntlCity', 'Wars');
+await setField('coIntlCity', 'Wars');
 await wait(3000);
 ok('місто знаходиться за початком назви',
-   (await опції('coIntlCity'))[0]?.startsWith('Warsaw'), JSON.stringify(await опції('coIntlCity')));
-await обрати('coIntlCity');
+   (await options('coIntlCity'))[0]?.startsWith('Warsaw'), JSON.stringify(await options('coIntlCity')));
+await pick('coIntlCity');
 await wait(2000);
-const крок3 = await видно();
+const step3 = await visible();
 ok('після міста — вибір способу й пункт',
-   крок3.спосіб && крок3.пункт && !крок3.вулиця && !крок3.індекс, JSON.stringify(крок3));
+   step3.mode && step3.point && !step3.street && !step3.zip, JSON.stringify(step3));
 ok('місто прийшло латиницею',
    /^[\x20-\x7E]+$/.test(await evalJs(`document.getElementById('coIntlCity')?.value || ''`)),
    await evalJs(`document.getElementById('coIntlCity')?.value`));
 
 await evalJs(`[...document.querySelectorAll('.intl-mode input')][1]?.click()`);
 await wait(700);
-const крок4 = await видно();
+const step4 = await visible();
 ok('курʼєром на адресу — зʼявляються вулиця й індекс',
-   крок4.вулиця && крок4.індекс && !крок4.пункт, JSON.stringify(крок4));
+   step4.street && step4.zip && !step4.point, JSON.stringify(step4));
 
 ok('область підставилась із міста, а не питається',
    /voivodeship|Masovian/i.test(await evalJs(`document.getElementById('coState')?.value || ''`)),
    await evalJs(`document.getElementById('coState')?.value`));
 
-await задати('coStreet', 'Marsza');
+await setField('coStreet', 'Marsza');
 await wait(3000);
-const вулиці = await опції('coStreet');
-ok('вулиця знаходиться за частиною назви', вулиці.length > 0, JSON.stringify(вулиці));
+const streets = await options('coStreet');
+ok('вулиця знаходиться за частиною назви', streets.length > 0, JSON.stringify(streets));
 ok('і всі вулиці — саме цього міста',
-   вулиці.every((x) => /Marsza/i.test(x)), JSON.stringify(вулиці));
+   streets.every((x) => /Marsza/i.test(x)), JSON.stringify(streets));
 
 console.log('\nПомилки в консолі: ' + (errors.length ? '\n' + errors.join('\n') : 'немає'));
 

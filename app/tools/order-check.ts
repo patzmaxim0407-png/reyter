@@ -116,7 +116,7 @@ ok(
 
 /* У відділення все інакше: вулиця й індекс не потрібні, зате
    пункт мусить бути обраний зі списку, а не набраний руками. */
-const пунктом: AddressForm = {
+const toBranchForm: AddressForm = {
   ...EMPTY_FORM,
   carrier: 'intl',
   countryCode: 'PL',
@@ -125,14 +125,14 @@ const пунктом: AddressForm = {
   intlBranch: '№04/2',
   intlBranchId: '7'
 };
-ok('у відділення без вулиці й індексу — проходить', checkAddress(пунктом) === null);
+ok('у відділення без вулиці й індексу — проходить', checkAddress(toBranchForm) === null);
 ok(
   'набраний руками пункт не приймається',
-  checkAddress({ ...пунктом, intlBranchId: '' })?.key === 'addr.pickFromList'
+  checkAddress({ ...toBranchForm, intlBranchId: '' })?.key === 'addr.pickFromList'
 );
 ok(
   'для Німеччини питаємо адресу реєстрації',
-  checkAddress({ ...пунктом, countryCode: 'DE' })?.field === 'regCity'
+  checkAddress({ ...toBranchForm, countryCode: 'DE' })?.field === 'regCity'
 );
 
 const intlAddr = fromForm({ ...intlForm, state: 'IL', flat: 'apt 5' });
@@ -143,11 +143,11 @@ ok(
 );
 ok('назва країни підставляється за кодом', intlAddr.intl?.country === 'США', intlAddr.intl?.country);
 
-const пунктAddr = fromForm(пунктом);
+const branchAddr = fromForm(toBranchForm);
 ok(
   'у відділення в branch іде сам пункт, а не вулиця',
-  пунктAddr.branch === '№04/2' && !пунктAddr.intl?.street,
-  JSON.stringify({ branch: пунктAddr.branch, street: пунктAddr.intl?.street })
+  branchAddr.branch === '№04/2' && !branchAddr.intl?.street,
+  JSON.stringify({ branch: branchAddr.branch, street: branchAddr.intl?.street })
 );
 
 /* Адреса має пережити цикл «зберегли → відкрили форму знову» */
@@ -159,15 +159,15 @@ ok(
     round.intlMode === 'address',
   JSON.stringify(round)
 );
-const roundПункт = toForm(пунктAddr);
+const roundBranch = toForm(branchAddr);
 ok(
   'вибір відділення теж повертається у форму',
-  roundПункт.intlMode === 'branch' && roundПункт.intlBranchId === '7' && roundПункт.intlCityId === '22326',
-  JSON.stringify(roundПункт)
+  roundBranch.intlMode === 'branch' && roundBranch.intlBranchId === '7' && roundBranch.intlCityId === '22326',
+  JSON.stringify(roundBranch)
 );
 
 /* Старі записи квартиру тримали в extra — вони мусять читатись */
-const староЗбережене = toForm({
+const legacySaved = toForm({
   carrier: 'Міжнародна доставка',
   carrierId: 'intl',
   city: 'Lisboa',
@@ -175,8 +175,8 @@ const староЗбережене = toForm({
 } as never);
 ok(
   'стара адреса читається: квартира з extra, режим — адресний',
-  староЗбережене.flat === 'apt 2' && староЗбережене.intlMode === 'address',
-  JSON.stringify({ flat: староЗбережене.flat, mode: староЗбережене.intlMode })
+  legacySaved.flat === 'apt 2' && legacySaved.intlMode === 'address',
+  JSON.stringify({ flat: legacySaved.flat, mode: legacySaved.intlMode })
 );
 
 const otherBack = toForm(fromForm({ ...EMPTY_FORM, carrier: 'intl', countryCode: 'other', countryOther: 'Portugal', intlCity: 'Lisboa', intlMode: 'address', street: 'Rua A', building: '5', zip: '1000' }));
@@ -304,7 +304,7 @@ ok('сайт не пише полів поза правилами', !extraKeys.l
    базу, а не те, що показано на екрані. */
 
 {
-  const зам = buildOrder({
+  const mkOrder = buildOrder({
     c: { products: [], stock: {} } as never,
     lines: [],
     customer: { name: 'Тест', phone: '+380' } as never,
@@ -315,11 +315,11 @@ ok('сайт не пише полів поза правилами', !extraKeys.l
     now: new Date(),
     t: (k: string) => k
   });
-  ok('доставка лежить окремим полем', зам.shipping === 540, String(зам.shipping));
+  ok('доставка лежить окремим полем', mkOrder.shipping === 540, String(mkOrder.shipping));
   ok(
     'а в суму замовлення НЕ входить — інакше база відкине запис',
-    зам.total === 1250,
-    String(зам.total)
+    mkOrder.total === 1250,
+    String(mkOrder.total)
   );
   ok('знижка з суми віднімається як і раніше',
      buildOrder({

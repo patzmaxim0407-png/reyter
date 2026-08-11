@@ -22,9 +22,9 @@ export default function CartDrawer() {
 
      І від суми ДО знижки: промокод тут іще не введено, а
      пообіцяти безкоштовну доставку й потім відняти її не можна. */
-  const біле = underwearSum(c, lines);
-  const left = freeLeft(біле);
-  const pct = Math.min(100, Math.round((біле / FREE_DELIVERY_FROM) * 100));
+  const white = underwearSum(c, lines);
+  const left = freeLeft(white);
+  const pct = Math.min(100, Math.round((white / FREE_DELIVERY_FROM) * 100));
 
   /* Поки панель відкрита, сторінка під нею не має скролитись —
      інакше на мобільному палець тягне фон замість списку */

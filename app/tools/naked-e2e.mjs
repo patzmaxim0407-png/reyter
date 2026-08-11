@@ -19,13 +19,13 @@ import { readFileSync } from 'node:fs';
 
 const BASE = (process.argv[2] || 'http://localhost:3400/new').replace(/\/+$/, '');
 
-let провалів = 0;
-const ok = (умова, назва, як) => {
-  if (!умова) провалів += 1;
-  console.log((умова ? '✓' : '✗') + ' ' + назва + (як ? ' — ' + як : ''));
+let failed = 0;
+const ok = (cond, title, mode) => {
+  if (!cond) failed += 1;
+  console.log((cond ? '✓' : '✗') + ' ' + title + (mode ? ' — ' + mode : ''));
 };
 
-async function браузер() {
+async function browser() {
   const PROFILE = '/tmp/reyter-naked-' + process.pid + '-' + Date.now();
   const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
     '--headless=new',
@@ -42,14 +42,14 @@ async function браузер() {
 
   let id = 0;
   const pending = new Map();
-  const слухачі = [];
+  const listeners = [];
   ws.addEventListener('message', (raw) => {
     const m = JSON.parse(raw.data);
     if (m.id && pending.has(m.id)) {
       pending.get(m.id)(m);
       pending.delete(m.id);
     } else if (m.method) {
-      for (const f of слухачі) f(m);
+      for (const f of listeners) f(m);
     }
   });
   const send = (method, params = {}) => {
@@ -61,16 +61,16 @@ async function браузер() {
     const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
     return r.result?.result?.value;
   };
-  const on = (f) => слухачі.push(f);
-  const кінець = () => {
+  const on = (f) => listeners.push(f);
+  const stop = () => {
     ws.close();
     chrome.kill('SIGKILL');
   };
-  return { send, ev, on, кінець };
+  return { send, ev, on, stop: stop };
 }
 
 /** Стан сторінки: скільки правил приїхало і як вона виглядає. */
-const МІРКА = `(() => {
+const PROBE = `(() => {
   const link = [...document.querySelectorAll('link[rel="stylesheet"]')].find(l => l.href.includes('/_next/static/'));
   const sheet = link && [...document.styleSheets].find(s => s.href === link.href);
   let rules = -1;
@@ -92,7 +92,7 @@ const МІРКА = `(() => {
 
 /* ---------- 1. Файл стилів зник: сторінка має встати сама ---------- */
 {
-  const b = await браузер();
+  const b = await browser();
   await b.send('Page.enable');
   await b.send('Runtime.enable');
   await b.send('Network.enable');
@@ -107,12 +107,12 @@ const МІРКА = `(() => {
      правильно — нічого не робитиме.
 
      Далі пропускаємо: перечитування має дати нормальну сторінку. */
-  let вбито = 0;
+  let killed = 0;
   b.on(async (m) => {
     if (m.method !== 'Fetch.requestPaused') return;
     const { requestId } = m.params;
-    if (вбито < 2) {
-      вбито += 1;
+    if (killed < 2) {
+      killed += 1;
       await b.send('Fetch.fulfillRequest', {
         requestId,
         responseCode: 404,
@@ -128,38 +128,38 @@ const МІРКА = `(() => {
   /* Міряємо рано: сторож помічає голизну вже за 800 мс, і якщо
      чекати довше — побачиш не хворобу, а видужання. */
   await wait(400);
-  const гола = await b.ev(МІРКА);
+  const naked = await b.ev(PROBE);
 
-  ok(гола.rules === 0, 'стилі справді не приїхали', 'правил ' + гола.rules);
+  ok(naked.rules === 0, 'стилі справді не приїхали', 'правил ' + naked.rules);
   ok(
-    гола.bg === 'rgb(252, 248, 240)',
+    naked.bg === 'rgb(252, 248, 240)',
     'запасний шар тримає тло',
-    гола.bg
+    naked.bg
   );
-  ok(гола.underline === 'none', 'посилання не сині з підкресленням', гола.underline + ' ' + гола.linkColor);
-  ok(гола.tallest < 2000, 'картинки не роздуваються на весь екран', гола.tallest + 'px');
+  ok(naked.underline === 'none', 'посилання не сині з підкресленням', naked.underline + ' ' + naked.linkColor);
+  ok(naked.tallest < 2000, 'картинки не роздуваються на весь екран', naked.tallest + 'px');
 
   // сторож перечитує сторінку — чекаємо
-  let живá = null;
+  let alive = null;
   for (let i = 0; i < 40; i += 1) {
     await wait(400);
-    живá = await b.ev(МІРКА);
-    if (живá && живá.rules > 0) break;
+    alive = await b.ev(PROBE);
+    if (alive && alive.rules > 0) break;
   }
-  ok(живá?.rules > 0, 'сторінка сама вбралась після перечитування', 'правил ' + живá?.rules);
-  ok(живá?.font?.startsWith('Inter'), 'шрифт повернувся', живá?.font);
-  ok(/"n":1/.test(живá?.mark ?? ''), 'це саме сторож перечитав сторінку', живá?.mark ?? 'мітки немає');
+  ok(alive?.rules > 0, 'сторінка сама вбралась після перечитування', 'правил ' + alive?.rules);
+  ok(alive?.font?.startsWith('Inter'), 'шрифт повернувся', alive?.font);
+  ok(/"n":1/.test(alive?.mark ?? ''), 'це саме сторож перечитав сторінку', alive?.mark ?? 'мітки немає');
 
   await wait(1500);
-  const чисто = await b.ev(МІРКА);
-  ok(!чисто.url.includes('r='), 'мітка обходу кеша прибрана з адреси', чисто.url);
+  const clean = await b.ev(PROBE);
+  ok(!clean.url.includes('r='), 'мітка обходу кеша прибрана з адреси', clean.url);
 
-  b.кінець();
+  b.stop();
 }
 
 /* ---------- 2. Мережа лягла: сторінку смикати не можна ---------- */
 {
-  const b = await браузер();
+  const b = await browser();
   await b.send('Page.enable');
   await b.send('Runtime.enable');
   await b.send('Network.enable');
@@ -175,12 +175,12 @@ const МІРКА = `(() => {
 
   await b.send('Page.navigate', { url: BASE });
   await wait(6000);
-  const стан = await b.ev(МІРКА);
-  ok(стан.rules <= 0, 'стилі не приїхали (як і задумано)', 'правил ' + стан.rules);
-  ok(стан.navs === 1 && !стан.mark, 'сторінку не смикнуло при мертвій мережі', 'завантажень ' + стан.navs + ', мітка ' + стан.mark);
-  ok(стан.bg === 'rgb(252, 248, 240)', 'і вона все одно читабельна', стан.bg);
+  const parcelState = await b.ev(PROBE);
+  ok(parcelState.rules <= 0, 'стилі не приїхали (як і задумано)', 'правил ' + parcelState.rules);
+  ok(parcelState.navs === 1 && !parcelState.mark, 'сторінку не смикнуло при мертвій мережі', 'завантажень ' + parcelState.navs + ', мітка ' + parcelState.mark);
+  ok(parcelState.bg === 'rgb(252, 248, 240)', 'і вона все одно читабельна', parcelState.bg);
 
-  b.кінець();
+  b.stop();
 }
 
 
@@ -190,7 +190,7 @@ const МІРКА = `(() => {
    стилі. Для покупця це виглядає як самовільне перезавантаження
    при кожному відкритті картки товару. */
 {
-  const b = await браузер();
+  const b = await browser();
   await b.send('Page.enable');
   await b.send('Runtime.enable');
   await b.send('Network.enable');
@@ -207,13 +207,13 @@ const МІРКА = `(() => {
 
   await b.send('Page.navigate', { url: BASE });
   await wait(12000);
-  const стан = await b.ev(МІРКА);
-  ok(стан.rules > 0, 'повільні стилі врешті приїхали', 'правил ' + стан.rules);
-  ok(стан.navs === 1 && !стан.mark, 'і сторінку через це не перечитали',
-     'завантажень ' + стан.navs + ', мітка ' + стан.mark);
+  const parcelState = await b.ev(PROBE);
+  ok(parcelState.rules > 0, 'повільні стилі врешті приїхали', 'правил ' + parcelState.rules);
+  ok(parcelState.navs === 1 && !parcelState.mark, 'і сторінку через це не перечитали',
+     'завантажень ' + parcelState.navs + ', мітка ' + parcelState.mark);
 
-  b.кінець();
+  b.stop();
 }
 
-console.log(провалів ? '\n✗ невдач: ' + провалів : '\n✓ усе зійшлося');
-process.exit(провалів ? 1 : 0);
+console.log(failed ? '\n✗ невдач: ' + failed : '\n✓ усе зійшлося');
+process.exit(failed ? 1 : 0);

@@ -157,14 +157,14 @@ export default function AddressFields({
           invalid={invalid === 'countryCode'}
           empty="addr.noCountry"
           search={async (q) => {
-            const шукане = q.trim().toLowerCase();
+            const needle = q.trim().toLowerCase();
             return COUNTRIES.filter((x) => {
-              if (!шукане) return true;
+              if (!needle) return true;
               return (
-                x.title.toLowerCase().startsWith(шукане) ||
-                x.titleEn.toLowerCase().startsWith(шукане) ||
-                x.title.toLowerCase().includes(шукане) ||
-                x.titleEn.toLowerCase().includes(шукане)
+                x.title.toLowerCase().startsWith(needle) ||
+                x.titleEn.toLowerCase().startsWith(needle) ||
+                x.title.toLowerCase().includes(needle) ||
+                x.titleEn.toLowerCase().includes(needle)
               );
             }).map((x) => ({ ref: x.code, text: tf(x, 'title'), value: tf(x, 'title'), note: '' }));
           }}

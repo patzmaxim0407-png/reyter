@@ -46,11 +46,11 @@ import { printSheet } from './printSheet';
 import { trackDelete, trackUpdate } from '@/lib/track';
 import {
   trackAll,
-  видалитиНакладну,
-  коротко,
-  статусЗаТрекером,
-  тривога,
-  type Посилка
+  deleteWaybill,
+  shortLabel,
+  statusFromTracker,
+  alarm,
+  type Parcel
 } from '@/lib/admin/np';
 import { parcelWeight } from '@/lib/customs';
 import type { OrderStatus, Stock } from '@/lib/types';
@@ -139,18 +139,18 @@ export default function OrdersAdmin() {
      Опитуємо лише те, що в дорозі й має номер, і лише поки
      вкладка на очах: смикати чужий сервер, коли адмінку згорнули
      й пішли, — ні до чого. */
-  const [посилки, setПосилки] = useState<Map<string, Посилка>>(new Map());
+  const [parcels, setParcels] = useState<Map<string, Parcel>>(new Map());
 
   /* Який екран показувати. Памʼять на пристрої, не в базі: у двох
      менеджерів можуть бути різні звички, а перемикач має
      вимикатись будь-якої миті без викладки. */
-  const [екран, setЕкран] = useState<'queue' | 'archive'>('queue');
+  const [view, setScreen] = useState<'queue' | 'archive'>('queue');
   /** Яке замовлення розкрите в архіві. */
-  const [розкрито, setРозкрито] = useState('');
+  const [openId, setOpen] = useState('');
   /** Для якого замовлення зараз створюємо накладну. */
-  const [ттнДля, setТтнДля] = useState<AdminOrder | null>(null);
+  const [ttnFor, setTtnFor] = useState<AdminOrder | null>(null);
   /** Налаштування воркера: там лежить ключ кабінету Нової Пошти. */
-  const [нала, setНала] = useState<Record<string, string>>({});
+  const [settings, setSettings] = useState<Record<string, string>>({});
   useEffect(() => {
     /* Саме службові налаштування, а не публічні. Публічні читає
        браузер покупця, тож ключів і відділення відправлення в них
@@ -158,17 +158,17 @@ export default function OrdersAdmin() {
        ані спільний ключ, ані збережене відділення не доїжджали. */
     const d = db();
     if (!d) return;
-    void loadAdminSettings(d).then((s) => setНала((s || {}) as Record<string, string>));
+    void loadAdminSettings(d).then((s) => setSettings((s || {}) as Record<string, string>));
   }, []);
 
   /* Ключ адміністратора воркера живе лише в браузері — у базу він
      не потрапляє навмисно: з нього можна створювати накладні за
      чужі гроші. Беремо його звідти ж, звідки його кладе вікно
      налаштувань. */
-  const [ключВоркера, setКлючВоркера] = useState('');
+  const [ownWorkerKey, setWorkerKey] = useState('');
   useEffect(() => {
     try {
-      setКлючВоркера((localStorage.getItem(KEY_WORKER) ?? '').trim());
+      setWorkerKey((localStorage.getItem(KEY_WORKER) ?? '').trim());
     } catch {
       /* приватне вікно */
     }
@@ -178,24 +178,24 @@ export default function OrdersAdmin() {
      сів за адмінку. Тоді беремо спільний із налаштувань: інакше
      він не створить жодної накладної, доки хтось не продиктує
      йому рядок. */
-  const ключ = ключВоркера || String(нала.adminKey || '').trim();
+  const workerKey = ownWorkerKey || String(settings.adminKey || '').trim();
   useEffect(() => {
     try {
       const v = localStorage.getItem('reyter:orders-view');
-      if (v === 'archive' || v === 'queue') setЕкран(v);
+      if (v === 'archive' || v === 'queue') setScreen(v);
     } catch {
       /* приватне вікно — лишається типове */
     }
   }, []);
-  const обратиЕкран = (v: 'queue' | 'archive') => {
-    setЕкран(v);
+  const pickView = (v: 'queue' | 'archive') => {
+    setScreen(v);
     try {
       localStorage.setItem('reyter:orders-view', v);
     } catch {
       /* нічого не вдієш */
     }
   };
-  const вДорозіКлюч = orders
+  const inTransitKey = orders
     .map((o) =>
       o.status === 'shipped' || o.status === 'done' ? o._id + ':' + (o.ttn || '') : ''
     )
@@ -206,22 +206,22 @@ export default function OrdersAdmin() {
      замовчуванням так: інакше «Відправлено» висить тижнями на
      посилках, які давно забрали. Вимикач на пристрої — на
      випадок, коли менеджер хоче вести статуси лише руками. */
-  const [авто, setАвто] = useState(true);
+  const [autoStatus, setAuto] = useState(true);
   /* Ефект опитування підписується один раз і застигає на тому,
      що бачив у ту мить: знята галочка не діяла, а статуси
      підтягувались за старим списком — і трекер закривав удруге
      те, що менеджер щойно закрив руками. */
-  const автоRef = useRef(авто);
-  автоRef.current = авто;
+  const autoRef = useRef(autoStatus);
+  autoRef.current = autoStatus;
   useEffect(() => {
     try {
-      setАвто(localStorage.getItem('reyter:np-auto') !== 'off');
+      setAuto(localStorage.getItem('reyter:np-auto') !== 'off');
     } catch {
       /* приватне вікно — лишається типове */
     }
   }, []);
-  const перемкнутиАвто = (on: boolean) => {
-    setАвто(on);
+  const toggleAuto = (on: boolean) => {
+    setAuto(on);
     try {
       localStorage.setItem('reyter:np-auto', on ? 'on' : 'off');
     } catch {
@@ -233,7 +233,7 @@ export default function OrdersAdmin() {
     /* Питаємо і про відправлені, і про недавно закриті: в архіві
        менеджер теж хоче бачити, чим скінчилось, а не порожнє
        місце там, де в черзі був стан посилки. */
-    const вДорозі = orders
+    const inTransit = orders
       .filter(
         (o) =>
           (o.status === 'shipped' || o.status === 'done') && String(o.ttn || '').trim()
@@ -244,36 +244,36 @@ export default function OrdersAdmin() {
       .sort((a, b) => (a.status === 'shipped' ? -1 : 1) - (b.status === 'shipped' ? -1 : 1))
       .slice(0, 200)
       .map((o) => ({ ttn: o.ttn, phone: String(o.customer?.phone || '') }));
-    if (!вДорозі.length) return;
+    if (!inTransit.length) return;
 
-    let живий = true;
-    const спитати = () => {
+    let alive = true;
+    const ask = () => {
       if (document.hidden) return;
-      void trackAll(вДорозі).then((m) => {
-        if (!живий || !m.size) return;
+      void trackAll(inTransit).then((m) => {
+        if (!alive || !m.size) return;
         /* Домішуємо, а не заміщаємо: якщо одна пачка не доїхала,
            рядок «лежить пʼятий день» не має перетворюватись на
            «у дорозі» саме тоді, коли на нього треба реагувати. */
-        setПосилки((старі) => {
-          const н = new Map(старі);
-          for (const [k, v] of m) н.set(k, v);
-          return н;
+        setParcels((stale) => {
+          const merged = new Map(stale);
+          for (const [k, v] of m) merged.set(k, v);
+          return merged;
         });
-        if (автоRef.current) void підтягнутиРef.current(m);
+        if (autoRef.current) void syncRef.current(m);
       });
     };
-    спитати();
-    const t = setInterval(спитати, 10 * 60 * 1000);
-    document.addEventListener('visibilitychange', спитати);
+    ask();
+    const t = setInterval(ask, 10 * 60 * 1000);
+    document.addEventListener('visibilitychange', ask);
     return () => {
-      живий = false;
+      alive = false;
       clearInterval(t);
-      document.removeEventListener('visibilitychange', спитати);
+      document.removeEventListener('visibilitychange', ask);
     };
     /* Перезапитуємо, коли міняється склад посилок у дорозі, а не
        на кожен рендер списку. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [вДорозіКлюч]);
+  }, [inTransitKey]);
 
   /* ---------- Залежності для зміни статусу ---------- */
 
@@ -323,32 +323,32 @@ export default function OrdersAdmin() {
      Записуємо від імені перевізника, а не менеджера: у журналі
      має бути видно, хто саме це зробив, інакше через тиждень
      ніхто не згадає, чому статус змінився сам. */
-  const підтягнутиСтатуси = useCallback(
-    async (m: Map<string, Посилка>) => {
+  const syncStatuses = useCallback(
+    async (m: Map<string, Parcel>) => {
       const d = db();
       if (!d) return;
       for (const o of orders) {
-        const п = m.get(String(o.ttn || '').trim());
-        if (!п) continue;
-        const треба = статусЗаТрекером(п);
-        const зараз = o.status || 'new';
-        if (!треба || треба === зараз) continue;
-        if (зараз === 'cancelled' || зараз === 'done') continue;
-        if (треба === 'shipped' && зараз !== 'confirmed') continue;
+        const parcel = m.get(String(o.ttn || '').trim());
+        if (!parcel) continue;
+        const want = statusFromTracker(parcel);
+        const now = o.status || 'new';
+        if (!want || want === now) continue;
+        if (now === 'cancelled' || now === 'done') continue;
+        if (want === 'shipped' && now !== 'confirmed') continue;
         /* Менеджер міг свідомо відкотити «Відправлено →
            Підтверджено»: домовились переоформити, покупець
            передумав. Слід цього рішення є в журналі — і воно
            важить більше за те, що посилка ще фізично лежить у
            відділенні. */
         if (
-          треба === 'shipped' &&
+          want === 'shipped' &&
           (o.statusLog || []).some((e) => e.status === 'shipped')
         ) {
           continue;
         }
-        if (треба === 'done' && зараз !== 'shipped') continue;
+        if (want === 'done' && now !== 'shipped') continue;
 
-        const res = await applyStatus(o, треба as OrderStatus, {
+        const res = await applyStatus(o, want as OrderStatus, {
           db: d,
           c,
           ask: dialogs,
@@ -358,7 +358,7 @@ export default function OrdersAdmin() {
         });
         if (res.ok) {
           toast(
-            треба === 'done'
+            want === 'done'
               ? 'Нова Пошта: посилку №' + (o.num || '') + ' забрали — замовлення закрито'
               : 'Нова Пошта: посилка №' + (o.num || '') + ' вирушила — статус «Відправлено»',
             'success'
@@ -384,15 +384,15 @@ export default function OrdersAdmin() {
   /* Номер накладної покупцеві. Раніше він осідав в адмінці й
      нікуди далі не йшов — людина писала «а де посилка?», хоча
      посилка вже їхала. */
-  const надіслатиТТН = useCallback(
+  const sendTtnLetter = useCallback(
     async (o: AdminOrder, ttn: string) => {
-      const пошта = o.customer?.email || o.email || '';
-      if (!пошта) {
+      const mail = o.customer?.email || o.email || '';
+      if (!mail) {
         toast('ТТН збережено, але надіслати нема куди — покупець не лишив пошти');
         return;
       }
-      const res = await sendTtn({ workerUrl: нала.workerUrl }, {
-        to: пошта,
+      const res = await sendTtn({ workerUrl: settings.workerUrl }, {
+        to: mail,
         name: o.customer?.name || '',
         orderNum: o.num || '',
         ttn: ttn,
@@ -404,12 +404,12 @@ export default function OrdersAdmin() {
       if (res.ok) {
         const d = db();
         if (d) void updateDoc(doc(d, 'orders', o._id), { ttnSentAt: new Date().toISOString() });
-        toast('ТТН надіслано покупцеві на ' + пошта + ' ✓', 'success');
+        toast('ТТН надіслано покупцеві на ' + mail + ' ✓', 'success');
       } else {
         toast('ТТН збережено, але лист не пішов: ' + res.error);
       }
     },
-    [toast, нала.workerUrl]
+    [toast, settings.workerUrl]
   );
 
 
@@ -417,8 +417,8 @@ export default function OrdersAdmin() {
      розмітці картки: інакше довелося б тримати дві копії, які
      розійдуться при першій же правці. */
 
-  const зберегтиПоле = useCallback(
-    async (o: AdminOrder, field: 'ttn' | 'note', value: string, лист = true) => {
+  const saveField = useCallback(
+    async (o: AdminOrder, field: 'ttn' | 'note', value: string, letter = true) => {
       const d = db();
       if (!d) return;
       try {
@@ -429,7 +429,7 @@ export default function OrdersAdmin() {
           void trackUpdate({ ...o, ttn: value } as never, { ttn: value });
           toast('ТТН збережено — покупець бачить його в кабінеті й у відстеженні ✓', 'success');
           // посилка вже в дорозі — номер має піти покупцеві одразу
-          if (лист && value.trim() && o.status === 'shipped') void надіслатиТТН(o, value.trim());
+          if (letter && value.trim() && o.status === 'shipped') void sendTtnLetter(o, value.trim());
         } else {
           toast('Нотатку збережено ✓', 'success');
         }
@@ -437,10 +437,10 @@ export default function OrdersAdmin() {
         toast(field === 'ttn' ? 'Не вдалося зберегти ТТН' : 'Не вдалося зберегти нотатку');
       }
     },
-    [toast, надіслатиТТН]
+    [toast, sendTtnLetter]
   );
 
-  const скопіювати = useCallback(
+  const copyOrder = useCallback(
     async (o: AdminOrder) => {
       const done = await copyText(o.message || buildOrderMessage(o as never, c));
       toast(done ? 'Скопійовано ✓' : 'Не вдалося скопіювати', done ? 'success' : 'plain');
@@ -448,7 +448,7 @@ export default function OrdersAdmin() {
     [c, toast]
   );
 
-  const видалити = useCallback(
+  const removeOrder = useCallback(
     async (o: AdminOrder) => {
       /* Про списаний товар попереджаємо окремо: видалення його НЕ
          повертає, і після нього залишки вже нічим не полагодити. */
@@ -487,18 +487,18 @@ export default function OrdersAdmin() {
      Інакше на вкладці «14», а робити треба три речі: решта
      спокійно їде, і черга справами їх не вважає. На такий
      лічильник перестають дивитися за тиждень. */
-  const справ = useMemo(
+  const todo = useMemo(
     () =>
-      queue(orders as never, посилки as never, new Date())
+      queue(orders as never, parcels as never, new Date())
         .filter((s) => s.band.id !== 'transit' && s.band.id !== 'pickup')
         .reduce((n, s) => n + s.rows.length, 0),
-    [orders, посилки]
+    [orders, parcels]
   );
 
   /** Що каже перевізник — для рядка списку. */
-  function посилкаДляРядка(o: AdminOrder) {
-    const п = посилки.get(String(o.ttn || '').trim());
-    return п ? { text: коротко(п), tone: тривога(п) } : undefined;
+  function parcelForRow(o: AdminOrder) {
+    const parcel = parcels.get(String(o.ttn || '').trim());
+    return parcel ? { text: shortLabel(parcel), tone: alarm(parcel) } : undefined;
   }
 
   /** Коли це було — коротко, для рядка списку. */
@@ -514,7 +514,7 @@ export default function OrdersAdmin() {
      виправити: розмір, склад, адресу. Після скасування статус
      відкочуємо на «Підтверджено», інакше замовлення лишалося б
      «Відправленим» без жодної посилки. */
-  const скасуватиНакладну = useCallback(
+  const cancelWaybill = useCallback(
     async (o: AdminOrder) => {
       const ttn = String(o.ttn || '').trim();
       if (!ttn) return;
@@ -531,8 +531,8 @@ export default function OrdersAdmin() {
       });
       if (yes !== true) return;
 
-      const res = await видалитиНакладну(
-        { workerUrl: нала.workerUrl, adminKey: ключ },
+      const res = await deleteWaybill(
+        { workerUrl: settings.workerUrl, adminKey: workerKey },
         ttn,
         o.ttnRef
       );
@@ -563,16 +563,16 @@ export default function OrdersAdmin() {
       }
       toast('Накладну скасовано — замовлення знову можна редагувати ✓', 'success');
     },
-    [askDialog, toast, нала.workerUrl, ключ]
+    [askDialog, toast, settings.workerUrl, workerKey]
   );
 
-  const підтягнутиРef = useRef(підтягнутиСтатуси);
-  підтягнутиРef.current = підтягнутиСтатуси;
+  const syncRef = useRef(syncStatuses);
+  syncRef.current = syncStatuses;
 
   /* Накладна вже в кабінеті перевізника, а форма редагування
      переписує імʼя, телефон і адресу — у накладній вони
      лишаються старими. Тихо це робити не можна. */
-  const редагувати = useCallback(
+  const editOrder = useCallback(
     async (o: AdminOrder) => {
       if (String(o.ttn || '').trim()) {
         const yes = await askDialog({
@@ -601,8 +601,8 @@ export default function OrdersAdmin() {
     /* Номер могли вписати руками ще до відправлення — тоді лист
        не йшов узагалі: збереження шле його лише для вже
        відправлених, а перехід — лише для щойно введеного. */
-    const номер = res.ttn || String(o.ttn || '').trim();
-    if (res.ok && next === 'shipped' && номер && !o.ttnSentAt) void надіслатиТТН(o, номер);
+    const num = res.ttn || String(o.ttn || '').trim();
+    if (res.ok && next === 'shipped' && num && !o.ttnSentAt) void sendTtnLetter(o, num);
   }
 
   async function onBulk(next: string) {
@@ -678,16 +678,16 @@ export default function OrdersAdmin() {
           <div className="ao-tabs">
             <button
               type="button"
-              className={'ao-tab' + (екран === 'queue' ? ' is-on' : '')}
-              onClick={() => обратиЕкран('queue')}
+              className={'ao-tab' + (view === 'queue' ? ' is-on' : '')}
+              onClick={() => pickView('queue')}
             >
               Черга
-              {справ ? <i>{справ}</i> : null}
+              {todo ? <i>{todo}</i> : null}
             </button>
             <button
               type="button"
-              className={'ao-tab' + (екран === 'archive' ? ' is-on' : '')}
-              onClick={() => обратиЕкран('archive')}
+              className={'ao-tab' + (view === 'archive' ? ' is-on' : '')}
+              onClick={() => pickView('archive')}
             >
               Архів і пошук
             </button>
@@ -698,8 +698,8 @@ export default function OrdersAdmin() {
             <label className="ao-auto" title="Забрали — «Виконано», поїхала — «Відправлено». Повернення й помилки завжди лишаються вам.">
               <input
                 type="checkbox"
-                checked={авто}
-                onChange={(e) => перемкнутиАвто(e.target.checked)}
+                checked={autoStatus}
+                onChange={(e) => toggleAuto(e.target.checked)}
               />
               <span>Статуси з Нової Пошти</span>
             </label>
@@ -710,20 +710,20 @@ export default function OrdersAdmin() {
               коли замовлення є, а їх не видно. */}
           {error ? <p className="ao-note ao-error">{error}</p> : null}
 
-          {екран === 'queue' ? (
+          {view === 'queue' ? (
             <OrdersQueue
               orders={orders as never}
               c={c}
-              parcels={посилки}
+              parcels={parcels}
               onStatus={(o, next) => void onStatus(o as never, next)}
-              onEdit={(o) => void редагувати(o as never)}
-              onField={(o, field, value) => void зберегтиПоле(o as never, field, value)}
-              onSendTtn={(o) => void надіслатиТТН(o as never, String(o.ttn || '').trim())}
-              onMakeTtn={(o) => setТтнДля(o as never)}
-              onDropTtn={(o) => void скасуватиНакладну(o as never)}
-              onCopy={(o) => void скопіювати(o as never)}
+              onEdit={(o) => void editOrder(o as never)}
+              onField={(o, field, value) => void saveField(o as never, field, value)}
+              onSendTtn={(o) => void sendTtnLetter(o as never, String(o.ttn || '').trim())}
+              onMakeTtn={(o) => setTtnFor(o as never)}
+              onDropTtn={(o) => void cancelWaybill(o as never)}
+              onCopy={(o) => void copyOrder(o as never)}
               onPrint={(o) => printPicked([o as never])}
-              onDelete={(o) => void видалити(o as never)}
+              onDelete={(o) => void removeOrder(o as never)}
             />
           ) : (
           <>
@@ -776,8 +776,8 @@ export default function OrdersAdmin() {
                 key={o._id}
                 className={
                   'aq-item u-' +
-                  (посилкаДляРядка(o)?.tone ?? 0) +
-                  (розкрито === o._id ? ' is-open' : '')
+                  (parcelForRow(o)?.tone ?? 0) +
+                  (openId === o._id ? ' is-open' : '')
                 }
               >
                 <OrderRow
@@ -791,7 +791,7 @@ export default function OrdersAdmin() {
                     .join(', ')}
                   badge={{ id: o.status || 'new', title: statusInfo(o.status || 'new').title }}
                   parcel={
-                    o.pickup ? { text: 'Самовиніс', tone: 0 as const } : посилкаДляРядка(o)
+                    o.pickup ? { text: 'Самовиніс', tone: 0 as const } : parcelForRow(o)
                   }
                   meta={shortWhen(o)}
                   sum={o.total || 0}
@@ -804,26 +804,26 @@ export default function OrdersAdmin() {
                       return next;
                     })
                   }
-                  open={розкрито === o._id}
-                  onToggle={() => setРозкрито(розкрито === o._id ? '' : o._id)}
+                  open={openId === o._id}
+                  onToggle={() => setOpen(openId === o._id ? '' : o._id)}
                 />
 
-                {розкрито === o._id ? (
+                {openId === o._id ? (
                   <div className="aq-details">
                     <OrderCard
                       o={o as never}
                       c={c}
                       embedded
-                      parcel={посилки.get(String(o.ttn || '').trim())}
+                      parcel={parcels.get(String(o.ttn || '').trim())}
                       onStatus={(next) => void onStatus(o, next)}
-                      onEdit={() => void редагувати(o)}
-                      onField={(field, value) => void зберегтиПоле(o, field, value)}
-                      onSendTtn={() => void надіслатиТТН(o, String(o.ttn || '').trim())}
-                      onMakeTtn={() => setТтнДля(o)}
-                      onDropTtn={() => void скасуватиНакладну(o)}
-                      onCopy={() => void скопіювати(o)}
+                      onEdit={() => void editOrder(o)}
+                      onField={(field, value) => void saveField(o, field, value)}
+                      onSendTtn={() => void sendTtnLetter(o, String(o.ttn || '').trim())}
+                      onMakeTtn={() => setTtnFor(o)}
+                      onDropTtn={() => void cancelWaybill(o)}
+                      onCopy={() => void copyOrder(o)}
                       onPrint={() => printPicked([o])}
-                      onDelete={() => void видалити(o)}
+                      onDelete={() => void removeOrder(o)}
                     />
                   </div>
                 ) : null}
@@ -856,26 +856,26 @@ export default function OrdersAdmin() {
           )}
         </div>
       </div>
-      {ттнДля ? (
+      {ttnFor ? (
         <TtnCreate
-          order={ттнДля}
-          cabinet={{ workerUrl: нала.workerUrl, adminKey: ключ }}
+          order={ttnFor}
+          cabinet={{ workerUrl: settings.workerUrl, adminKey: workerKey }}
           sender={{
-            city: нала.npCity || '',
-            cityRef: нала.npCityRef || '',
-            warehouse: нала.npWarehouse || '',
-            warehouseRef: нала.npWarehouseRef || ''
+            city: settings.npCity || '',
+            cityRef: settings.npCityRef || '',
+            warehouse: settings.npWarehouse || '',
+            warehouseRef: settings.npWarehouseRef || ''
           }}
           weight={parcelWeight(
             c,
             /* Позиції замовлення мають той самий вигляд, що й
                рядки кошика, — вага рахується тим самим кодом. */
-            ((ттнДля.items || []) as never[]).map((i) => i as never)
+            ((ttnFor.items || []) as never[]).map((i) => i as never)
           )}
-          description={нала.npDescription || 'Чоловіча білизна'}
+          description={settings.npDescription || 'Чоловіча білизна'}
           onSaveSender={(v) => {
             const d = db();
-            setНала((n) => ({
+            setSettings((n) => ({
               ...n,
               npCity: v.city,
               npCityRef: v.cityRef,
@@ -891,10 +891,10 @@ export default function OrdersAdmin() {
             }, { merge: true });
           }}
           onDone={async (ttn, ref) => {
-            const o = ттнДля;
-            setТтнДля(null);
+            const o = ttnFor;
+            setTtnFor(null);
             // лист надішлемо наприкінці самі — інакше їх буде два
-            await зберегтиПоле(o, 'ttn', ttn, false);
+            await saveField(o, 'ttn', ttn, false);
             /* Ідентифікатор документа знадобиться, якщо накладну
                доведеться скасувати: видаляють саме за ним. */
             const d0 = db();
@@ -904,21 +904,21 @@ export default function OrdersAdmin() {
                перевірка не бачила щойно створеного номера й
                питала його вдруге, просто у вікні поверх щойно
                створеної накладної. */
-            const свіже = { ...o, ttn } as AdminOrder;
+            const fresh = { ...o, ttn } as AdminOrder;
             /* Виконане замовлення накладна не відкочує назад:
                накладну для нього створюють на обмін або дослання,
                і «Відправлено» тут було б неправдою. */
             if (['new', 'confirmed'].includes(o.status || 'new')) {
-              await onStatus(свіже, 'shipped');
+              await onStatus(fresh, 'shipped');
             }
 
             /* І лист. Сам він не пішов би: зберігання надсилає
                його лише тоді, коли замовлення вже «Відправлено»,
                а в цю мить воно ще не було. */
-            void надіслатиТТН(свіже, ttn);
+            void sendTtnLetter(fresh, ttn);
             toast('Накладну ' + ttn + ' створено ✓', 'success');
           }}
-          onClose={() => setТтнДля(null)}
+          onClose={() => setTtnFor(null)}
         />
       ) : null}
 

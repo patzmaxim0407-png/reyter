@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { addressLine } from '@/lib/address';
 import { fmt, type Catalogue } from '@/lib/catalog';
 import { NEXT_STEP, STATUSES, confirmText, itemCat, orderDate, statusInfo } from '@/lib/admin/orders';
-import { підпис, стан, тривога, type Посилка } from '@/lib/admin/np';
+import { label, parcelState, alarm, type Parcel } from '@/lib/admin/np';
 import type { OrderItem } from '@/lib/types';
 
 /* ============================================================
@@ -78,7 +78,7 @@ export default function OrderCard({
   /** Скасувати створену накладну, щоб виправити замовлення. */
   onDropTtn?(): void;
   /** Що каже про посилку сам перевізник. */
-  parcel?: Посилка;
+  parcel?: Parcel;
   /** Картка стоїть під рядком черги, який уже сказав номер,
    *  імʼя, адресу й суму. Повторювати це вдруге — не «докладно»,
    *  а шум; та й розкривати вдруге те, що вже розкрито, нікому
@@ -93,42 +93,42 @@ export default function OrderCard({
   const st = o.status || 'new';
   const c = o.customer ?? {};
   const next = NEXT_STEP[st as keyof typeof NEXT_STEP];
-  const маєТТН = !!String(o.ttn || '').trim();
+  const hasTtn = !!String(o.ttn || '').trim();
   /* Відправлено без накладної — найдорожча забудькуватість у
      цьому вікні: покупець уже чекає, а сказати йому нічого.
 
      А от виконаному замовленню номер уже ні до чого: посилку
      забрали, і червоний значок на ній — просто шум, який
      привчає не звертати уваги на червоні значки взагалі. */
-  const потрібнаТТН = st === 'shipped' && !маєТТН && !o.pickup;
-  const рівень = parcel ? тривога(parcel) : 0;
+  const needsTtn = st === 'shipped' && !hasTtn && !o.pickup;
+  const tone = parcel ? alarm(parcel) : 0;
   /* Для закордону накладної Нової Пошти не буде: там інша
      система й інші номери. Пропонувати кнопку, яка напевно
      відмовить, — гірше, ніж не пропонувати нічого. */
-  const міжнародне = String(c.carrierId ?? '') === 'intl';
+  const isIntl = String(c.carrierId ?? '') === 'intl';
   /* Перевізник каже «отримано», а в нас усе ще «Відправлено» —
      значить, замовлення можна закривати, і сказати про це має
      сама картка, а не пам'ять менеджера. */
-  const можнаЗакрити = st === 'shipped' && parcel && стан(parcel.code) === 'отримано';
+  const canClose = st === 'shipped' && parcel && parcelState(parcel.code) === 'received';
 
   /* Перевізник не веде журналу подій — його API віддає лише те,
      що з посилкою ЗАРАЗ, і кілька дат. Тому стрічку збираємо самі
      з того, що є: створено — обіцяли — забрали. Крок, до якого
      дійшло, підсвічений; майбутні стоять сірими. */
-  const кроки = parcel
+  const steps = parcel
     ? [
-        { title: 'Накладну створено', when: parcel.createdAt, done: !!parcel.createdAt, now: стан(parcel.code) === 'створено' },
+        { title: 'Накладну створено', when: parcel.createdAt, done: !!parcel.createdAt, now: parcelState(parcel.code) === 'created' },
         {
-          title: стан(parcel.code) === 'чекає' ? 'У відділенні' : 'У дорозі',
+          title: parcelState(parcel.code) === 'waiting' ? 'У відділенні' : 'У дорозі',
           when: parcel.scheduled ? 'орієнтовно ' + parcel.scheduled : '',
-          done: ['чекає', 'отримано'].includes(стан(parcel.code)),
-          now: ['дорога', 'чекає'].includes(стан(parcel.code))
+          done: ['waiting', 'received'].includes(parcelState(parcel.code)),
+          now: ['moving', 'waiting'].includes(parcelState(parcel.code))
         },
         {
           title: 'Отримано',
           when: parcel.gotAt,
-          done: стан(parcel.code) === 'отримано',
-          now: стан(parcel.code) === 'отримано'
+          done: parcelState(parcel.code) === 'received',
+          now: parcelState(parcel.code) === 'received'
         }
       ]
     : [];
@@ -180,21 +180,21 @@ export default function OrderCard({
             через які замовлення втрачають гроші. */}
         {parcel ? (
           <span
-            className={'ao-tag ao-parcel' + (рівень === 2 ? ' ao-tag--warn' : рівень === 1 ? ' ao-parcel--wait' : '')}
+            className={'ao-tag ao-parcel' + (tone === 2 ? ' ao-tag--warn' : tone === 1 ? ' ao-parcel--wait' : '')}
             title={(parcel.status || '') + (parcel.place ? ' · ' + parcel.place : '')}
           >
-            {підпис(parcel)}
+            {label(parcel)}
           </span>
         ) : null}
 
         {/* Найпомітніша річ у картці — те, чого бракує. Червоний
             значок видно навіть у згорнутому списку, тож замовлення
             без накладної не загубиться серед решти. */}
-        {потрібнаТТН ? (
+        {needsTtn ? (
           <span className="ao-tag ao-tag--warn" title="Відправлено без номера накладної">
             без ТТН
           </span>
-        ) : маєТТН ? (
+        ) : hasTtn ? (
           <span className="ao-tag ao-tag--ttn" title={'ТТН ' + o.ttn}>
             ТТН {o.ttnSentAt ? '✓' : '·'}
           </span>
@@ -349,18 +349,18 @@ export default function OrderCard({
               найчастіше відкриває картку саме заради цього: де
               вона, коли обіцяють, чи вже забрали. */}
           {parcel ? (
-            <div className={'ao-way u-' + рівень}>
+            <div className={'ao-way u-' + tone}>
               <div className="ao-way__now">
-                <b>{підпис(parcel)}</b>
-                {parcel.status && parcel.status !== підпис(parcel) ? (
+                <b>{label(parcel)}</b>
+                {parcel.status && parcel.status !== label(parcel) ? (
                   <span>{parcel.status}</span>
                 ) : null}
               </div>
               <ol className="ao-way__steps">
-                {кроки.map((к) => (
-                  <li key={к.title} className={к.done ? 'is-done' : к.now ? 'is-now' : ''}>
-                    <b>{к.title}</b>
-                    <span>{к.when || '—'}</span>
+                {steps.map((party) => (
+                  <li key={party.title} className={party.done ? 'is-done' : party.now ? 'is-now' : ''}>
+                    <b>{party.title}</b>
+                    <span>{party.when || '—'}</span>
                   </li>
                 ))}
               </ol>
@@ -432,7 +432,7 @@ export default function OrderCard({
           ) : null}
 
           <div className="ao-card__grid">
-            <label className={'ao-field ao-field--ttn' + (потрібнаТТН ? ' is-need' : '')}>
+            <label className={'ao-field ao-field--ttn' + (needsTtn ? ' is-need' : '')}>
               <span>
                 Номер накладної (ТТН)
                 {o.ttnSentAt ? (
@@ -456,9 +456,9 @@ export default function OrderCard({
                    виконаному замовленні — навпаки, привід його
                    заповнити: посилку відправляли, номер просто не
                    записали. */
-                readOnly={st === 'done' && маєТТН}
+                readOnly={st === 'done' && hasTtn}
                 title={
-                  st === 'done' && маєТТН
+                  st === 'done' && hasTtn
                     ? 'Замовлення виконане — номер накладної лишається як свідчення доставки'
                     : undefined
                 }
@@ -466,7 +466,7 @@ export default function OrderCard({
                    інакше кожен символ їхав би в базу окремим
                    записом, а список — перемальовувався б */
                 onBlur={(e) => {
-                  if (st === 'done' && маєТТН) return;
+                  if (st === 'done' && hasTtn) return;
                   if (e.target.value !== (o.ttn ?? '')) onField?.('ttn', e.target.value);
                 }}
               />
@@ -494,7 +494,7 @@ export default function OrderCard({
                 доводиться відправити ще раз: обмін, дослання
                 забутої речі, повторна спроба після повернення. */}
 
-            {!маєТТН && !o.pickup && !міжнародне && onMakeTtn && st !== 'cancelled' ? (
+            {!hasTtn && !o.pickup && !isIntl && onMakeTtn && st !== 'cancelled' ? (
               <button
                 className="btn btn--primary btn--sm ao-ttn__make"
                 type="button"
@@ -506,7 +506,7 @@ export default function OrderCard({
             {/* Скасувати можна лише те, що ще не доїхало:
                 перевізник видаляє накладну, доки посилку не
                 прийняли, а виконане замовлення це вже минуле. */}
-            {маєТТН && onDropTtn && st !== 'done' && st !== 'cancelled' ? (
+            {hasTtn && onDropTtn && st !== 'done' && st !== 'cancelled' ? (
               <button
                 className="btn btn--ghost btn--sm ao-danger ao-ttn__drop"
                 type="button"
@@ -516,7 +516,7 @@ export default function OrderCard({
                 Скасувати накладну
               </button>
             ) : null}
-            {маєТТН && onSendTtn ? (
+            {hasTtn && onSendTtn ? (
               <button
                 className="btn btn--ghost btn--sm ao-ttn__send"
                 type="button"
@@ -527,7 +527,7 @@ export default function OrderCard({
             ) : null}
           </div>
 
-          {потрібнаТТН ? (
+          {needsTtn ? (
             <p className="ao-ttn__warn">
               Посилка відправлена, а номера немає — покупець не знає, де вона.
             </p>
@@ -572,7 +572,7 @@ export default function OrderCard({
         </div>
       ) : null}
 
-      {можнаЗакрити && !embedded ? (
+      {canClose && !embedded ? (
         <div className="ao-card__hint">
           <span>Перевізник каже: посилку отримано{parcel?.gotAt ? ' · ' + parcel.gotAt : ''}</span>
           <button className="btn btn--primary btn--sm" type="button" onClick={() => onStatus('done')}>

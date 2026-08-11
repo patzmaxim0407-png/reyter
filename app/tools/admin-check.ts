@@ -345,79 +345,79 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
 {
   const { applyStatus, orderStats } = await import('../lib/admin/orders.ts');
 
-  const замовлення = {
+  const order = {
     _id: 'x1', num: 'R-1', status: 'confirmed', total: 700,
     items: [{ id: 'p1', name: 'товар', size: 'M', qty: 1, price: 700 }],
     customer: { name: 'Тарас', phone: '+380', email: 'a@b.c' }
   } as never;
 
-  const діалоги = (ttn: string | null) => ({
+  const dialogs = (ttn: string | null) => ({
     confirmAsk: async () => true,
     ask: async () => 'ok' as const,
     askWriteoff: async () => null,
     askText: async () => ttn
   });
-  const бази = { db: null as never, c: { products: [], stock: {} } as never, now: new Date(), by: 'a@b.c' };
+  const deps = { db: null as never, c: { products: [], stock: {} } as never, now: new Date(), by: 'a@b.c' };
 
-  const нічого = await applyStatus(замовлення, 'shipped', { ...бази, ask: діалоги('') as never });
-  ok('без номера у «Відправлено» не пускає', нічого.ok === false && нічого.reason === 'no-ttn');
+  const nothing = await applyStatus(order, 'shipped', { ...deps, ask: dialogs('') as never });
+  ok('без номера у «Відправлено» не пускає', nothing.ok === false && nothing.reason === 'no-ttn');
 
-  const передумав = await applyStatus(замовлення, 'shipped', { ...бази, ask: діалоги(null) as never });
-  ok('закрив діалог — статус не змінився', передумав.ok === false && передумав.reason === 'cancelled');
+  const cancelled = await applyStatus(order, 'shipped', { ...deps, ask: dialogs(null) as never });
+  ok('закрив діалог — статус не змінився', cancelled.ok === false && cancelled.reason === 'cancelled');
 
-  const пакетом = await applyStatus(замовлення, 'shipped', { ...бази, ask: діалоги('123') as never, silent: true });
-  ok('масова зміна такі замовлення пропускає', пакетом.ok === false && пакетом.reason === 'no-ttn');
+  const bulkCase = await applyStatus(order, 'shipped', { ...deps, ask: dialogs('123') as never, silent: true });
+  ok('масова зміна такі замовлення пропускає', bulkCase.ok === false && bulkCase.reason === 'no-ttn');
 
-  const зНомером = await applyStatus(
-    { ...(замовлення as object), ttn: '20450000000000' } as never,
+  const withTtn = await applyStatus(
+    { ...(order as object), ttn: '20450000000000' } as never,
     'shipped',
-    { ...бази, ask: діалоги(null) as never }
+    { ...deps, ask: dialogs(null) as never }
   );
-  ok('замовлення з номером про нього не перепитують', зНомером.reason !== 'no-ttn' && зНомером.reason !== 'cancelled');
+  ok('замовлення з номером про нього не перепитують', withTtn.reason !== 'no-ttn' && withTtn.reason !== 'cancelled');
 
-  const лік = orderStats([
+  const counts = orderStats([
     { _id: '1', num: 'a', status: 'shipped', total: 100 },
     { _id: '2', num: 'b', status: 'shipped', total: 100, ttn: '123' },
     { _id: '3', num: 'c', status: 'done', total: 100 },
     { _id: '4', num: 'd', status: 'new', total: 100 }
   ] as never);
-  ok('лічильник «без ТТН» рахує лише ті, що в дорозі', лік.noTtn === 1, String(лік.noTtn));
+  ok('лічильник «без ТТН» рахує лише ті, що в дорозі', counts.noTtn === 1, String(counts.noTtn));
 }
 
 
 /* ---------- Трекер Нової Пошти ---------- */
 
 {
-  const { стан, підпис, тривога, trackAll } = await import('../lib/admin/np.ts');
+  const { parcelState, label, alarm, trackAll } = await import('../lib/admin/np.ts');
 
-  ok('код 9 — отримано', стан('9') === 'отримано');
-  ok('код 7 — лежить у відділенні', стан('7') === 'чекає');
-  ok('код 3 — номера немає', стан('3') === 'нема');
+  ok('код 9 — отримано', parcelState('9') === 'received');
+  ok('код 7 — лежить у відділенні', parcelState('7') === 'waiting');
+  ok('код 3 — номера немає', parcelState('3') === 'missing');
   /* 106 — «Одержано і створено накладну зворотної доставки»:
      посилку забрали, назад їдуть гроші за післяплатою. Читати це
      як повернення означало б ніколи не закривати такі
      замовлення. */
-  ok('код 106 — посилку забрали, назад ідуть гроші', стан('106') === 'отримано');
-  ok('код 2 — накладну видалено в кабінеті', стан('2') === 'нема');
-  ok('незнайомий код не вигадуємо — вважаємо, що в дорозі', стан('777') === 'дорога');
+  ok('код 106 — посилку забрали, назад ідуть гроші', parcelState('106') === 'received');
+  ok('код 2 — накладну видалено в кабінеті', parcelState('2') === 'missing');
+  ok('незнайомий код не вигадуємо — вважаємо, що в дорозі', parcelState('777') === 'moving');
 
-  const лежить = { ttn: '1', code: '7', status: '', gotAt: '', waiting: 5, place: '', backMoney: 0 };
-  ok('пʼятий день у відділенні — тривога', тривога(лежить) === 2, String(тривога(лежить)));
-  ok('третій день — увага', тривога({ ...лежить, waiting: 3 }) === 1);
-  ok('перший день — спокій', тривога({ ...лежить, waiting: 1 }) === 0);
-  ok('повертається — завжди тривога', тривога({ ...лежить, code: '102', waiting: 0 }) === 2);
-  ok('підпис каже дні, а не код', підпис(лежить) === 'У відділенні 5 дн.', підпис(лежить));
+  const waiting = { ttn: '1', code: '7', status: '', gotAt: '', waiting: 5, place: '', backMoney: 0 };
+  ok('пʼятий день у відділенні — тривога', alarm(waiting) === 2, String(alarm(waiting)));
+  ok('третій день — увага', alarm({ ...waiting, waiting: 3 }) === 1);
+  ok('перший день — спокій', alarm({ ...waiting, waiting: 1 }) === 0);
+  ok('повертається — завжди тривога', alarm({ ...waiting, code: '102', waiting: 0 }) === 2);
+  ok('підпис каже дні, а не код', label(waiting) === 'У відділенні 5 дн.', label(waiting));
 
   /* Живий запит на СПРАВЖНЮ накладну: вигаданий номер дає код
      «не знайдено» і мовчить про решту полів, тож на ньому не
      видно ні дат, ні відділення — тобто нічого з того, що
      насправді читає менеджер. */
-  const жива = await trackAll([{ ttn: '20451507134336', phone: '' }]);
-  const п = жива.get('20451507134336');
-  ok('перевізник відповідає без ключа', жива.size === 1, 'посилок у відповіді: ' + жива.size);
-  ok('справжня накладна читається', !!п && !!п.code, JSON.stringify(п));
-  ok('відділення видно', !!п?.place, п?.place);
-  ok('дати перевізника розбираються', !!п && !Number.isNaN(п.waiting), String(п?.waiting));
+  const live = await trackAll([{ ttn: '20451507134336', phone: '' }]);
+  const parcel = live.get('20451507134336');
+  ok('перевізник відповідає без ключа', live.size === 1, 'посилок у відповіді: ' + live.size);
+  ok('справжня накладна читається', !!parcel && !!parcel.code, JSON.stringify(parcel));
+  ok('відділення видно', !!parcel?.place, parcel?.place);
+  ok('дати перевізника розбираються', !!parcel && !Number.isNaN(parcel.waiting), String(parcel?.waiting));
   ok('порожні номери не питаємо', (await trackAll([{ ttn: '', phone: '' }])).size === 0);
 }
 
@@ -426,48 +426,48 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
 
 {
   const { nextTask, queue, BANDS } = await import('../lib/admin/orders.ts');
-  const тепер = new Date('2026-08-11T12:00:00');
-  const годину = (h: number) => new Date(тепер.getTime() - h * 3600_000).toISOString();
+  const now = new Date('2026-08-11T12:00:00');
+  const hoursAgo = (h: number) => new Date(now.getTime() - h * 3600_000).toISOString();
 
-  const зам = (o: Record<string, unknown>) =>
-    ({ _id: 'x', num: 'R-1', total: 700, date: годину(1), ...o }) as never;
+  const mkOrder = (o: Record<string, unknown>) =>
+    ({ _id: 'x', num: 'R-1', total: 700, date: hoursAgo(1), ...o }) as never;
 
-  ok('виконане в чергу не потрапляє', nextTask(зам({ status: 'done' }), null, тепер) === null);
-  ok('скасоване теж', nextTask(зам({ status: 'cancelled' }), null, тепер) === null);
-  ok('нове — підтвердити', nextTask(зам({ status: 'new' }), null, тепер)?.band === 'confirm');
+  ok('виконане в чергу не потрапляє', nextTask(mkOrder({ status: 'done' }), null, now) === null);
+  ok('скасоване теж', nextTask(mkOrder({ status: 'cancelled' }), null, now) === null);
+  ok('нове — підтвердити', nextTask(mkOrder({ status: 'new' }), null, now)?.band === 'confirm');
   ok(
     'нове, що висить пів дня, — терміново',
-    nextTask(зам({ status: 'new', date: годину(13) }), null, тепер)?.urgency === 2
+    nextTask(mkOrder({ status: 'new', date: hoursAgo(13) }), null, now)?.urgency === 2
   );
-  ok('підтверджене — зібрати', nextTask(зам({ status: 'confirmed' }), null, тепер)?.band === 'pack');
+  ok('підтверджене — зібрати', nextTask(mkOrder({ status: 'confirmed' }), null, now)?.band === 'pack');
   ok(
     'відправлене без номера — окрема смуга',
-    nextTask(зам({ status: 'shipped' }), null, тепер)?.band === 'ttn'
+    nextTask(mkOrder({ status: 'shipped' }), null, now)?.band === 'ttn'
   );
   ok(
     'отримане — пропонуємо закрити',
-    nextTask(зам({ status: 'shipped', ttn: '1' }), { code: '9' }, тепер)?.band === 'close'
+    nextTask(mkOrder({ status: 'shipped', ttn: '1' }), { code: '9' }, now)?.band === 'close'
   );
   ok(
     'повертається — у смугу помилок',
-    nextTask(зам({ status: 'shipped', ttn: '1' }), { code: '102' }, тепер)?.band === 'back'
+    nextTask(mkOrder({ status: 'shipped', ttn: '1' }), { code: '102' }, now)?.band === 'back'
   );
   ok(
     'лежить два дні — ще не привід турбувати',
-    nextTask(зам({ status: 'shipped', ttn: '1' }), { code: '7', waiting: 2 }, тепер)?.band === 'transit'
+    nextTask(mkOrder({ status: 'shipped', ttn: '1' }), { code: '7', waiting: 2 }, now)?.band === 'transit'
   );
-  const лежить5 = nextTask(зам({ status: 'shipped', ttn: '1' }), { code: '7', waiting: 5 }, тепер);
-  ok('лежить пʼятий день — смуга «лежить», і горить', лежить5?.band === 'waiting' && лежить5?.urgency === 2);
+  const waiting5 = nextTask(mkOrder({ status: 'shipped', ttn: '1' }), { code: '7', waiting: 5 }, now);
+  ok('лежить пʼятий день — смуга «лежить», і горить', waiting5?.band === 'waiting' && waiting5?.urgency === 2);
 
   const q = queue(
     [
-      зам({ _id: '1', status: 'new' }),
-      зам({ _id: '2', status: 'done' }),
-      зам({ _id: '3', status: 'confirmed', date: годину(50) }),
-      зам({ _id: '4', status: 'confirmed', date: годину(2) })
+      mkOrder({ _id: '1', status: 'new' }),
+      mkOrder({ _id: '2', status: 'done' }),
+      mkOrder({ _id: '3', status: 'confirmed', date: hoursAgo(50) }),
+      mkOrder({ _id: '4', status: 'confirmed', date: hoursAgo(2) })
     ],
     new Map(),
-    тепер
+    now
   );
   ok('смуги в сталому порядку', q.map((x) => x.band.id).join(',') === BANDS.map((b) => b.id).join(','));
   ok('виконане в чергу не приїхало', q.every((s) => !s.rows.find((r) => r.order._id === '2')));
@@ -479,17 +479,17 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
 /* ---------- Статус за трекером ---------- */
 
 {
-  const { статусЗаТрекером } = await import('../lib/admin/np.ts');
-  const п = (code: string) =>
+  const { statusFromTracker } = await import('../lib/admin/np.ts');
+  const parcel = (code: string) =>
     ({ ttn: '1', code, status: '', gotAt: '', waiting: 0, place: '', backMoney: 0,
        scheduled: '', city: '', createdAt: '' });
 
-  ok('забрали — «Виконано»', статусЗаТрекером(п('9')) === 'done');
-  ok('їде — «Відправлено»', статусЗаТрекером(п('5')) === 'shipped');
-  ok('лежить у відділенні — теж «Відправлено»', статусЗаТрекером(п('7')) === 'shipped');
-  ok('повертається — статус не чіпаємо', статусЗаТрекером(п('102')) === null);
-  ok('номера немає — статус не чіпаємо', статусЗаТрекером(п('3')) === null);
-  ok('накладна лише створена — ще не «Відправлено»', статусЗаТрекером(п('1')) === null);
+  ok('забрали — «Виконано»', statusFromTracker(parcel('9')) === 'done');
+  ok('їде — «Відправлено»', statusFromTracker(parcel('5')) === 'shipped');
+  ok('лежить у відділенні — теж «Відправлено»', statusFromTracker(parcel('7')) === 'shipped');
+  ok('повертається — статус не чіпаємо', statusFromTracker(parcel('102')) === null);
+  ok('номера немає — статус не чіпаємо', statusFromTracker(parcel('3')) === null);
+  ok('накладна лише створена — ще не «Відправлено»', statusFromTracker(parcel('1')) === null);
 }
 
 
@@ -497,46 +497,46 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
 
 {
   const { applyStatus } = await import('../lib/admin/orders.ts');
-  const зам = (o: Record<string, unknown>) =>
+  const mkOrder = (o: Record<string, unknown>) =>
     ({ _id: 'x', num: 'R-9', total: 700, status: 'shipped',
        items: [{ id: 'p', name: 'т', size: 'M', qty: 1, price: 700 }],
        customer: { name: 'Т', phone: '+380' }, ...o }) as never;
-  const діалоги = (відповідь: 'ok' | 'alt' | null, ttn: string | null = null) => ({
+  const dialogs = (answer: 'ok' | 'alt' | null, ttn: string | null = null) => ({
     confirmAsk: async () => true,
-    ask: async () => відповідь,
+    ask: async () => answer,
     askWriteoff: async () => null,
     askText: async () => ttn
   });
-  const бази = { db: null as never, c: { products: [], stock: {} } as never, now: new Date(), by: 'a@b.c' };
+  const deps = { db: null as never, c: { products: [], stock: {} } as never, now: new Date(), by: 'a@b.c' };
 
-  const мовчки = await applyStatus(зам({}), 'done', { ...бази, ask: діалоги('ok') as never, silent: true });
-  ok('пакетом не закриваємо без накладної', мовчки.ok === false && мовчки.reason === 'no-ttn');
+  const silent = await applyStatus(mkOrder({}), 'done', { ...deps, ask: dialogs('ok') as never, silent: true });
+  ok('пакетом не закриваємо без накладної', silent.ok === false && silent.reason === 'no-ttn');
 
-  const передумав = await applyStatus(зам({}), 'done', { ...бази, ask: діалоги(null) as never });
-  ok('закрив діалог — статус лишився', передумав.reason === 'cancelled');
+  const cancelled = await applyStatus(mkOrder({}), 'done', { ...deps, ask: dialogs(null) as never });
+  ok('закрив діалог — статус лишився', cancelled.reason === 'cancelled');
 
-  const безНомера = await applyStatus(зам({}), 'done', { ...бази, ask: діалоги('ok', '') as never });
-  ok('порожній номер не приймається', безНомера.ok === false && безНомера.reason === 'no-ttn');
+  const noNumber = await applyStatus(mkOrder({}), 'done', { ...deps, ask: dialogs('ok', '') as never });
+  ok('порожній номер не приймається', noNumber.ok === false && noNumber.reason === 'no-ttn');
 
-  const самовиніс = await applyStatus(зам({ pickup: true }), 'done', { ...бази, ask: діалоги(null) as never });
-  ok('позначене самовинесенням закривається без питань', самовиніс.reason !== 'no-ttn' && самовиніс.reason !== 'cancelled');
+  const pickup = await applyStatus(mkOrder({ pickup: true }), 'done', { ...deps, ask: dialogs(null) as never });
+  ok('позначене самовинесенням закривається без питань', pickup.reason !== 'no-ttn' && pickup.reason !== 'cancelled');
 
-  const зНомером = await applyStatus(зам({ ttn: '20450000000000' }), 'done', { ...бази, ask: діалоги(null) as never });
-  ok('із накладною теж не перепитуємо', зНомером.reason !== 'no-ttn' && зНомером.reason !== 'cancelled');
+  const withTtn = await applyStatus(mkOrder({ ttn: '20450000000000' }), 'done', { ...deps, ask: dialogs(null) as never });
+  ok('із накладною теж не перепитуємо', withTtn.reason !== 'no-ttn' && withTtn.reason !== 'cancelled');
 
   const { nextTask } = await import('../lib/admin/orders.ts');
-  const т = nextTask(зам({ pickup: true, date: new Date().toISOString() }), null, new Date());
-  ok('самовиніс має власну смугу, а не «Отримано»', т?.band === 'pickup', т?.band);
+  const task = nextTask(mkOrder({ pickup: true, date: new Date().toISOString() }), null, new Date());
+  ok('самовиніс має власну смугу, а не «Отримано»', task?.band === 'pickup', task?.band);
 }
 
 
 /* ---------- Черга показує тільки роботу ---------- */
 
 {
-  const файл = readFileSync(new URL('../components/admin/OrdersQueue.tsx', import.meta.url), 'utf8');
-  ok('порожні смуги не малюються заголовками', файл.includes('живі.map'), 'живі.map');
-  ok('а перелічені одним рядком унизу', файл.includes('aq-none'));
-  ok('емодзі в заголовках смуг не малюються', !файл.includes('band.icon'));
+  const text = readFileSync(new URL('../components/admin/OrdersQueue.tsx', import.meta.url), 'utf8');
+  ok('порожні смуги не малюються заголовками', text.includes('withWork.map'), 'withWork.map');
+  ok('а перелічені одним рядком унизу', text.includes('aq-none'));
+  ok('емодзі в заголовках смуг не малюються', !text.includes('band.icon'));
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));

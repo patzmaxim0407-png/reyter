@@ -18,13 +18,13 @@
    картки потрібен номер — а нам потрібна саме повна.
    ============================================================ */
 
-const URL_НП = 'https://api.novaposhta.ua/v2.0/json/';
-const КЛЮЧ = '';
+const NP_URL = 'https://api.novaposhta.ua/v2.0/json/';
+const KEY = '';
 /** Межа перевізника на один запит. */
-const ПАЧКА = 100;
+const BATCH = 100;
 
 /** Що саме зараз із посилкою — рівно те, що потрібно менеджеру. */
-export interface Посилка {
+export interface Parcel {
   ttn: string;
   /** Код стану від перевізника. */
   code: string;
@@ -53,85 +53,85 @@ export interface Посилка {
    Нас цікавлять не всі, а ті, від яких залежить дія менеджера,
    тому решта злипається в «у дорозі». */
 
-export type Стан =
-  | 'нема' // номер не знайдено — найчастіше помилка в цифрах
-  | 'створено' // накладну оформили, посилку ще не здали
-  | 'дорога' // їде
-  | 'чекає' // прибула у відділення, лежить
-  | 'отримано'
-  | 'відмова' // не забрали, повертається відправнику
-  | 'повернуто'; // повернулась до нас
+export type ParcelState =
+  | 'missing' // номер не знайдено — найчастіше помилка в цифрах
+  | 'created' // накладну оформили, посилку ще не здали
+  | 'moving' // їде
+  | 'waiting' // прибула у відділення, лежить
+  | 'received'
+  | 'refused' // не забрали, повертається відправнику
+  | 'returned'; // повернулась до нас
 
-const КОДИ: Record<string, Стан> = {
-  '1': 'створено',
+const CODES: Record<string, ParcelState> = {
+  '1': 'created',
   /* Код 2 — «Видалено»: накладну скасували в кабінеті, а не
      покупець відмовився від посилки. */
-  '2': 'нема',
-  '3': 'нема',
-  '4': 'дорога',
-  '41': 'дорога',
-  '5': 'дорога',
-  '6': 'дорога',
-  '7': 'чекає',
-  '8': 'чекає',
-  '9': 'отримано',
-  '10': 'отримано',
-  '11': 'отримано',
-  '12': 'дорога',
-  '101': 'дорога',
-  '102': 'відмова',
-  '103': 'відмова',
-  '104': 'дорога',
-  '105': 'відмова',
+  '2': 'missing',
+  '3': 'missing',
+  '4': 'moving',
+  '41': 'moving',
+  '5': 'moving',
+  '6': 'moving',
+  '7': 'waiting',
+  '8': 'waiting',
+  '9': 'received',
+  '10': 'received',
+  '11': 'received',
+  '12': 'moving',
+  '101': 'moving',
+  '102': 'refused',
+  '103': 'refused',
+  '104': 'moving',
+  '105': 'refused',
   /* 106 — «Одержано і створено накладну зворотної доставки»:
      посилку ЗАБРАЛИ, а назад їдуть гроші за післяплатою. Це
      доставка, а не повернення — інакше замовлення з післяплатою
      не закривалося б ніколи. */
-  '106': 'отримано',
-  '111': 'відмова',
-  '112': 'відмова'
+  '106': 'received',
+  '111': 'refused',
+  '112': 'refused'
 };
 
-export function стан(code?: string | null): Стан {
-  return КОДИ[String(code || '')] || 'дорога';
+export function parcelState(code?: string | null): ParcelState {
+  return CODES[String(code || '')] || 'moving';
 }
 
 /** Підпис для менеджера — коротко й дієсловом, а не кодом. */
-export function підпис(п: Посилка): string {
-  switch (стан(п.code)) {
-    case 'нема':
+export function label(parcel: Parcel): string {
+  switch (parcelState(parcel.code)) {
+    case 'missing':
       return 'Номер не знайдено';
-    case 'створено':
+    case 'created':
       return 'Накладну створено — посилку ще не здано';
-    case 'чекає':
-      return п.waiting > 0 ? 'У відділенні ' + п.waiting + ' дн.' : 'Прибула у відділення';
-    case 'отримано':
+    case 'waiting':
+      return parcel.waiting > 0 ? 'У відділенні ' + parcel.waiting + ' дн.' : 'Прибула у відділення';
+    case 'received':
       return 'Отримано';
-    case 'відмова':
+    case 'refused':
       return 'Не забрали — повертається';
-    case 'повернуто':
+    case 'returned':
       return 'Повернулась до нас';
     default:
-      return п.status || 'У дорозі';
+      return parcel.status || 'У дорозі';
   }
 }
 
 /** Те саме, але для рядка списку: там колонка вузька, а підпис
  *  на пів речення розпихає сусідні й ховає адресу під три
  *  крапки. Розлогий текст лишається в картці й у підказці. */
-export function коротко(п: Посилка): string {
-  switch (стан(п.code)) {
-    case 'нема':
+export function shortLabel(parcel: Parcel): string {
+  switch (parcelState(parcel.code)) {
+    case 'missing':
       return 'Номера немає';
-    case 'створено':
+    case 'created':
       return 'Ще не здано';
-    case 'чекає':
-      return п.waiting > 0 ? 'У відділенні ' + п.waiting + ' дн.' : 'У відділенні';
-    case 'отримано':
+    case 'waiting':
+      return parcel.waiting > 0 ? 'У відділенні ' + parcel.waiting + ' дн.' : 'У відділенні';
+    case 'received':
       return 'Отримано';
-    case 'відмова':
+    case 'refused':
       return 'Повертається';
-    case 'повернуто':
+    case 'returned':
       return 'Повернулась';
     default:
       return 'У дорозі';
@@ -139,14 +139,14 @@ export function коротко(п: Посилка): string {
 }
 
 /** Наскільки це терміново: 0 — усе гаразд, 2 — треба реагувати. */
-export function тривога(п: Посилка, порогУваги = 3, порогБіди = 5): 0 | 1 | 2 {
-  const s = стан(п.code);
-  if (s === 'нема' || s === 'відмова' || s === 'повернуто') return 2;
-  if (s === 'чекає') {
-    if (п.waiting >= порогБіди) return 2;
-    if (п.waiting >= порогУваги) return 1;
+export function alarm(parcel: Parcel, WARN_AT = 3, ALARM_AT = 5): 0 | 1 | 2 {
+  const s = parcelState(parcel.code);
+  if (s === 'missing' || s === 'refused' || s === 'returned') return 2;
+  if (s === 'waiting') {
+    if (parcel.waiting >= ALARM_AT) return 2;
+    if (parcel.waiting >= WARN_AT) return 1;
   }
-  if (s === 'створено') return 1; // накладна є, а посилки перевізник не бачить
+  if (s === 'created') return 1; // накладна є, а посилки перевізник не бачить
   return 0;
 }
 
@@ -155,16 +155,16 @@ export function тривога(п: Посилка, порогУваги = 3, п�
  *  null — статус міняти не можна: або нічого не сталося, або
  *  сталося те, у чому має розібратись людина (повернення,
  *  помилковий номер). */
-export function статусЗаТрекером(п: Посилка): 'shipped' | 'done' | null {
-  const s = стан(п.code);
-  if (s === 'отримано') return 'done';
-  if (s === 'дорога' || s === 'чекає') return 'shipped';
+export function statusFromTracker(parcel: Parcel): 'shipped' | 'done' | null {
+  const s = parcelState(parcel.code);
+  if (s === 'received') return 'done';
+  if (s === 'moving' || s === 'waiting') return 'shipped';
   return null;
 }
 
 /* ---------- Запит ---------- */
 
-interface Рядок {
+interface Row {
   Number?: string;
   StatusCode?: string;
   Status?: string;
@@ -182,8 +182,8 @@ interface Рядок {
   RedeliverySum?: string | number;
 }
 
-function днів(відколи?: string | null, тепер = new Date()): number {
-  const s = String(відколи || '').trim();
+function daysSince(since?: string | null, now = new Date()): number {
+  const s = String(since || '').trim();
   if (!s) return 0;
   /* Перевізник віддає дати трьома різними способами в одній і
      тій самій відповіді: «10-08-2026 20:11:35», «11.08.2026
@@ -193,16 +193,16 @@ function днів(відколи?: string | null, тепер = new Date()): numb
   const m = s.match(/^(\d{2})[.\-](\d{2})[.\-](\d{4})/);
   const d = m ? new Date(+m[3], +m[2] - 1, +m[1]) : new Date(s.replace(' ', 'T'));
   if (Number.isNaN(d.getTime())) return 0;
-  const диф = Math.floor((тепер.getTime() - d.getTime()) / 86_400_000);
-  return диф > 0 ? диф : 0;
+  const diff = Math.floor((now.getTime() - d.getTime()) / 86_400_000);
+  return diff > 0 ? diff : 0;
 }
 
-async function пачка(items: { ttn: string; phone?: string }[]): Promise<Посилка[]> {
-  const res = await fetch(URL_НП, {
+async function batch(items: { ttn: string; phone?: string }[]): Promise<Parcel[]> {
+  const res = await fetch(NP_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      apiKey: КЛЮЧ,
+      apiKey: KEY,
       modelName: 'TrackingDocument',
       calledMethod: 'getStatusDocuments',
       methodProperties: {
@@ -213,7 +213,7 @@ async function пачка(items: { ttn: string; phone?: string }[]): Promise<П�
       }
     })
   });
-  const json = (await res.json()) as { success?: boolean; data?: Рядок[] };
+  const json = (await res.json()) as { success?: boolean; data?: Row[] };
   if (!json.success || !Array.isArray(json.data)) return [];
 
   return json.data.map((r) => ({
@@ -221,7 +221,7 @@ async function пачка(items: { ttn: string; phone?: string }[]): Promise<П�
     code: String(r.StatusCode || ''),
     status: String(r.Status || ''),
     gotAt: String(r.RecipientDateTime || ''),
-    waiting: днів(r.DateFirstDayStorage),
+    waiting: daysSince(r.DateFirstDayStorage),
     place: String(r.WarehouseRecipient || r.WarehouseRecipientAddress || ''),
     backMoney: Number(r.RedeliverySum) || 0,
     scheduled: String(r.ScheduledDeliveryDate || ''),
@@ -235,20 +235,20 @@ async function пачка(items: { ttn: string; phone?: string }[]): Promise<П�
  *  кожне місце виклику не робило це саме. */
 export async function trackAll(
   items: { ttn?: string | null; phone?: string | null }[]
-): Promise<Map<string, Посилка>> {
-  const список = items
+): Promise<Map<string, Parcel>> {
+  const list = items
     /* Номер із пробілами перевізник не знаходить, а замовлення
        після цього вічно висить «у дорозі». Лишаємо самі цифри. */
     .map((x) => ({ ttn: String(x.ttn || '').replace(/\D/g, ''), phone: String(x.phone || '') }))
     .filter((x) => x.ttn.length >= 8);
 
-  const out = new Map<string, Посилка>();
-  if (!список.length) return out;
+  const out = new Map<string, Parcel>();
+  if (!list.length) return out;
 
-  for (let i = 0; i < список.length; i += ПАЧКА) {
+  for (let i = 0; i < list.length; i += BATCH) {
     try {
-      const рядки = await пачка(список.slice(i, i + ПАЧКА));
-      for (const р of рядки) if (р.ttn) out.set(р.ttn, р);
+      const rows = await batch(list.slice(i, i + BATCH));
+      for (const row of rows) if (row.ttn) out.set(row.ttn, row);
     } catch {
       /* мережа підвела — покажемо те, що вже знаємо */
     }
@@ -269,13 +269,13 @@ export async function trackAll(
    пропускає лише ті методи, які потрібні для накладної.
    ============================================================ */
 
-export interface Кабінет {
+export interface Cabinet {
   workerUrl?: string;
   adminKey?: string;
 }
 
 export async function npCall<T = Record<string, unknown>>(
-  cab: Кабінет | null,
+  cab: Cabinet | null,
   model: string,
   method: string,
   props: Record<string, unknown> = {}
@@ -303,8 +303,8 @@ export async function npCall<T = Record<string, unknown>>(
       data?: T[];
       error?: string;
     };
-    const помилка = d.error || (d.ok ? '' : 'воркер відповів кодом ' + res.status);
-    return { ok: !!d.ok, data: d.data || [], error: пояснити(помилка) };
+    const err = d.error || (d.ok ? '' : 'воркер відповів кодом ' + res.status);
+    return { ok: !!d.ok, data: d.data || [], error: explain(err) };
   } catch {
     return { ok: false, data: [], error: 'не вдалося звʼязатися з воркером' };
   }
@@ -314,7 +314,7 @@ export async function npCall<T = Record<string, unknown>>(
    замовлення — звідти й береться «Порожнє замовлення». Сказати
    про це прямо дешевше, ніж дати менеджеру гадати над відповіддю,
    яка до накладної не має жодного стосунку. */
-function пояснити(err: string): string {
+function explain(err: string): string {
   if (/порожнє замовлення/i.test(err)) {
     return 'воркер сповіщень ще не оновлено — скопіюйте new/worker/worker.js у Cloudflare і натисніть Deploy';
   }
@@ -329,14 +329,14 @@ function пояснити(err: string): string {
 
 /** Хто відправник за договором: контрагент і контактна особа.
  *  Їх у договорі зазвичай по одному, тож не питаємо — беремо. */
-export async function відправник(cab: Кабінет | null): Promise<
+export async function senderFromContract(cab: Cabinet | null): Promise<
   { ok: true; ref: string; contact: string; phone: string; name: string } | { ok: false; error: string }
 > {
-  const к = await npCall<{ Ref?: string; Description?: string }>(
+  const party = await npCall<{ Ref?: string; Description?: string }>(
     cab, 'Counterparty', 'getCounterparties', { CounterpartyProperty: 'Sender', Page: '1' }
   );
-  if (!к.ok || !к.data.length) return { ok: false, error: к.error || 'у договорі немає відправника' };
-  const ref = String(к.data[0].Ref || '');
+  if (!party.ok || !party.data.length) return { ok: false, error: party.error || 'у договорі немає відправника' };
+  const ref = String(party.data[0].Ref || '');
 
   const o = await npCall<{ Ref?: string; Phones?: string; Description?: string }>(
     cab, 'Counterparty', 'getCounterpartyContactPersons', { Ref: ref, Page: '1' }
@@ -348,11 +348,11 @@ export async function відправник(cab: Кабінет | null): Promise<
     ref,
     contact: String(o.data[0].Ref || ''),
     phone: String(o.data[0].Phones || ''),
-    name: String(к.data[0].Description || '')
+    name: String(party.data[0].Description || '')
   };
 }
 
-export interface НоваНакладна {
+export interface NewWaybill {
   /** Місто й відділення відправника — з налаштувань магазину. */
   citySender: string;
   senderWarehouse: string;
@@ -377,14 +377,14 @@ export interface НоваНакладна {
 }
 
 /** Створити накладну. Повертає її номер. */
-export async function створитиНакладну(
-  cab: Кабінет | null,
-  n: НоваНакладна
+export async function createWaybill(
+  cab: Cabinet | null,
+  n: NewWaybill
 ): Promise<{ ok: true; ttn: string; ref: string } | { ok: false; error: string }> {
-  const в = await відправник(cab);
-  if (!в.ok) return { ok: false, error: в.error };
+  const sender = await senderFromContract(cab);
+  if (!sender.ok) return { ok: false, error: sender.error };
 
-  const коробка = n.box || { length: 30, width: 20, height: 10 };
+  const box = n.box || { length: 30, width: 20, height: 10 };
 
   const props: Record<string, unknown> = {
     NewAddress: '1',
@@ -400,10 +400,10 @@ export async function створитиНакладну(
     Description: n.description.slice(0, 100),
     Cost: String(Math.max(1, Math.round(n.cost))),
     CitySender: n.citySender,
-    Sender: в.ref,
+    Sender: sender.ref,
     SenderAddress: n.senderWarehouse,
-    ContactSender: в.contact,
-    SendersPhone: в.phone,
+    ContactSender: sender.contact,
+    SendersPhone: sender.phone,
     /* Отримувача не заводимо контрагентом: за NewAddress перевізник
        створює його сам із назви міста, номера відділення й
        телефону. Інакше на кожне замовлення в кабінеті осідав би
@@ -413,7 +413,7 @@ export async function створитиНакладну(
     RecipientName: n.name,
     RecipientType: 'PrivatePerson',
     RecipientsPhone: String(n.phone || '').replace(/\D/g, ''),
-    DateTime: сьогодні(),
+    DateTime: todayStr(),
     /* Габарити місця. Перевізник вимагає їх окремо від ваги —
        «param OptionsSeat required», — бо за обʼємом він рахує
        свою вагу й може взяти більшу з двох. Розміри ті самі, що
@@ -421,10 +421,10 @@ export async function створитиНакладну(
        числа. */
     OptionsSeat: [
       {
-        volumetricVolume: String(обʼєм(коробка)),
-        volumetricWidth: String(коробка.width),
-        volumetricLength: String(коробка.length),
-        volumetricHeight: String(коробка.height),
+        volumetricVolume: String(volume(box)),
+        volumetricWidth: String(box.width),
+        volumetricLength: String(box.length),
+        volumetricHeight: String(box.height),
         weight: String(Math.max(0.1, n.weight))
       }
     ]
@@ -447,7 +447,7 @@ export async function створитиНакладну(
 }
 
 /** Обʼєм коробки в кубометрах — саме в них його чекають. */
-function обʼєм(b: { length: number; width: number; height: number }): number {
+function volume(b: { length: number; width: number; height: number }): number {
   return Math.round(((b.length * b.width * b.height) / 1_000_000) * 10_000) / 10_000;
 }
 
@@ -458,28 +458,28 @@ function обʼєм(b: { length: number; width: number; height: number }): numbe
  *  ідентифікатора немає (накладну вписали руками або створили до
  *  того, як ми почали його зберігати) — беремо з відстеження:
  *  воно віддає його полем RefEW. */
-export async function видалитиНакладну(
-  cab: Кабінет | null,
+export async function deleteWaybill(
+  cab: Cabinet | null,
   ttn: string,
   ref?: string | null
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  let документ = String(ref || '').trim();
+  let docRef = String(ref || '').trim();
 
-  if (!документ) {
-    const знайдені = await trackAll([{ ttn }]);
-    документ = знайдені.get(String(ttn).trim())?.ref || '';
+  if (!docRef) {
+    const found = await trackAll([{ ttn }]);
+    docRef = found.get(String(ttn).trim())?.ref || '';
   }
-  if (!документ) {
+  if (!docRef) {
     return { ok: false, error: 'перевізник не знає такої накладної — можливо, її вже видалено' };
   }
 
-  const res = await npCall(cab, 'InternetDocument', 'delete', { DocumentRefs: [документ] });
+  const res = await npCall(cab, 'InternetDocument', 'delete', { DocumentRefs: [docRef] });
   if (!res.ok) return { ok: false, error: res.error || 'перевізник не видалив накладну' };
   return { ok: true };
 }
 
 /** Дата у вигляді, якого чекає перевізник: 11.08.2026 */
-function сьогодні(): string {
+function todayStr(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
   return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear();

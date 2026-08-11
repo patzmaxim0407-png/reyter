@@ -67,8 +67,8 @@ export default function PublishControl({
   const [published, setPublished] = useState<PublishedDoc | null>(null);
   const [scheduled, setScheduled] = useState<ScheduledDoc | null>(null);
   const [open, setOpen] = useState(false);
-  const власні = useNewOrders(newOrdersProp === undefined);
-  const newOrders = newOrdersProp ?? власні;
+  const own = useNewOrders(newOrdersProp === undefined);
+  const newOrders = newOrdersProp ?? own;
 
   useEffect(
     () =>

@@ -257,7 +257,7 @@ const NOVAPOST_UI = 'https://api.novapost.com/ui/site/v.1.0';
    міжнародну адресу лише латиницею. Просимо англійську явно —
    інакше покупець обирає «Варшаву» зі списку, а вона ж потім не
    проходить власну перевірку на латиницю. */
-const ЛАТИНОЮ = { 'Accept-Language': 'en' };
+const IN_LATIN = { 'Accept-Language': 'en' };
 
 export interface IntlPlace {
   id: string;
@@ -280,7 +280,7 @@ export async function intlSettlements(country: string, query?: string | null): P
   const url =
     NOVAPOST_UI + '/settlements?countryCode=' + encodeURIComponent(country) +
     '&search=' + encodeURIComponent(q) + '&limit=20';
-  const json = (await (await fetch(url, { headers: ЛАТИНОЮ })).json()) as {
+  const json = (await (await fetch(url, { headers: IN_LATIN })).json()) as {
     items?: { id?: number; name?: string; region?: { name?: string; parent?: { name?: string } } }[];
   };
   const list = (json.items || [])
@@ -326,12 +326,12 @@ export async function intlDivisions(
      мовчки ковтає й віддає все підряд. Зате за номером шукає
      точно. Тому цифри віддаємо йому, а слова відсіюємо самі —
      з тієї сотні, що приїхала. */
-  const заНомером = /^[\d/\\-]+$/.test(q);
+  const byNumber = /^[\d/\\-]+$/.test(q);
   const url =
     NOVAPOST_UI + '/divisions?countryCode=' + encodeURIComponent(country) +
     '&settlementIds[]=' + encodeURIComponent(settlementId) + '&limit=100' +
-    (заНомером ? '&number=' + encodeURIComponent(q) : '');
-  const json = (await (await fetch(url, { headers: ЛАТИНОЮ })).json()) as {
+    (byNumber ? '&number=' + encodeURIComponent(q) : '');
+  const json = (await (await fetch(url, { headers: IN_LATIN })).json()) as {
     items?: {
       id?: number;
       number?: string;
@@ -343,20 +343,20 @@ export async function intlDivisions(
   const list = (json.items || [])
     .filter((x) => x.id)
     .map((x) => {
-      const адреса = [x.addressParts?.street, x.addressParts?.building].filter(Boolean).join(' ');
-      const номер = String(x.number || x.id);
+      const address = [x.addressParts?.street, x.addressParts?.building].filter(Boolean).join(' ');
+      const num = String(x.number || x.id);
       return {
         id: String(x.id),
-        number: номер,
+        number: num,
         type: String(x.divisionCategory || ''),
-        label: '№' + номер + (адреса ? ': ' + адреса : x.name ? ': ' + x.name : '')
+        label: '№' + num + (address ? ': ' + address : x.name ? ': ' + x.name : '')
       };
     });
-  const шукане = заНомером ? '' : q.toLowerCase();
-  const знайдені = шукане ? list.filter((x) => x.label.toLowerCase().includes(шукане)) : list;
+  const needle = byNumber ? '' : q.toLowerCase();
+  const found = needle ? list.filter((x) => x.label.toLowerCase().includes(needle)) : list;
 
-  cachePut(intlBranchCache, key, знайдені);
-  return знайдені;
+  cachePut(intlBranchCache, key, found);
+  return found;
 }
 
 const intlStreetCache = new Map<string, IntlPlace[]>();
@@ -379,10 +379,10 @@ export async function intlStreets(
   const url =
     NOVAPOST_UI + '/streets?countryCode=' + encodeURIComponent(country) +
     '&name=' + encodeURIComponent(q) + '&limit=100';
-  const json = (await (await fetch(url, { headers: ЛАТИНОЮ })).json()) as {
+  const json = (await (await fetch(url, { headers: IN_LATIN })).json()) as {
     items?: { id?: number; name?: string; settlement?: { id?: number; name?: string } }[];
   };
-  const усі = (json.items || [])
+  const all = (json.items || [])
     .filter((x) => x.name)
     .map((x) => ({
       id: String(x.id ?? ''),
@@ -397,12 +397,12 @@ export async function intlStreets(
      і він би її спокійно обрав. Краще не показати нічого:
      тоді підказка каже вписати назву як є. */
   const list = settlementId
-    ? усі.filter(
+    ? all.filter(
         (x) =>
           String((json.items || []).find((y) => String(y.id) === x.id)?.settlement?.id || '') ===
           settlementId
       )
-    : усі;
+    : all;
 
   cachePut(intlStreetCache, key, list);
   return list;
@@ -486,11 +486,11 @@ export function regRequired(country?: string | null): boolean {
 }
 
 /* Перевізник приймає міжнародну адресу лише латиницею. */
-const ЛАТИНКА = /^[\p{Script=Latin}\p{Nd}\s'’.,\/#()+-]*$/u;
+const LATIN_RE = /^[\p{Script=Latin}\p{Nd}\s'’.,\/#()+-]*$/u;
 
 /** Рядок написано латиницею (порожній теж вважаємо правильним). */
 export function isLatin(v?: string | null): boolean {
-  return ЛАТИНКА.test(String(v || ''));
+  return LATIN_RE.test(String(v || ''));
 }
 
 /* Підказка формату індексу — щоб не вписували «000000» */
@@ -699,7 +699,7 @@ export function fromForm(f: AddressForm, lang: Lang = 'uk'): Address {
       ? f.countryOther.trim()
       : COUNTRIES.find((c) => c.code === f.countryCode)?.title || '';
 
-  const відділення = f.intlMode === 'branch';
+  const toBranch = f.intlMode === 'branch';
 
   return {
     carrier: carrierTitle('intl', lang),
@@ -707,7 +707,7 @@ export function fromForm(f: AddressForm, lang: Lang = 'uk'): Address {
     /* city і branch дублюють закордонні поля навмисно: лист
        і адмінка друкують саме їх і про intl нічого не знають */
     city: f.intlCity.trim(),
-    branch: відділення
+    branch: toBranch
       ? f.intlBranch.trim()
       : [[f.street.trim(), f.building.trim()].filter(Boolean).join(' '), f.flat.trim()]
           .filter(Boolean)
@@ -719,14 +719,14 @@ export function fromForm(f: AddressForm, lang: Lang = 'uk'): Address {
       city: f.intlCity.trim(),
       cityId: f.intlCityId || '',
       mode: f.intlMode,
-      branch: відділення ? f.intlBranch.trim() : '',
-      branchId: відділення ? f.intlBranchId || '' : '',
-      branchType: відділення ? f.intlBranchType || '' : '',
-      street: відділення ? '' : f.street.trim(),
-      building: відділення ? '' : f.building.trim(),
-      flat: відділення ? '' : f.flat.trim().slice(0, 10),
-      note: відділення ? '' : f.note.trim().slice(0, 100),
-      zip: відділення ? '' : f.zip.trim(),
+      branch: toBranch ? f.intlBranch.trim() : '',
+      branchId: toBranch ? f.intlBranchId || '' : '',
+      branchType: toBranch ? f.intlBranchType || '' : '',
+      street: toBranch ? '' : f.street.trim(),
+      building: toBranch ? '' : f.building.trim(),
+      flat: toBranch ? '' : f.flat.trim().slice(0, 10),
+      note: toBranch ? '' : f.note.trim().slice(0, 100),
+      zip: toBranch ? '' : f.zip.trim(),
       reg: regRequired(f.countryCode)
         ? {
             city: f.regCity.trim(),
@@ -794,8 +794,8 @@ export function addressLine(c?: Address | null): string {
     if (intl.mode === 'branch' || (!intl.street && intl.branch)) {
       return [intl.country, intl.city, intl.branch].filter(Boolean).join(', ');
     }
-    const вулиця = [intl.street, intl.building].filter(Boolean).join(' ');
-    return [intl.country, intl.state, intl.city, вулиця, intl.flat || intl.extra, intl.zip]
+    const streetLine = [intl.street, intl.building].filter(Boolean).join(' ');
+    return [intl.country, intl.state, intl.city, streetLine, intl.flat || intl.extra, intl.zip]
       .filter(Boolean)
       .join(', ');
   }

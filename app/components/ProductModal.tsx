@@ -15,7 +15,7 @@ import type { Lang } from '@/lib/types';
    попередня» не годиться: та мить настає ПІСЛЯ появи нової.
 
    Модульна змінна, а не стан: вона має пережити розмонтування. */
-let живих = 0;
+let alive = 0;
 
 /* ============================================================
    Хто вирішує, бути картці чи ні
@@ -74,17 +74,17 @@ function ProductSheet({ children, lang }: { children: React.ReactNode; lang: Lan
      якщо попередня ще на екрані — це не нова картка, а та сама з
      іншим вмістом: зʼявляємось одразу, без появи. Інакше виглядало
      б, наче картка закрилась і відкрилась. */
-  const [підміна] = useState(() => живих > 0);
-  const [open, setOpen] = useState(підміна);
+  const [stub] = useState(() => alive > 0);
+  const [open, setOpen] = useState(stub);
 
   /* Поки шторка їде вгору, вона натискань не приймає: інакше
      другий тап (а на телефоні їх роблять швидко) потрапляє вже не
      в картку каталогу, а в те, що під палець приїхало — у фото або
      навіть у «Додати в кошик». */
-  const [ready, setReady] = useState(підміна);
+  const [ready, setReady] = useState(stub);
 
   useEffect(() => {
-    if (підміна) return;
+    if (stub) return;
     let second = 0;
     const first = requestAnimationFrame(() => {
       second = requestAnimationFrame(() => setOpen(true));
@@ -95,12 +95,12 @@ function ProductSheet({ children, lang }: { children: React.ReactNode; lang: Lan
       cancelAnimationFrame(second);
       clearTimeout(settle);
     };
-  }, [підміна]);
+  }, [stub]);
 
   useEffect(() => {
-    живих += 1;
+    alive += 1;
     return () => {
-      живих -= 1;
+      alive -= 1;
     };
   }, []);
 
@@ -251,7 +251,7 @@ function ProductSheet({ children, lang }: { children: React.ReactNode; lang: Lan
        на компʼютері, смужка на ній видна, і тягнути її очікувано.
        З вмісту мишею не тягнемо: там прокрутка, і будь-який рух із
        затиснутою кнопкою означав би виділення тексту, а не жест. */
-    const мишею = (event: MouseEvent) => {
+    const onMouse = (event: MouseEvent) => {
       if (event.button !== 0) return;
       event.preventDefault();
       startY = event.clientY;
@@ -260,22 +260,22 @@ function ProductSheet({ children, lang }: { children: React.ReactNode; lang: Lan
       fromHandle = true;
       panel.style.transition = 'none';
 
-      const рух = (e: MouseEvent) => {
+      const onMove = (e: MouseEvent) => {
         if (!dragging) return;
         const dy = e.clientY - startY;
         shift = Math.max(0, dy);
         panel.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
         if (backdrop) backdrop.style.opacity = String(Math.max(0.15, 1 - shift / 450));
       };
-      const кінець = () => {
-        document.removeEventListener('mousemove', рух);
-        document.removeEventListener('mouseup', кінець);
+      const stop = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', stop);
         onEnd();
       };
-      document.addEventListener('mousemove', рух);
-      document.addEventListener('mouseup', кінець);
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', stop);
     };
-    handle?.addEventListener('mousedown', мишею);
+    handle?.addEventListener('mousedown', onMouse);
 
     return () => {
       for (const target of targets) {
@@ -284,7 +284,7 @@ function ProductSheet({ children, lang }: { children: React.ReactNode; lang: Lan
         target.removeEventListener('touchend', onEnd);
         target.removeEventListener('touchcancel', onEnd);
       }
-      handle?.removeEventListener('mousedown', мишею);
+      handle?.removeEventListener('mousedown', onMouse);
     };
   }, [close]);
 

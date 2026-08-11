@@ -70,13 +70,13 @@ export default function SettingsDialog({
   /* Доки налаштування не приїхали, поля порожні — і збереження в
      цю мить записало б порожнечу поверх адреси воркера й пошти
      магазину. Саме так вони одного разу й зникли. */
-  const [готово, setГотово] = useState(false);
+  const [loaded, setDone] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setStatus(null);
     setChats(null);
-    setГотово(false);
+    setDone(false);
     try {
       /* Спершу свій, потім спільний із налаштувань: у нового
          менеджера свого ще немає, і поле не має бути порожнім. */
@@ -89,12 +89,12 @@ export default function SettingsDialog({
     void openSettings(d).then((screen) => {
       setValues(screen.values);
       setLegacy(screen.legacy);
-      setГотово(true);
+      setDone(true);
       /* Свій ключ важить більше за спільний: менеджер міг вписати
          власний. Але коли свого немає — беремо спільний, інакше
          новий адміністратор дивиться в порожнє поле. */
-      setAdminKey((було) => {
-        if (було) return було;
+      setAdminKey((prev) => {
+        if (prev) return prev;
         if (screen.adminKey) {
           try {
             localStorage.setItem(KEY_WORKER, screen.adminKey);
@@ -196,7 +196,7 @@ export default function SettingsDialog({
                   onBlur={(e) => {
                     const v = e.target.value.trim();
                     const d = db();
-                    if (d && готово) {
+                    if (d && loaded) {
                       void setDoc(doc(d, 'settings', 'notify'), { adminKey: v }, { merge: true });
                     }
                   }}
@@ -257,17 +257,17 @@ export default function SettingsDialog({
                     void run(async () => {
                       const d = db();
                       if (!d) return { kind: 'err' as const, text: 'Немає звʼязку з базою' };
-                      const снапшот = await getDoc(doc(d, 'catalog', 'products'));
-                      const товари = (снапшот.data()?.items ?? []) as { images?: string[] }[];
-                      const усі = товари.flatMap((p) => p.images ?? []);
-                      if (!усі.length) {
+                      const snap = await getDoc(doc(d, 'catalog', 'products'));
+                      const products = (snap.data()?.items ?? []) as { images?: string[] }[];
+                      const all = products.flatMap((p) => p.images ?? []);
+                      if (!all.length) {
                         return { kind: 'err' as const, text: 'У каталозі немає фото' };
                       }
                       /* Сховищу потрібен сам обʼєкт користувача, а
                          тут лежить лише його пошта. */
                       const res = await fixPhotoCache(
                         { storage: getStorage(), user: auth()?.currentUser ?? null },
-                        усі
+                        all
                       );
                       return {
                         kind: res.ok ? ('ok' as const) : ('err' as const),
@@ -323,9 +323,9 @@ export default function SettingsDialog({
                         { CounterpartyProperty: 'Sender', Page: '1' }
                       );
                       if (!res.ok) return { kind: 'err' as const, text: res.error };
-                      const хто = res.data[0]?.Description || '';
-                      return хто
-                        ? { kind: 'ok' as const, text: 'Кабінет на звʼязку. Відправник за договором: ' + хто }
+                      const who = res.data[0]?.Description || '';
+                      return who
+                        ? { kind: 'ok' as const, text: 'Кабінет на звʼязку. Відправник за договором: ' + who }
                         : { kind: 'err' as const, text: 'Ключ працює, але в договорі немає відправника' };
                     })
                   }
@@ -519,7 +519,7 @@ export default function SettingsDialog({
               type="button"
               /* Доки не прочитали збережене — зберігати нічого:
                  порожні поля пішли б у базу поверх справжніх. */
-              disabled={busy || !готово}
+              disabled={busy || !loaded}
               onClick={() =>
                 void run(async () => {
                   const d = db();

@@ -21,10 +21,10 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const КОРІНЬ = new URL('..', import.meta.url).pathname;
-const ASSETS = join(КОРІНЬ, '.open-next/assets');
-const СТАТИКА = join(ASSETS, 'new/_next/static');
-const ІСТОРІЯ = join(КОРІНЬ, '.static-history');
+const ROOT = new URL('..', import.meta.url).pathname;
+const ASSETS = join(ROOT, '.open-next/assets');
+const STATIC_DIR = join(ASSETS, 'new/_next/static');
+const HISTORY_DIR = join(ROOT, '.static-history');
 /** Скільки попередніх збірок тримаємо живими.
 
    Дві — це мало. У день, коли викладок десяток, вкладка, відкрита
@@ -34,7 +34,7 @@ const ІСТОРІЯ = join(КОРІНЬ, '.static-history');
 
    Уся статика сайту важить близько мегабайта, тож вісім поколінь
    коштують копійки, зате вкладка доживає до кінця дня. */
-const ПОКОЛІНЬ = 8;
+const GENERATIONS = 8;
 
 if (!existsSync(ASSETS)) {
   console.error('✗ немає .open-next/assets — спершу збірка');
@@ -55,43 +55,43 @@ writeFileSync(
 console.log('✓ _headers: статика на рік, immutable');
 
 /* ---------- 2. Файли попередніх збірок ---------- */
-if (!existsSync(СТАТИКА)) {
+if (!existsSync(STATIC_DIR)) {
   console.log('· статики немає — переносити нічого');
   process.exit(0);
 }
 
-const файли = (корінь, префікс = '') =>
-  readdirSync(join(корінь, префікс), { withFileTypes: true }).flatMap((d) =>
-    d.isDirectory() ? файли(корінь, join(префікс, d.name)) : [join(префікс, d.name)]
+const walkFiles = (root, prefix = '') =>
+  readdirSync(join(root, prefix), { withFileTypes: true }).flatMap((d) =>
+    d.isDirectory() ? walkFiles(root, join(prefix, d.name)) : [join(prefix, d.name)]
   );
 
-mkdirSync(ІСТОРІЯ, { recursive: true });
+mkdirSync(HISTORY_DIR, { recursive: true });
 
 /* Спершу зберігаємо ЦЮ збірку — саму по собі, без чужих файлів:
    інакше історія росла б без кінця, накопичуючи все підряд. */
-const свої = файли(СТАТИКА);
-const мітка = String(Date.now());
-cpSync(СТАТИКА, join(ІСТОРІЯ, мітка), { recursive: true });
+const ours = walkFiles(STATIC_DIR);
+const stamp = String(Date.now());
+cpSync(STATIC_DIR, join(HISTORY_DIR, stamp), { recursive: true });
 
-const попередні = readdirSync(ІСТОРІЯ)
-  .filter((d) => d !== мітка)
-  .map((d) => ({ d, t: statSync(join(ІСТОРІЯ, d)).mtimeMs }))
+const previous = readdirSync(HISTORY_DIR)
+  .filter((d) => d !== stamp)
+  .map((d) => ({ d, t: statSync(join(HISTORY_DIR, d)).mtimeMs }))
   .sort((a, b) => b.t - a.t);
 
-let перенесено = 0;
-for (const { d } of попередні.slice(0, ПОКОЛІНЬ)) {
-  for (const f of файли(join(ІСТОРІЯ, d))) {
-    const куди = join(СТАТИКА, f);
-    if (existsSync(куди)) continue;
-    mkdirSync(join(куди, '..'), { recursive: true });
-    cpSync(join(ІСТОРІЯ, d, f), куди);
-    перенесено += 1;
+let carried = 0;
+for (const { d } of previous.slice(0, GENERATIONS)) {
+  for (const f of walkFiles(join(HISTORY_DIR, d))) {
+    const placeOf = join(STATIC_DIR, f);
+    if (existsSync(placeOf)) continue;
+    mkdirSync(join(placeOf, '..'), { recursive: true });
+    cpSync(join(HISTORY_DIR, d, f), placeOf);
+    carried += 1;
   }
 }
 
 // зайві покоління прибираємо, щоб каталог не ріс
-for (const { d } of попередні.slice(ПОКОЛІНЬ)) rmSync(join(ІСТОРІЯ, d), { recursive: true, force: true });
+for (const { d } of previous.slice(GENERATIONS)) rmSync(join(HISTORY_DIR, d), { recursive: true, force: true });
 
 console.log(
-  '✓ статика: своїх файлів ' + свої.length + ', перенесено зі старих збірок ' + перенесено
+  '✓ статика: своїх файлів ' + ours.length + ', перенесено зі старих збірок ' + carried
 );

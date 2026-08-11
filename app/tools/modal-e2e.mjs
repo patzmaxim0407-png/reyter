@@ -159,20 +159,20 @@ if (outPill) {
    рядка, а в пілюлі «закінчується» крапка ставала другим рядком
    сітки. Обрана пілюля трохи більша навмисно — так було завжди. */
 
-const пілюлі = await ev(`(() => {
+const pills = await ev(`(() => {
   const items = [...document.querySelectorAll('.sizes > *')];
   if (!items.length) return null;
-  const боксы = items.map((el) => {
+  const boxes = items.map((el) => {
     const inner = el.tagName === 'SPAN' ? el.querySelector('label') : el;
     const r = inner.getBoundingClientRect();
-    return { текст: inner.textContent.trim(), в: Math.round(r.height), обрана: !!el.querySelector('input:checked') };
+    return { text: inner.textContent.trim(), h: Math.round(r.height), picked: !!el.querySelector('input:checked') };
   });
-  const звичайні = боксы.filter((b) => !b.обрана).map((b) => b.в);
-  return { боксы, розкид: Math.max(...звичайні) - Math.min(...звичайні) };
+  const plain = boxes.filter((b) => !b.picked).map((b) => b.h);
+  return { boxes, spread: Math.max(...plain) - Math.min(...plain) };
 })()`);
-if (пілюлі) {
-  ok('пілюлі розмірів однакової висоти', пілюлі.розкид === 0,
-     пілюлі.боксы.map((b) => b.текст + ':' + b.в).join(' '));
+if (pills) {
+  ok('пілюлі розмірів однакової висоти', pills.spread === 0,
+     pills.boxes.map((b) => b.text + ':' + b.h).join(' '));
 } else {
   console.log('· у цього товару немає розмірної сітки');
 }
@@ -183,23 +183,23 @@ if (пілюлі) {
    не працювало зовсім. */
 
 await go(BASE + '/p/WW-001');
-const смужка = await ev(`(() => {
+const bar = await ev(`(() => {
   const e = document.querySelector('.pmodal__handle');
   if (!e) return null;
   const r = e.getBoundingClientRect();
   return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2),
-    курсор: getComputedStyle(e).cursor };
+    cursor: getComputedStyle(e).cursor };
 })()`);
-if (смужка) {
-  ok('курсор каже, що смужку можна тягнути', смужка.курсор === 'grab', смужка.курсор);
-  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: смужка.x, y: смужка.y, button: 'left', clickCount: 1 });
+if (bar) {
+  ok('курсор каже, що смужку можна тягнути', bar.cursor === 'grab', bar.cursor);
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: bar.x, y: bar.y, button: 'left', clickCount: 1 });
   for (const dy of [40, 100, 170]) {
     await wait(60);
-    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: смужка.x, y: смужка.y + dy, button: 'left' });
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: bar.x, y: bar.y + dy, button: 'left' });
   }
-  const їде = await ev(`getComputedStyle(document.querySelector('.pmodal__panel')).transform`);
-  ok('панель їде за курсором', /matrix\(1, 0, 0, 1, 0, 1\d\d/.test(їде), їде);
-  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: смужка.x, y: смужка.y + 170, button: 'left', clickCount: 1 });
+  const moving = await ev(`getComputedStyle(document.querySelector('.pmodal__panel')).transform`);
+  ok('панель їде за курсором', /matrix\(1, 0, 0, 1, 0, 1\d\d/.test(moving), moving);
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: bar.x, y: bar.y + 170, button: 'left', clickCount: 1 });
   await wait(1800);
   ok('після стягування картка закрилась', !(await ev(`!!document.querySelector('.pmodal')`)),
      await ev('location.pathname'));
@@ -212,42 +212,42 @@ await go(BASE + '/');
    Так було на попередньому сайті. */
 
 await go(BASE + '/p/SWBK-001');
-const чіп = () =>
+const chip = () =>
   ev(`(() => {
     const s = document.querySelector('.status-chip');
     return s ? s.className + '|' + s.textContent : '';
   })()`);
 
-ok('значок є', (await чіп()).includes('status-chip'));
+ok('значок є', (await chip()).includes('status-chip'));
 ok('нема рядка «залишилось мало» під кнопкою',
    !(await ev(`[...document.querySelectorAll('.pinfo__sale-note')].some((x) => /алишилось мало/.test(x.textContent))`)));
 
-const звичайний = await ev(`(() => {
+const plain = await ev(`(() => {
   const el = [...document.querySelectorAll('.sizes .size-pill:not(.size-pill--low) input')][0];
   if (!el) return '';
   el.click();
   return el.value;
 })()`);
-if (звичайний) {
+if (plain) {
   await wait(400);
-  ok('на звичайному розмірі — «В наявності»', (await чіп()).includes('--ok'), await чіп());
+  ok('на звичайному розмірі — «В наявності»', (await chip()).includes('--ok'), await chip());
 }
 
-const мало = await ev(`(() => {
+const few = await ev(`(() => {
   const el = document.querySelector('.sizes .size-pill--low input');
   if (!el) return '';
   el.click();
   return el.value;
 })()`);
-if (мало) {
+if (few) {
   await wait(400);
-  ok('на розмірі, якого мало — «Закінчується»', (await чіп()).includes('--low'), await чіп());
+  ok('на розмірі, якого мало — «Закінчується»', (await chip()).includes('--low'), await chip());
 } else {
   console.log('· у цього товару немає розміру, якого мало');
 }
 
 await go(BASE + '/p/SW-003');
-ok('у розпроданого товару — «Продано»', (await чіп()).includes('--no'), await чіп());
+ok('у розпроданого товару — «Продано»', (await chip()).includes('--no'), await chip());
 
 /* Перевірка значка водила нас окремими сторінками, тож повертаємо
    те, з чого починали: прокручений каталог і відкриту поверх нього
@@ -262,7 +262,7 @@ await ev(
   `document.querySelector('.pgrid a[href="' + ${JSON.stringify(cardHref)} + '"]').click()`
 );
 await wait(1500);
-ok('картка знову відкрита — є що перевіряти далі', await ev(`!!document.querySelector('.pmodal.is-open')`));
+ok('картка знову open — є що перевіряти далі', await ev(`!!document.querySelector('.pmodal.is-open')`));
 
 /* ---------- Кольори ----------
    Зразок має бути кружком 38 px, а не крапкою: колись він був
@@ -325,7 +325,7 @@ ok('прокрутку розблоковано', await ev(`!document.body.class
 /* ---------- Пряме посилання ---------- */
 
 await go(new URL(cardHref, BASE).href);
-ok('за прямим посиланням картка теж відкрита', await ev(`!!document.querySelector('.pmodal.is-open')`));
+ok('за прямим посиланням картка теж open', await ev(`!!document.querySelector('.pmodal.is-open')`));
 await ev(`document.querySelector('.pmodal__close').click()`);
 await wait(1600);
 ok('закриття прямого посилання веде на головну, а не з сайту',
@@ -385,12 +385,12 @@ await ev(`document.querySelector('.pgrid a[href*="/p/"]').click()`);
 await wait(1800);
 await ev(`document.querySelector('.pgrid a[href*="/p/"]').click()`);
 await wait(2000);
-const повтор = await ev(`({
-  карток: document.querySelectorAll('.pgrid .pcard').length,
-  відкрита: !!document.querySelector('.pmodal.is-open')
+const again = await ev(`({
+  cards: document.querySelectorAll('.pgrid .pcard').length,
+  open: !!document.querySelector('.pmodal.is-open')
 })`);
 ok('повторне натискання на відкритий товар нічого не ламає',
-   повтор.карток > 0 && повтор.відкрита, JSON.stringify(повтор));
+   again.cards > 0 && again.open, JSON.stringify(again));
 
 await ev(`(() => {
   const a = [...document.querySelectorAll('.pgrid a[href*="/p/"]')]
@@ -398,12 +398,12 @@ await ev(`(() => {
   a?.click();
 })()`);
 await wait(2000);
-const інший = await ev(`({
-  карток: document.querySelectorAll('.pgrid .pcard').length,
-  відкрита: !!document.querySelector('.pmodal.is-open')
+const other = await ev(`({
+  cards: document.querySelectorAll('.pgrid .pcard').length,
+  open: !!document.querySelector('.pmodal.is-open')
 })`);
 ok('перехід на інший товар при відкритій картці теж',
-   інший.карток > 0 && інший.відкрита, JSON.stringify(інший));
+   other.cards > 0 && other.open, JSON.stringify(other));
 await ev(`document.querySelector('.pmodal__close')?.click()`);
 await wait(1800);
 
@@ -412,20 +412,20 @@ await wait(1800);
    одразу з класом is-open, переходити не має від чого. */
 
 await go(BASE + '/');
-const рух = await ev(`(async () => {
-  const кадри = [];
+const onMove = await ev(`(async () => {
+  const frames = [];
   const t0 = performance.now();
   const tick = () => {
     const p = document.querySelector('.pmodal__panel');
-    if (p) кадри.push(getComputedStyle(p).opacity);
+    if (p) frames.push(getComputedStyle(p).opacity);
     if (performance.now() - t0 < 600) requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
   document.querySelector('.pgrid a[href*="/p/"]').click();
   await new Promise((r) => setTimeout(r, 800));
-  return { перший: кадри[0] ?? '', різних: new Set(кадри).size };
+  return { first: frames[0] ?? '', shades: new Set(frames).size };
 })()`);
-ok('картка виїжджає, а не зʼявляється ривком', рух.різних > 3, JSON.stringify(рух));
+ok('картка виїжджає, а не зʼявляється ривком', onMove.shades > 3, JSON.stringify(onMove));
 
 /* ---------- Фото на весь екран ----------
    Натискання повз знімок закриває перегляд, по знімку — збільшує. */

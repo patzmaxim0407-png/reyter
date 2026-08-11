@@ -12,7 +12,7 @@ import {
   type Task
 } from '@/lib/admin/orders';
 import type { Catalogue } from '@/lib/catalog';
-import { коротко, тривога, type Посилка } from '@/lib/admin/np';
+import { shortLabel, alarm, type Parcel } from '@/lib/admin/np';
 
 /* ============================================================
    Черга справ
@@ -52,7 +52,7 @@ export default function OrdersQueue({
 }: {
   orders: AdminOrder[];
   c: Catalogue;
-  parcels: Map<string, Посилка>;
+  parcels: Map<string, Parcel>;
   onStatus(o: AdminOrder, next: string): void | Promise<void>;
   onEdit?(o: AdminOrder): void;
   onField?(o: AdminOrder, field: 'ttn' | 'note', value: string): void;
@@ -67,13 +67,13 @@ export default function OrdersQueue({
   /* Поки запис іде, кнопку блокуємо. Два кліки по «Підтвердити»
      означають два списання того самого товару зі складу — і
      полагодити це потім можна лише руками. */
-  const [йде, setЙде] = useState('');
-  const смуги = queue(orders, parcels as unknown as Map<string, ParcelHint>);
-  const справ = смуги
+  const [sending, setSending] = useState('');
+  const bands = queue(orders, parcels as unknown as Map<string, ParcelHint>);
+  const todo = bands
     .filter((s) => s.band.id !== 'transit')
     .reduce((n, s) => n + s.rows.length, 0);
 
-  if (!справ && !смуги.find((s) => s.band.id === 'transit')?.rows.length) {
+  if (!todo && !bands.find((s) => s.band.id === 'transit')?.rows.length) {
     return (
       <div className="aq-empty">
         <b>✓</b>
@@ -83,12 +83,12 @@ export default function OrdersQueue({
     );
   }
 
-  const живі = смуги.filter((s) => s.rows.length);
-  const порожні = смуги.filter((s) => !s.rows.length);
+  const withWork = bands.filter((s) => s.rows.length);
+  const empty = bands.filter((s) => !s.rows.length);
 
   return (
     <div className="aq">
-      {живі.map(({ band, rows }) => (
+      {withWork.map(({ band, rows }) => (
         <section key={band.id} className={'aq-band aq-band--' + band.id}>
           <h3 className="aq-band__head">
             <span className="aq-band__title">{band.title}</span>
@@ -105,11 +105,11 @@ export default function OrdersQueue({
               <OrderRow
                 num={order.num || ''}
                 name={String((order.customer as Record<string, unknown>)?.name ?? '')}
-                place={куди(order)}
+                place={placeOf(order)}
                 parcel={(() => {
                   if (order.pickup) return { text: 'Самовиніс', tone: 0 as const };
-                  const п = parcels.get(String(order.ttn || '').replace(/\D/g, ''));
-                  return п ? { text: коротко(п), tone: тривога(п) } : undefined;
+                  const parcel = parcels.get(String(order.ttn || '').replace(/\D/g, ''));
+                  return parcel ? { text: shortLabel(parcel), tone: alarm(parcel) } : undefined;
                 })()}
                 meta={task.why}
                 sum={order.total || 0}
@@ -119,15 +119,15 @@ export default function OrdersQueue({
                 action={
                   band.action
                     ? {
-                        label: йде === order._id ? 'Хвилинку…' : band.action,
-                        busy: йде === order._id,
+                        label: sending === order._id ? 'Хвилинку…' : band.action,
+                        busy: sending === order._id,
                         onClick: async () => {
-                          if (йде) return;
-                          setЙде(order._id);
+                          if (sending) return;
+                          setSending(order._id);
                           try {
-                            await дія(order, band, onStatus, () => setOpen(order._id));
+                            await runBandAction(order, band, onStatus, () => setOpen(order._id));
                           } finally {
-                            setЙде('');
+                            setSending('');
                           }
                         }
                       }
@@ -163,9 +163,9 @@ export default function OrdersQueue({
           заголовками вгорі. Знати, що ці справи існують і зараз
           їх немає, корисно; читати сім порожніх підписів щоразу —
           ні. */}
-      {порожні.length ? (
+      {empty.length ? (
         <p className="aq-none">
-          Порожньо: {порожні.map((s) => s.band.title.toLowerCase()).join(' · ')}
+          Порожньо: {empty.map((s) => s.band.title.toLowerCase()).join(' · ')}
         </p>
       ) : null}
     </div>
@@ -176,20 +176,20 @@ export default function OrdersQueue({
    робимо його одразу. Там, де потрібні руки (вписати номер,
    розібратися з поверненням), відкриваємо картку: рішення там
    не одне, і вгадувати його за менеджера не можна. */
-async function дія(
+async function runBandAction(
   o: AdminOrder,
   band: Band,
   onStatus: (o: AdminOrder, next: string) => void | Promise<void>,
-  розкрити: () => void
+  expand: () => void
 ) {
   if (band.id === 'confirm') return onStatus(o, 'confirmed');
   if (band.id === 'pack') return onStatus(o, 'shipped');
   if (band.id === 'close') return onStatus(o, 'done');
-  розкрити();
+  expand();
 }
 
 /** Куди їде — одним рядком. */
-function куди(o: AdminOrder): string {
+function placeOf(o: AdminOrder): string {
   const c = (o.customer ?? {}) as Record<string, unknown>;
   return [c.city, c.branch].filter(Boolean).join(', ');
 }

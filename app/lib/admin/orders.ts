@@ -181,14 +181,14 @@ export interface ParcelHint {
   gotAt?: string;
 }
 
-const ГОДИНА = 3_600_000;
+const HOUR = 3_600_000;
 
 /** Яка справа за цим замовленням. null — його місце в архіві. */
 export function nextTask(
   o: AdminOrder,
   parcel?: ParcelHint | null,
   now: Date = new Date(),
-  пороги = { увага: 3, біда: 5, новеГодин: 4 }
+  levels = { warn: 3, alarm: 5, newHours: 4 }
 ): Task | null {
   const st = o.status || 'new';
   if (st === 'done' || st === 'cancelled') return null;
@@ -197,13 +197,13 @@ export function nextTask(
      дві години тому» має міряти час від підтвердження, а не від
      оформлення. Інакше замовлення, підтверджене щойно, червоніє
      за порогом, а підпис каже «підтверджено щойно тому». */
-  const коли = (статус: string): Date | null => {
-    const запис = [...(o.statusLog || [])].reverse().find((e) => e.status === статус);
-    const d = запис?.at ? new Date(запис.at) : null;
+  const whenStatus = (status: string): Date | null => {
+    const entry = [...(o.statusLog || [])].reverse().find((e) => e.status === status);
+    const d = entry?.at ? new Date(entry.at) : null;
     return d && !Number.isNaN(d.getTime()) ? d : null;
   };
-  const від = (st === 'confirmed' ? коли('confirmed') : null) || orderDate(o);
-  const hours = від ? Math.max(0, Math.floor((now.getTime() - від.getTime()) / ГОДИНА)) : 0;
+  const since = (st === 'confirmed' ? whenStatus('confirmed') : null) || orderDate(o);
+  const hours = since ? Math.max(0, Math.floor((now.getTime() - since.getTime()) / HOUR)) : 0;
 
   if (st === 'new') {
     return {
@@ -211,8 +211,8 @@ export function nextTask(
       hours,
       /* Нове замовлення, яке висить пів дня, — це людина, яка вже
          почала сумніватись. */
-      urgency: hours >= пороги.новеГодин * 3 ? 2 : hours >= пороги.новеГодин ? 1 : 0,
-      why: hours ? 'чекає ' + годинами(hours) : 'щойно'
+      urgency: hours >= levels.newHours * 3 ? 2 : hours >= levels.newHours ? 1 : 0,
+      why: hours ? 'чекає ' + inHours(hours) : 'щойно'
     };
   }
 
@@ -221,7 +221,7 @@ export function nextTask(
       band: 'pack',
       hours,
       urgency: hours >= 48 ? 2 : hours >= 24 ? 1 : 0,
-      why: hours < 1 ? 'підтверджено щойно' : 'підтверджено ' + годинами(hours) + ' тому'
+      why: hours < 1 ? 'підтверджено щойно' : 'підтверджено ' + inHours(hours) + ' тому'
     };
   }
 
@@ -234,7 +234,7 @@ export function nextTask(
   }
 
   const code = String(parcel?.code || '');
-  const лежить = Number(parcel?.waiting) || 0;
+  const waiting = Number(parcel?.waiting) || 0;
 
   if (code === '9' || code === '10' || code === '11') {
     return { band: 'close', hours, urgency: 0, why: 'перевізник каже: отримано' };
@@ -245,19 +245,19 @@ export function nextTask(
   if (['2', '102', '103', '105', '106', '111', '112'].includes(code)) {
     return { band: 'back', hours, urgency: 2, why: 'посилка повертається' };
   }
-  if ((code === '7' || code === '8') && лежить >= пороги.увага) {
+  if ((code === '7' || code === '8') && waiting >= levels.warn) {
     return {
       band: 'waiting',
       hours,
-      urgency: лежить >= пороги.біда ? 2 : 1,
-      why: 'лежить у відділенні ' + лежить + ' дн.'
+      urgency: waiting >= levels.alarm ? 2 : 1,
+      why: 'лежить у відділенні ' + waiting + ' дн.'
     };
   }
 
   return { band: 'transit', hours, urgency: 0, why: 'у дорозі' };
 }
 
-function годинами(h: number): string {
+function inHours(h: number): string {
   if (h < 1) return 'щойно';
   if (h < 24) return h + ' год';
   const d = Math.floor(h / 24);
@@ -270,18 +270,18 @@ export function queue(
   parcels: Map<string, ParcelHint>,
   now: Date = new Date()
 ): { band: Band; rows: { order: AdminOrder; task: Task }[] }[] {
-  const по: Record<string, { order: AdminOrder; task: Task }[]> = {};
+  const byBand: Record<string, { order: AdminOrder; task: Task }[]> = {};
   for (const o of list) {
     const t = nextTask(o, parcels.get(String(o.ttn || '').trim()), now);
     if (!t) continue;
-    (по[t.band] ||= []).push({ order: o, task: t });
+    (byBand[t.band] ||= []).push({ order: o, task: t });
   }
   /* Усередині смуги — найтерміновіше зверху, а за рівної
      терміновості найстаріше: воно чекає найдовше. */
-  for (const k of Object.keys(по)) {
-    по[k].sort((a, b) => b.task.urgency - a.task.urgency || b.task.hours - a.task.hours);
+  for (const k of Object.keys(byBand)) {
+    byBand[k].sort((a, b) => b.task.urgency - a.task.urgency || b.task.hours - a.task.hours);
   }
-  return BANDS.map((band) => ({ band, rows: по[band.id] || [] }));
+  return BANDS.map((band) => ({ band, rows: byBand[band.id] || [] }));
 }
 
 /** Скільки замовлень показуємо за раз. */
@@ -592,8 +592,8 @@ export function filteredOrders(orders: AdminOrder[], f: OrderFilters, now: Date)
   /* Коли шукають — період не звужує. Інакше номер тримісячної
      давнини не знаходиться, а екран каже «за цими фільтрами
      нічого не знайдено» про фільтри, яких ніхто не чіпав. */
-  const джерело = f.search.trim() ? orders : periodOrders(orders, f, now);
-  const list = джерело.filter((o) => {
+  const source = f.search.trim() ? orders : periodOrders(orders, f, now);
+  const list = source.filter((o) => {
     if (f.status !== 'all' && (o.status || 'new') !== f.status) return false;
     return matchesSearch(o, f.search);
   });
@@ -887,12 +887,12 @@ export async function applyStatus(
 
      У масовій зміні діалогів немає, тож такі замовлення просто
      не пропускаємо — і кажемо про це в підсумку. */
-  let свіжаТТН = '';
-  let самовиніс = !!order.pickup;
+  let freshTtn = '';
+  let pickup = !!order.pickup;
 
-  if (next === 'shipped' && !String(order.ttn || '').trim() && !самовиніс) {
+  if (next === 'shipped' && !String(order.ttn || '').trim() && !pickup) {
     if (silent) return { ok: false, reason: 'no-ttn', toast: null };
-    const відповідь = await deps.ask.askText({
+    const answer = await deps.ask.askText({
       title: 'Номер накладної',
       text:
         'Замовлення №' + (order.num || '') +
@@ -904,9 +904,9 @@ export async function applyStatus(
       placeholder: 'напр.: 20450000000000',
       okText: 'Відправити'
     });
-    if (відповідь === null) return { ok: false, reason: 'cancelled', toast: null };
-    свіжаТТН = відповідь.trim();
-    if (!свіжаТТН) {
+    if (answer === null) return { ok: false, reason: 'cancelled', toast: null };
+    freshTtn = answer.trim();
+    if (!freshTtn) {
       return {
         ok: false,
         reason: 'no-ttn',
@@ -920,9 +920,9 @@ export async function applyStatus(
      Тому питаємо прямо, а не пропускаємо мовчки: закрите
      замовлення без сліду доставки згодом неможливо ані
      перевірити, ані знайти. */
-  if (next === 'done' && !String(order.ttn || '').trim() && !самовиніс) {
+  if (next === 'done' && !String(order.ttn || '').trim() && !pickup) {
     if (silent) return { ok: false, reason: 'no-ttn', toast: null };
-    const відповідь = await deps.ask.ask({
+    const answer = await deps.ask.ask({
       title: 'Немає накладної',
       text:
         'Замовлення №' + (order.num || '') +
@@ -932,19 +932,19 @@ export async function applyStatus(
       okText: 'Вписати номер',
       altText: 'Це самовиніс'
     });
-    if (відповідь === null) return { ok: false, reason: 'cancelled', toast: null };
-    if (відповідь === 'alt') {
-      самовиніс = true;
+    if (answer === null) return { ok: false, reason: 'cancelled', toast: null };
+    if (answer === 'alt') {
+      pickup = true;
     } else {
-      const номер = await deps.ask.askText({
+      const num = await deps.ask.askText({
         title: 'Номер накладної',
         text: 'Впишіть ТТН — ми одразу надішлемо його покупцеві.',
         label: 'ТТН',
         placeholder: 'напр.: 20450000000000',
         okText: 'Зберегти'
       });
-      const чистий = String(номер || '').trim();
-      if (!чистий) {
+      const clean = String(num || '').trim();
+      if (!clean) {
         return {
           ok: false,
           reason: 'no-ttn',
@@ -954,7 +954,7 @@ export async function applyStatus(
           }
         };
       }
-      свіжаТТН = чистий;
+      freshTtn = clean;
     }
   }
 
@@ -1051,8 +1051,8 @@ export async function applyStatus(
 
     batch.update(doc(deps.db, ORDER_COL, order._id), {
       ...plan.update,
-      ...(свіжаТТН ? { ttn: свіжаТТН } : {}),
-      ...(самовиніс && !order.pickup ? { pickup: true } : {}),
+      ...(freshTtn ? { ttn: freshTtn } : {}),
+      ...(pickup && !order.pickup ? { pickup: true } : {}),
       statusLog: arrayUnion(plan.entry)
     });
     await batch.commit();
@@ -1063,11 +1063,11 @@ export async function applyStatus(
     void trackUpdate({
       ...order,
       status: next,
-      ttn: свіжаТТН || order.ttn || '',
+      ttn: freshTtn || order.ttn || '',
       statusLog: (order.statusLog || []).concat([plan.entry])
     });
 
-    return { ok: true, toast: silent ? null : plan.toast, ttn: свіжаТТН };
+    return { ok: true, toast: silent ? null : plan.toast, ttn: freshTtn };
   } catch {
     return {
       ok: false,
@@ -1115,7 +1115,7 @@ export async function bulkStatus(
   /* Пакетом ніхто не питає, повертати товар на склад чи списати:
      діалогів у тихому режимі немає, і за менеджера вирішує
      «повернути». Сказати про це треба ДО, а не після. */
-  const зіСкладу = toChange.filter((o) => o.stockApplied && !consumesStock(next)).length;
+  const fromStock = toChange.filter((o) => o.stockApplied && !consumesStock(next)).length;
 
   const okBulk = await deps.ask.confirmAsk({
     title: 'Масова зміна статусу',
@@ -1125,8 +1125,8 @@ export async function bulkStatus(
       '» для ' +
       toChange.length +
       ' замовлень?' +
-      (зіСкладу
-        ? '\n\nУ ' + зіСкладу + ' із них товар списаний зі складу — він ПОВЕРНЕТЬСЯ ' +
+      (fromStock
+        ? '\n\nУ ' + fromStock + ' із них товар списаний зі складу — він ПОВЕРНЕТЬСЯ ' +
           'у залишки. Якщо якісь речі не повернулись, міняйте такі замовлення поодинці: ' +
           'там можна вказати причину списання.'
         : ''),
@@ -1141,14 +1141,14 @@ export async function bulkStatus(
      неї просто не пропускаємо — і кажемо про це прямо. Мовчазне
      «оновлено 8» приховало б, що двоє покупців не дізнаються
      про свої посилки. */
-  let безТТН = 0;
+  let noTtn = 0;
   for (let i = 0; i < toChange.length; i += BULK_CHUNK) {
     const chunk = toChange.slice(i, i + BULK_CHUNK);
     // послідовно, щоб не перевищити ліміт операцій у батчі
     for (const o of chunk) {
       const res = await applyStatus(o, next, { ...deps, silent: true });
       if (res.ok) done++;
-      else if (res.reason === 'no-ttn') безТТН++;
+      else if (res.reason === 'no-ttn') noTtn++;
     }
   }
 
@@ -1156,10 +1156,10 @@ export async function bulkStatus(
     kind: 'done',
     done: done,
     total: toChange.length,
-    toast: безТТН
+    toast: noTtn
       ? {
           text:
-            'Оновлено: ' + done + '. Пропущено без ТТН: ' + безТТН +
+            'Оновлено: ' + done + '. Пропущено без ТТН: ' + noTtn +
             ' — впишіть номер у картці й змініть статус там.',
           success: false
         }

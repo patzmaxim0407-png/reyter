@@ -243,7 +243,7 @@ export default function CheckoutForm() {
           : 'branch';
 
   useEffect(() => {
-    let живий = true;
+    let alive = true;
     setShip(null);
     void quote({
       carrier,
@@ -258,10 +258,10 @@ export default function CheckoutForm() {
       weight: parcelWeight(c, lines),
       free: freeShip
     }).then((q) => {
-      if (живий) setShip(q);
+      if (alive) setShip(q);
     });
     return () => {
-      живий = false;
+      alive = false;
     };
   }, [carrier, cityRef, branch, country, intlCity, intlCityId, intlType, goods, freeShip]);
 
