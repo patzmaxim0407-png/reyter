@@ -429,10 +429,21 @@ export default function OrderCard({
               <input
                 defaultValue={o.ttn ?? ''}
                 placeholder="номер накладної"
+                /* У виконаному замовленні номер уже нічого не
+                   змінює, зате він єдиний слід того, як посилка
+                   доїхала. Стерти його випадково — означає
+                   втратити цей слід назавжди, тож поле замкнене. */
+                readOnly={st === 'done'}
+                title={
+                  st === 'done'
+                    ? 'Замовлення виконане — номер накладної лишається як свідчення доставки'
+                    : undefined
+                }
                 /* Пишемо по виходу з поля, а не на кожну літеру:
                    інакше кожен символ їхав би в базу окремим
                    записом, а список — перемальовувався б */
                 onBlur={(e) => {
+                  if (st === 'done') return;
                   if (e.target.value !== (o.ttn ?? '')) onField?.('ttn', e.target.value);
                 }}
               />
@@ -452,7 +463,10 @@ export default function OrderCard({
                   Створити накладну
                 </button>
               ) : null}
-              {маєТТН && onDropTtn ? (
+              {/* Скасувати можна лише те, що ще не доїхало:
+                  перевізник видаляє накладну, доки посилку не
+                  прийняли, а виконане замовлення це вже минуле. */}
+              {маєТТН && onDropTtn && st !== 'done' && st !== 'cancelled' ? (
                 <button
                   className="btn btn--ghost btn--sm ao-danger ao-ttn__drop"
                   type="button"
