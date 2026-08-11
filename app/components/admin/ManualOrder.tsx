@@ -334,7 +334,19 @@ export default function ManualOrder({
           />
 
           <h5 className="ao-sub">Товари</h5>
-          <div>
+          <div className="a-noitems">
+            {/* Заголовки стовпців один раз угорі, а не підпис над
+                кожним полем у кожному рядку: так видно, що
+                стовпці рівні, і рядок читається як таблиця. */}
+            <div className="a-norow a-norow--head" aria-hidden="true">
+              <span>Товар</span>
+              <span>Розмір</span>
+              <span>К-сть</span>
+              <span>Ціна</span>
+              <span className="a-norow__sum">Сума</span>
+              <span />
+            </div>
+
             {rows.map((row) => {
               const p = c.products.find((x) => x.id === row.pid) ?? null;
               const parts = p && isSet(p) ? setParts(c, p) : [];
@@ -517,7 +529,19 @@ export default function ManualOrder({
                     type="button"
                     title="Прибрати"
                     aria-label="Прибрати рядок"
-                    onClick={() => setRows((v) => (v.length > 1 ? v.filter((x) => x.uid !== row.uid) : v))}
+                    /* Останній рядок не прибираємо, а очищаємо:
+                       форма завжди має один рядок для товару, але
+                       натиснути ✕ і не отримати нічого — це те
+                       саме, що зламана кнопка. Найчастіший привід
+                       натиснути її саме такий: обрали не той
+                       товар і хочуть почати спочатку. */
+                    onClick={() =>
+                      setRows((v) =>
+                        v.length > 1
+                          ? v.filter((x) => x.uid !== row.uid)
+                          : [blankRow()]
+                      )
+                    }
                   >
                     ✕
                   </button>

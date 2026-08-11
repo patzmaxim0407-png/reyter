@@ -5497,3 +5497,168 @@ label.a-promo-product i {
 .aq-item.is-open .aq-row__chev {
   transform: rotate(-90deg);
 }
+
+/* ============================================================
+   ТОВАРИ В РУЧНОМУ ЗАМОВЛЕННІ
+   ------------------------------------------------------------
+   Було: рядки, розділені лініями, де поле товару з фотографією
+   вдвічі вище за сусідні, і все це плаває по вертикалі.
+
+   Стало: заголовки стовпців один раз угорі, кожен рядок —
+   спокійна картка, поля однакової висоти, суми в один стовпчик
+   моноширинними цифрами.
+   ============================================================ */
+
+.a-noitems {
+  display: grid;
+  gap: 8px;
+}
+
+.a-norow {
+  grid-template-columns: minmax(180px, 2.6fr) 118px 84px 124px 96px 34px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-line);
+  border-bottom: 1px solid var(--c-line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.a-norow:last-of-type {
+  border-bottom: 1px solid var(--c-line);
+}
+
+/* Заголовки: та сама сітка, але без рамки й тла */
+.a-norow--head {
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+
+.a-norow--head .a-norow__sum {
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
+/* Поля однієї висоти — інакше рядок гуляє по вертикалі */
+.a-norow select,
+.a-norow input {
+  height: 38px;
+  border-radius: 10px;
+}
+
+.a-norow .acombo__box input {
+  height: auto;
+  min-height: 38px;
+}
+
+.a-norow__price input {
+  text-align: right;
+}
+
+.a-norow__qty input {
+  text-align: center;
+}
+
+/* Суми — в один стовпчик: цифри однакової ширини не стрибають */
+.a-norow__sum {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.a-norow__del {
+  border: 0;
+  background: none;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Товар із фотографією вищий за решту — хай картка дихає, а не
+   тисне поля до країв */
+.a-norow .a-pick__chip {
+  margin: 2px 0;
+}
+
+@media (max-width: 780px) {
+  .a-norow--head {
+    display: none;
+  }
+
+  .a-norow {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .a-norow__sum {
+    align-self: center;
+    text-align: right;
+  }
+
+  .a-norow__del {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* ---------- Решта форми ручного замовлення ----------
+   Заголовки розділів були врівень із полями, а самі розділи
+   зливалися в одне полотно: клієнт, доставка, товари й підсумок
+   читались як суцільний список. Тепер кожен розділ починається
+   з тонкої лінії, а поля стоять у рівних сітках. */
+
+.a-neworder {
+  gap: 1rem;
+}
+
+.a-neworder .ao-sub {
+  margin: 0.4rem 0 0;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--c-line);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+
+/* Перший розділ лінії не потребує — над ним і так примітка */
+.a-neworder .ao-sub:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.a-neworder .a-grid-3,
+.a-neworder .a-grid-2 {
+  gap: 12px;
+}
+
+.a-neworder .field input,
+.a-neworder .field select,
+.a-neworder .field textarea {
+  border-radius: 10px;
+}
+
+/* Підсумок читається як підсумок, а не як ще один рядок полів */
+.a-neworder .ao-sums {
+  padding: 12px 14px;
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  background: var(--c-cream);
+}
+
+.a-neworder .ao-sumline.is-total {
+  font-size: 15px;
+}
+
+/* Кнопка «+ Додати товар» — на всю ширину рядка товарів, щоб її
+   не доводилось шукати збоку */
+.a-neworder .a-noitems + .btn {
+  justify-self: start;
+}
