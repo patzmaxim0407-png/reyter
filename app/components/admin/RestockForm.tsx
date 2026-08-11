@@ -176,7 +176,10 @@ export default function RestockForm({
                         className="a-pick__img"
                         src={p.images?.[0] ?? ''}
                         alt=""
+                        width={34}
+                        height={44}
                         loading="lazy"
+                        decoding="async"
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).style.visibility = 'hidden';
                         }}

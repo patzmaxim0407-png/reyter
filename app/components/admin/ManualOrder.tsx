@@ -409,11 +409,12 @@ export default function ManualOrder({
                                 .toLowerCase()
                                 .includes(s)
                           )
-                          /* Дванадцять, а не сорок: кожен рядок
-                             тягне фото, і сорок штук — це кілька
-                             мегабайтів на одне відкриття списку.
-                             Хто шукає далі, дописує ще літеру. */
-                          .slice(0, 12)
+                          /* Показуємо весь каталог. Різати список
+                             заради ваги не треба: фото тепер
+                             кешуються назавжди, а перше відкриття
+                             тягне лише те, що видно — решта
+                             чекає прокрутки. */
+                          .slice(0, 60)
                           .map((x) => ({
                             ref: x.id,
                             text: x.name,
@@ -425,7 +426,15 @@ export default function ManualOrder({
                                   className="a-pick__img"
                                   src={x.images?.[0] ?? ''}
                                   alt=""
+                                  /* Розміри в самій розмітці: без
+                                     них браузер не знає, скільки
+                                     місця займе знімок, і тягне
+                                     всі одразу замість тих, що
+                                     видно. */
+                                  width={34}
+                                  height={44}
                                   loading="lazy"
+                                  decoding="async"
                                   onError={(e) => {
                                     (e.currentTarget as HTMLImageElement).style.visibility = 'hidden';
                                   }}
