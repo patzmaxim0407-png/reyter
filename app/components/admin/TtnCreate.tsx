@@ -64,6 +64,9 @@ export default function TtnCreate({
   const [йде, setЙде] = useState(false);
 
   const номер = номерВідділення(c.branch || '');
+  /* Поштомат і відділення — різні послуги в перевізника, і
+     переплутати їх означає не створити накладну взагалі. */
+  const поштомат = /поштомат/i.test(c.branch || '');
 
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -93,7 +96,8 @@ export default function TtnCreate({
       cost: Number(оцінка) || 1,
       seats: 1,
       payer: платник,
-      backMoney: Number(післяплата) || 0
+      backMoney: Number(післяплата) || 0,
+      postomat: поштомат
     });
     setЙде(false);
 
@@ -123,7 +127,9 @@ export default function TtnCreate({
           <span>{c.phone || '—'}</span>
           <span>
             {c.city || '—'}
-            {номер ? ' · відділення №' + номер : ' · номера відділення не видно'}
+            {номер
+              ? ' · ' + (поштомат ? 'поштомат' : 'відділення') + ' №' + номер
+              : ' · номера відділення не видно'}
           </span>
         </div>
 

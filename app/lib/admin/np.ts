@@ -336,6 +336,8 @@ export interface НоваНакладна {
   payer: 'Sender' | 'Recipient';
   /** Габарити місця, см. Без них договір накладну не приймає. */
   box?: { length: number; width: number; height: number };
+  /** Отримувач забирає з поштомата, а не з відділення. */
+  postomat?: boolean;
   /** Скільки повернути грошей за післяплатою; 0 — без неї. */
   backMoney?: number;
 }
@@ -357,7 +359,9 @@ export async function створитиНакладну(
     CargoType: 'Parcel',
     /* Вага в кілограмах; менше 0,1 перевізник не приймає. */
     Weight: String(Math.max(0.1, n.weight)),
-    ServiceType: 'WarehouseWarehouse',
+    /* Поштомат — окремий тип послуги. З «відділення–відділення»
+       перевізник посилку в поштомат не оформить. */
+    ServiceType: n.postomat ? 'WarehousePostomat' : 'WarehouseWarehouse',
     SeatsAmount: String(Math.max(1, n.seats || 1)),
     Description: n.description.slice(0, 100),
     Cost: String(Math.max(1, Math.round(n.cost))),
