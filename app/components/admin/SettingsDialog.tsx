@@ -65,11 +65,16 @@ export default function SettingsDialog({
   const [status, setStatus] = useState<StatusLine | null>(null);
   const [chats, setChats] = useState<{ text: string; value: string; list: DetectedChat[] } | null>(null);
   const [busy, setBusy] = useState(false);
+  /* Доки налаштування не приїхали, поля порожні — і збереження в
+     цю мить записало б порожнечу поверх адреси воркера й пошти
+     магазину. Саме так вони одного разу й зникли. */
+  const [готово, setГотово] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setStatus(null);
     setChats(null);
+    setГотово(false);
     try {
       /* Спершу свій, потім спільний із налаштувань: у нового
          менеджера свого ще немає, і поле не має бути порожнім. */
@@ -82,6 +87,7 @@ export default function SettingsDialog({
     void openSettings(d).then((screen) => {
       setValues(screen.values);
       setLegacy(screen.legacy);
+      setГотово(true);
       /* Свій ключ важить більше за спільний: менеджер міг вписати
          власний. Але коли свого немає — беремо спільний, інакше
          новий адміністратор дивиться в порожнє поле. */
@@ -109,10 +115,6 @@ export default function SettingsDialog({
     // пробіл із буфера обміну коштує години пошуків
     const v = raw.trim();
     setAdminKey(v);
-    /* І в спільні налаштування: наступний менеджер, який
-       відкриє адмінку, побачить ключ уже заповненим. */
-    const d = db();
-    if (d) void setDoc(doc(d, 'settings', 'notify'), { adminKey: v }, { merge: true });
     try {
       if (v) localStorage.setItem(KEY_WORKER, v);
       else localStorage.removeItem(KEY_WORKER);
@@ -186,6 +188,16 @@ export default function SettingsDialog({
                   placeholder="значення змінної ADMIN_KEY"
                   value={adminKey}
                   onChange={(e) => rememberKey(e.target.value)}
+                  /* У спільні налаштування пишемо по виходу з
+                     поля, а не на кожну літеру: інакше кожен
+                     символ їхав би в базу окремим записом. */
+                  onBlur={(e) => {
+                    const v = e.target.value.trim();
+                    const d = db();
+                    if (d && готово) {
+                      void setDoc(doc(d, 'settings', 'notify'), { adminKey: v }, { merge: true });
+                    }
+                  }}
                 />
                 <p className="field__hint">
                   Спільний для всіх адміністраторів: інший менеджер побачить його вже
@@ -464,7 +476,9 @@ export default function SettingsDialog({
             <button
               className="btn btn--primary"
               type="button"
-              disabled={busy}
+              /* Доки не прочитали збережене — зберігати нічого:
+                 порожні поля пішли б у базу поверх справжніх. */
+              disabled={busy || !готово}
               onClick={() =>
                 void run(async () => {
                   const d = db();

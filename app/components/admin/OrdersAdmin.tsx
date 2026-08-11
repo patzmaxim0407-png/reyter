@@ -13,7 +13,7 @@ import { useAdminUser } from './AdminGate';
 import { useAsk } from './AskProvider';
 import { useToast } from '../Toasts';
 import { copyText } from '@/lib/copy';
-import { db, loadNotifySettings } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { sendTtn } from '@/lib/notify';
 import { EMPTY_DRAFT, watchDraft, type Draft } from '@/lib/admin/store';
 import { watchOrders } from '@/lib/admin/live';
@@ -36,7 +36,7 @@ import {
   type OrderFilters
 } from '@/lib/admin/orders';
 import { todayISO } from '@/lib/admin/stock';
-import { KEY_WORKER } from '@/lib/admin/settings';
+import { KEY_WORKER, loadAdminSettings } from '@/lib/admin/settings';
 import { orderDate, statusInfo } from '@/lib/admin/orders';
 import { watchInventory } from '@/lib/admin/live';
 import { doc, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
@@ -151,7 +151,13 @@ export default function OrdersAdmin() {
   /** Налаштування воркера: там лежить ключ кабінету Нової Пошти. */
   const [нала, setНала] = useState<Record<string, string>>({});
   useEffect(() => {
-    void loadNotifySettings().then((s) => setНала((s || {}) as Record<string, string>));
+    /* Саме службові налаштування, а не публічні. Публічні читає
+       браузер покупця, тож ключів і відділення відправлення в них
+       немає й бути не може — а я спершу брав їх звідти, і тому
+       ані спільний ключ, ані збережене відділення не доїжджали. */
+    const d = db();
+    if (!d) return;
+    void loadAdminSettings(d).then((s) => setНала((s || {}) as Record<string, string>));
   }, []);
 
   /* Ключ адміністратора воркера живе лише в браузері — у базу він
@@ -356,8 +362,7 @@ export default function OrdersAdmin() {
         toast('ТТН збережено, але надіслати нема куди — покупець не лишив пошти');
         return;
       }
-      const s = (await loadNotifySettings()) as { workerUrl?: string } | null;
-      const res = await sendTtn(s, {
+      const res = await sendTtn({ workerUrl: нала.workerUrl }, {
         to: пошта,
         name: o.customer?.name || '',
         orderNum: o.num || '',
@@ -375,7 +380,7 @@ export default function OrdersAdmin() {
         toast('ТТН збережено, але лист не пішов: ' + res.error);
       }
     },
-    [toast]
+    [toast, нала.workerUrl]
   );
 
 
