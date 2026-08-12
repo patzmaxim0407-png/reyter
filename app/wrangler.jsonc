@@ -34,6 +34,10 @@
   "name": "reyter-site",
   // власний вхід: він переписує шлях для admin.* ще до Next
   "main": "worker-entry.ts",
+  /* Сторож застарілої збірки. wrangler виконує це перед кожною
+     своєю командою, тож повз нього не пройде жодна викладка —
+     хоч якою командою її почали. Для `dev` він мовчить. */
+  "build": { "command": "node tools/deploy-guard.mjs --if-deploy" },
   "compatibility_date": "2026-08-01",
   // nodejs_compat потрібен самому Next; global_fetch_strictly_public
   // забороняє воркеру ходити сам у себе в обхід мережі

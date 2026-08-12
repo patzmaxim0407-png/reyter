@@ -18,7 +18,7 @@
 
    node tools/assets-guard.mjs
 */
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
@@ -92,6 +92,15 @@ for (const { d } of previous.slice(0, GENERATIONS)) {
 // зайві покоління прибираємо, щоб каталог не ріс
 for (const { d } of previous.slice(GENERATIONS)) rmSync(join(HISTORY_DIR, d), { recursive: true, force: true });
 
+/* Мітка збірки в підсумковому рядку — щоб було з чим звірити
+   те, що віддає живий сайт (tools/deploy-check.mjs питає в нього
+   той самий BUILD_ID). Без неї покоління в історії — просто час,
+   і яке з них зараз на сервері, сказати нічим. */
+const buildId = existsSync(join(ASSETS, 'new/BUILD_ID'))
+  ? readFileSync(join(ASSETS, 'new/BUILD_ID'), 'utf8').trim()
+  : '';
+
 console.log(
-  '✓ статика: своїх файлів ' + ours.length + ', перенесено зі старих збірок ' + carried
+  '✓ статика: своїх файлів ' + ours.length + ', перенесено зі старих збірок ' + carried +
+    (buildId ? ', збірка ' + buildId : '')
 );

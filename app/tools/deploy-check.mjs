@@ -16,9 +16,14 @@
    node tools/deploy-check.mjs [адреса…]
    ============================================================ */
 
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 
 const LOCAL = '.open-next/assets/new/_next/static/chunks';
+/* Мітка збірки. Next пише її в BUILD_ID і кладе поруч зі
+   статикою, тож живий сайт віддає її звичайним файлом. Це
+   найчесніша відповідь на питання «яка збірка зараз на сервері»:
+   мітка нова на КОЖНУ збірку, і підробити її нічим. */
+const BUILD_ID = '.open-next/assets/new/BUILD_ID';
 const SITES = process.argv.slice(2).length
   ? process.argv.slice(2)
   : ['https://reyter.men/new/', 'https://admin.reyter.men/new/admin'];
@@ -28,11 +33,15 @@ if (!existsSync(LOCAL)) {
   process.exit(1);
 }
 
-/* Стилі — найкраща мітка збірки: файл один на весь сайт, ім'я
-   містить відбиток вмісту, і сторінка тягне його завжди. */
+/* Імена стилів як мітка не годяться: assets-guard навмисно
+   зливає в цю саму теку статику восьми попередніх збірок, щоб
+   вкладка, відкрита до викладки, не отримала 404. Тому «мій
+   файл» тут — це й файл позаминулої збірки теж, і стара сторінка
+   пройшла б перевірку. Мітка одна й незамінна — BUILD_ID. */
 const mine = new Set(readdirSync(LOCAL).filter((f) => f.endsWith('.css')));
-if (!mine.size) {
-  console.error('✗ У збірці немає жодного файла стилів — щось не так із самою збіркою');
+const myBuild = existsSync(BUILD_ID) ? readFileSync(BUILD_ID, 'utf8').trim() : '';
+if (!myBuild) {
+  console.error('✗ Немає ' + BUILD_ID + ' — спершу `npm run cf:build`');
   process.exit(1);
 }
 
@@ -42,8 +51,35 @@ const ok = (cond, text, extra = '') => {
   console.log((cond ? '✓ ' : '✗ ') + text + (extra ? ' — ' + extra : ''));
 };
 
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* Нова версія воркера розкочується краями мережі не миттєво, тож
+   мітку перепитуємо, а не питаємо раз. Рядок запиту обовʼязковий:
+   без нього відповідь приходить із кеша Cloudflare. */
+async function liveBuild(origin) {
+  let last = '';
+  for (let i = 0; i < 20; i++) {
+    try {
+      const r = await fetch(origin + '/new/BUILD_ID?cb=' + i + '-' + process.pid, {
+        headers: { 'cache-control': 'no-cache' }
+      });
+      last = r.ok ? (await r.text()).trim() : 'відповідь ' + r.status;
+      if (last === myBuild) return last;
+    } catch (e) {
+      last = 'немає звʼязку';
+    }
+    await pause(3000);
+  }
+  return last;
+}
+
 for (const site of SITES) {
   const origin = new URL(site).origin;
+
+  /* Перша перевірка й головна: чи ЦЯ збірка на сервері. Саме її
+     бракувало 12.08.2026, коли двічі поспіль поїхала стара. */
+  const live = await liveBuild(origin);
+  ok(live === myBuild, origin + ' — саме ця збірка', live === myBuild ? myBuild : 'на сервері ' + live + ', у нас ' + myBuild);
   let html = '';
   try {
     const res = await fetch(site, { redirect: 'follow', headers: { 'cache-control': 'no-cache' } });
@@ -65,12 +101,12 @@ for (const site of SITES) {
   ];
   ok(refs.length > 0, 'сторінка посилається на файли збірки', 'посилань: ' + refs.length);
 
-  /* Головне питання: HTML із ЦІЄЇ збірки чи зі сховища, де лежить
-     учорашній? Порівнюємо за стилями. */
+  /* Друге питання: сторінку зібрано з тих самих файлів. Мітка
+     вище каже лише про статику; воркер міг лишитись старим — тоді
+     він і віддасть HTML попередньої збірки. */
   const css = refs.filter((r) => r.endsWith('.css')).map((r) => r.split('/').pop());
-  const fresh = css.filter((f) => mine.has(f));
-  ok(css.length > 0 && fresh.length === css.length,
-     'HTML саме з цієї збірки',
+  ok(css.length > 0 && css.every((f) => mine.has(f)),
+     'стилі сторінки — з нашої збірки',
      css.map((f) => (mine.has(f) ? f : f + ' ← чужий')).join(', ') || 'стилів у сторінці немає');
 
   /* І чи всі файли на місці: старий HTML на нових файлах — це
