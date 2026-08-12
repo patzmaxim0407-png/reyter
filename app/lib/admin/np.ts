@@ -138,6 +138,18 @@ export function shortLabel(parcel: Parcel): string {
   }
 }
 
+/** Дату перевізник віддає то через дефіс, то через крапку, ще й
+ *  із секундами: «10-08-2026 20:11:35» і «11.08.2026 10:32:23» в
+ *  одному й тому самому записі. Секунди менеджерові ні до чого, а
+ *  два різні написання поруч виглядають як помилка. */
+export function whenText(value?: string | null): string {
+  const s = String(value || '').trim();
+  if (!s) return '';
+  const m = /^(\d{2})[.\-/](\d{2})[.\-/](\d{4})(?:[ T](\d{2}):(\d{2}))?/.exec(s);
+  if (!m) return s;
+  return m[1] + '.' + m[2] + '.' + m[3] + (m[4] ? ', ' + m[4] + ':' + m[5] : '');
+}
+
 /** Наскільки це терміново: 0 — усе гаразд, 2 — треба реагувати. */
 export function alarm(parcel: Parcel, WARN_AT = 3, ALARM_AT = 5): 0 | 1 | 2 {
   const s = parcelState(parcel.code);

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { addressLine } from '@/lib/address';
 import { fmt, type Catalogue } from '@/lib/catalog';
 import { NEXT_STEP, STATUSES, confirmText, itemCat, orderDate, statusInfo } from '@/lib/admin/orders';
-import { label, parcelState, alarm, type Parcel } from '@/lib/admin/np';
+import { label, parcelState, alarm, whenText, type Parcel } from '@/lib/admin/np';
 import type { OrderItem } from '@/lib/types';
 
 /* ============================================================
@@ -114,24 +114,13 @@ export default function OrderCard({
   /* Перевізник не веде журналу подій — його API віддає лише те,
      що з посилкою ЗАРАЗ, і кілька дат. Тому стрічку збираємо самі
      з того, що є: створено — обіцяли — забрали. Крок, до якого
-     дійшло, підсвічений; майбутні стоять сірими. */
-  const steps = parcel
-    ? [
-        { title: 'Накладну створено', when: parcel.createdAt, done: !!parcel.createdAt, now: parcelState(parcel.code) === 'created' },
-        {
-          title: parcelState(parcel.code) === 'waiting' ? 'У відділенні' : 'У дорозі',
-          when: parcel.scheduled ? 'орієнтовно ' + parcel.scheduled : '',
-          done: ['waiting', 'received'].includes(parcelState(parcel.code)),
-          now: ['moving', 'waiting'].includes(parcelState(parcel.code))
-        },
-        {
-          title: 'Отримано',
-          when: parcel.gotAt,
-          done: parcelState(parcel.code) === 'received',
-          now: parcelState(parcel.code) === 'received'
-        }
-      ]
-    : [];
+     дійшло, підсвічений; майбутні стоять сірими.
+
+     Дати живуть у самій стрічці й більше ніде. Раніше під нею
+     стояв ще й перелік тих самих дат окремими рядками — те саме
+     двічі поспіль, і око щоразу перечитувало його вдруге, щоб
+     переконатись, що це справді те саме. */
+  const steps = parcel ? wayOf(parcel) : [];
 
   const delivery = addressLine(c as never);
   const units = (o.items ?? []).reduce((n, i) => n + (Number(i.qty) || 0), 0);
@@ -356,47 +345,26 @@ export default function OrderCard({
                   <span>{parcel.status}</span>
                 ) : null}
               </div>
+              {/* Куди — один раз і зверху: це не подія дороги, а
+                  її кінець, і питають про нього ще до дат. */}
+              {parcel.city || parcel.place ? (
+                <p className="ao-way__to">{[parcel.city, parcel.place].filter(Boolean).join(' · ')}</p>
+              ) : null}
+
               <ol className="ao-way__steps">
                 {steps.map((party) => (
                   <li key={party.title} className={party.done ? 'is-done' : party.now ? 'is-now' : ''}>
                     <b>{party.title}</b>
-                    <span>{party.when || '—'}</span>
+                    {party.when ? <span>{party.when}</span> : null}
                   </li>
                 ))}
               </ol>
 
-              <dl className="ao-way__list">
-                {parcel.city || parcel.place ? (
-                  <div>
-                    <dt>Куди</dt>
-                    <dd>{[parcel.city, parcel.place].filter(Boolean).join(' · ')}</dd>
-                  </div>
-                ) : null}
-                {parcel.scheduled ? (
-                  <div>
-                    <dt>Планова доставка</dt>
-                    <dd>{parcel.scheduled}</dd>
-                  </div>
-                ) : null}
-                {parcel.gotAt ? (
-                  <div>
-                    <dt>Забрали</dt>
-                    <dd>{parcel.gotAt}</dd>
-                  </div>
-                ) : null}
-                {parcel.createdAt ? (
-                  <div>
-                    <dt>Накладну створено</dt>
-                    <dd>{parcel.createdAt}</dd>
-                  </div>
-                ) : null}
-                {parcel.backMoney ? (
-                  <div>
-                    <dt>Післяплата</dt>
-                    <dd>{parcel.backMoney} грн</dd>
-                  </div>
-                ) : null}
-              </dl>
+              {parcel.backMoney ? (
+                <p className="ao-way__cod">
+                  Післяплата: <b>{fmt(parcel.backMoney)} грн</b>
+                </p>
+              ) : null}
               <a
                 className="ao-way__link"
                 href={'https://novaposhta.ua/tracking/?cargo_number=' + encodeURIComponent(String(o.ttn || ''))}
@@ -613,4 +581,47 @@ export default function OrderCard({
       </div>
     </article>
   );
+}
+
+/* Дорога посилки трьома кроками. Перевізник журналу не веде, тож
+   стрічку складаємо з того, що він таки каже: коли створили
+   накладну, коли обіцяють доставити, коли забрали.
+
+   Останній крок називається по-різному не для краси: посилка, яка
+   повертається до нас, не «отримана», і писати так — брехати
+   менеджерові, який саме через це й відкрив картку. */
+function wayOf(parcel: Parcel): { title: string; when: string; done: boolean; now: boolean }[] {
+  const state = parcelState(parcel.code);
+  const back = state === 'refused' || state === 'returned';
+
+  const middle =
+    state === 'waiting'
+      ? {
+          title: 'У відділенні',
+          when: parcel.waiting > 0 ? parcel.waiting + ' дн.' : whenText(parcel.scheduled)
+        }
+      : {
+          title: back ? 'Повертається' : 'У дорозі',
+          when: parcel.scheduled && !back ? 'обіцяють ' + whenText(parcel.scheduled) : ''
+        };
+
+  return [
+    {
+      title: 'Накладну створено',
+      when: whenText(parcel.createdAt),
+      done: !!parcel.createdAt,
+      now: state === 'created'
+    },
+    {
+      ...middle,
+      done: ['waiting', 'received', 'returned'].includes(state),
+      now: ['moving', 'waiting', 'refused'].includes(state)
+    },
+    {
+      title: state === 'returned' ? 'Повернулась до нас' : back ? 'Отримання скасовано' : 'Отримано',
+      when: whenText(parcel.gotAt),
+      done: state === 'received' || state === 'returned',
+      now: state === 'received' || state === 'returned'
+    }
+  ];
 }

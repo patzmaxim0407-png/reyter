@@ -4967,41 +4967,25 @@ label.a-promo-product i {
   color: #5b6270;
 }
 
-.ao-way__list {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-}
-
-.ao-way__list > div {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-}
-
-.ao-way__list dt {
-  flex: 0 0 auto;
-  min-width: 132px;
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.ao-way__list dd {
-  margin: 0;
+/* Куди — під станом і до стрічки: це кінець дороги, і питають
+   про нього раніше, ніж про дати. */
+.ao-way__to {
+  margin: 0 0 10px;
   font-size: 13px;
+  line-height: 1.45;
+  color: #333a47;
+}
+
+.ao-way__cod {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: #5b6270;
 }
 
 .ao-way__link {
   display: inline-block;
   margin-top: 10px;
   font-size: 12.5px;
-}
-
-@media (max-width: 560px) {
-  .ao-way__list > div {
-    flex-direction: column;
-    gap: 0;
-  }
 }
 
 /* Вимикач автостатусів стоїть у ряду вкладок, праворуч: це не
@@ -5265,12 +5249,16 @@ label.a-promo-product i {
   list-style: none;
 }
 
+/* Крок і його дата — по краях рядка. Так дати стоять стовпчиком
+   одна під одною, і зрозуміти, скільки посилка їхала, можна не
+   читаючи, а просто глянувши. */
 .ao-way__steps li {
   position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px 10px;
+  justify-content: space-between;
+  gap: 2px 12px;
   padding: 0 0 10px 20px;
   color: #9aa1ad;
 }
