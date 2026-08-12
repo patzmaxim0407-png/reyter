@@ -5212,10 +5212,9 @@ label.a-promo-product i {
 }
 
 .np-mark {
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
   flex: none;
-  border-radius: 3.5px;
 }
 
 .aq-badge.np-created { color: #55606e; background: #f4f6f9; border-color: #dbe1e9; }
