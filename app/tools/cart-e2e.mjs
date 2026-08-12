@@ -305,6 +305,44 @@ if (np.opts > 0) {
     ok('запізніла відповідь не розкриває список сама',
        late.hidden && !late.msg,
        late.msg || 'список закритий');
+
+    /* А коли перевізник таки не відповів — сказати про це треба
+       один раз і замовкнути. Обриваємо запити до нього й дивимось,
+       чи гасне рядок сам. */
+    await send('Fetch.enable', {
+      patterns: [{ urlPattern: '*novaposhta.ua*', requestStage: 'Request' }]
+    });
+    const cut = (raw) => {
+      const m = JSON.parse(raw.data);
+      if (m.method !== 'Fetch.requestPaused') return;
+      void send('Fetch.failRequest', {
+        requestId: m.params.requestId,
+        errorReason: 'ConnectionFailed'
+      });
+    };
+    ws.addEventListener('message', cut);
+
+    await evalJs(`(() => {
+      const el = document.getElementById('coCity');
+      el.focus();
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(el, 'Тернопіль');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await wait(1200);
+    const said = await evalJs(
+      `document.getElementById('coCity').closest('.acombo').querySelector('.acombo__msg')?.textContent || ''`
+    );
+    ok('перевізник мовчить — покупцеві про це кажуть', /не вдалося/i.test(said), said || 'нічого не написали');
+
+    await wait(1800);
+    const gone = await evalJs(
+      `document.getElementById('coCity').closest('.acombo').querySelector('.acombo__msg')?.textContent || ''`
+    );
+    ok('і за дві секунди рядок гасне сам', !gone, gone || 'зник');
+
+    ws.removeEventListener('message', cut);
+    await send('Fetch.disable');
   }
 }
 
@@ -330,14 +368,14 @@ await evalJs(`localStorage.setItem('reyter:profile', JSON.stringify({
   defaultAddressId: 'a2'
 }))`);
 await go(BASE + '/checkout');
-const pick = await evalJs(`(() => ({
+const saved = await evalJs(`(() => ({
   cards: document.querySelectorAll('.addrpick__item').length,
   on: document.querySelector('.addrpick__item.is-on b')?.textContent || '',
   formHidden: !!document.querySelector('.addrpick__edit')
 }))()`);
-ok('збережені адреси показані', pick.cards === 3, JSON.stringify(pick));
-ok('обрана саме основна адреса', pick.on === 'Робота', pick.on);
-ok('форма адреси згорнута під карткою', pick.formHidden);
+ok('збережені адреси показані', saved.cards === 3, JSON.stringify(saved));
+ok('обрана саме основна адреса', saved.on === 'Робота', saved.on);
+ok('форма адреси згорнута під карткою', saved.formHidden);
 
 await evalJs(`[...document.querySelectorAll('.addrpick__item')].find(x => x.textContent.includes('Дім'))?.click()`);
 await wait(400);
@@ -502,7 +540,7 @@ const step1 = await visible();
 ok('на початку міжнародної видно лише країну',
    !step1.city && !step1.mode && !step1.street && !step1.zip, JSON.stringify(step1));
 
-const pick = (id) => evalJs(`document.getElementById('${id}').closest('.acombo').querySelector('.acombo__opt')?.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}))`);
+const pickOption = (id) => evalJs(`document.getElementById('${id}').closest('.acombo').querySelector('.acombo__opt')?.dispatchEvent(new MouseEvent('mousedown',{bubbles:true}))`);
 const options = (id) => evalJs(`(() => { const b=document.getElementById('${id}').closest('.acombo');
   return [...b.querySelectorAll('.acombo__opt span')].slice(0,3).map(x=>x.textContent); })()`);
 
@@ -522,7 +560,7 @@ const dropdown = await evalJs(`(() => {
 })()`);
 ok('випадайку видно, а картка кроку її не обрізає',
    dropdown.visible && !dropdown.clipped, JSON.stringify(dropdown));
-await pick('coCountry');
+await pickOption('coCountry');
 await wait(900);
 const step2 = await visible();
 ok('після країни зʼявляється місто', step2.city && !step2.mode && !step2.street, JSON.stringify(step2));
@@ -531,7 +569,7 @@ await setField('coIntlCity', 'Wars');
 await wait(3000);
 ok('місто знаходиться за початком назви',
    (await options('coIntlCity'))[0]?.startsWith('Warsaw'), JSON.stringify(await options('coIntlCity')));
-await pick('coIntlCity');
+await pickOption('coIntlCity');
 await wait(2000);
 const step3 = await visible();
 ok('після міста — вибір способу й пункт',

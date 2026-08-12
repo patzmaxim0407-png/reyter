@@ -89,16 +89,24 @@ export default function Combobox(props: {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const typedHere = useRef(false);
+  const fade = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const stopFade = () => {
+    if (fade.current) clearTimeout(fade.current);
+    fade.current = null;
+  };
 
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
+      if (fade.current) clearTimeout(fade.current);
     },
     []
   );
 
   function run(query: string, force = false) {
     if (timer.current) clearTimeout(timer.current);
+    stopFade();
     if (!force && query.trim().length < minChars) {
       setItems([]);
       setNote('');
@@ -143,6 +151,13 @@ export default function Combobox(props: {
       if (failed) {
         setItems([]);
         setNote(t('addr.offline'));
+        /* Це не підказка, а звістка про невдачу: прочитали — і
+           годі. Дві секунди, і рядок гасне сам, щоб не висів над
+           формою, поки покупець вписує адресу руками. */
+        stopFade();
+        fade.current = setTimeout(() => {
+          if (my === seq.current) setNote('');
+        }, 2000);
         return;
       }
       if (res === null) {
@@ -165,6 +180,7 @@ export default function Combobox(props: {
      прибираємо підпис. */
   function choose(item: ComboItem) {
     if (timer.current) clearTimeout(timer.current);
+    stopFade();
     seq.current++;
     setBusy(false);
     setNote('');
