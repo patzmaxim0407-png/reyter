@@ -25,12 +25,19 @@ export default function ColorPicker({
   const [open, setOpen] = useState(false);
   const [box, setBox] = useState<{ left: number; width: number; top?: number; bottom?: number; maxHeight: number } | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const picked = choices.find((x) => x.id === value) ?? null;
 
   useEffect(() => {
     if (!open) return;
+    /* Натиснули повз список — закриваємо. Але САМ список сюди не
+       входить, і це не дрібниця: панель зникала на mousedown, тож
+       клік по пункту вже не мав куди приземлитись — вибрати колір
+       було неможливо взагалі. */
     const close = (e: MouseEvent) => {
-      if (!trigger.current?.contains(e.target as Node)) setOpen(false);
+      const where = e.target as Node;
+      if (trigger.current?.contains(where) || panel.current?.contains(where)) return;
+      setOpen(false);
     };
     const esc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
@@ -102,6 +109,7 @@ export default function ColorPicker({
       {open && box ? (
         <div
           className="a-colordrop"
+          ref={panel}
           role="listbox"
           style={{
             position: 'fixed',
