@@ -12,7 +12,7 @@ import {
   type Task
 } from '@/lib/admin/orders';
 import type { Catalogue } from '@/lib/catalog';
-import { shortLabel, alarm, type Parcel } from '@/lib/admin/np';
+import { shortLabel, alarm, parcelState, type Parcel } from '@/lib/admin/np';
 
 /* ============================================================
    Черга справ
@@ -101,7 +101,16 @@ export default function OrdersQueue({
               однакових значків поспіль крали б увагу в того, що
               справді несе новину, — стану посилки. */}
           {rows.map(({ order, task }) => (
-            <div key={order._id} className={'aq-item u-' + task.urgency + (open === order._id ? ' is-open' : '')}>
+            <div
+              key={order._id}
+              className={
+                'aq-item st-' +
+                (order.status || 'new') +
+                ' u-' +
+                task.urgency +
+                (open === order._id ? ' is-open' : '')
+              }
+            >
               <OrderRow
                 num={order.num || ''}
                 name={String((order.customer as Record<string, unknown>)?.name ?? '')}
@@ -109,7 +118,9 @@ export default function OrdersQueue({
                 parcel={(() => {
                   if (order.pickup) return { text: 'Самовиніс', tone: 0 as const };
                   const parcel = parcels.get(String(order.ttn || '').replace(/\D/g, ''));
-                  return parcel ? { text: shortLabel(parcel), tone: alarm(parcel) } : undefined;
+                  return parcel
+                    ? { text: shortLabel(parcel), tone: alarm(parcel), state: parcelState(parcel.code) }
+                    : undefined;
                 })()}
                 meta={task.why}
                 sum={order.total || 0}

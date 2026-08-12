@@ -4851,6 +4851,18 @@ label.a-promo-product i {
   margin-top: 8px;
 }
 
+/* Смужка зліва каже, що це за замовлення. Кольори ті самі, що в
+   значку статусу поруч, — інакше око вчило б дві різні абетки.
+
+   Порядок правил тут і є правилом: спершу статус, потім
+   терміновість. Тривога перевізника має перебивати спокійний
+   зелений «виконано», а не навпаки. */
+.aq-item.st-new { border-left-color: #1d4ed8; }
+.aq-item.st-confirmed { border-left-color: #6d28d9; }
+.aq-item.st-shipped { border-left-color: #b45309; }
+.aq-item.st-done { border-left-color: #15803d; }
+.aq-item.st-cancelled { border-left-color: #b3261e; }
+
 /* Терміновість — на всю картку зліва, а не тільки на шапку */
 .aq-item.u-1 { border-left-color: #e8b04b; }
 .aq-item.u-2 { border-left-color: #d24b3e; }
@@ -5203,6 +5215,39 @@ label.a-promo-product i {
 
 /* Стан посилки другим значком — приглушеніший за статус
    замовлення: статус наш, а це чужа новина. */
+/* ---------- Що каже перевізник ----------
+   Раніше значок мав три кольори за рівнем тривоги, і «Отримано»
+   з «У дорозі» виглядали однаково — а це різні новини. Тепер
+   колір каже, ДЕ посилка, а тривога лишається окремим шаром:
+   зелене отримано, синє в дорозі, бурштинове лежить, червоне —
+   те, чим треба зайнятись. */
+.aq-badge.np {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.np-mark {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border-radius: 3.5px;
+}
+
+.aq-badge.np-created { color: #55606e; background: #f4f6f9; border-color: #dbe1e9; }
+.aq-badge.np-moving { color: #1d4ed8; background: #eef4ff; border-color: #cddcff; }
+.aq-badge.np-waiting { color: #8a5a00; background: #fff7ec; border-color: #f0d29a; }
+.aq-badge.np-received { color: #15803d; background: #f0faf3; border-color: #bfe3cb; }
+.aq-badge.np-refused,
+.aq-badge.np-missing { color: #b3261e; background: #fdecea; border-color: #f3b8b2; }
+.aq-badge.np-returned { color: #8a3d12; background: #fdf1ea; border-color: #efc6ab; }
+.aq-badge.np-pickup { color: #55606e; background: #f4f6f9; border-color: #dbe1e9; }
+
+/* Лежить довше, ніж можна терпіти. Бурштин тоді вже не помітний —
+   тут потрібен колір, від якого рука сама тягнеться до телефону. */
+.aq-badge.np.is-hot { color: #b3261e; background: #fdecea; border-color: #f3b8b2; }
+
+/* Старі три рівні лишаються: ними ще малює картка замовлення */
 .aq-badge.np-0 { color: #35618f; background: #f1f6fd; border-color: #cfdff2; }
 .aq-badge.np-1 { color: #8a5a00; background: #fff7ec; border-color: #f0d29a; }
 .aq-badge.np-2 { color: #b3261e; background: #fdecea; border-color: #f3b8b2; }

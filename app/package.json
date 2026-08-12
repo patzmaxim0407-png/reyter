@@ -9,7 +9,9 @@
     "cf:build": "opennextjs-cloudflare build && node tools/assets-guard.mjs && node tools/check-chunks.mjs",
     "cf:preview": "opennextjs-cloudflare build && node tools/assets-guard.mjs && node tools/check-chunks.mjs && opennextjs-cloudflare preview",
     "cf:deploy": "opennextjs-cloudflare build && node tools/assets-guard.mjs && node tools/check-chunks.mjs && opennextjs-cloudflare deploy",
-    "check:build": "node tools/check-chunks.mjs"
+    "cf:ship": "npm run cf:build && node tools/deploy-guard.mjs && OPEN_NEXT_DEPLOY=true wrangler deploy && node tools/deploy-check.mjs",
+    "check:build": "node tools/check-chunks.mjs",
+    "check:deploy": "node tools/deploy-check.mjs"
   },
   "dependencies": {
     "firebase": "^12.17.1",

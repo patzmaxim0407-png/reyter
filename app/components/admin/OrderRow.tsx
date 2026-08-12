@@ -19,6 +19,26 @@ import { fmt } from '@/lib/catalog';
    (до 10 кг): вул. Євгена Чикаленка, 45/2 (м. "Площа
    Українських Героїв")». У списку з неї потрібні дві речі —
    місто й номер; решта є в картці й у підказці. */
+/* Значок перевізника. Свій, а не завантажений: у рядку він
+   завбільшки з літеру, а фірмовий знак у такому розмірі однаково
+   перетворюється на червону пляму зі стрілкою. Колір той самий,
+   що в перевізника, — саме за ним око й знаходить рядок. */
+function NpMark() {
+  return (
+    <svg className="np-mark" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <rect width="16" height="16" rx="4.5" fill="#da291c" />
+      <path
+        d="M4.2 8h6.2M7.9 5.2 10.9 8l-3 2.8"
+        stroke="#fff"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
 function shortLabel(place: string): string {
   const parts = place.split(',').map((x) => x.trim());
   const city = parts[0] || '';
@@ -51,8 +71,9 @@ export default function OrderRow({
   meta: string;
   /** Статус замовлення кольоровим значком. */
   badge?: { id: string; title: string };
-  /** Що каже перевізник — другим значком. */
-  parcel?: { text: string; tone: 0 | 1 | 2 };
+  /** Що каже перевізник — другим значком. state фарбує значок за
+   *  станом посилки, tone додає тривоги, коли час її бити. */
+  parcel?: { text: string; tone: 0 | 1 | 2; state?: string };
   sum: number;
   /** 0 — спокій, 1 — увага, 2 — горить. */
   tone?: 0 | 1 | 2;
@@ -103,7 +124,16 @@ export default function OrderRow({
         </span>
         <span className="aq-row__why">
           {badge ? <b className={'aq-badge st-' + badge.id}>{badge.title}</b> : null}
-          {parcel ? <b className={'aq-badge np-' + parcel.tone}>{parcel.text}</b> : null}
+          {parcel ? (
+            <b
+              className={
+                'aq-badge np np-' + (parcel.state || 'pickup') + (parcel.tone === 2 ? ' is-hot' : '')
+              }
+            >
+              {parcel.state ? <NpMark /> : null}
+              {parcel.text}
+            </b>
+          ) : null}
           {meta ? <span>{meta}</span> : null}
         </span>
         <span className="aq-row__sum">{fmt(sum || 0)} грн</span>

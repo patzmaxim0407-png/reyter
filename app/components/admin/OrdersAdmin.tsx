@@ -50,6 +50,7 @@ import {
   shortLabel,
   statusFromTracker,
   alarm,
+  parcelState,
   type Parcel
 } from '@/lib/admin/np';
 import { parcelWeight } from '@/lib/customs';
@@ -498,7 +499,9 @@ export default function OrdersAdmin() {
   /** Що каже перевізник — для рядка списку. */
   function parcelForRow(o: AdminOrder) {
     const parcel = parcels.get(String(o.ttn || '').trim());
-    return parcel ? { text: shortLabel(parcel), tone: alarm(parcel) } : undefined;
+    return parcel
+      ? { text: shortLabel(parcel), tone: alarm(parcel), state: parcelState(parcel.code) }
+      : undefined;
   }
 
   /** Коли це було — коротко, для рядка списку. */
@@ -769,13 +772,19 @@ export default function OrdersAdmin() {
           />
 
 
+          {/* Смужка зліва фарбується статусом — в архіві саме він і
+              потрібен оку. Тривога перевізника (u-1/u-2) цей колір
+              перебиває: те, що горить, має лишатись помітним і
+              серед виконаних. */}
           <div className="ao-list">
           {visible.length ? (
             visible.map((o) => (
               <div
                 key={o._id}
                 className={
-                  'aq-item u-' +
+                  'aq-item st-' +
+                  (o.status || 'new') +
+                  ' u-' +
                   (parcelForRow(o)?.tone ?? 0) +
                   (openId === o._id ? ' is-open' : '')
                 }
