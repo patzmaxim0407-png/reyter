@@ -238,8 +238,13 @@ export function productColors(c: Catalogue, p: Product | null): Color[] {
 
 /* ---------- Гроші ---------- */
 
+/* Форматувальник один на весь модуль. toLocaleString будує його
+   наново на кожен виклик, а цін на сторінці каталогу — сотні:
+   разом це третина мілісекунди процесора з десяти дозволених. */
+const HRYVNIA = new Intl.NumberFormat('uk-UA');
+
 export function fmt(n: number): string {
-  return Number(n).toLocaleString('uk-UA');
+  return HRYVNIA.format(Number(n) || 0);
 }
 
 export function uah(n: number, lang: 'uk' | 'en' = 'uk'): string {
