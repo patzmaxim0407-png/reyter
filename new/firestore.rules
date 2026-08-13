@@ -139,6 +139,9 @@ service cloud.firestore {
         'num', 'date', 'items', 'subtotal', 'discount', 'promoCode',
         'shipping', 'total', 'customer', 'message', 'status', 'uid',
         'email', 'source', 'lang', 'trackKey', 'created',
+        // номер рахунку Monobank: сам по собі він нічого не
+        // відкриває — стан оплати питають у банку, а не в нас
+        'payInvoiceId',
         // дописує адмінка при ручному створенні
         'createdBy', 'statusLog', 'stockApplied', 'note', 'ttn'
       ]);
