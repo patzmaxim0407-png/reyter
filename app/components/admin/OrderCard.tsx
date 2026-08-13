@@ -5,6 +5,7 @@ import { addressLine } from '@/lib/address';
 import { fmt, type Catalogue } from '@/lib/catalog';
 import { NEXT_STEP, STATUSES, confirmText, itemCat, orderDate, statusInfo } from '@/lib/admin/orders';
 import { label, parcelState, alarm, whenText, type Parcel } from '@/lib/admin/np';
+import { isPaid, payLabel, payTone, type PayStatus } from '@/lib/pay';
 import type { OrderItem } from '@/lib/types';
 
 /* ============================================================
@@ -34,6 +35,8 @@ export interface AdminOrder {
   ttnRef?: string;
   /** Покупець забирає сам — накладної не буде й не треба. */
   pickup?: boolean;
+  /** Рахунок Monobank. Стан оплати питають у банку, не в нас. */
+  payInvoiceId?: string;
   lang?: string;
   note?: string;
   email?: string;
@@ -55,6 +58,9 @@ export default function OrderCard({
   onEdit,
   onField,
   parcel,
+  pay,
+  onPayLink,
+  onPayBack,
   embedded,
   onSendTtn,
   onMakeTtn,
@@ -79,6 +85,12 @@ export default function OrderCard({
   onDropTtn?(): void;
   /** Що каже про посилку сам перевізник. */
   parcel?: Parcel;
+  /** Що каже банк про оплату — питається щоразу наново. */
+  pay?: PayStatus;
+  /** Виставити рахунок і надіслати покупцеві листом. */
+  onPayLink?(): void;
+  /** Повернути кошти. Питає підтвердження в самій адмінці. */
+  onPayBack?(): void;
   /** Картка стоїть під рядком черги, який уже сказав номер,
    *  імʼя, адресу й суму. Повторювати це вдруге — не «докладно»,
    *  а шум; та й розкривати вдруге те, що вже розкрито, нікому
@@ -330,6 +342,29 @@ export default function OrderCard({
               <span>До сплати</span>
               <span>{fmt(Math.max(0, goods - disc + ship))} грн</span>
             </div>
+          </div>
+
+          {/* Оплата. Стан беремо в банку щоразу наново — у нас він
+              не зберігається, тож і розійтися з дійсністю не може.
+              Кнопки поруч, бо саме тут менеджер про це й думає. */}
+          <div className={'ao-pay ao-pay--' + (pay ? payTone(pay.state) : 3)}>
+            <span className="ao-pay__head">
+              <b>{pay ? payLabel(pay.state) : 'Оплату не починали'}</b>
+              {pay && pay.amount ? <i>{fmt(pay.amount)} грн</i> : null}
+            </span>
+            {pay && pay.why ? <span className="ao-pay__why">{pay.why}</span> : null}
+            <span className="ao-pay__acts">
+              {onPayLink && !(pay && isPaid(pay.state)) ? (
+                <button className="btn btn--ghost btn--sm" type="button" onClick={onPayLink}>
+                  Надіслати посилання на оплату
+                </button>
+              ) : null}
+              {onPayBack && pay && isPaid(pay.state) ? (
+                <button className="btn btn--ghost btn--sm ao-danger" type="button" onClick={onPayBack}>
+                  Повернути кошти
+                </button>
+              ) : null}
+            </span>
           </div>
 
           {st !== 'done' && st !== 'cancelled' && onEdit ? (

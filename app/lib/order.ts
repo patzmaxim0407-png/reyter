@@ -54,6 +54,9 @@ export interface Order {
   shippingNote?: string;
   /** Готовий перелік для митної декларації (тільки за кордон). */
   customs?: string;
+  /** Номер рахунку Monobank. Сам по собі нічого не відкриває:
+   *  стан оплати питають у банку, а не в нас. */
+  payInvoiceId?: string;
 }
 
 export const MESSENGERS = [

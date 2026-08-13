@@ -5892,3 +5892,57 @@ label.a-promo-product i {
   line-height: 1.5;
   color: #9aa1ad;
 }
+
+/* ---------- Оплата ----------
+   Гроші — найважливіша новина про замовлення: без них його не
+   збирають. Тому значок оплати стоїть у рядку першим, ще перед
+   станом посилки, і має власні кольори, а не позичені. */
+.aq-badge.pay { font-weight: 800; }
+.aq-badge.pay-0 { color: #15803d; background: #f0faf3; border-color: #bfe3cb; }
+.aq-badge.pay-1 { color: #8a5a00; background: #fff7ec; border-color: #f0d29a; }
+.aq-badge.pay-2 { color: #b3261e; background: #fdecea; border-color: #f3b8b2; }
+
+.ao-pay {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border: 1px solid #e3e6ec;
+  border-left: 3px solid #dfe3ea;
+  border-radius: 12px;
+  background: #fff;
+}
+
+/* Ліва смужка каже про гроші те саме, що значок у рядку */
+.ao-pay--0 { border-left-color: #15803d; background: #f7fdf9; }
+.ao-pay--1 { border-left-color: #e8b04b; background: #fffdf7; }
+.ao-pay--2 { border-left-color: #d24b3e; background: #fffaf9; }
+/* 3 — рахунок не виставляли: не тривога, просто ще нічого не було */
+.ao-pay--3 { border-left-color: #dfe3ea; }
+
+.ao-pay__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.ao-pay__head i {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--c-blue-ink);
+}
+
+.ao-pay__why {
+  font-size: 12.5px;
+  color: #8a5a00;
+}
+
+.ao-pay__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ao-pay__acts:empty { display: none; }

@@ -57,6 +57,12 @@ const uk = {
   'hero.p3': 'Кожен чоловік має свій характер і силу. І ми тут, аби підтримати вас в цьому — з першого дотику тканини до тіла.',
   /* Саме «білизни по Україні»: поріг не діє ні на домашній
      одяг, ні за кордон, і коротший напис обіцяв зайве. */
+  /* Оплата карткою */
+  'pay.waiting': 'Перевіряємо оплату…',
+  'pay.done': 'Оплату отримано',
+  'pay.back': 'Кошти за цим замовленням повернуто.',
+  'pay.failed': 'Оплата не пройшла.',
+  'pay.failedNext': 'Замовлення збережено — ми надішлемо посилання на оплату ще раз.',
   'hero.trust1': 'Безкоштовна доставка білизни по Україні від 1500 грн',
   'hero.trust2': 'Відправка за 1–2 дні',
   'hero.trust3': 'Міжнародна доставка',
@@ -452,6 +458,11 @@ const en: Record<UIKey, string> = {
   'hero.p1': 'The idea behind <strong>REYTER</strong> was born from a simple but important thought: underwear should be comfortable for everyone. We were looking for something that feels good, looks stylish and sits naturally on the body. We never found it — so we created our own.',
   'hero.p2': '<strong>REYTER</strong> is not only about fabrics and patterns. It is about character. About the inner strength you feel in every movement. We believe real strength starts from within — with comfort, confidence and your own style.',
   'hero.p3': 'Every man has his own character and strength. We are here to support you in that — from the first touch of the fabric on your skin.',
+  'pay.waiting': 'Checking your payment…',
+  'pay.done': 'Payment received',
+  'pay.back': 'This order has been refunded.',
+  'pay.failed': 'The payment did not go through.',
+  'pay.failedNext': 'Your order is saved — we will send a new payment link.',
   'hero.trust1': 'Free underwear delivery in Ukraine over UAH 1500',
   'hero.trust2': 'Dispatch within 1–2 days',
   'hero.trust3': 'Worldwide shipping',

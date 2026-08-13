@@ -53,6 +53,7 @@ export default function OrderRow({
   meta,
   badge,
   parcel,
+  pay,
   sum,
   tone = 0,
   action,
@@ -71,6 +72,9 @@ export default function OrderRow({
   /** Що каже перевізник — другим значком. state фарбує значок за
    *  станом посилки, tone додає тривоги, коли час її бити. */
   parcel?: { text: string; tone: 0 | 1 | 2; state?: string };
+  /** Оплата: те саме, що каже банк. Найважливіша новина в рядку —
+   *  без грошей замовлення не збирають. */
+  pay?: { text: string; tone: 0 | 1 | 2 };
   sum: number;
   /** 0 — спокій, 1 — увага, 2 — горить. */
   tone?: 0 | 1 | 2;
@@ -121,6 +125,7 @@ export default function OrderRow({
         </span>
         <span className="aq-row__why">
           {badge ? <b className={'aq-badge st-' + badge.id}>{badge.title}</b> : null}
+          {pay ? <b className={'aq-badge pay pay-' + pay.tone}>{pay.text}</b> : null}
           {parcel ? (
             <b
               className={

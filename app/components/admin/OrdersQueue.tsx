@@ -13,6 +13,7 @@ import {
 } from '@/lib/admin/orders';
 import type { Catalogue } from '@/lib/catalog';
 import { shortLabel, alarm, parcelState, type Parcel } from '@/lib/admin/np';
+import { payLabel, payTone, type PayStatus } from '@/lib/pay';
 
 /* ============================================================
    Черга справ
@@ -40,6 +41,9 @@ export default function OrdersQueue({
   orders,
   c,
   parcels,
+  payOf,
+  onPayLink,
+  onPayBack,
   onStatus,
   onEdit,
   onField,
@@ -53,6 +57,10 @@ export default function OrdersQueue({
   orders: AdminOrder[];
   c: Catalogue;
   parcels: Map<string, Parcel>;
+  /** Що каже банк про оплату цього замовлення. */
+  payOf?(o: AdminOrder): PayStatus | undefined;
+  onPayLink?(o: AdminOrder): void;
+  onPayBack?(o: AdminOrder, paid: number): void;
   onStatus(o: AdminOrder, next: string): void | Promise<void>;
   onEdit?(o: AdminOrder): void;
   onField?(o: AdminOrder, field: 'ttn' | 'note', value: string): void;
@@ -122,6 +130,10 @@ export default function OrdersQueue({
                     ? { text: shortLabel(parcel), tone: alarm(parcel), state: parcelState(parcel.code) }
                     : undefined;
                 })()}
+                pay={(() => {
+                  const r = payOf?.(order);
+                  return r ? { text: payLabel(r.state), tone: payTone(r.state) } : undefined;
+                })()}
                 meta={task.why}
                 sum={order.total || 0}
                 tone={task.urgency}
@@ -153,6 +165,13 @@ export default function OrdersQueue({
                     c={c}
                     embedded
                     parcel={parcels.get(String(order.ttn || '').trim())}
+                    pay={payOf ? payOf(order) : undefined}
+                    onPayLink={onPayLink ? () => onPayLink(order) : undefined}
+                    onPayBack={
+                      onPayBack
+                        ? () => onPayBack(order, payOf?.(order)?.amount ?? order.total ?? 0)
+                        : undefined
+                    }
                     onStatus={(next) => onStatus(order, next)}
                     onEdit={onEdit ? () => onEdit(order) : undefined}
                     onField={onField ? (f, v) => onField(order, f, v) : undefined}

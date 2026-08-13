@@ -321,6 +321,8 @@ export interface NewOrder {
   total: number;
   customer: { email?: string; phone?: string; [k: string]: unknown };
   message?: string;
+  /** Номер рахунку Monobank, якщо оплату вже почали. */
+  payInvoiceId?: string;
 }
 
 /** Замовлення потрапляє в адмінку і від гостя без акаунта: тоді
@@ -371,6 +373,12 @@ export async function createOrder(
       source: 'Сайт',
       lang: opts.lang || 'uk',
       trackKey: opts.trackKey || '',
+      /* Номер рахунку кладемо ОДРАЗУ при створенні: дописати поле
+         потім покупець не має права, і це правильно — інакше
+         будь-хто міг би привʼязати до чужого замовлення свій
+         рахунок. Порожнього поля тут не буває: noHoles прибирає
+         те, чого немає. */
+      payInvoiceId: order.payInvoiceId || undefined,
       created: serverTimestamp()
     }));
     return ref.id;

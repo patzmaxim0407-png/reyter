@@ -391,6 +391,28 @@ export default function CheckoutForm() {
       const { trackKey, trackCreate } = await import('@/lib/track');
       const key = await trackKey(order.num, customer.phone);
 
+      /* Рахунок виставляємо ДО запису замовлення: його номер має
+         лягти в сам документ, а дописати поле потім покупець уже
+         не має права — і це правильно.
+
+         Суму рахує воркер із каталогу, ми лише кажемо, що саме
+         замовили. Якби суму передавали звідси, її можна було б
+         переписати в консолі браузера й купити все за гривню. */
+      const { payCreate, rememberInvoice } = await import('@/lib/pay');
+      const settings = (await fb.loadNotifySettings()) as { workerUrl?: string } | null;
+      const bill = await payCreate(String(settings?.workerUrl || ''), {
+        orderNum: order.num,
+        items: order.items.map((i) => ({ id: i.id, size: i.size || '', qty: i.qty })),
+        promo: code,
+        shipping: shipInTotal,
+        email: customer.email,
+        lang: 'uk'
+      });
+      if (bill.ok && bill.invoiceId) {
+        order.payInvoiceId = bill.invoiceId;
+        rememberInvoice(order.num, bill.invoiceId);
+      }
+
       /* Спершу база — це єдине, що не можна втратити. Решта
          (відстеження, лист, Telegram, лічильник промокоду) вже
          необовʼязкова: замовлення видно в адмінці й без них. */
@@ -433,6 +455,27 @@ export default function CheckoutForm() {
 
       clear();
       promoSaveCode('');
+
+      /* Рахунок виставлено — ведемо покупця платити. Замовлення
+         вже в базі: якщо він передумає просто на сторінці банку,
+         менеджер це побачить і зможе надіслати посилання ще раз.
+
+         Заміна адреси, а не перехід усередині сайту: сторінка
+         банку — чужа, і повертатись «назад» покупець має на
+         подяку, а не на форму оформлення. */
+      if (bill.ok && bill.pageUrl) {
+        window.location.assign(bill.pageUrl);
+        return;
+      }
+
+      /* Рахунок не вийшов. Мовчати не можна: людина щойно
+         оформила замовлення й має знати, що грошей із неї ще не
+         взяли, а посилання прийде листом. */
+      toast(
+        'Замовлення №' + order.num + ' записано, але почати оплату не вдалося' +
+          (bill.error ? ' (' + bill.error + ')' : '') +
+          '. Ми надішлемо посилання на оплату — перевірте пошту.'
+      );
 
       // Номер потрібен на сторінці подяки, а стан між сторінками
       // не переживе перезавантаження — передаємо адресою

@@ -353,6 +353,8 @@ export interface AdminOrder {
   ttnRef?: string;
   /** Покупець забирає сам — накладної не буде й не треба. */
   pickup?: boolean;
+  /** Рахунок Monobank. Стан оплати питають у банку, не в нас. */
+  payInvoiceId?: string;
   /** Мовою якої сторінки оформлено замовлення. */
   lang?: string;
   note?: string;

@@ -54,6 +54,7 @@ import {
   type Parcel
 } from '@/lib/admin/np';
 import { parcelWeight } from '@/lib/customs';
+import { payLabel, payStatus, payTone, type PayStatus } from '@/lib/pay';
 import type { OrderStatus, Stock } from '@/lib/types';
 
 /* ============================================================
@@ -275,6 +276,148 @@ export default function OrdersAdmin() {
        на кожен рендер списку. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inTransitKey]);
+
+  /* ---------- Що з оплатою ----------
+     Стан оплати в нас не зберігається ніде — щоразу питаємо
+     банк. Тому й підробити його неможливо: у базі його просто
+     немає. Питаємо лише про ті замовлення, де рахунок узагалі
+     виставлявся, і лише поки вкладка на очах. */
+  const [pays, setPays] = useState<Map<string, PayStatus>>(new Map());
+  const payKey = orders
+    .map((o) => String(o.payInvoiceId || ''))
+    .filter(Boolean)
+    .slice(0, 100)
+    .join('|');
+
+  useEffect(() => {
+    const list = payKey.split('|').filter(Boolean);
+    if (!list.length) return;
+
+    let alive = true;
+    const ask = async () => {
+      if (document.hidden) return;
+      const url = String(settings.workerUrl || '');
+      if (!url) return;
+      /* По черзі, а не залпом: сотня одночасних запитів у банк —
+         це найкоротший шлях до того, щоб він перестав відповідати
+         саме тоді, коли треба. */
+      for (const invoice of list) {
+        if (!alive) return;
+        const r = await payStatus(url, invoice);
+        if (!alive) return;
+        if (r.ok) setPays((was) => new Map(was).set(invoice, r));
+      }
+    };
+    void ask();
+    const t = setInterval(() => void ask(), 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => void ask());
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payKey, settings.workerUrl]);
+
+  /* Оплачене замовлення підтверджується саме: гроші в магазині —
+     значить, домовленість відбулась, і чекати ще й кліку
+     менеджера немає сенсу. Робимо це рівно один раз на
+     замовлення: applyStatus списує товар зі складу, і повторний
+     виклик списав би його вдруге. */
+  const confirmedByPay = useRef<Set<string>>(new Set());
+  /* Через ref, бо сам обробник оголошений нижче: ефект живе весь
+     час, а функція перестворюється на кожен рендер. */
+  const confirmPaid = useRef<(o: AdminOrder) => void | Promise<void>>(() => {});
+  useEffect(() => {
+    if (!autoRef.current) return;
+    for (const o of orders) {
+      const invoice = String(o.payInvoiceId || '');
+      if (!invoice || o.status !== 'new') continue;
+      const paid = pays.get(invoice);
+      if (!paid || paid.state !== 'success') continue;
+      if (confirmedByPay.current.has(o._id)) continue;
+      confirmedByPay.current.add(o._id);
+      void confirmPaid.current(o);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pays, orders]);
+
+  const payOf = useCallback(
+    (o: AdminOrder) => {
+      const invoice = String(o.payInvoiceId || '').trim();
+      return invoice ? pays.get(invoice) : undefined;
+    },
+    [pays]
+  );
+
+  /* Виставити рахунок і надіслати листом. Ціни бере воркер із
+     каталогу — менеджер не може виставити «на око». */
+  const sendPayLink = useCallback(
+    async (o: AdminOrder) => {
+      const url = String(settings.workerUrl || '');
+      const to = String((o.customer as Record<string, unknown>)?.email || o.email || '');
+      if (!to) return toast('У замовленні немає пошти — нема куди надсилати');
+      const yes = await askDialog({
+        title: 'Надіслати посилання на оплату?',
+        text: 'Покупець отримає лист із кнопкою «Оплатити». Рахунок дійсний 30 хвилин.',
+        okText: 'Надіслати'
+      });
+      if (yes !== true) return;
+
+      const { payLink } = await import('@/lib/pay');
+      const r = await payLink(url, workerKey, {
+        orderNum: o.num || '',
+        items: (o.items ?? []).map((i) => ({ id: i.id, size: i.size ?? '', qty: Number(i.qty) || 1 })),
+        promo: o.promoCode || '',
+        shipping: Number(o.shipping) || 0,
+        email: to,
+        name: String((o.customer as Record<string, unknown>)?.name || ''),
+        lang: (o.lang === 'en' ? 'en' : 'uk') as 'uk' | 'en'
+      });
+      if (!r.ok) return toast('Рахунок не виставлено: ' + (r.error || 'банк відмовив'));
+
+      /* Номер нового рахунку кладемо в замовлення: інакше
+         менеджер бачив би стан старого, уже неживого. */
+      const d = db();
+      if (d) await updateDoc(doc(d, 'orders', o._id), { payInvoiceId: r.invoiceId });
+      toast(
+        r.mailed
+          ? 'Посилання на оплату надіслано на ' + to
+          : 'Рахунок виставлено, але лист не пішов: ' + (r.mailError || 'невідомо чому'),
+        r.mailed ? 'success' : 'plain'
+      );
+    },
+    [askDialog, settings.workerUrl, toast, workerKey]
+  );
+
+  /* Повернення коштів. Двічі питаємо: гроші йдуть назад одразу,
+     і скасувати це вже не можна. */
+  const refund = useCallback(
+    async (o: AdminOrder, paid: number) => {
+      const invoice = String(o.payInvoiceId || '');
+      if (!invoice) return;
+      const answer = await askDialog({
+        title: 'Повернути кошти?',
+        text:
+          'Покупцеві повернеться ' + fmt(paid) + ' грн за замовленням №' + (o.num || '') +
+          '. Щоб повернути частину — впишіть суму; порожнє поле означає повне повернення.',
+        okText: 'Повернути',
+        input: '',
+        label: 'Сума повернення, грн',
+        placeholder: String(paid)
+      });
+      if (typeof answer !== 'string') return;
+      const part = Math.max(0, Math.round(Number(String(answer).replace(',', '.')) || 0));
+      if (part > paid) return toast('Більше, ніж оплачено, повернути не можна');
+
+      const { payRefund } = await import('@/lib/pay');
+      const r = await payRefund(String(settings.workerUrl || ''), workerKey, invoice, part);
+      toast(
+        r.ok ? 'Кошти повертаються — банк опрацює за кілька хвилин' : 'Не вдалося: ' + r.error,
+        r.ok ? 'success' : 'plain'
+      );
+    },
+    [askDialog, settings.workerUrl, toast, workerKey]
+  );
 
   /* ---------- Залежності для зміни статусу ---------- */
 
@@ -593,6 +736,8 @@ export default function OrdersAdmin() {
     [askDialog]
   );
 
+  confirmPaid.current = (o: AdminOrder) => onStatus(o, 'confirmed');
+
   async function onStatus(o: AdminOrder, next: string) {
     const dd = deps();
     if (!dd) return;
@@ -718,6 +863,9 @@ export default function OrdersAdmin() {
               orders={orders as never}
               c={c}
               parcels={parcels}
+              payOf={(o) => payOf(o as never)}
+              onPayLink={(o) => void sendPayLink(o as never)}
+              onPayBack={(o, paid) => void refund(o as never, paid)}
               onStatus={(o, next) => void onStatus(o as never, next)}
               onEdit={(o) => void editOrder(o as never)}
               onField={(o, field, value) => void saveField(o as never, field, value)}
@@ -802,6 +950,10 @@ export default function OrdersAdmin() {
                   parcel={
                     o.pickup ? { text: 'Самовиніс', tone: 0 as const } : parcelForRow(o)
                   }
+                  pay={(() => {
+                    const r = payOf(o);
+                    return r ? { text: payLabel(r.state), tone: payTone(r.state) } : undefined;
+                  })()}
                   meta={shortWhen(o)}
                   sum={o.total || 0}
                   picked={selection.has(o._id)}
@@ -827,6 +979,9 @@ export default function OrdersAdmin() {
                       onStatus={(next) => void onStatus(o, next)}
                       onEdit={() => void editOrder(o)}
                       onField={(field, value) => void saveField(o, field, value)}
+                      pay={payOf(o)}
+                      onPayLink={() => void sendPayLink(o)}
+                      onPayBack={() => void refund(o, payOf(o)?.amount ?? o.total ?? 0)}
                       onSendTtn={() => void sendTtnLetter(o, String(o.ttn || '').trim())}
                       onMakeTtn={() => setTtnFor(o)}
                       onDropTtn={() => void cancelWaybill(o)}

@@ -2305,3 +2305,70 @@
   line-height: 1.4;
   margin-top: 0.15rem;
 }
+
+/* ---------- Стан оплати на сторінці подяки ----------
+   Три відповіді, три кольори: чекаємо, отримали, не пройшло.
+   Рядок стоїть одразу під заголовком — це перше, що людина
+   шукає очима, повернувшись із банку. */
+.paybox {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 10px;
+  margin: 0 0 14px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.paybox--wait {
+  background: rgba(23, 27, 38, 0.05);
+  color: #5b6270;
+}
+
+.paybox--ok {
+  background: #f0faf3;
+  border: 1px solid #bfe3cb;
+  color: #15803d;
+  font-weight: 600;
+}
+
+.paybox--warn {
+  background: #fff7ec;
+  border: 1px solid #f0d29a;
+  color: #8a5a00;
+}
+
+.paybox--fail {
+  flex-direction: column;
+  border-radius: 14px;
+  background: #fdecea;
+  border: 1px solid #f3b8b2;
+  color: #b3261e;
+  text-align: center;
+}
+
+.paybox--fail span {
+  color: #7a4a46;
+  font-size: 0.88rem;
+}
+
+.paybox__why {
+  font-style: italic;
+}
+
+/* Крапка, що дихає, поки банк думає */
+.paybox__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: payPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes payPulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
