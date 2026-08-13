@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import Script from 'next/script';
 import { Inter, Unbounded } from 'next/font/google';
 import '../styles/base.css';
 import '../styles/layout.css';
@@ -82,9 +81,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
       </head>
       <body>
+        {/* Лічильник переїхав в оболонку магазину: адмінці він
+            ні до чого, а її відвідування псували статистику. */}
         <Toasts>{children}</Toasts>
-        <Script src="https://www.googletagmanager.com/gtag/js?id=G-BWRC6C9CV8" strategy="afterInteractive" />
-        <Script id="reyter-ga" strategy="afterInteractive">{`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-BWRC6C9CV8');`}</Script>
       </body>
     </html>
   );

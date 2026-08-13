@@ -137,7 +137,11 @@ async function priceNp(cityRef: string, declaredCost: number, postomat: boolean)
     });
     const json = (await res.json()) as { success?: boolean; data?: { Cost?: number }[] };
     const cost = json?.data?.[0]?.Cost;
-    return json.success && typeof cost === 'number' && cost > 0 ? cost : null;
+    /* Перевізник іноді відповідає копійками — 94,4 грн. У
+       відділенні з покупця однаково візьмуть гривнями, а «94,4»
+       в підсумку виглядає як помилка рахунку. Округлюємо вгору:
+       краще пообіцяти на копійку більше, ніж здивувати на касі. */
+    return json.success && typeof cost === 'number' && cost > 0 ? Math.ceil(cost) : null;
   } catch {
     return null;
   }

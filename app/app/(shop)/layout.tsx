@@ -4,6 +4,7 @@ import CartProvider from '@/components/CartProvider';
 import LangProvider from '@/components/LangProvider';
 import CartDrawer from '@/components/CartDrawer';
 import ShopChrome from '@/components/ShopChrome';
+import Analytics from '@/components/Analytics';
 import { loadCatalog, loadStock } from '@/lib/firestore';
 import { cartCatalogue } from '@/lib/catalog';
 
@@ -34,6 +35,7 @@ export default async function ShopLayout({
           <SiteFooter />
           {productModal}
           <CartDrawer />
+          <Analytics />
         </CartProvider>
     </LangProvider>
   );
