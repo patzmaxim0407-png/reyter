@@ -36,6 +36,30 @@ function hostOf(request: Request): string {
   return raw.split(':')[0].toLowerCase();
 }
 
+/* Сторінку браузер має перепитувати щоразу.
+
+   Next віддає документ із s-maxage на рік і stale-while-revalidate
+   на місяць — це адресовано спільним кешам, і для них воно
+   правильне. Але власний кеш браузера при цьому лишається без
+   жодної вказівки, і вкладка, відкрита вчора, має право показати
+   вчорашню розмітку — з іменами файлів, яких на сервері вже
+   немає. Далі все ламається тихо: код не оживає, натискання на
+   картку стає звичайним переходом за посиланням, і сторінка
+   перезавантажується на кожному відкритті й закритті товару.
+   Саме це власник і бачив 14.08.2026.
+
+   Тому документам додаємо no-cache: браузер щоразу питає сервер,
+   а сервер відповідає з кеша сторінок за 10-15 мс. Статики це не
+   стосується — у неї імена з відбитком вмісту, і вона так і
+   лишається immutable на рік. */
+function freshDocument(res: Response): Response {
+  const type = res.headers.get('content-type') || '';
+  if (!type.includes('text/html')) return res;
+  const out = new Response(res.body, res);
+  out.headers.set('cache-control', 'no-cache, must-revalidate');
+  return out;
+}
+
 function withPath(url: URL, pathname: string): URL {
   const next = new URL(url);
   next.pathname = pathname;
@@ -56,7 +80,7 @@ export default {
     // Адмінський домен: корінь — це адмінка
     if (host.startsWith('admin.') && !isInternal) {
       const to = withPath(url, BASE + '/admin' + (path === '/' ? '' : path));
-      return nextWorker.fetch(new Request(to, request), env, ctx);
+      return freshDocument(await nextWorker.fetch(new Request(to, request), env, ctx));
     }
 
     /* Магазинний домен: адмінці тут робити нічого, ведемо на її
@@ -68,6 +92,6 @@ export default {
       return Response.redirect(to.toString(), 307);
     }
 
-    return nextWorker.fetch(request, env, ctx);
+    return freshDocument(await nextWorker.fetch(request, env, ctx));
   }
 };
