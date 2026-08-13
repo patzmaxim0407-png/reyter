@@ -55,7 +55,9 @@ const uk = {
   'hero.p1': 'Ідея створити <strong>REYTER</strong> народилася з простої, але важливої думки: білизна має бути зручною для всіх. Ми шукали щось, що дарує комфорт, виглядає стильно і водночас відчувається природно на тілі. Але не знайшли. Тож вирішили створити власне.',
   'hero.p2': '<strong>REYTER</strong> — це не лише про тканини та лекала. Це про характер. Про внутрішню силу, що відчувається у кожному русі. Ми віримо: справжня сила починається зсередини — з комфорту, впевненості та власного стилю.',
   'hero.p3': 'Кожен чоловік має свій характер і силу. І ми тут, аби підтримати вас в цьому — з першого дотику тканини до тіла.',
-  'hero.trust1': 'Безкоштовна доставка від 1500 грн',
+  /* Саме «білизни по Україні»: поріг не діє ні на домашній
+     одяг, ні за кордон, і коротший напис обіцяв зайве. */
+  'hero.trust1': 'Безкоштовна доставка білизни по Україні від 1500 грн',
   'hero.trust2': 'Відправка за 1–2 дні',
   'hero.trust3': 'Міжнародна доставка',
   'hero.alt': 'REYTER — український бренд чоловічої білизни',
@@ -450,7 +452,7 @@ const en: Record<UIKey, string> = {
   'hero.p1': 'The idea behind <strong>REYTER</strong> was born from a simple but important thought: underwear should be comfortable for everyone. We were looking for something that feels good, looks stylish and sits naturally on the body. We never found it — so we created our own.',
   'hero.p2': '<strong>REYTER</strong> is not only about fabrics and patterns. It is about character. About the inner strength you feel in every movement. We believe real strength starts from within — with comfort, confidence and your own style.',
   'hero.p3': 'Every man has his own character and strength. We are here to support you in that — from the first touch of the fabric on your skin.',
-  'hero.trust1': 'Free delivery over UAH 1500',
+  'hero.trust1': 'Free underwear delivery in Ukraine over UAH 1500',
   'hero.trust2': 'Dispatch within 1–2 days',
   'hero.trust3': 'Worldwide shipping',
   'hero.alt': 'REYTER — Ukrainian men\'s underwear brand',
