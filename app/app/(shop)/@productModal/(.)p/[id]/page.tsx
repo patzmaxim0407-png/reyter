@@ -19,7 +19,7 @@ import ProductView, { productParams } from '@/views/ProductView';
    картка малюється поверх каталогу вже на сервері.
    ============================================================ */
 
-export const revalidate = 60;
+export const revalidate = 300;
 export const generateStaticParams = productParams;
 
 export default async function ProductModalPage({ params }: { params: Promise<{ id: string }> }) {

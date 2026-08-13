@@ -1,7 +1,7 @@
 import ProductModal from '@/components/ProductModal';
 import ProductView, { productParams } from '@/views/ProductView';
 
-export const revalidate = 60;
+export const revalidate = 300;
 export const generateStaticParams = productParams;
 
 export default async function ProductModalPageEn({ params }: { params: Promise<{ id: string }> }) {

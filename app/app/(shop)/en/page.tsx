@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   openGraph: { title: 'REYTER — Ukrainian men’s underwear', description: 'Comfort, confidence and personal style.', locale: 'en_US', url: '/en' }
 };
 
-export const revalidate = 60;
+export const revalidate = 300;
 
 export default async function HomeEn() {
   return <HomeView lang="en" />;
