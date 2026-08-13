@@ -1179,6 +1179,23 @@ label.a-sizes__chip,
   line-height: 1.5;
 }
 
+/* Пояснення замість кнопки, якої тут не може бути: за кордон
+   накладну створює інша система перевізника. Виглядає як підказка,
+   а не як помилка — бо це й не помилка. */
+.ao-note--intl {
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px dashed rgba(1, 74, 173, 0.28);
+  border-radius: 10px;
+  background: rgba(1, 74, 173, 0.05);
+  color: #3b4351;
+}
+
+.ao-note--intl a {
+  color: var(--c-blue);
+  text-decoration: underline;
+}
+
 .ao-note code {
   background: rgba(23, 27, 38, 0.07);
   padding: 0.05rem 0.35rem;
