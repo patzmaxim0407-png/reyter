@@ -330,6 +330,32 @@ ok('сайт не пише полів поза правилами', !extraKeys.l
      }).total === 900);
 }
 
+/* ---------- В адресі немає дірок ----------
+   Firestore відмовляється приймати документ, у якому хоч одне
+   значення undefined, — і відмовляє всім документом одразу, без
+   пояснень. Саме так 14.08.2026 зникло міжнародне замовлення:
+   країні не потрібні митні дані, і поле reg лишалось undefined.
+
+   Перевіряємо обидві гілки: країну, якій ці дані потрібні, і
+   країну, якій ні. */
+{
+  const holes = (value: unknown, path = ''): string[] => {
+    if (value === undefined) return [path || '(корінь)'];
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+    return Object.entries(value as Record<string, unknown>).flatMap(([k, v]) =>
+      holes(v, path ? path + '.' + k : k)
+    );
+  };
+
+  const toPoland = fromForm({ ...intlForm, countryCode: 'PL', state: 'Masovian' });
+  ok('адреса без митних даних не має порожніх полів',
+     holes(toPoland).length === 0, holes(toPoland).join(', ') || 'дірок немає');
+
+  const toStates = fromForm({ ...intlForm, countryCode: 'US', state: 'IL', regCity: 'Chicago' });
+  ok('адреса з митними даними теж',
+     holes(toStates).length === 0, holes(toStates).join(', ') || 'дірок немає');
+}
+
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
 console.log('\n--- повідомлення в Telegram ---\n' + msg);
 process.exit(failed ? 1 : 0);

@@ -701,6 +701,38 @@ export function fromForm(f: AddressForm, lang: Lang = 'uk'): Address {
 
   const toBranch = f.intlMode === 'branch';
 
+  /* Дані для митниці потрібні не всім країнам. Але поле, якого
+     немає, треба саме НЕ КЛАСТИ — а не класти порожнім: база
+     відмовляється приймати документ, у якому хоч одне значення
+     undefined, і відмовляється мовчки, всім документом одразу.
+     Саме так зникло міжнародне замовлення 14.08.2026: покупець
+     побачив «Замовлення прийнято», лист пішов, а в адмінці не
+     було нічого. */
+  const intl: Record<string, unknown> = {
+    countryCode: f.countryCode,
+    country: country,
+    state: f.state.trim(),
+    city: f.intlCity.trim(),
+    cityId: f.intlCityId || '',
+    mode: f.intlMode,
+    branch: toBranch ? f.intlBranch.trim() : '',
+    branchId: toBranch ? f.intlBranchId || '' : '',
+    branchType: toBranch ? f.intlBranchType || '' : '',
+    street: toBranch ? '' : f.street.trim(),
+    building: toBranch ? '' : f.building.trim(),
+    flat: toBranch ? '' : f.flat.trim().slice(0, 10),
+    note: toBranch ? '' : f.note.trim().slice(0, 100),
+    zip: toBranch ? '' : f.zip.trim()
+  };
+  if (regRequired(f.countryCode)) {
+    intl.reg = {
+      city: f.regCity.trim(),
+      street: f.regStreet.trim(),
+      building: f.regBuilding.trim(),
+      zip: f.regZip.trim()
+    };
+  }
+
   return {
     carrier: carrierTitle('intl', lang),
     carrierId: 'intl',
@@ -712,30 +744,7 @@ export function fromForm(f: AddressForm, lang: Lang = 'uk'): Address {
       : [[f.street.trim(), f.building.trim()].filter(Boolean).join(' '), f.flat.trim()]
           .filter(Boolean)
           .join(', '),
-    intl: {
-      countryCode: f.countryCode,
-      country: country,
-      state: f.state.trim(),
-      city: f.intlCity.trim(),
-      cityId: f.intlCityId || '',
-      mode: f.intlMode,
-      branch: toBranch ? f.intlBranch.trim() : '',
-      branchId: toBranch ? f.intlBranchId || '' : '',
-      branchType: toBranch ? f.intlBranchType || '' : '',
-      street: toBranch ? '' : f.street.trim(),
-      building: toBranch ? '' : f.building.trim(),
-      flat: toBranch ? '' : f.flat.trim().slice(0, 10),
-      note: toBranch ? '' : f.note.trim().slice(0, 100),
-      zip: toBranch ? '' : f.zip.trim(),
-      reg: regRequired(f.countryCode)
-        ? {
-            city: f.regCity.trim(),
-            street: f.regStreet.trim(),
-            building: f.regBuilding.trim(),
-            zip: f.regZip.trim()
-          }
-        : undefined
-    }
+    intl: intl as Address['intl']
   };
 }
 

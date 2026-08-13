@@ -330,6 +330,22 @@ export interface NewOrder {
  *  читає адмінка, і кожне з них їй потрібне. status без значення
  *  зламав би фільтри, uid — відрізав би замовлення від кабінету,
  *  trackKey — від відстеження. */
+/* База не приймає документ, у якому хоч одне значення undefined,
+   і відмовляє всім документом одразу. Одне таке поле в глибині
+   адреси — і замовлення зникає мовчки: покупець бачить «прийнято»,
+   лист іде, а в адмінці порожньо. Тому перед записом чистимо. */
+function noHoles<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((x) => noHoles(x)) as unknown as T;
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) out[k] = noHoles(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
 export async function createOrder(
   order: NewOrder,
   opts: { trackKey?: string; lang?: string } = {}
@@ -338,7 +354,7 @@ export async function createOrder(
   if (!d) return null;
   const user = auth()?.currentUser ?? null;
   try {
-    const ref = await addDoc(collection(d, 'orders'), {
+    const ref = await addDoc(collection(d, 'orders'), noHoles({
       num: order.num,
       date: order.date,
       items: order.items,
@@ -356,9 +372,13 @@ export async function createOrder(
       lang: opts.lang || 'uk',
       trackKey: opts.trackKey || '',
       created: serverTimestamp()
-    });
+    }));
     return ref.id;
-  } catch {
+  } catch (e) {
+    /* Тиша тут коштувала замовлення. Хоч у консоль, але сказати
+       треба: без причини наступний такий випадок доведеться
+       шукати знову з нуля. */
+    console.error('Замовлення не збереглося:', e);
     return null;
   }
 }
