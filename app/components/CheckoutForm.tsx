@@ -550,21 +550,53 @@ export default function CheckoutForm() {
        банку, не завершивши оплату: кошик уже очищено, замовлення
        створено — і без цієї підказки виходив глухий кут. */
     return (
-      <div className="empty-state">
+      <div className="empty-state checkout-empty">
         {pending ? (
-          <PayAgain
-            num={pending.num}
-            items={pending.items}
-            promo={pending.promo}
-            shipping={pending.shipping}
-            email={pending.email}
-            lang="uk"
-          />
+          <div className="checkout-empty__pending">
+            <PayAgain
+              num={pending.num}
+              items={pending.items}
+              promo={pending.promo}
+              shipping={pending.shipping}
+              email={pending.email}
+              lang="uk"
+            />
+          </div>
         ) : null}
-        <strong>{t('cart.empty')}</strong>
-        {t('cart.emptyNote')}
-        <Link className="btn btn--primary" href="/#catalog">
+
+        <span className="checkout-empty__icon" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            focusable="false"
+          >
+            <path d="M6 8h12l-1 13H7L6 8Z" />
+            <path d="M9 10V6a3 3 0 0 1 6 0v4" />
+          </svg>
+        </span>
+        <h1 className="checkout-empty__title">{t('cart.empty')}</h1>
+        <p className="checkout-empty__note">{t('cart.emptyNote')}</p>
+        <Link
+          className="btn btn--primary checkout-empty__action"
+          href={(lang === 'en' ? '/en' : '') + '/#catalog'}
+        >
           {t('cart.goCatalog')}
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
         </Link>
       </div>
     );

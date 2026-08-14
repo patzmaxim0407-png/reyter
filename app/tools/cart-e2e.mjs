@@ -94,6 +94,33 @@ ok(
   await evalJs('!!document.querySelector(".cart-count[hidden]")')
 );
 
+/* Порожній checkout — окрема компактна композиція, а не текст і
+   велика кнопка в одному рядку. */
+await go(BASE + '/checkout');
+const emptyCheckout = await evalJs(`(() => {
+  const card = document.querySelector('.checkout-empty');
+  const action = card?.querySelector('.checkout-empty__action');
+  const cr = card?.getBoundingClientRect();
+  const ar = action?.getBoundingClientRect();
+  return {
+    card: !!card,
+    heading: card?.querySelector('.checkout-empty__title')?.tagName || '',
+    icon: card?.querySelector('.checkout-empty__icon')?.getAttribute('aria-hidden') || '',
+    note: !!card?.querySelector('.checkout-empty__note'),
+    action: action?.textContent?.trim() || '',
+    compact: !!cr && !!ar && cr.width <= 540 && ar.width < cr.width,
+    touch: (ar?.height || 0) >= 44
+  };
+})()`);
+ok('порожній checkout зібраний у компактну картку', emptyCheckout.card && emptyCheckout.compact,
+   JSON.stringify(emptyCheckout));
+ok('порожній checkout має правильний заголовок та іконку',
+   emptyCheckout.heading === 'H1' && emptyCheckout.icon === 'true' && emptyCheckout.note);
+ok('CTA порожнього checkout коротка й зручна для дотику',
+   !!emptyCheckout.action && emptyCheckout.touch, emptyCheckout.action);
+
+await go(BASE + '/');
+
 /* --- 2. Знаходимо комплект --- */
 const setId = await evalJs(`(async () => {
   const r = await fetch('${BASE}/');

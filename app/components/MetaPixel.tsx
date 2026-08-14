@@ -31,7 +31,7 @@ import Script from 'next/script';
    у справжньому Chrome дописував би Meta візити, яких не було.
    ============================================================ */
 
-const PIXEL = '1520540949874641';
+const PIXEL = '1564358352080564';
 
 export default function MetaPixel() {
   const path = usePathname();

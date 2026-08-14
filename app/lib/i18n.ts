@@ -180,8 +180,8 @@ const uk = {
 
   'cart.title': 'Кошик',
   'cart.empty': 'Кошик порожній',
-  'cart.emptyNote': 'Оберіть щось із наших позицій — вони чекають 💙',
-  'cart.goCatalog': 'Перейти до позицій',
+  'cart.emptyNote': 'Оберіть позицію — вона зʼявиться тут.',
+  'cart.goCatalog': 'До каталогу',
   'cart.total': 'Разом',
   'cart.subtotal': 'Сума товарів',
   'cart.discount': 'Знижка',
@@ -589,8 +589,8 @@ const en: Record<UIKey, string> = {
 
   'cart.title': 'Cart',
   'cart.empty': 'Your cart is empty',
-  'cart.emptyNote': 'Pick something from our collection — it is waiting 💙',
-  'cart.goCatalog': 'Browse the collection',
+  'cart.emptyNote': 'Choose an item and it will appear here right away.',
+  'cart.goCatalog': 'Browse catalogue',
   'cart.total': 'Total',
   'cart.subtotal': 'Items total',
   'cart.discount': 'Discount',

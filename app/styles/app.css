@@ -716,6 +716,104 @@
   gap: 14px;
 }
 
+/* Порожній checkout — самостійний стан сторінки, а не великий
+   рядок із текстом і кнопкою. Вузька картка тримає погляд у
+   центрі та лишає одну зрозумілу наступну дію. */
+.checkout-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(100%, 540px);
+  margin: clamp(36px, 8vh, 88px) auto;
+  padding: clamp(32px, 6vw, 52px);
+  border: 1px solid var(--c-line);
+  border-radius: 24px;
+  background: var(--c-paper);
+  box-shadow: var(--shadow-card);
+}
+
+.checkout-empty__pending {
+  width: 100%;
+  margin-bottom: 28px;
+}
+
+.checkout-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 20px;
+  border-radius: 50%;
+  color: var(--c-blue);
+  background: color-mix(in srgb, var(--c-blue) 9%, var(--c-paper));
+}
+
+.checkout-empty .checkout-empty__icon svg {
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  color: currentColor;
+}
+
+.checkout-empty__title {
+  margin: 0;
+  color: var(--c-ink);
+  font-family: var(--font-display);
+  font-size: clamp(22px, 4vw, 28px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.checkout-empty__note {
+  max-width: 360px;
+  margin-top: 10px;
+  color: var(--c-muted);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.checkout-empty__action {
+  min-height: 50px;
+  margin-top: 24px;
+  padding-inline: 24px;
+  font-size: 15px;
+  box-shadow: 0 8px 20px rgba(1, 74, 173, 0.22);
+}
+
+.checkout-empty__action svg {
+  width: 18px;
+  height: 18px;
+  color: #fff;
+  transition: transform var(--t-fast);
+}
+
+.checkout-empty__action:hover svg {
+  transform: translateX(3px);
+}
+
+.checkout-empty__action:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--c-blue) 40%, transparent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 560px) {
+  .checkout-empty {
+    margin-block: 24px 40px;
+    padding: 32px 20px;
+    border-radius: 20px;
+  }
+
+  .checkout-empty__icon {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 18px;
+  }
+
+  .checkout-empty__action {
+    width: 100%;
+  }
+}
+
 /* Google-вхід — корисне скорочення, але не пʼятий обовʼязковий
    крок. Тому це компактна акцентна підказка перед формою, а
    єдиною основною CTA лишається «Онлайн оплата». */
