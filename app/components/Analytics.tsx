@@ -1,7 +1,8 @@
 import Script from 'next/script';
+import MetaPixel from './MetaPixel';
 
 /* ============================================================
-   Google Analytics
+   Лічильники: Google Analytics і Meta Pixel
    ------------------------------------------------------------
    Стоїть в оболонці МАГАЗИНУ, а не в спільній: раніше лічильник
    висів на всьому сайті разом з адмінкою, і робочий день
@@ -20,7 +21,8 @@ import Script from 'next/script';
 
    Локально не вантажимо взагалі: інакше кожен прогін перевірок
    у справжньому Chrome дописував би в статистику візити, яких
-   не було.
+   не було. Те саме правило діє й для пікселя Meta — він поруч,
+   у MetaPixel.tsx.
    ============================================================ */
 
 const MAIN = 'G-HECJJF2HXF';
@@ -35,6 +37,7 @@ export default function Analytics() {
       <Script id="reyter-ga" strategy="afterInteractive">
         {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${MAIN}');gtag('config','${OLD}');`}
       </Script>
+      <MetaPixel />
     </>
   );
 }
