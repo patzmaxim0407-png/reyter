@@ -591,19 +591,31 @@ export default function OrdersAdmin() {
     async (o: AdminOrder, paid: number) => {
       const invoice = String(o.payInvoiceId || '');
       if (!invoice) return;
+      /* Скільки ще можна повернути — питаємо банк, а не
+         вгадуємо: частину могли повернути раніше, і тоді спроба
+         віддати все закінчується сухим «wrong cancel amount». */
+      const { payFind } = await import('@/lib/pay');
+      const seen = await payFind(String(settings.workerUrl || ''), workerKey, o.num || '');
+      const row = seen.ok ? seen.found.find((x) => x.invoiceId === invoice) : undefined;
+      const left = row ? Math.max(0, row.amount - (row.refunded || 0)) : paid;
+      if (row && left <= 0) {
+        return toast('За цим рахунком уже повернуто все — повертати нічого');
+      }
+
       const answer = await askDialog({
         title: 'Повернути кошти?',
         text:
-          'Покупцеві повернеться ' + fmt(paid) + ' грн за замовленням №' + (o.num || '') +
+          'Покупцеві повернеться ' + fmt(left) + ' грн за замовленням №' + (o.num || '') +
+          (row && row.refunded ? ' (раніше вже повернуто ' + fmt(row.refunded) + ' грн)' : '') +
           '. Щоб повернути частину — впишіть суму; порожнє поле означає повне повернення.',
         okText: 'Повернути',
         input: '',
         label: 'Сума повернення, грн',
-        placeholder: String(paid)
+        placeholder: String(left)
       });
       if (typeof answer !== 'string') return;
       const part = Math.max(0, Math.round(Number(String(answer).replace(',', '.')) || 0));
-      if (part > paid) return toast('Більше, ніж оплачено, повернути не можна');
+      if (part > left) return toast('Повернути можна не більше ніж ' + fmt(left) + ' грн');
 
       const { payRefund } = await import('@/lib/pay');
       const r = await payRefund(String(settings.workerUrl || ''), workerKey, invoice, part);

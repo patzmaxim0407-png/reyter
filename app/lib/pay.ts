@@ -228,7 +228,15 @@ export async function payFind(
   orderNum: string
 ): Promise<{
   ok: boolean;
-  found: { invoiceId: string; status: PayState; amount: number; at: string; card: string }[];
+  found: {
+    invoiceId: string;
+    status: PayState;
+    amount: number;
+    /** Скільки з цієї суми вже повернули. */
+    refunded: number;
+    at: string;
+    card: string;
+  }[];
   error: string;
 }> {
   const r = await ask(workerUrl, { type: 'pay-find', key, orderNum });
@@ -238,6 +246,7 @@ export async function payFind(
       invoiceId: string;
       status: PayState;
       amount: number;
+      refunded: number;
       at: string;
       card: string;
     }[],

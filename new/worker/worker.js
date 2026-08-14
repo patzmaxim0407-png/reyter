@@ -1145,8 +1145,37 @@ export default {
       if (type === 'pay-refund') {
         const inv = clip(d.invoiceId, 60);
         if (!inv) return reply({ ok: false, error: 'Немає номера рахунку' }, 400, cors);
+
+        /* Скільки за цим рахунком ще можна повернути. Банк на
+           спробу повернути більше відповідає «wrong cancel amount
+           or ccy» — правильна відповідь, але зрозуміти з неї
+           нічого не можна. Тому дивимось у виписку самі: там видно
+           і суму платежу, і все, що вже повернуто. */
+        const seen = await monoStatement(env, 30);
+        const row = seen.list.find((x) => x.invoiceId === inv);
+        if (row) {
+          const done = (row.cancelList || []).reduce((n, c) => n + (Number(c.amount) || 0), 0);
+          const left = (Number(row.amount) || 0) - done;
+          if (left <= 0) {
+            return reply({
+              ok: false,
+              error: 'За цим рахунком уже повернуто все (' + Math.round(done / 100) + ' грн). Повертати більше нічого.'
+            }, 200, cors);
+          }
+          const want = Math.max(0, Math.round(Number(d.amount) || 0)) * 100;
+          if (want > left) {
+            return reply({
+              ok: false,
+              error: 'Повернути можна не більше ніж ' + Math.round(left / 100) + ' грн — решту вже повернули.'
+            }, 200, cors);
+          }
+        }
+
+        /* Часткове повернення вимагає валюти поруч із сумою:
+           без ccy банк вважає запит хибним. Повне — це просто
+           рахунок без суми. */
         const back = Math.max(0, Math.round(Number(d.amount) || 0));
-        const body = back > 0 ? { invoiceId: inv, amount: back * 100 } : { invoiceId: inv };
+        const body = back > 0 ? { invoiceId: inv, amount: back * 100, ccy: 980 } : { invoiceId: inv };
         const r = await monoCall(env, '/invoice/cancel', { method: 'POST', body: JSON.stringify(body) });
         if (!r.ok) {
           return reply({ ok: false, error: r.data.errText || 'Monobank відмовив у поверненні' }, 200, cors);
