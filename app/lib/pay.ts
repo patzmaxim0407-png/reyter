@@ -171,6 +171,63 @@ export async function payLink(
   };
 }
 
+/** Чек за оплатою. Банк віддає два документи: фіскальний чек
+ *  (той, що в податковій) і квитанцію — те, що покупець звик
+ *  називати чеком. Обидва приходять готовим PDF. */
+export async function payReceipt(
+  workerUrl: string,
+  key: string,
+  invoiceId: string
+): Promise<{
+  ok: boolean;
+  fiscal: { id: string; taxUrl: string; file: string }[];
+  receipt: string;
+  error: string;
+}> {
+  const r = await ask(workerUrl, { type: 'pay-receipt', key, invoiceId });
+  return {
+    ok: r.ok === true,
+    fiscal: (Array.isArray(r.fiscal) ? r.fiscal : []) as { id: string; taxUrl: string; file: string }[],
+    receipt: String(r.receipt || ''),
+    error: String(r.error || '')
+  };
+}
+
+/** Знайти оплату за номером замовлення. Рятунок на випадок, коли
+ *  номер рахунку в замовленні не той: банк памʼятає всі платежі
+ *  й знає номер замовлення в полі reference. */
+export async function payFind(
+  workerUrl: string,
+  key: string,
+  orderNum: string
+): Promise<{
+  ok: boolean;
+  found: { invoiceId: string; status: PayState; amount: number; at: string; card: string }[];
+  error: string;
+}> {
+  const r = await ask(workerUrl, { type: 'pay-find', key, orderNum });
+  return {
+    ok: r.ok === true,
+    found: (Array.isArray(r.found) ? r.found : []) as {
+      invoiceId: string;
+      status: PayState;
+      amount: number;
+      at: string;
+      card: string;
+    }[],
+    error: String(r.error || '')
+  };
+}
+
+/** PDF приходить рядком у base64 — перетворюємо на файл, який
+ *  можна відкрити у вкладці або зберегти. */
+export function pdfUrl(base64: string): string {
+  const raw = atob(base64);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+}
+
 /* ---------- Як це називати людям ---------- */
 
 /** Підпис стану — той самий і для покупця, і для менеджера. */

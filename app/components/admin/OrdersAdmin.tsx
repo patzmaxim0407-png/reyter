@@ -379,6 +379,12 @@ export default function OrdersAdmin() {
   const RANK: Record<string, number> = {
     success: 5, hold: 4, processing: 3, reversed: 2, created: 1, failure: 0, expired: 0
   };
+  /* Чек і повернення стосуються ТОГО рахунку, за яким пройшли
+     гроші, а не останнього виставленого. */
+  const paidInvoice = useRef<(o: AdminOrder) => string>(() => '');
+  paidInvoice.current = (o: AdminOrder) =>
+    invoicesOf(o).find((id) => pays.get(id)?.state === 'success') || String(o.payInvoiceId || '');
+
   const payOf = useCallback(
     (o: AdminOrder) => {
       const known = invoicesOf(o)
@@ -446,6 +452,61 @@ export default function OrdersAdmin() {
       );
     },
     [askDialog, askPays, settings.workerUrl, toast, workerKey]
+  );
+
+  /* Чек. Відкриваємо в сусідній вкладці: менеджер або друкує, або
+     пересилає покупцеві — і те, і те з готового PDF робиться
+     звичними кнопками браузера. */
+  const showReceipt = useCallback(
+    async (o: AdminOrder) => {
+      const invoice = paidInvoice.current(o);
+      if (!invoice) return toast('За цим замовленням оплати немає');
+      const { payReceipt, pdfUrl } = await import('@/lib/pay');
+      const r = await payReceipt(String(settings.workerUrl || ''), workerKey, invoice);
+      if (!r.ok) return toast(r.error || 'Чек не отримано');
+
+      const file = r.fiscal[0]?.file || r.receipt;
+      if (file) window.open(pdfUrl(file), '_blank', 'noopener');
+      else if (r.fiscal[0]?.taxUrl) window.open(r.fiscal[0].taxUrl, '_blank', 'noopener');
+    },
+    [settings.workerUrl, toast, workerKey]
+  );
+
+  /* Пошук загубленої оплати. Буває, що покупець платив за старим
+     посиланням, а в замовленні лежить уже інший рахунок — тоді
+     гроші є, а адмінка про них не знає. Банк памʼятає всі платежі
+     за номером замовлення, тож знайти їх можна завжди. */
+  const findPayment = useCallback(
+    async (o: AdminOrder) => {
+      const { payFind } = await import('@/lib/pay');
+      const r = await payFind(String(settings.workerUrl || ''), workerKey, o.num || '');
+      if (!r.ok) return toast(r.error || 'Не вдалося спитати банк');
+      const paid = r.found.filter((x) => x.status === 'success');
+      if (!paid.length) return toast('Банк не знає оплат за замовленням №' + (o.num || ''));
+
+      const known = new Set(invoicesOf(o));
+      const fresh = paid.filter((x) => !known.has(x.invoiceId));
+      if (!fresh.length) return toast('Усі оплати цього замовлення вже враховані');
+
+      const yes = await askDialog({
+        title: 'Знайдено оплату',
+        text:
+          fresh.map((x) => fmt(x.amount) + ' грн · картка ' + x.card + ' · ' + x.at).join('\n') +
+          '\n\nПривʼязати до замовлення №' + (o.num || '') + '?',
+        okText: 'Привʼязати'
+      });
+      if (yes !== true) return;
+
+      const d = db();
+      if (d) {
+        await updateDoc(doc(d, 'orders', o._id), {
+          payAll: [...new Set([...invoicesOf(o), ...fresh.map((x) => x.invoiceId)])]
+        });
+      }
+      void askPays(fresh.map((x) => x.invoiceId));
+      toast('Оплату привʼязано', 'success');
+    },
+    [askDialog, askPays, invoicesOf, settings.workerUrl, toast, workerKey]
   );
 
   /* Повернення коштів. Двічі питаємо: гроші йдуть назад одразу,
@@ -927,6 +988,8 @@ export default function OrdersAdmin() {
               payOf={(o) => payOf(o as never)}
               onPayLink={(o) => void sendPayLink(o as never)}
               onPayBack={(o, paid) => void refund(o as never, paid)}
+              onReceipt={(o) => void showReceipt(o as never)}
+              onFindPay={(o) => void findPayment(o as never)}
               onStatus={(o, next) => void onStatus(o as never, next)}
               onEdit={(o) => void editOrder(o as never)}
               onField={(o, field, value) => void saveField(o as never, field, value)}
@@ -1043,6 +1106,8 @@ export default function OrdersAdmin() {
                       pay={payOf(o)}
                       onPayLink={() => void sendPayLink(o)}
                       onPayBack={() => void refund(o, payOf(o)?.amount ?? o.total ?? 0)}
+                      onReceipt={() => void showReceipt(o)}
+                      onFindPay={() => void findPayment(o)}
                       onSendTtn={() => void sendTtnLetter(o, String(o.ttn || '').trim())}
                       onMakeTtn={() => setTtnFor(o)}
                       onDropTtn={() => void cancelWaybill(o)}

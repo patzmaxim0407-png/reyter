@@ -941,9 +941,12 @@ export default {
 
     /* --- Оплата карткою: Monobank --- */
 
-    if (type === 'pay-create' || type === 'pay-status' || type === 'pay-refund' || type === 'pay-link') {
-      // Повернення й виставлення рахунку вручну — тільки з адмінки
-      const adminOnly = type === 'pay-refund' || type === 'pay-link';
+    if (
+      type === 'pay-create' || type === 'pay-status' || type === 'pay-refund' ||
+      type === 'pay-link' || type === 'pay-receipt' || type === 'pay-find'
+    ) {
+      // Усе, крім створення рахунку й перевірки стану, — тільки з адмінки
+      const adminOnly = type !== 'pay-create' && type !== 'pay-status';
       if (adminOnly && env.ADMIN_KEY && d.key !== env.ADMIN_KEY) {
         return reply({ ok: false, error: 'Невірний ключ адміністратора (ADMIN_KEY)' }, 403, cors);
       }
@@ -971,6 +974,55 @@ export default {
           reference: r.data.reference || '',
           at: r.data.modifiedDate || r.data.createdDate || ''
         }, 200, cors);
+      }
+
+      /* Чек. Банк віддає два різні документи, і менеджерові
+         потрібні обидва: фіскальний чек — той, що подається в
+         податкову, а квитанція — те, що покупець звик називати
+         чеком. Обидва приходять готовим PDF, який ми лише
+         передаємо далі. */
+      if (type === 'pay-receipt') {
+        const inv = clip(d.invoiceId, 60);
+        if (!inv) return reply({ ok: false, error: 'Немає номера рахунку' }, 400, cors);
+
+        const [fiscal, receipt] = await Promise.all([
+          monoCall(env, '/invoice/fiscal-checks?invoiceId=' + encodeURIComponent(inv), { method: 'GET' }),
+          monoCall(env, '/invoice/receipt?invoiceId=' + encodeURIComponent(inv), { method: 'GET' })
+        ]);
+
+        const checks = (fiscal.data && fiscal.data.checks) || [];
+        const done = checks.filter((c) => c && c.status === 'done');
+        return reply({
+          ok: !!(done.length || (receipt.data && receipt.data.file)),
+          fiscal: done.map((c) => ({ id: c.id, type: c.type, taxUrl: c.taxUrl || '', file: c.file || '' })),
+          receipt: (receipt.data && receipt.data.file) || '',
+          error: done.length ? '' : (receipt.data && receipt.data.errText) || 'Чека ще немає — банк формує його за кілька хвилин після оплати'
+        }, 200, cors);
+      }
+
+      /* Пошук оплати за номером замовлення.
+         Рахунок міг загубитись: покупець платив за одним
+         посиланням, а в замовленні лежало інше. Банк памʼятає всі
+         платежі й знає номер замовлення в полі reference — тож
+         знайти гроші можна навіть тоді, коли номер рахунку в нас
+         не зберігся. */
+      if (type === 'pay-find') {
+        const want = clip(d.orderNum || d.num, 40).trim();
+        if (!want) return reply({ ok: false, error: 'Немає номера замовлення' }, 400, cors);
+        // 60 днів назад: далі шукати немає сенсу, повернення теж скінчились
+        const from = Math.floor(Date.now() / 1000) - 60 * 24 * 3600;
+        const r = await monoCall(env, '/statement?from=' + from, { method: 'GET' });
+        if (!r.ok) return reply({ ok: false, error: r.data.errText || 'Виписка недоступна' }, 200, cors);
+        const found = ((r.data && r.data.list) || [])
+          .filter((x) => String(x.reference || '') === want)
+          .map((x) => ({
+            invoiceId: x.invoiceId,
+            status: x.status,
+            amount: Math.round((Number(x.amount) || 0) / 100),
+            at: x.date || '',
+            card: x.maskedPan || ''
+          }));
+        return reply({ ok: true, found }, 200, cors);
       }
 
       /* Повернення коштів. Сума — у гривнях; без неї Monobank

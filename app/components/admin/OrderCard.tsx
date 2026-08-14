@@ -64,6 +64,8 @@ export default function OrderCard({
   pay,
   onPayLink,
   onPayBack,
+  onReceipt,
+  onFindPay,
   embedded,
   onSendTtn,
   onMakeTtn,
@@ -94,6 +96,10 @@ export default function OrderCard({
   onPayLink?(): void;
   /** Повернути кошти. Питає підтвердження в самій адмінці. */
   onPayBack?(): void;
+  /** Показати чек за оплатою. */
+  onReceipt?(): void;
+  /** Пошукати оплату в банку за номером замовлення. */
+  onFindPay?(): void;
   /** Картка стоїть під рядком черги, який уже сказав номер,
    *  імʼя, адресу й суму. Повторювати це вдруге — не «докладно»,
    *  а шум; та й розкривати вдруге те, що вже розкрито, нікому
@@ -360,6 +366,19 @@ export default function OrderCard({
               {onPayLink && !(pay && isPaid(pay.state)) ? (
                 <button className="btn btn--ghost btn--sm" type="button" onClick={onPayLink}>
                   Надіслати посилання на оплату
+                </button>
+              ) : null}
+              {onReceipt && pay && isPaid(pay.state) ? (
+                <button className="btn btn--ghost btn--sm" type="button" onClick={onReceipt}>
+                  Чек
+                </button>
+              ) : null}
+              {/* Гроші могли пройти повз нас: покупець платив за
+                  посиланням, якого в замовленні вже немає. Банк
+                  памʼятає їх за номером замовлення. */}
+              {onFindPay && !(pay && isPaid(pay.state)) ? (
+                <button className="btn btn--ghost btn--sm" type="button" onClick={onFindPay}>
+                  Знайти оплату в банку
                 </button>
               ) : null}
               {onPayBack && pay && isPaid(pay.state) ? (
