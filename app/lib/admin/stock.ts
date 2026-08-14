@@ -43,6 +43,7 @@ import {
   where,
   writeBatch,
   type Firestore,
+  type Transaction,
   type WriteBatch
 } from 'firebase/firestore';
 
@@ -57,6 +58,17 @@ export const MOVES_COL = 'stock_moves';
 export const RESTOCKS_COL = 'restocks';
 export const ETA_COL = 'restock_eta';
 export const ALERTS_COL = 'stock_alerts';
+
+/* Службова картка, якою колись додавали в ручне замовлення
+   вартість доставки. Тепер доставка має окреме поле shipping і
+   фізичною одиницею складу не є. Старі замовлення з EFJ-1209 ще
+   можуть лишатися в базі, тому відсікаємо її на спільному вході
+   до списання, повернення й перевірки нестачі. */
+const NON_STOCK_IDS = new Set(['EFJ-1209']);
+
+export function tracksStock(id: string | null | undefined): boolean {
+  return !!id && !NON_STOCK_IDS.has(id);
+}
 
 /* Поріг «закінчується» — той самий, що на вітрині: інакше
    адмінка й сайт по-різному відповідали б на одне питання. */
@@ -255,16 +267,36 @@ export function moveTag(m: Move): MoveTag {
   );
 }
 
-export function logMove(w: StockWriter, batch: WriteBatch, entry: MoveEntry): void {
-  batch.set(doc(collection(w.db, MOVES_COL)), {
+/** І batch, і transaction мають однаковий set(), але Firebase
+ *  повертає з нього різні класи. Решті складської арифметики
+ *  різниця не потрібна: вона лише складає атомарний запис. */
+export type StockMutation = WriteBatch | Transaction;
+
+function mutationSet(
+  mutation: StockMutation,
+  ref: ReturnType<typeof doc>,
+  data: Record<string, unknown>,
+  options?: { merge: boolean }
+): void {
+  const set = mutation.set.bind(mutation) as (
+    target: ReturnType<typeof doc>,
+    value: Record<string, unknown>,
+    opts?: { merge: boolean }
+  ) => unknown;
+  if (options) set(ref, data, options);
+  else set(ref, data);
+}
+
+export function logMove(w: StockWriter, mutation: StockMutation, entry: MoveEntry): void {
+  mutationSet(mutation, doc(collection(w.db, MOVES_COL)), {
     ts: serverTimestamp(),
     by: w.by,
     ...entry
   });
 }
 
-export function logMoves(w: StockWriter, batch: WriteBatch, moves: MoveEntry[]): void {
-  moves.forEach((m) => logMove(w, batch, m));
+export function logMoves(w: StockWriter, mutation: StockMutation, moves: MoveEntry[]): void {
+  moves.forEach((m) => logMove(w, mutation, m));
 }
 
 /* ---------- Читання журналу ---------- */
@@ -408,10 +440,12 @@ export function emptyPlan(): StockPlan {
 export function stockUnits(order: StockOrder): StockUnit[] {
   const units: StockUnit[] = [];
   (order.items || []).forEach((item) => {
+    if (!tracksStock(item.id)) return;
     const qty = Number(item.qty) || 0;
     if (!qty) return;
     if (item.parts && item.parts.length) {
       item.parts.forEach((x) => {
+        if (!tracksStock(x.id)) return;
         units.push({
           id: x.id,
           name: (x.name || x.id) + ' (у складі «' + (item.name || item.id) + '»)',
@@ -477,7 +511,7 @@ export function collectStock(
  *  у яких після взаємозаліку нічого не змінилось, документа не
  *  торкаються зовсім: зайвий запис створив би документ inventory
  *  там, де обліку не було, і товар раптом став би «немає». */
-export function writeStock(w: StockWriter, batch: WriteBatch, groups: StockGroups): void {
+export function writeStock(w: StockWriter, mutation: StockMutation, groups: StockGroups): void {
   Object.keys(groups).forEach((pid) => {
     const g = groups[pid];
     const sizeKeys = Object.keys(g.sizes).filter((s) => g.sizes[s]);
@@ -492,19 +526,19 @@ export function writeStock(w: StockWriter, batch: WriteBatch, groups: StockGroup
       });
       upd.sizes = sizes;
     }
-    batch.set(doc(w.db, INVENTORY_COL, pid), upd, { merge: true });
+    mutationSet(mutation, doc(w.db, INVENTORY_COL, pid), upd, { merge: true });
   });
 }
 
-export function applyStockPlan(w: StockWriter, batch: WriteBatch, plan: StockPlan): void {
-  logMoves(w, batch, plan.moves);
-  writeStock(w, batch, plan.groups);
+export function applyStockPlan(w: StockWriter, mutation: StockMutation, plan: StockPlan): void {
+  logMoves(w, mutation, plan.moves);
+  writeStock(w, mutation, plan.groups);
 }
 
 /** Один напрямок і одне замовлення: −1 списує, +1 повертає. */
 export function adjustOrderStock(
   w: StockWriter,
-  batch: WriteBatch,
+  mutation: StockMutation,
   s: StockState,
   order: StockOrder,
   direction: number,
@@ -512,7 +546,7 @@ export function adjustOrderStock(
 ): void {
   const plan = emptyPlan();
   collectStock(s, order, direction, plan, reason);
-  applyStockPlan(w, batch, plan);
+  applyStockPlan(w, mutation, plan);
 }
 
 /* Статуси, за яких товар вважається списаним зі складу. Перехід
@@ -532,15 +566,17 @@ export function stockShortage(s: StockState, order: StockOrder): string[] {
   // Комплект перевіряємо по складниках — власних залишків у нього немає
   const units: { id: string; name: string; size: string | null; qty: number }[] = [];
   (order.items || []).forEach((item) => {
+    if (!tracksStock(item.id)) return;
     if (item.parts && item.parts.length) {
-      item.parts.forEach((x) =>
+      item.parts.forEach((x) => {
+        if (!tracksStock(x.id)) return;
         units.push({
           id: x.id,
           name: (x.name || x.id) + ' — у складі «' + (item.name || item.id) + '»',
           size: x.size || null,
           qty: Number(item.qty) || 0
-        })
-      );
+        });
+      });
     } else {
       units.push({ id: item.id, name: item.name, size: item.size, qty: item.qty });
     }
@@ -568,6 +604,7 @@ export function stockShortage(s: StockState, order: StockOrder): string[] {
   /* Товар міг стати комплектом уже після замовлення: розмірів
      складників у такій позиції немає, і списати їх нема з чого */
   (order.items || []).forEach((item) => {
+    if (!tracksStock(item.id)) return;
     if (item.parts && item.parts.length) return;
     const p = productById(s, item.id);
     if (p && isSetOf(s, p)) {

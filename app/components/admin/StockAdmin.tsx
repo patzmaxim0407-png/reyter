@@ -41,6 +41,7 @@ import {
   sizeQty,
   stockRow,
   stockSizes,
+  tracksStock,
   todayISO,
   totalQty,
   unitQty,
@@ -119,6 +120,7 @@ export default function StockAdmin() {
       .map((cat) => ({
         cat,
         items: draft.products.filter((p) => {
+          if (!tracksStock(p.id)) return false;
           if (p.category !== cat.id) return false;
           if (q && !(p.name + ' ' + p.id).toLowerCase().includes(q)) return false;
           const cls = isSetOf(s, p) ? setStockRow(s, p).state.cls : stockRow(s, p).state.cls;
@@ -136,6 +138,7 @@ export default function StockAdmin() {
     let low = 0;
     let out = 0;
     draft.products.forEach((p) => {
+      if (!tracksStock(p.id)) return;
       /* Комплект власних штук не має — у сумі й вартості складу
          він рахувався б удруге, через складники. Але «закінчується»
          й «немає» до нього стосуються: покупець бачить саме
@@ -448,7 +451,7 @@ export default function StockAdmin() {
           {tab === 'restock' ? (
             <>
               <RestockForm
-                products={draft.products.filter((p) => !isSetOf(s, p))}
+                products={draft.products.filter((p) => tracksStock(p.id) && !isSetOf(s, p))}
                 reasons={WRITEOFF_REASONS}
                 today={todayISO(new Date())}
                 sizesOf={sizesOf}

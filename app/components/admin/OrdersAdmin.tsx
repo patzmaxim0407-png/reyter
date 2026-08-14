@@ -36,11 +36,11 @@ import {
   type OrderDialogs,
   type OrderFilters
 } from '@/lib/admin/orders';
-import { todayISO } from '@/lib/admin/stock';
+import { consumesStock, todayISO } from '@/lib/admin/stock';
 import { KEY_WORKER, loadAdminSettings } from '@/lib/admin/settings';
 import { orderDate, statusInfo } from '@/lib/admin/orders';
 import { watchInventory } from '@/lib/admin/live';
-import { doc, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, runTransaction, setDoc, updateDoc } from 'firebase/firestore';
 import { fmt } from '@/lib/catalog';
 import { printSheet } from './printSheet';
 import { trackDelete, trackUpdate } from '@/lib/track';
@@ -850,34 +850,62 @@ export default function OrdersAdmin() {
 
   const removeOrder = useCallback(
     async (o: AdminOrder) => {
-      /* Про списаний товар попереджаємо окремо: видалення його НЕ
-         повертає, і після нього залишки вже нічим не полагодити. */
+      /* Попередження з червоною кнопкою виявилось недостатнім:
+         тестові замовлення видалили разом з активним списанням,
+         і мінус назавжди лишився без самого замовлення. Тепер
+         активне списання — жорстка заборона, а не порада. */
+      if (o.stockApplied || consumesStock(o.status)) {
+        await askDialog({
+          title: 'Спершу поверніть товар',
+          text:
+            `№${o.num} ще списує товар зі складу. ` +
+            'Переведіть замовлення у «Скасовано» й підтвердьте повернення товару. ' +
+            'Після цього його можна буде видалити без залишкового мінуса.',
+          okText: 'Зрозуміло',
+          danger: true
+        });
+        return;
+      }
+
       const yes = await askDialog({
         title: 'Видалити замовлення?',
-        text:
-          `№${o.num} зникне назавжди.` +
-          (o.stockApplied
-            ? '\n\nТовар за цим замовленням списаний зі складу. При видаленні ' +
-              'він автоматично НЕ повернеться — спершу переведіть замовлення ' +
-              'у «Скасовано», якщо потрібне повернення залишків.'
-            : '\n\nДію не можна скасувати.'),
+        text: `№${o.num} зникне назавжди.\n\nДію не можна скасувати.`,
         okText: 'Видалити',
         danger: true
       });
       if (yes !== true) return;
       const d = db();
       if (!d) return;
+      let stockBlocked = false;
       try {
+        /* Між діалогом і кліком інший адміністратор міг устигнути
+           підтвердити замовлення. Перечитуємо документ у тій
+           самій транзакції, яка його видаляє. */
+        await runTransaction(d, async (transaction) => {
+          const ref = doc(d, 'orders', o._id);
+          const snap = await transaction.get(ref);
+          if (!snap.exists()) return;
+          const fresh = snap.data() as AdminOrder;
+          if (fresh.stockApplied || consumesStock(fresh.status)) {
+            stockBlocked = true;
+            throw new Error('stock-active');
+          }
+          transaction.delete(ref);
+        });
+
         setSelection((sel) => {
           const next = new Set(sel);
           next.delete(o._id);
           return next;
         });
-        await deleteDoc(doc(d, 'orders', o._id));
         // разом із замовленням прибираємо й публічне відстеження
         if (o.trackKey) void trackDelete(o.trackKey);
       } catch {
-        toast('Немає прав видаляти');
+        toast(
+          stockBlocked
+            ? 'Замовлення вже списує товар — спершу скасуйте його й поверніть залишки'
+            : 'Немає прав видаляти'
+        );
       }
     },
     [askDialog, toast]

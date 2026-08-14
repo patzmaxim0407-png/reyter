@@ -385,6 +385,44 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
 }
 
 
+/* ---------- Одне замовлення — одне списання ----------
+   Два адміністратори можуть натиснути «Підтвердити» одночасно.
+   Другий має перечитати stockApplied у транзакції й побачити,
+   що перший уже списав товар. */
+
+{
+  const { planStatusChange } = await import('../lib/admin/orders.ts');
+  const base = {
+    _id: 'race', num: 'R-RACE', status: 'new',
+    items: [{ id: 'p', name: 'Товар', size: 'M', qty: 1, price: 700 }]
+  } as never;
+  const at = { now: new Date('2026-08-15T12:00:00Z'), by: 'admin@example.com' };
+  const answer = { putBack: true, lost: null };
+  const first = planStatusChange(base, 'confirmed', answer, at);
+  const afterFirst = planStatusChange(
+    { ...(base as object), status: 'confirmed', stockApplied: true } as never,
+    'shipped',
+    answer,
+    at
+  );
+  ok('перша зміна списує товар', first.stock.kind === 'consume');
+  ok('свіжий stockApplied не списує вдруге', afterFirst.stock.kind === 'none');
+
+  const logic = readFileSync(new URL('../lib/admin/orders.ts', import.meta.url), 'utf8');
+  ok(
+    'статус перечитується всередині Firestore-транзакції',
+    logic.includes('runTransaction(deps.db') && logic.includes('transaction.get(ref)')
+  );
+
+  const screen = readFileSync(new URL('../components/admin/OrdersAdmin.tsx', import.meta.url), 'utf8');
+  ok(
+    'активне списання не можна видалити',
+    screen.includes('fresh.stockApplied || consumesStock(fresh.status)') &&
+      screen.includes("throw new Error('stock-active')")
+  );
+}
+
+
 /* ---------- Трекер Нової Пошти ---------- */
 
 {
@@ -432,7 +470,21 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
   const mkOrder = (o: Record<string, unknown>) =>
     ({ _id: 'x', num: 'R-1', total: 700, date: hoursAgo(1), ...o }) as never;
 
-  ok('виконане в чергу не потрапляє', nextTask(mkOrder({ status: 'done' }), null, now) === null);
+  ok('виконане без суперечності в чергу не потрапляє', nextTask(mkOrder({ status: 'done' }), null, now) === null);
+  ok(
+    'виконане й справді отримане в чергу не потрапляє',
+    nextTask(mkOrder({ status: 'done', ttn: '1' }), { code: '9' }, now) === null
+  );
+  const closedTooSoon = nextTask(
+    mkOrder({ status: 'done', ttn: '1' }),
+    { code: '7', waiting: 2 },
+    now
+  );
+  ok(
+    'виконане, яке ще у відділенні, повертається в чергу помилок',
+    closedTooSoon?.band === 'back' && closedTooSoon.urgency === 2,
+    JSON.stringify(closedTooSoon)
+  );
   ok('скасоване теж', nextTask(mkOrder({ status: 'cancelled' }), null, now) === null);
   ok('нове — підтвердити', nextTask(mkOrder({ status: 'new' }), null, now)?.band === 'confirm');
   ok(
@@ -464,13 +516,18 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
       mkOrder({ _id: '1', status: 'new' }),
       mkOrder({ _id: '2', status: 'done' }),
       mkOrder({ _id: '3', status: 'confirmed', date: hoursAgo(50) }),
-      mkOrder({ _id: '4', status: 'confirmed', date: hoursAgo(2) })
+      mkOrder({ _id: '4', status: 'confirmed', date: hoursAgo(2) }),
+      mkOrder({ _id: '5', status: 'done', ttn: '5' })
     ],
-    new Map(),
+    new Map([['5', { code: '7', waiting: 2 }]]),
     now
   );
   ok('смуги в сталому порядку', q.map((x) => x.band.id).join(',') === BANDS.map((b) => b.id).join(','));
   ok('виконане в чергу не приїхало', q.every((s) => !s.rows.find((r) => r.order._id === '2')));
+  ok(
+    'помилково виконане приїхало у смугу помилок',
+    q.find((x) => x.band.id === 'back')?.rows.some((r) => r.order._id === '5') === true
+  );
   const pack = q.find((x) => x.band.id === 'pack');
   ok('усередині смуги найтерміновіше зверху', pack?.rows[0]?.order._id === '3', pack?.rows.map((r) => r.order._id).join(','));
 }

@@ -37,6 +37,7 @@ import {
   stockRow,
   stockShortage,
   stockUnits,
+  tracksStock,
   totalQty,
   todayISO,
   type Move,
@@ -131,6 +132,24 @@ ok(
   'кількість комплектів множиться на складники',
   units.every((u) => u.qty === 2),
   JSON.stringify(units.map((u) => u.qty))
+);
+
+/* ---------- Доставка не є товаром складу ---------- */
+
+const deliveryOrder = {
+  num: 'R-DELIVERY',
+  items: [{ id: 'EFJ-1209', name: 'Доставка', size: null, qty: 1, price: 1 }]
+};
+ok('службовий артикул доставки не веде склад', !tracksStock('EFJ-1209'));
+ok(
+  'доставка не створює одиниці для списання',
+  stockUnits(deliveryOrder as never).length === 0,
+  JSON.stringify(stockUnits(deliveryOrder as never))
+);
+ok(
+  'доставка не створює хибну нестачу',
+  stockShortage(s, deliveryOrder as never).length === 0,
+  stockShortage(s, deliveryOrder as never).join(' | ')
 );
 
 /* ---------- Правило одного запису на документ ---------- */

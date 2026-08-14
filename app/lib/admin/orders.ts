@@ -33,6 +33,7 @@ import {
   arrayUnion,
   collection,
   doc,
+  runTransaction,
   serverTimestamp,
   writeBatch,
   type FieldValue,
@@ -191,7 +192,7 @@ export function nextTask(
   levels = { warn: 3, alarm: 5, newHours: 4 }
 ): Task | null {
   const st = o.status || 'new';
-  if (st === 'done' || st === 'cancelled') return null;
+  if (st === 'cancelled') return null;
 
   /* Вік рахуємо від тієї події, про яку й кажемо: «підтверджено
      дві години тому» має міряти час від підтвердження, а не від
@@ -202,8 +203,31 @@ export function nextTask(
     const d = entry?.at ? new Date(entry.at) : null;
     return d && !Number.isNaN(d.getTime()) ? d : null;
   };
-  const since = (st === 'confirmed' ? whenStatus('confirmed') : null) || orderDate(o);
+  const since =
+    (st === 'confirmed'
+      ? whenStatus('confirmed')
+      : st === 'done'
+        ? whenStatus('done')
+        : null) || orderDate(o);
   const hours = since ? Math.max(0, Math.floor((now.getTime() - since.getTime()) / HOUR)) : 0;
+
+  /* «Виконано» зазвичай живе в архіві. Але якщо трекер прямо
+     каже, що посилка ще їде, лежить у відділенні або вертається,
+     ховати таке замовлення небезпечно: саме так лишився
+     непоміченим помилково закритий №R-260809-572. Самовиніс і
+     тимчасово недоступний трекер розбіжністю не вважаємо. */
+  if (st === 'done') {
+    if (o.pickup) return null;
+    const code = String(parcel?.code || '');
+    if (!code || ['9', '10', '11'].includes(code)) return null;
+    const why =
+      code === '7' || code === '8'
+        ? 'замовлення закрито, але посилка ще у відділенні'
+        : ['2', '102', '103', '105', '106', '111', '112'].includes(code)
+          ? 'замовлення закрито, але посилка повертається'
+          : 'замовлення закрито раніше за посилку';
+    return { band: 'back', hours, urgency: 2, why };
+  }
 
   if (st === 'new') {
     return {
@@ -1035,44 +1059,65 @@ export async function applyStatus(
     }
   }
 
-  const plan = planStatusChange(order, next, { putBack, lost }, { now: deps.now, by: deps.by });
-
   try {
-    const batch = writeBatch(deps.db);
+    /* stockApplied перечитуємо ВСЕРЕДИНІ транзакції. Два
+       адміністратори можуть одночасно бачити старе false, але
+       після першого запису Firestore повторить другу транзакцію
+       вже зі свіжим true — і другого списання не буде. */
+    const committed = await runTransaction(deps.db, async (transaction) => {
+      const ref = doc(deps.db, ORDER_COL, order._id);
+      const snap = await transaction.get(ref);
+      if (!snap.exists()) throw new Error('order-missing');
 
-    if (plan.stock.kind === 'consume') {
-      adjustOrderStock(w, batch, s, order, -1);
-    } else if (plan.stock.kind === 'return') {
-      adjustOrderStock(w, batch, s, order, +1, plan.stock.reason);
-    } else if (plan.stock.kind === 'writeoff') {
-      /* Повертаємо й одразу списуємо: у залишках нічого не
-         змінюється (нетто нуль, документ inventory навіть не
-         чіпається), зате журнал розповідає повну історію. */
-      const moved = emptyPlan();
-      collectStock(s, order, +1, moved, plan.stock.reason);
-      collectStock(s, order, -1, moved, 'writeoff', plan.stock.ref);
-      applyStockPlan(w, batch, moved);
-    }
+      const fresh = { _id: snap.id, ...snap.data() } as AdminOrder;
+      if ((fresh.status || 'new') === next) return null;
 
-    batch.update(doc(deps.db, ORDER_COL, order._id), {
-      ...plan.update,
-      ...(freshTtn ? { ttn: freshTtn } : {}),
-      ...(pickup && !order.pickup ? { pickup: true } : {}),
-      statusLog: arrayUnion(plan.entry)
+      const plan = planStatusChange(
+        fresh,
+        next,
+        { putBack, lost },
+        { now: deps.now, by: deps.by }
+      );
+
+      if (plan.stock.kind === 'consume') {
+        adjustOrderStock(w, transaction, s, fresh, -1);
+      } else if (plan.stock.kind === 'return') {
+        adjustOrderStock(w, transaction, s, fresh, +1, plan.stock.reason);
+      } else if (plan.stock.kind === 'writeoff') {
+        /* Повертаємо й одразу списуємо: у залишках нічого не
+           змінюється (нетто нуль, документ inventory навіть не
+           чіпається), зате журнал розповідає повну історію. */
+        const moved = emptyPlan();
+        collectStock(s, fresh, +1, moved, plan.stock.reason);
+        collectStock(s, fresh, -1, moved, 'writeoff', plan.stock.ref);
+        applyStockPlan(w, transaction, moved);
+      }
+
+      transaction.update(ref, {
+        ...plan.update,
+        ...(freshTtn ? { ttn: freshTtn } : {}),
+        ...(pickup && !fresh.pickup ? { pickup: true } : {}),
+        statusLog: arrayUnion(plan.entry)
+      });
+
+      return { order: fresh, plan };
     });
-    await batch.commit();
+
+    /* Хтось інший устиг поставити той самий статус. Це успіх,
+       але без другого запису в історію й без другого руху. */
+    if (!committed) return { ok: true, reason: 'same', toast: null };
 
     /* Публічне відстеження: покупець-гість бачить рух замовлення
        за номером і телефоном. Не чекаємо й не перевіряємо —
        статус уже в базі, а відстеження вторинне. */
     void trackUpdate({
-      ...order,
+      ...committed.order,
       status: next,
-      ttn: freshTtn || order.ttn || '',
-      statusLog: (order.statusLog || []).concat([plan.entry])
+      ttn: freshTtn || committed.order.ttn || '',
+      statusLog: (committed.order.statusLog || []).concat([committed.plan.entry])
     });
 
-    return { ok: true, toast: silent ? null : plan.toast, ttn: freshTtn };
+    return { ok: true, toast: silent ? null : committed.plan.toast, ttn: freshTtn };
   } catch {
     return {
       ok: false,
