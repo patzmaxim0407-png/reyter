@@ -32,7 +32,14 @@ export const metadata: Metadata = {
   keywords: ['чоловіча білизна', 'український бренд', 'чоловічі труси', 'чоловічі боксери', 'REYTER', 'mens underwear Ukraine'],
   authors: [{ name: 'REYTER' }],
   applicationName: 'REYTER',
-  icons: { icon: '/favicon.ico', apple: '/assets/images/logo_4.webp' },
+  /* Значок вкладки й іконку для домашнього екрана Next бере з
+     самих файлів: app/favicon.ico і app/apple-icon.png. Руками їх
+     тут не оголошуємо — виходило по два <link rel="icon"> на ту
+     саму адресу, і браузер мусив обирати між ними сам.
+
+     Обидва — біла «R» із логотипа на фірмовому синьому. Вкладка
+     показує значок завширшки шістнадцять пікселів: увесь напис
+     «REYTER» у ньому перетворюється на пляму, а літера читається. */
   openGraph: {
     type: 'website',
     siteName: 'REYTER',
