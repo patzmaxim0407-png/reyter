@@ -489,21 +489,36 @@ export default function CheckoutForm() {
 
   /* Останнє замовлення цього браузера — його ми й пропонуємо
      доплатити. Лежить у сховищі поруч із кошиком, тож ані входу,
-     ані звернень у базу для цього не треба. */
-  const pending = useMemo(() => {
-    if (lines.length) return null;
+     ані звернень у базу для цього не треба.
+
+     Читаємо ПІСЛЯ появи сторінки, а не під час малювання: сервер
+     сховища не бачить, і якби перший кадр у браузері вже містив
+     цю панель, React вважав би розмітку розбіжною й перемальовував
+     би сторінку цілком. Саме таку помилку я собі й зробив. */
+  const [pending, setPending] = useState<{
+    num: string;
+    items: { id: string; size: string; qty: number }[];
+    promo: string;
+    shipping: number;
+    email: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (lines.length) {
+      setPending(null);
+      return;
+    }
     const last = (cart.getOrders() || [])[0] as
       | { num?: string; items?: { id: string; size?: string; qty: number }[]; promoCode?: string; shipping?: number; customer?: { email?: string } }
       | undefined;
-    if (!last?.num || !last.items?.length) return null;
-    return {
+    if (!last?.num || !last.items?.length) return;
+    setPending({
       num: String(last.num),
       items: last.items.map((i) => ({ id: i.id, size: i.size ?? '', qty: Number(i.qty) || 1 })),
       promo: last.promoCode || '',
       shipping: Number(last.shipping) || 0,
       email: String(last.customer?.email || '')
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    });
   }, [lines.length]);
 
   const summary = useMemo(
