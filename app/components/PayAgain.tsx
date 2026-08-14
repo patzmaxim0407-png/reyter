@@ -32,7 +32,8 @@ export default function PayAgain({
   email,
   invoiceId,
   lang,
-  small
+  small,
+  closed
 }: {
   num: string;
   /** Що саме оплачується. Цін тут немає — їх бере воркер. */
@@ -47,8 +48,11 @@ export default function PayAgain({
   lang: Lang;
   /** У списку замовлень кнопка менша й без пояснень. */
   small?: boolean;
+  /** Скасоване замовлення: стан оплати показуємо, а платити за
+   *  нього не пропонуємо — це було б запрошенням до помилки. */
+  closed?: boolean;
 }) {
-  const [state, setState] = useState<'check' | 'pay' | 'paid' | 'busy'>('check');
+  const [state, setState] = useState<'check' | 'pay' | 'paid' | 'back' | 'busy'>('check');
 
   useEffect(() => {
     let alive = true;
@@ -63,6 +67,7 @@ export default function PayAgain({
       }
       const settings = (await loadNotifySettings()) as { workerUrl?: string } | null;
       const url = String(settings?.workerUrl || '');
+      let returned = false;
       for (const one of list) {
         const r = await payStatus(url, one);
         if (!alive) return;
@@ -70,15 +75,26 @@ export default function PayAgain({
           setState('paid');
           return;
         }
+        // повернення памʼятаємо, але шукаємо далі: за замовлення
+        // могли платити двічі, і друга оплата може бути живою
+        if (r.ok && r.state === 'reversed') returned = true;
       }
-      setState('pay');
+      setState(returned ? 'back' : 'pay');
     })();
     return () => {
       alive = false;
     };
   }, [num]);
 
-  if (state === 'paid') return null;
+  /* Оплачено або повернуто — платити більше нема за що, але
+     мовчати теж не можна: покупець приходить у кабінет саме щоб
+     побачити, що з його грошима. */
+  if (state === 'paid') {
+    return <span className="paytag paytag--ok">✓ {t('pay.done', lang)}</span>;
+  }
+  if (state === 'back') {
+    return <span className="paytag paytag--back">{t('pay.back', lang)}</span>;
+  }
 
   const go = async () => {
     setState('busy');
@@ -129,6 +145,9 @@ export default function PayAgain({
       {state === 'busy' ? t('pay.opening', lang) : t('pay.again', lang)}
     </button>
   );
+
+  // скасоване: гроші показали вище, кнопки тут бути не може
+  if (closed) return null;
 
   if (small) return button;
 

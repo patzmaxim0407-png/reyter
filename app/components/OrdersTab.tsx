@@ -169,15 +169,22 @@ export default function OrdersTab({
             o={o}
             showStatus={mode === 'cloud'}
             pay={
-              /* Оплату пропонуємо лише там, де вона ще має сенс:
-                 замовлення щойно створене й нікуди не поїхало. */
-              (o.status || 'new') === 'new' && o.items?.length ? (
+              /* Показуємо на всіх станах: у «Новому» це кнопка
+                 оплати, далі — відповідь на питання «що з моїми
+                 грошима»: оплачено чи повернуто. Мовчати про це в
+                 кабінеті не можна — саме заради цього туди й
+                 заходять.
+
+                 У скасованому кнопки немає: платити за скасоване
+                 було б запрошенням до помилки. */
+              o.items?.length ? (
                 <PayAgain
                   num={o.num}
                   items={o.items.map((i) => ({ id: i.id, size: i.size ?? '', qty: Number(i.qty) || 1 }))}
                   invoiceId={o.payInvoiceId}
                   lang={lang}
                   small
+                  closed={(o.status || 'new') === 'cancelled'}
                 />
               ) : null
             }
