@@ -171,7 +171,7 @@ export async function sendTtn(
     return {
       ok: false,
       error: /порожнє замовлення/i.test(err)
-        ? 'воркер сповіщень ще не оновлено — скопіюйте new/worker/worker.js у Cloudflare і натисніть Deploy'
+        ? 'воркер сповіщень ще не оновлено — скопіюйте worker/worker.js у Cloudflare і натисніть Deploy'
         : err
     };
   } catch {
@@ -245,7 +245,7 @@ export async function sendBackInStock(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       /* Саме 'stock': воркер розрізняє листи за цим полем
-         (new/worker/worker.js), і 'back-in-stock' він не знає —
+         (worker/worker.js), і 'back-in-stock' він не знає —
          запит провалювався в гілку замовлення, лист не йшов, а
          підписка так і лишалась неопрацьованою. */
       body: JSON.stringify({ type: 'stock', ...mail })

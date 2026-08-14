@@ -112,7 +112,7 @@ export const GH = {
   owner: 'patzmaxim0407-png',
   repo: 'reyter',
   branch: 'main',
-  path: 'new/js/data.js'
+  path: 'backup/data.js'
 };
 
 export type GhRepo = typeof GH;

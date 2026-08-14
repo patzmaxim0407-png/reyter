@@ -328,7 +328,7 @@ export async function npCall<T = Record<string, unknown>>(
    яка до накладної не має жодного стосунку. */
 function explain(err: string): string {
   if (/порожнє замовлення/i.test(err)) {
-    return 'воркер сповіщень ще не оновлено — скопіюйте new/worker/worker.js у Cloudflare і натисніть Deploy';
+    return 'воркер сповіщень ще не оновлено — скопіюйте worker/worker.js у Cloudflare і натисніть Deploy';
   }
   if (/NP_KEY/i.test(err)) {
     return 'у воркері не задано ключ кабінету Нової Пошти (NP_KEY) — додайте його як Secret і натисніть Deploy';

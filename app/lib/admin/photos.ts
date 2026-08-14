@@ -56,7 +56,7 @@ const PRODUCTS_COL = 'catalog_products';
 /** Куди ллємо і від чийого імені. */
 export interface StorageDeps {
   storage: FirebaseStorage;
-  /** Правила сховища (new/storage.rules) пускають на запис лише
+  /** Правила сховища (firebase/storage.rules) пускають на запис лише
    *  адмінів. Без користувача SDK піде анонімно й отримає відмову
    *  вже посеред вивантаження — краще спинитись одразу. */
   user: User | null;
@@ -180,7 +180,7 @@ export async function storageUpload(
     const code = (err as { code?: string })?.code ?? '';
     if (code === 'storage/unauthorized' || code === 'storage/unauthenticated') {
       throw new Error(
-        'Сховище не пускає: вставте правила з файлу new/storage.rules у Firebase Console → Storage → Rules'
+        'Сховище не пускає: вставте правила з файлу firebase/storage.rules у Firebase Console → Storage → Rules'
       );
     }
     // HTTP-статусу модульний SDK назовні не дає — лишається його код

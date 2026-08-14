@@ -494,7 +494,7 @@ export function tgErrorHint(description: string | null | undefined): string {
     return 'Невірний ключ адміністратора — впишіть те саме значення, що у змінній ADMIN_KEY воркера';
   }
   if (d.includes('email отримувача') || d.includes('порожнє замовлення')) {
-    return 'Код воркера застарілий — замініть його вмістом new/worker/worker.js і натисніть Deploy';
+    return 'Код воркера застарілий — замініть його вмістом worker/worker.js і натисніть Deploy';
   }
   // Помилки самого воркера вже українською — переказувати нічого
   if (d.includes('воркер')) return text;

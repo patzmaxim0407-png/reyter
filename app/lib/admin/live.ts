@@ -50,7 +50,7 @@ function toError(e: unknown): LiveError {
     denied,
     text: denied
       ? 'Немає прав на читання — увійдіть акаунтом адміністратора.'
-      : 'Не вдалося завантажити. Перевірте правила Firestore (файл new/firestore.rules).'
+      : 'Не вдалося завантажити. Перевірте правила Firestore (файл firebase/firestore.rules).'
   };
 }
 

@@ -95,7 +95,7 @@ export function promosErrorText(err: unknown): string {
     'Не вдалося завантажити промокоди' +
     (code === 'permission-denied'
       ? ': немає прав.'
-      : '. Перевірте, що правила Firestore оновлено (файл new/firestore.rules).')
+      : '. Перевірте, що правила Firestore оновлено (файл firebase/firestore.rules).')
   );
 }
 

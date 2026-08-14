@@ -318,7 +318,7 @@ ok('нерозбірливу дату вітрина показує як є', et
    не видно ніде: адмінка каже «оприбутковано», а лист не йде. */
 
 const client = readFileSync(new URL('../lib/notify.ts', import.meta.url), 'utf8');
-const worker = readFileSync(new URL('../../new/worker/worker.js', import.meta.url), 'utf8');
+const worker = readFileSync(new URL('../../worker/worker.js', import.meta.url), 'utf8');
 const asked = [...client.matchAll(/type: '([a-z-]+)'/g)].map((m) => m[1]);
 ok('клієнт шле хоч якісь типи листів', asked.length > 0, asked.join(', '));
 for (const type of [...new Set(asked)]) {
