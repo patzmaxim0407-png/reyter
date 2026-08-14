@@ -6,7 +6,7 @@
    Те, що легко загубити при переписуванні й непомітно, поки
    хтось не відкриє сторінку очима.
 
-   node tools/parity-e2e.mjs http://localhost:8787/new
+   node tools/parity-e2e.mjs http://localhost:8787
 */
 import { spawn } from 'node:child_process';
 import { setTimeout as wait } from 'node:timers/promises';

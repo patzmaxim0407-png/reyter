@@ -19,7 +19,7 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { readFileSync } from 'node:fs';
 
 const PROFILE = '/tmp/reyter-hydra-' + process.pid;
-const BASE = process.argv[2] || 'http://localhost:3000/new';
+const BASE = process.argv[2] || 'http://localhost:3000';
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const chrome = spawn(CHROME, ['--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + PROFILE, '--no-first-run', 'about:blank']);
 await wait(2500);

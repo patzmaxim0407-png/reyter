@@ -190,7 +190,7 @@
         'Total: ' + params.order_total + '\n' +
         (params.order_delivery ? 'Delivery: ' + params.order_delivery + '\n' : '') +
         '\nOur manager will contact you to confirm the order. ' +
-        'You can track its status in your account at https://reyter.men/new/?lang=en\n\n' +
+        'You can track its status in your account at https://reyter.men/?lang=en\n\n' +
         '— The REYTER team. Character is REYTER!'
       );
     }
@@ -202,7 +202,7 @@
       'Разом: ' + params.order_total + '\n' +
       (params.order_delivery ? 'Доставка: ' + params.order_delivery + '\n' : '') +
       '\nНайближчим часом менеджер звʼяжеться з вами для підтвердження. ' +
-      'Статус замовлення можна відстежувати у своєму кабінеті на https://reyter.men/new/\n\n' +
+      'Статус замовлення можна відстежувати у своєму кабінеті на https://reyter.men/\n\n' +
       '— Команда REYTER. Характер — це REYTER!'
     );
   }

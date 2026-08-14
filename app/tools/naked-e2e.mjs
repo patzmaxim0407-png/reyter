@@ -11,13 +11,13 @@
    і — не менш важливе — при обірваній мережі він НЕ смикає
    сторінку, бо перечитування тоді нічого не дасть.
 
-   node tools/naked-e2e.mjs http://localhost:3400/new
+   node tools/naked-e2e.mjs http://localhost:3400
 */
 import { spawn } from 'node:child_process';
 import { setTimeout as wait } from 'node:timers/promises';
 import { readFileSync } from 'node:fs';
 
-const BASE = (process.argv[2] || 'http://localhost:3400/new').replace(/\/+$/, '');
+const BASE = (process.argv[2] || 'http://localhost:3400').replace(/\/+$/, '');
 
 let failed = 0;
 const ok = (cond, title, mode) => {

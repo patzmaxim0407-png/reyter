@@ -13,15 +13,32 @@ import * as fb from '@/lib/firebase';
    справжні адреси: кожен розділ можна відкрити в новій вкладці,
    а «назад» працює. */
 
-/** Магазин живе на шляху /new, поки в корені попередній сайт. */
-export const SHOP_URL = 'https://reyter.men/new';
+/** Магазин живе в корені домену. */
+export const SHOP_URL = 'https://reyter.men';
 
+/* Адреси розділів — короткі, які бачить менеджер:
+   admin.reyter.men/orders. Усередині застосунку ці сторінки
+   лежать під /admin, і той шлях дописує воркер (worker-entry.ts),
+   не показуючи його в адресному рядку.
+
+   Саме href задає адресу після кліку, тому коротким він має бути
+   тут, а не десь у переадресації. Переадресовувати /admin/* на
+   короткий шлях не можна зовсім: перехід між вкладками — це запит
+   із заголовком RSC, і переадресовану відповідь Next вважає за
+   привід перезавантажити сторінку цілком. */
 const TABS = [
-  { href: '/admin', title: 'Каталог' },
-  { href: '/admin/orders', title: 'Замовлення' },
-  { href: '/admin/stock', title: 'Склад' },
-  { href: '/admin/promos', title: 'Промокоди' }
+  { href: '/', title: 'Каталог' },
+  { href: '/orders', title: 'Замовлення' },
+  { href: '/stock', title: 'Склад' },
+  { href: '/promos', title: 'Промокоди' }
 ];
+
+/** Один вигляд шляху з двох можливих. На сервері сторінка
+ *  рендериться за внутрішньою адресою (/admin/orders), у браузері
+ *  живе коротка (/orders) — без зведення до спільного вигляду
+ *  підсвітка вкладки при першому показі й після оживлення
+ *  розмітки відрізнялася б, а це вже розбіжність гідратації. */
+const plain = (path: string) => path.replace(/^\/admin/, '') || '/';
 
 export default function AdminBar({
   user,
@@ -76,11 +93,11 @@ export default function AdminBar({
         {TABS.map((x) => (
           <Link
             key={x.href}
-            className={'abar__tab' + (path === x.href ? ' is-active' : '')}
+            className={'abar__tab' + (plain(path) === x.href ? ' is-active' : '')}
             href={x.href}
           >
             {x.title}
-            {x.href === '/admin/orders' && newOrders ? (
+            {x.href === '/orders' && newOrders ? (
               <span className="abar__count">{newOrders}</span>
             ) : null}
           </Link>

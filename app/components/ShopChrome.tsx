@@ -45,8 +45,10 @@ export default function ShopChrome() {
       const href = card?.getAttribute('href');
       if (!href || warmed.has(href)) return;
       warmed.add(href);
-      // router.prefetch чекає шлях без префікса — його додає Next
-      router.prefetch(href.replace(/^\/new/, '') || '/');
+      /* Магазин у корені домену, тож шлях із картки годиться як є.
+         Поки він стояв на /new, звідси доводилось знімати префікс:
+         router.prefetch чекає шлях без нього. */
+      router.prefetch(href);
     };
 
     document.addEventListener('pointerover', warm, { passive: true });
@@ -70,7 +72,7 @@ export default function ShopChrome() {
       const href = card?.getAttribute('href');
       if (!href || warmed.has(href)) return;
       warmed.add(href);
-      router.prefetch(href.replace(/^\/new/, '') || '/');
+      router.prefetch(href);
     };
 
     document.addEventListener('touchstart', warm, { passive: true });

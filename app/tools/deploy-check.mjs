@@ -18,15 +18,15 @@
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 
-const LOCAL = '.open-next/assets/new/_next/static/chunks';
+const LOCAL = '.open-next/assets/_next/static/chunks';
 /* Мітка збірки. Next пише її в BUILD_ID і кладе поруч зі
    статикою, тож живий сайт віддає її звичайним файлом. Це
    найчесніша відповідь на питання «яка збірка зараз на сервері»:
    мітка нова на КОЖНУ збірку, і підробити її нічим. */
-const BUILD_ID = '.open-next/assets/new/BUILD_ID';
+const BUILD_ID = '.open-next/assets/BUILD_ID';
 const SITES = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : ['https://reyter.men/new/', 'https://admin.reyter.men/new/admin'];
+  : ['https://reyter.men/', 'https://admin.reyter.men/orders'];
 
 if (!existsSync(LOCAL)) {
   console.error('✗ Немає ' + LOCAL + ' — спершу `npm run cf:build`');
@@ -60,7 +60,7 @@ async function liveBuild(origin) {
   let last = '';
   for (let i = 0; i < 20; i++) {
     try {
-      const r = await fetch(origin + '/new/BUILD_ID?cb=' + i + '-' + process.pid, {
+      const r = await fetch(origin + '/BUILD_ID?cb=' + i + '-' + process.pid, {
         headers: { 'cache-control': 'no-cache' }
       });
       last = r.ok ? (await r.text()).trim() : 'відповідь ' + r.status;
@@ -96,7 +96,7 @@ for (const site of SITES) {
      перевірка сама собі вигадує неіснуючий файл. */
   const refs = [
     ...new Set(
-      [...html.matchAll(/\/new\/_next\/static\/[^"'\s)]+/g)].map((m) => m[0].replace(/\\+$/, ''))
+      [...html.matchAll(/\/_next\/static\/[^"'\s)]+/g)].map((m) => m[0].replace(/\\+$/, ''))
     )
   ];
   ok(refs.length > 0, 'сторінка посилається на файли збірки', 'посилань: ' + refs.length);

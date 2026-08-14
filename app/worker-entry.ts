@@ -3,19 +3,32 @@ import nextWorker from './.open-next/worker.js';
 /* ============================================================
    REYTER — вхід у воркер
    ------------------------------------------------------------
-   Застосунок зібраний із basePath '/new': у корені reyter.men
-   лишається попередній сайт, і новий не може займати кореневі
-   адреси.
+   Тут вирішується, яка адреса що означає. Правил рівно три, і
+   кожне з них — відповідь на конкретну потребу.
 
-   Але на admin.reyter.men адмінка має відкриватись із кореня —
-   інакше адреса перетворилась би на admin.reyter.men/new/admin,
-   що безглуздо для окремого домену.
+   1. МАГАЗИН ЖИВЕ В КОРЕНІ reyter.men.
+      Півроку він стояв на /new, поки корінь займав попередній
+      сайт. 14.08.2026 новий сайт замінив старий і забрав корінь
+      собі.
+
+   2. СТАРІ АДРЕСИ /new/* ВЕДУТЬ НА НОВІ — назавжди.
+      На них посилаються листи покупцям, пошукова видача і, що
+      найдорожче, вже виставлені рахунки Monobank: у кожному
+      лежить redirectUrl на /new/thanks, і людина повернеться
+      саме туди. Тому це не тимчасовий місток, а постійна
+      переадресація, яку не можна прибрати «колись потім».
+
+   3. НА admin.reyter.men АДМІНКА ВІДКРИВАЄТЬСЯ З КОРЕНЯ.
+      Замовлення — це admin.reyter.men/orders, а не
+      admin.reyter.men/new/admin/orders. Всередині застосунку
+      сторінки лежать під /admin, і цей шлях сюди дописуємо ми —
+      мовчки, не показуючи його в адресному рядку.
 
    Уся маршрутизація за доменом живе саме тут, а не в middleware,
    з двох причин:
 
-   • Next відкидає все, що не починається з basePath, ДО того,
-     як middleware спрацює — переписати шлях звідти вже пізно;
+   • Next відкидає все, що не належить застосунку, ДО того, як
+     middleware спрацює — переписати шлях звідти вже пізно;
    • middleware отримує хост не тим, яким його надіслав браузер:
      запит до нього доходить уже перезібраним, і на всіх доменах
      він виглядав однаково.
@@ -24,7 +37,11 @@ import nextWorker from './.open-next/worker.js';
    і в Cloudflare, і в локальному запуску.
    ============================================================ */
 
-const BASE = '/new';
+/** Де магазин стояв раніше. Порожньо — він у корені. */
+const WAS = '/new';
+
+/** Під яким шляхом лежить адмінка всередині застосунку. */
+const ADMIN = '/admin';
 
 /** Домени магазину. Перелік, а не здогадка за формою імені:
  *  на технічній адресі workers.dev і локально перенаправляти
@@ -34,6 +51,33 @@ const SHOP_HOSTS = ['reyter.men', 'www.reyter.men'];
 function hostOf(request: Request): string {
   const raw = request.headers.get('host') ?? new URL(request.url).host;
   return raw.split(':')[0].toLowerCase();
+}
+
+/** Чи належить шлях старому місцю магазину. Порівнюємо цілим
+ *  сегментом, а не початком рядка: інакше під переадресацію
+ *  потрапили б і /newsletter, і товар з артикулом, що починається
+ *  з тих самих літер. */
+function wasHere(path: string): boolean {
+  return path === WAS || path.startsWith(WAS + '/');
+}
+
+function afterWas(path: string): string {
+  return path.slice(WAS.length) || '/';
+}
+
+/** Файл, а не сторінка застосунку: статика Next, картинки,
+ *  договори в PDF, карта сайту. На адмінському домені їх треба
+ *  віддати як є — дописувати їм /admin означало б 404 на кожну
+ *  картинку. Ознака проста й надійна: крапка в останньому
+ *  сегменті. Сторінок із крапкою в адресі магазин не має. */
+function isFile(path: string): boolean {
+  if (path.startsWith('/_next/')) return true;
+  // мітка збірки: за нею tools/deploy-check.mjs питає живий сайт,
+  // чи він оновився. Крапки в імені немає, тож без цього рядка
+  // вона поїхала б у /admin/BUILD_ID і перевірка падала б завжди
+  if (path === '/BUILD_ID') return true;
+  const last = path.slice(path.lastIndexOf('/') + 1);
+  return last.includes('.');
 }
 
 /* Сторінку браузер має перепитувати щоразу.
@@ -66,29 +110,97 @@ function withPath(url: URL, pathname: string): URL {
   return next;
 }
 
+/** Переїзд назавжди. 301, а не 307: пошуковик має переписати
+ *  адресу в індексі, інакше стара житиме у видачі роками. */
+function moved(url: URL, pathname: string): Response {
+  return Response.redirect(withPath(url, pathname).toString(), 301);
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown): Promise<Response> {
     const url = new URL(request.url);
     const host = hostOf(request);
     const path = url.pathname;
 
-    /* Службові адреси не чіпаємо: під ними лежить статика самого
-       Next, і вона однакова для обох доменів. */
-    const isInternal =
-      path.startsWith(BASE) || path.startsWith('/_next/') || path === '/favicon.ico';
+    /* ---------- Адмінський домен ---------- */
+    if (host.startsWith('admin.')) {
+      /* Стара адреса адмінки. Її знають закладки менеджерів, і
+         вести їх у нікуди не можна: /new/admin/orders → /orders */
+      if (wasHere(path)) {
+        const rest = afterWas(path);
+        const inside = rest === ADMIN || rest.startsWith(ADMIN + '/') ? rest.slice(ADMIN.length) : rest;
+        return moved(url, inside || '/');
+      }
 
-    // Адмінський домен: корінь — це адмінка
-    if (host.startsWith('admin.') && !isInternal) {
-      const to = withPath(url, BASE + '/admin' + (path === '/' ? '' : path));
+      /* Пошуковим роботам на адмінському домені робити нічого.
+         Стоїть ПЕРЕД перевіркою на файл: у robots.txt є крапка,
+         і як файл він проїхав би до застосунку, а той віддав би
+         robots магазину з «Allow: /» — тобто адмінка вперше сама
+         запросила б себе обійти. Доти цього не траплялося: шлях
+         переписувався в /new/admin/robots.txt і давав 404. */
+      if (path === '/robots.txt') {
+        return new Response('User-agent: *\nDisallow: /\n', {
+          headers: { 'content-type': 'text/plain; charset=utf-8' }
+        });
+      }
+
+      // статика й файли — як є, без /admin
+      if (isFile(path)) {
+        return freshDocument(await nextWorker.fetch(request, env, ctx));
+      }
+
+      /* Довгий шлях пропускаємо як є — переадресовувати його не
+         можна. Всередині адмінки кожен перехід між вкладками й
+         кожне передчасне підвантаження — це запит до /admin/… із
+         заголовком RSC. Переадресовану таку відповідь Next
+         вважає за привід перезавантажити сторінку цілком, і
+         адмінка блимала б входом на кожному кліку. */
+      if (path === ADMIN || path.startsWith(ADMIN + '/')) {
+        return freshDocument(await nextWorker.fetch(request, env, ctx));
+      }
+
+      const to = withPath(url, ADMIN + (path === '/' ? '' : path));
       return freshDocument(await nextWorker.fetch(new Request(to, request), env, ctx));
     }
 
-    /* Магазинний домен: адмінці тут робити нічого, ведемо на її
+    /* ---------- Магазин ---------- */
+
+    /* www веде на голий домен. Доти воркер його й не бачив —
+       маршрут закінчувався на /new*, а корінь віддавав старий
+       сайт. Тепер весь домен наш, і без цього правила той самий
+       магазин жив би за двома адресами: пошуковик вважав би це
+       двома сайтами й ділив би вагу між ними. */
+    if (host === 'www.reyter.men') {
+      const to = new URL(url);
+      to.hostname = 'reyter.men';
+      return Response.redirect(to.toString(), 301);
+    }
+
+    /* Старе місце магазину. Сюди ж повертаються покупці з банку:
+       у виставлених рахунках лежить redirectUrl на /new/thanks. */
+    if (wasHere(path)) {
+      const rest = afterWas(path);
+
+      /* /new/admin/* — стара адреса адмінки, набрана на
+         магазинному домені. Ведемо одразу на адмінський домен: два
+         стрибки поспіль браузер переживе, але кожен зайвий — це ще
+         одна нагода загубити частину адреси. */
+      if (SHOP_HOSTS.includes(host) && (rest === ADMIN || rest.startsWith(ADMIN + '/'))) {
+        const to = new URL(url);
+        to.hostname = 'admin.' + host.replace(/^www\./, '');
+        to.pathname = rest.slice(ADMIN.length) || '/';
+        return Response.redirect(to.toString(), 301);
+      }
+
+      return moved(url, rest);
+    }
+
+    /* Адмінці на магазинному домені робити нічого: ведемо на її
        власний домен — там свій вхід і свої правила кешування. */
-    if (SHOP_HOSTS.includes(host) && path.startsWith(BASE + '/admin')) {
+    if (SHOP_HOSTS.includes(host) && (path === ADMIN || path.startsWith(ADMIN + '/'))) {
       const to = new URL(url);
       to.hostname = 'admin.' + host.replace(/^www\./, '');
-      to.pathname = path.slice((BASE + '/admin').length) || '/';
+      to.pathname = path.slice(ADMIN.length) || '/';
       return Response.redirect(to.toString(), 307);
     }
 

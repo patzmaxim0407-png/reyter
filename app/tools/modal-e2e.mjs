@@ -5,7 +5,7 @@
    закриття шукає, де він був. Тому міряємо не «модалка є»,
    а де саме лишився каталог.
 
-   node tools/modal-e2e.mjs http://localhost:3000/new
+   node tools/modal-e2e.mjs http://localhost:3000
 */
 import { spawn } from 'node:child_process';
 import { setTimeout as wait } from 'node:timers/promises';
@@ -314,8 +314,12 @@ await wait(1600);
 ok('картка закрилась', await ev(`!document.querySelector('.pmodal')`));
 ok('після закриття каталог теж не перемалювався',
    await ev(`window.__firstImg === document.querySelector('.pgrid .pcard__media img')`));
-const home = new URL(BASE).pathname.replace(/\/$/, '') || '/';
-ok('повернулись у каталог', (await ev(`location.pathname`)).replace(/\/$/, '') === home,
+/* Порівнюємо шляхи, зведені до одного вигляду. Доти кінцева
+   риска зрізалась лише з очікуваного боку, і в корені домену
+   ('/' проти '') перевірка падала на рівних адресах. */
+const same = (a) => a.replace(/\/+$/, '') || '/';
+const home = same(new URL(BASE).pathname);
+ok('повернулись у каталог', same(await ev(`location.pathname`)) === home,
    await ev(`location.pathname`));
 const afterY = await ev(`Math.round(window.scrollY)`);
 ok('каталог відкрився там само, де його лишили', Math.abs(afterY - beforeY) <= 40,
@@ -329,7 +333,7 @@ ok('за прямим посиланням картка теж open', await ev(`
 await ev(`document.querySelector('.pmodal__close').click()`);
 await wait(1600);
 ok('закриття прямого посилання веде на головну, а не з сайту',
-   (await ev(`location.pathname`)).replace(/\/$/, '') === home, await ev(`location.href`));
+   same(await ev(`location.pathname`)) === home, await ev(`location.href`));
 
 /* Прямий вхід і одразу зміна кольору: заміщення кроку не має
    рахуватись за перехід, інакше «закрити» вивело б із сайту */
@@ -340,7 +344,7 @@ if (await ev(`!!document.querySelector('a.swatch')`)) {
   await ev(`document.querySelector('.pmodal__close').click()`);
   await wait(1600);
   ok('прямий вхід зі зміною кольору теж веде на головну',
-     (await ev(`location.pathname`)).replace(/\/$/, '') === home, await ev(`location.href`));
+     same(await ev(`location.pathname`)) === home, await ev(`location.href`));
 }
 
 /* ---------- Найгірший шлях ----------

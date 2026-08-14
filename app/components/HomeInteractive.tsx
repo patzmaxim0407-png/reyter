@@ -207,7 +207,7 @@ export function FriendlyClub({ lang }: { lang: Lang }) {
       <div className="container"><article className="fclub reveal">
         <div ref={strip} className="fclub__strip" tabIndex={0} role="group" aria-roledescription="carousel" aria-label="Friendly Club">
           <div className="fclub__slide">
-            <img className="fclub__media" src="/new/assets/images/Serpen2026/IMG_2325.webp" alt="Friendly Club — Reyter" loading="lazy" />
+            <img className="fclub__media" src="/assets/images/Serpen2026/IMG_2325.webp" alt="Friendly Club — Reyter" loading="lazy" />
             <div className="fclub__overlay"><h2 className="fclub__title">{t('fclub.title', lang)}</h2><p className="fclub__lead">{t('fclub.lead', lang)}</p><button className="btn btn--light" type="button" aria-haspopup="dialog" onClick={() => setDialog(true)}>{t('fclub.btn', lang)}</button></div>
           </div>
           <div className="fclub__slide">
@@ -217,9 +217,9 @@ export function FriendlyClub({ lang }: { lang: Lang }) {
               muted
               playsInline
               preload="none"
-              poster="/new/assets/images/fclub-poster.webp"
-              data-src="/new/assets/videos/fclub-desktop.mp4"
-              data-src-sm="/new/assets/videos/fclub-mobile.mp4"
+              poster="/assets/images/fclub-poster.webp"
+              data-src="/assets/videos/fclub-desktop.mp4"
+              data-src-sm="/assets/videos/fclub-mobile.mp4"
               aria-label="REYTER Summer"
             />
             <button className="fclub__play" type="button" aria-label={t('fclub.play', lang)} hidden={!playVisible} onClick={playVideo} />
@@ -246,7 +246,7 @@ export function FriendlyClub({ lang }: { lang: Lang }) {
 
 export function SizeGuideImage({ lang }: { lang: Lang }) {
   const [open, setOpen] = useState(false);
-  const src = '/new/assets/images/size_2.webp';
+  const src = '/assets/images/size_2.webp';
   return <><figure className="size-guide__visual"><button className="zoomable-button" type="button" onClick={() => setOpen(true)}><img src={src} alt={t('size.alt', lang)} className="zoomable" loading="lazy" /></button><figcaption>{t('size.caption', lang)}</figcaption></figure><Lightbox images={[src]} index={0} open={open} lang={lang} alt={t('size.alt', lang)} onIndex={() => {}} onClose={() => setOpen(false)} /></>;
 }
 

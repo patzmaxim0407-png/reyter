@@ -5,9 +5,8 @@
    «max-age=0, must-revalidate» — тобто браузер копію не тримає й
    лізе в мережу за стилями на КОЖНЕ завантаження сторінки. Імена
    файлів і так містять відбиток вмісту, тому правильний заголовок
-   тут — «immutable» на рік. Файл _headers wrangler читає лише з
-   кореня каталогу assets, а public/ через basePath лягає в
-   assets/new/ — звідти його ніхто не прочитає. Тому пишемо самі.
+   тут — «immutable» на рік. Сам wrangler такого заголовка не
+   ставить, тож файл _headers пишемо самі.
 
    ДРУГА: вкладка, відкрита ДО викладки. Її сторінка просить файли
    зі старими іменами, а нова викладка їх стирає — і людина
@@ -23,7 +22,7 @@ import { join } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const ASSETS = join(ROOT, '.open-next/assets');
-const STATIC_DIR = join(ASSETS, 'new/_next/static');
+const STATIC_DIR = join(ASSETS, '_next/static');
 const HISTORY_DIR = join(ROOT, '.static-history');
 /** Скільки попередніх збірок тримаємо живими.
 
@@ -49,7 +48,7 @@ writeFileSync(
   [
     '# Імена файлів містять відбиток вмісту, тож вміст за іменем',
     '# ніколи не міняється — тримати рік безпечно.',
-    '/new/_next/static/*',
+    '/_next/static/*',
     '  Cache-Control: public, max-age=31536000, immutable',
     ''
   ].join('\n')
@@ -98,8 +97,8 @@ for (const { d } of previous.slice(GENERATIONS)) rmSync(join(HISTORY_DIR, d), { 
    те, що віддає живий сайт (tools/deploy-check.mjs питає в нього
    той самий BUILD_ID). Без неї покоління в історії — просто час,
    і яке з них зараз на сервері, сказати нічим. */
-const buildId = existsSync(join(ASSETS, 'new/BUILD_ID'))
-  ? readFileSync(join(ASSETS, 'new/BUILD_ID'), 'utf8').trim()
+const buildId = existsSync(join(ASSETS, 'BUILD_ID'))
+  ? readFileSync(join(ASSETS, 'BUILD_ID'), 'utf8').trim()
   : '';
 
 console.log(

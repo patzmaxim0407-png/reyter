@@ -122,7 +122,7 @@ export default async function ProductView({
       availability: av.soldOut
         ? 'https://schema.org/OutOfStock'
         : 'https://schema.org/InStock',
-      url: `https://reyter.men/new${base}/p/${p.id}`
+      url: `https://reyter.men${base}/p/${p.id}`
     }
   };
 

@@ -8,10 +8,9 @@ export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const { products, categories } = await loadCatalog();
-  /* Магазин живе на шляху /new, поки в корені попередній сайт.
-     У карті мають бути справжні адреси, інакше пошуковик піде
-     на сторінки, яких там немає. */
-  const base = 'https://reyter.men/new';
+  /* У карті мають бути справжні адреси, інакше пошуковик піде на
+     сторінки, яких там немає. */
+  const base = 'https://reyter.men';
 
   /* Обидві мови — це різні сторінки з різними адресами, і кожна
      має бути в карті. alternates каже пошуковику, що це та сама
@@ -27,10 +26,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ];
     });
 
-  const home = { languages: { uk: base, en: `${base}/en` } };
+  const home = { languages: { uk: `${base}/`, en: `${base}/en` } };
 
   return [
-    { url: base, changeFrequency: 'daily', priority: 1, alternates: home },
+    { url: `${base}/`, changeFrequency: 'daily', priority: 1, alternates: home },
     { url: `${base}/en`, changeFrequency: 'daily', priority: 0.8, alternates: home },
     // Категорії — це якорі на головній, окремих сторінок у них немає
     ...categories.map((c) => ({

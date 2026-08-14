@@ -5,10 +5,12 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: '*',
       allow: '/',
-      // Адмінка живе на власному домені й закрита входом,
-      // але хай і за старою адресою не потрапляє в індекс
-      disallow: ['/admin']
+      /* Адмінка живе на власному домені й закрита входом. Тут
+         /admin лише переадресовує туди, але в індексі йому все
+         одно робити нічого. Сам адмінський домен віддає власний
+         robots із забороною на все — див. worker-entry.ts. */
+      disallow: ['/admin', '/new/admin']
     },
-    sitemap: 'https://reyter.men/new/sitemap.xml'
+    sitemap: 'https://reyter.men/sitemap.xml'
   };
 }

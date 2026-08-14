@@ -52,8 +52,7 @@ const missing = new Map(); // файл → сторінки, які його п�
 for (const page of pages) {
   const text = readFileSync(page, 'utf8');
   for (const m of text.matchAll(/_next\/static\/[\w./-]+\.(?:js|css)/g)) {
-    const asset = 'new/' + m[0];
-    if (assets.has(asset)) continue;
+    if (assets.has(m[0])) continue;
     if (!missing.has(m[0])) missing.set(m[0], []);
     const list = missing.get(m[0]);
     if (list.length < 3) list.push(relative(PAGES, page));

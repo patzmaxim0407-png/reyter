@@ -21,7 +21,7 @@ const unbounded = Unbounded({
    зайві дані. */
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://reyter.men/new'),
+  metadataBase: new URL('https://reyter.men'),
   title: {
     default: 'REYTER — Чоловіча білизна українського бренду',
     template: '%s — REYTER'
@@ -62,7 +62,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
        на Times, і весь макет виглядає чужим. */
     <html lang="uk" className={`${inter.variable} ${unbounded.variable}`} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: "document.documentElement.lang=location.pathname.startsWith('/new/en')?'en':'uk'" }} />
+        <script dangerouslySetInnerHTML={{ __html: "document.documentElement.lang=location.pathname.startsWith('/en')?'en':'uk'" }} />
         {/* Запасний шар на випадок, коли єдиний файл стилів не
             доїхав: після викладки браузер може тримати сторінку
             попередньої збірки, а вона просить файл, якого вже

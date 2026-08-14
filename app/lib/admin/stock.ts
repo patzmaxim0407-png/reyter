@@ -1384,7 +1384,7 @@ export async function loadMoves(db: Firestore): Promise<Move[] | null> {
    тодішній сайт відкривав картку якорем. Тепер у товару є власна
    сторінка, і посилання з якорем привело б покупця просто на
    головну. */
-export const ALERT_PRODUCT_URL = 'https://reyter.men/new/p/';
+export const ALERT_PRODUCT_URL = 'https://reyter.men/p/';
 
 export interface StockAlert {
   productId?: string;

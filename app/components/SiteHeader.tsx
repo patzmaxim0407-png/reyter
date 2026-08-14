@@ -60,7 +60,7 @@ export default function SiteHeader() {
       <div className="site-header__inner">
         <Link className="brand" href={base || '/'} aria-label={t('nav.top')}>
           <img
-            src="/new/assets/images/Logo1.png"
+            src="/assets/images/Logo1.png"
             alt="REYTER"
             width={1431}
             height={369}

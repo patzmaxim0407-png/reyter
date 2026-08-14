@@ -44,7 +44,7 @@ export default async function HomeView({ lang, previewDraft = false }: { lang: L
         <ReadMore lang={lang} />
         <ul className="hero__trust"><li>{t('hero.trust1', lang)}</li><li>{t('hero.trust2', lang)}</li><li>{t('hero.trust3', lang)}</li></ul>
       </div>
-      <div className="hero__media reveal"><div className="hero__frame"><img src="/new/assets/images/Jule2026/Head.webp" alt={t('hero.alt', lang)} fetchPriority="high" /></div></div>
+      <div className="hero__media reveal"><div className="hero__frame"><img src="/assets/images/Jule2026/Head.webp" alt={t('hero.alt', lang)} fetchPriority="high" /></div></div>
     </div></section>
 
     <FriendlyClub lang={lang} />
@@ -65,7 +65,7 @@ export default async function HomeView({ lang, previewDraft = false }: { lang: L
 
     <section className="delivery" id="delivery"><div className="container">
       <header className="section-head reveal"><h2 className="section-title">{t('dlv.title', lang)}</h2></header>
-      <div className="delivery__grid">{delivery.map(([title, body, icon], index) => <article className={'dlv-card reveal' + (index === delivery.length - 1 ? ' dlv-card--note' : '')} key={title}><div className="dlv-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{icon}</svg></div><h3>{t(title, lang)}</h3><p dangerouslySetInnerHTML={{ __html: t(body, lang) }} />{index === 0 ? <div className="dlv-card__pay"><img src="/new/assets/images/visa.svg" alt="Visa" loading="lazy"/><img src="/new/assets/images/master-card.svg" alt="Mastercard" loading="lazy"/></div> : null}</article>)}</div>
+      <div className="delivery__grid">{delivery.map(([title, body, icon], index) => <article className={'dlv-card reveal' + (index === delivery.length - 1 ? ' dlv-card--note' : '')} key={title}><div className="dlv-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{icon}</svg></div><h3>{t(title, lang)}</h3><p dangerouslySetInnerHTML={{ __html: t(body, lang) }} />{index === 0 ? <div className="dlv-card__pay"><img src="/assets/images/visa.svg" alt="Visa" loading="lazy"/><img src="/assets/images/master-card.svg" alt="Mastercard" loading="lazy"/></div> : null}</article>)}</div>
     </div></section>
 
     <section className="contacts" id="contacts"><div className="container">

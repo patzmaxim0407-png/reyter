@@ -13,7 +13,7 @@ export default function SiteFooter() {
         <p className="site-footer__slogan">{t('footer.slogan')}</p>
         <div className="site-footer__grid">
           <div className="site-footer__col">
-            <img className="site-footer__logo" src="/new/assets/images/Logo1.png" alt="REYTER" loading="lazy" />
+            <img className="site-footer__logo" src="/assets/images/Logo1.png" alt="REYTER" loading="lazy" />
             <p>{t('footer.about')}</p>
             {/* Марка бренду, а не переклад: «Based in Ukraine»
                 лишається англійською в обох мовах */}
@@ -27,8 +27,8 @@ export default function SiteFooter() {
             <Link href={`${base}/#delivery`}>{t('nav.delivery')}</Link>
           </nav>
           <div className="site-footer__col">
-            <a href="/new/public-offer.pdf" target="_blank" rel="noopener">{t('footer.offer')}</a>
-            <a href="/new/political.pdf" target="_blank" rel="noopener">{t('footer.policy')}</a>
+            <a href="/public-offer.pdf" target="_blank" rel="noopener">{t('footer.offer')}</a>
+            <a href="/political.pdf" target="_blank" rel="noopener">{t('footer.policy')}</a>
           </div>
           <div className="site-footer__col site-footer__socials">
             <a href="https://www.tiktok.com/@reyter.ua5" target="_blank" rel="noopener" aria-label="TikTok"><i className="fab fa-tiktok" /></a>

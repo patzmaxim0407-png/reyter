@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 const PROFILE = '/tmp/reyter-test-' + process.pid + '-' + Date.now();
 
 const BASE = (process.argv[2] || 'http://localhost:3000').replace(/\/+$/, '');
-/* Магазин може стояти не в корені (зараз це /new), тож усі
+/* Магазин може стояти не в корені, тож усі
    очікування шляхів рахуються від нього, а не від '/'. */
 const PREFIX = new URL(BASE).pathname.replace(/\/+$/, '');
 const at = (path) => PREFIX + path;

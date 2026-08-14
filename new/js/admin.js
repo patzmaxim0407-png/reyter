@@ -5695,7 +5695,7 @@
           product: a.productName || (p && p.name) || pid,
           size: a.size || '',
           image: (p && p.images && p.images[0]) || '',
-          url: 'https://reyter.men/new/#p/' + encodeURIComponent(pid),
+          url: 'https://reyter.men/#p/' + encodeURIComponent(pid),
           lang: a.lang || 'uk'
         });
         if (ok) {
@@ -5760,7 +5760,7 @@
           product: a.productName || p.name,
           size: a.size || '',
           image: (p.images && p.images[0]) || '',
-          url: 'https://reyter.men/new/#p/' + encodeURIComponent(p.id),
+          url: 'https://reyter.men/#p/' + encodeURIComponent(p.id),
           lang: a.lang || 'uk'
         });
         if (ok) {

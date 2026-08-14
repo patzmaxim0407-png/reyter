@@ -61,7 +61,7 @@ function letterHTML(d) {
     track: 'Відстежити замовлення', slogan: 'Характер — це REYTER!'
   };
 
-  const siteUrl = 'https://reyter.men/new/' + (en ? '?lang=en' : '');
+  const siteUrl = 'https://reyter.men/' + (en ? '?lang=en' : '');
 
   const rows = (d.items || []).slice(0, 50).map((i) =>
     '<tr>' +
@@ -193,7 +193,7 @@ function promoHTML(d) {
     terms: 'Умови', shop: 'Перейти до покупок', slogan: 'Характер — це REYTER!'
   };
 
-  const siteUrl = 'https://reyter.men/new/' + (en ? '?lang=en' : '');
+  const siteUrl = 'https://reyter.men/' + (en ? '?lang=en' : '');
 
   return (
     '<div style="margin:0;padding:24px 12px;background:#fcf8f0;font-family:Helvetica,Arial,sans-serif">' +
@@ -273,10 +273,10 @@ function ttnHTML(d) {
     slogan: 'Характер — це REYTER!'
   };
 
-  const siteUrl = 'https://reyter.men/new/' + (en ? '?lang=en' : '');
+  const siteUrl = 'https://reyter.men/' + (en ? '?lang=en' : '');
   const ttn = clip(String(d.ttn || ''), 40);
   const carrierUrl = 'https://novaposhta.ua/tracking/?cargo_number=' + encodeURIComponent(ttn);
-  const ourUrl = 'https://reyter.men/new/' + (en ? 'en/' : '') + 'track';
+  const ourUrl = 'https://reyter.men/' + (en ? 'en/' : '') + 'track';
 
   return (
     '<div style="margin:0;padding:24px 12px;background:#fcf8f0;font-family:Helvetica,Arial,sans-serif">' +
@@ -353,7 +353,7 @@ function stockHTML(d) {
     slogan: 'Характер — це REYTER!'
   };
 
-  const url = clip(d.url, 300) || 'https://reyter.men/new/';
+  const url = clip(d.url, 300) || 'https://reyter.men/';
 
   return (
     '<div style="margin:0;padding:24px 12px;background:#fcf8f0;font-family:Helvetica,Arial,sans-serif">' +
@@ -389,7 +389,7 @@ function stockHTML(d) {
         '<tr><td style="padding:26px 24px;background:' + INK + ';text-align:center">' +
           '<p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#ffffff">' + T.slogan + '</p>' +
           '<p style="margin:0;font-size:12px">' +
-            '<a href="https://reyter.men/new/" style="color:#ffffff;text-decoration:none">reyter.men</a>' +
+            '<a href="https://reyter.men/" style="color:#ffffff;text-decoration:none">reyter.men</a>' +
           '</p>' +
         '</td></tr>' +
 
@@ -799,7 +799,10 @@ async function monoCall(env, path, init) {
  *  рядках пропорційно. Хвіст від округлення лягає в перший рядок:
  *  рівність із amount має бути точною, а не приблизною. */
 async function monoInvoice(env, { total, lines, num, lang, hook, discount, shipping }) {
-  const site = 'https://reyter.men/new';
+  /* Магазин переїхав у корінь домену 14.08.2026. Рахунки,
+     виставлені до переїзду, несуть у собі стару адресу
+     /new/thanks — вона жива й веде куди слід переадресацією. */
+  const site = 'https://reyter.men';
 
   const goodsKop = (lines || []).reduce((n, l) => n + Math.round(l.price * 100) * l.qty, 0);
   const shipKop = Math.max(0, Math.round(Number(shipping) || 0) * 100);

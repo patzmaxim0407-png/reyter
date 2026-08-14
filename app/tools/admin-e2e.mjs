@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 
 const PROFILE = '/tmp/reyter-test-' + process.pid + '-' + Date.now();
 /* Перший аргумент — КОРІНЬ адмінки. На бойових це
-   https://admin.reyter.men, локально — http://localhost:8787/new/admin:
+   https://admin.reyter.men, локально — http://localhost:8787/admin:
    адмінка живе там, куди її кладе домен, і тест не має цього
    вгадувати. */
 const BASE = (process.argv[2] || 'http://localhost:3000/admin').replace(/\/+$/, '');

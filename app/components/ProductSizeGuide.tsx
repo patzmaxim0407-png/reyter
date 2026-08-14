@@ -9,7 +9,7 @@ import type { Lang } from '@/lib/types';
 export default function ProductSizeGuide({ lang }: { lang: Lang }) {
   const [open, setOpen] = useState(false);
   const [lightbox, setLightbox] = useState(false);
-  const image = '/new/assets/images/size_2.webp';
+  const image = '/assets/images/size_2.webp';
   return <>
     <button type="button" className={open ? 'is-open' : ''} aria-expanded={open} aria-controls="product-size-chart" onClick={() => setOpen((value) => !value)}>{t('p.sizeHelp', lang)}</button>
     {open ? <div className="pinfo__sizechart" id="product-size-chart">
