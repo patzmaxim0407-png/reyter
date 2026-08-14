@@ -992,10 +992,10 @@ export default {
     if (
       type === 'pay-create' || type === 'pay-status' || type === 'pay-refund' ||
       type === 'pay-link' || type === 'pay-receipt' || type === 'pay-receipt-send' ||
-      type === 'pay-find' || type === 'pay-doubles'
+      type === 'pay-find' || type === 'pay-doubles' || type === 'pay-paid'
     ) {
       // Усе, крім створення рахунку й перевірки стану, — тільки з адмінки
-      const adminOnly = type !== 'pay-create' && type !== 'pay-status';
+      const adminOnly = type !== 'pay-create' && type !== 'pay-status' && type !== 'pay-paid';
       if (adminOnly && env.ADMIN_KEY && d.key !== env.ADMIN_KEY) {
         return reply({ ok: false, error: 'Невірний ключ адміністратора (ADMIN_KEY)' }, 403, cors);
       }
@@ -1022,6 +1022,37 @@ export default {
           amount: Math.round((Number(r.data.amount) || 0) / 100),
           reference: r.data.reference || '',
           at: r.data.modifiedDate || r.data.createdDate || ''
+        }, 200, cors);
+      }
+
+      /* Чи оплачене замовлення — питання про ЗАМОВЛЕННЯ, а не про
+         рахунок. Рахунків у нього може бути кілька: перший із
+         кошика, потім надісланий листом, потім ще один із
+         кабінету. Браузер памʼятає лише свій, і саме тому сторінка
+         подяки писала «оплата не пройшла» над успішно оплаченим
+         замовленням.
+
+         Відповідь навмисно куца: чи оплачено й на скільки. Ні
+         імені, ні адреси, ні складу — по номеру замовлення звідси
+         не дізнатись нічого, чого покупець і так не бачить. */
+      if (type === 'pay-paid') {
+        const want = clip(d.orderNum || d.num, 40).trim();
+        if (!want) return reply({ ok: false, error: 'Немає номера замовлення' }, 400, cors);
+        const seen = await monoStatement(env, 30);
+        if (!seen.ok) return reply({ ok: false, error: seen.error }, 200, cors);
+
+        let paid = 0;
+        let back = 0;
+        for (const x of seen.list) {
+          if (String(x.reference || '') !== want || x.status !== 'success') continue;
+          paid += Number(x.amount) || 0;
+          back += (x.cancelList || []).reduce((n, c) => n + (Number(c.amount) || 0), 0);
+        }
+        return reply({
+          ok: true,
+          paid: paid - back > 0,
+          refunded: paid > 0 && paid - back <= 0,
+          amount: Math.round((paid - back) / 100)
         }, 200, cors);
       }
 

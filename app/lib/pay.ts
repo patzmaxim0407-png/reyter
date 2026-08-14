@@ -122,6 +122,22 @@ export async function payStatus(workerUrl: string, invoiceId: string): Promise<P
   };
 }
 
+/** Чи оплачене ЗАМОВЛЕННЯ. Питання саме про замовлення, а не про
+ *  рахунок: рахунків у нього буває кілька — з кошика, з листа, з
+ *  кабінету, — і браузер памʼятає лише свій. */
+export async function orderPaid(
+  workerUrl: string,
+  orderNum: string
+): Promise<{ ok: boolean; paid: boolean; refunded: boolean; amount: number }> {
+  const r = await ask(workerUrl, { type: 'pay-paid', orderNum });
+  return {
+    ok: r.ok === true,
+    paid: r.paid === true,
+    refunded: r.refunded === true,
+    amount: Number(r.amount) || 0
+  };
+}
+
 /** Повернути кошти. Без суми — повертається все. Тільки з адмінки. */
 export async function payRefund(
   workerUrl: string,

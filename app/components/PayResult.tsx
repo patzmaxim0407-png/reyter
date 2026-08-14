@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { loadNotifySettings } from '@/lib/firebase';
-import { invoiceOf, payStatus, type PayState } from '@/lib/pay';
+import { invoiceOf, orderPaid, payStatus, type PayState } from '@/lib/pay';
 import { t } from '@/lib/i18n';
 import type { Lang } from '@/lib/types';
 
@@ -32,7 +32,8 @@ export default function PayResult({ num, lang }: { num?: string; lang: Lang }) {
 
   useEffect(() => {
     const invoice = num ? invoiceOf(num) : '';
-    if (!invoice) {
+    // без номера й без рахунку питати нема про що
+    if (!num && !invoice) {
       setState('none');
       return;
     }
@@ -42,7 +43,38 @@ export default function PayResult({ num, lang }: { num?: string; lang: Lang }) {
 
     const check = async () => {
       const settings = (await loadNotifySettings()) as { workerUrl?: string } | null;
-      const r = await payStatus(String(settings?.workerUrl || ''), invoice);
+      const url = String(settings?.workerUrl || '');
+
+      /* Спершу питаємо про ЗАМОВЛЕННЯ. Покупець міг заплатити за
+         посиланням із листа — рахунок там інший, і той, що
+         памʼятає браузер, покаже «не пройшла» над успішно
+         оплаченим замовленням. Саме це власник і побачив. */
+      if (num) {
+        const byOrder = await orderPaid(url, num);
+        if (!alive) return;
+        if (byOrder.ok && byOrder.paid) {
+          setSum(byOrder.amount);
+          setState('success');
+          return;
+        }
+        if (byOrder.ok && byOrder.refunded) {
+          setState('reversed');
+          return;
+        }
+      }
+
+      /* Рахунку цей браузер може й не знати — тоді лишається лише
+         питати про замовлення далі. Виписка банку відстає на
+         кілька секунд, тож перепитуємо, а не оголошуємо невдачу:
+         сказати «не пройшла» над оплаченим — найгірше з можливого.
+      */
+      if (!invoice) {
+        if (++tries < TRIES) setTimeout(check, PAUSE);
+        else setState('none');
+        return;
+      }
+
+      const r = await payStatus(url, invoice);
       if (!alive) return;
 
       if (r.ok) {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { loadNotifySettings } from '@/lib/firebase';
-import { invoiceOf, isPaid, payCreate, payStatus, rememberInvoice, type PayLine } from '@/lib/pay';
+import { invoiceOf, isPaid, orderPaid, payCreate, payStatus, rememberInvoice, type PayLine } from '@/lib/pay';
 import { t } from '@/lib/i18n';
 import type { Lang } from '@/lib/types';
 
@@ -65,8 +65,23 @@ export default function PayAgain({
         if (alive) setState('pay');
         return;
       }
+
       const settings = (await loadNotifySettings()) as { workerUrl?: string } | null;
       const url = String(settings?.workerUrl || '');
+
+      /* Питаємо про замовлення, а не про рахунок: платити могли за
+         посиланням, якого цей браузер ніколи не бачив. */
+      const byOrder = await orderPaid(url, num);
+      if (!alive) return;
+      if (byOrder.ok && byOrder.paid) {
+        setState('paid');
+        return;
+      }
+      if (byOrder.ok && byOrder.refunded) {
+        setState('back');
+        return;
+      }
+
       let returned = false;
       for (const one of list) {
         const r = await payStatus(url, one);
