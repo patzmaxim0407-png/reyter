@@ -26,6 +26,7 @@ import { buildMessage, buildOrder, checkCustomer, MESSENGERS, type Confirm, type
 import { freeReached, quote, underwearSum, type Quote } from '@/lib/delivery';
 import { customsBlock, parcelWeight } from '@/lib/customs';
 import { orderPlaced } from '@/lib/notify';
+import PayAgain from './PayAgain';
 import { promoCheck, promoMessage, promoSaveCode, promoSavedCode, type Promo } from '@/lib/promo';
 
 /* ============================================================
@@ -486,6 +487,25 @@ export default function CheckoutForm() {
     }
   }
 
+  /* Останнє замовлення цього браузера — його ми й пропонуємо
+     доплатити. Лежить у сховищі поруч із кошиком, тож ані входу,
+     ані звернень у базу для цього не треба. */
+  const pending = useMemo(() => {
+    if (lines.length) return null;
+    const last = (cart.getOrders() || [])[0] as
+      | { num?: string; items?: { id: string; size?: string; qty: number }[]; promoCode?: string; shipping?: number; customer?: { email?: string } }
+      | undefined;
+    if (!last?.num || !last.items?.length) return null;
+    return {
+      num: String(last.num),
+      items: last.items.map((i) => ({ id: i.id, size: i.size ?? '', qty: Number(i.qty) || 1 })),
+      promo: last.promoCode || '',
+      shipping: Number(last.shipping) || 0,
+      email: String(last.customer?.email || '')
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines.length]);
+
   const summary = useMemo(
     () =>
       lines.map((i) => ({
@@ -504,8 +524,22 @@ export default function CheckoutForm() {
   );
 
   if (!lines.length) {
+    /* Кошик порожній не завжди означає «нічого не купував».
+       Найчастіше сюди повертаються кнопкою «назад» зі сторінки
+       банку, не завершивши оплату: кошик уже очищено, замовлення
+       створено — і без цієї підказки виходив глухий кут. */
     return (
       <div className="empty-state">
+        {pending ? (
+          <PayAgain
+            num={pending.num}
+            items={pending.items}
+            promo={pending.promo}
+            shipping={pending.shipping}
+            email={pending.email}
+            lang="uk"
+          />
+        ) : null}
         <strong>{t('cart.empty')}</strong>
         {t('cart.emptyNote')}
         <Link className="btn btn--primary" href="/#catalog">

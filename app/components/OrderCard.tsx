@@ -38,7 +38,8 @@ export default function OrderCard({
   showStatus,
   onRepeat,
   onCopy,
-  onCopyTtn
+  onCopyTtn,
+  pay
 }: {
   o: OrderView;
   /** Статус відомий лише для замовлень із бази: локальна копія
@@ -48,6 +49,8 @@ export default function OrderCard({
   onRepeat?: () => void;
   onCopy?: () => void;
   onCopyTtn?: () => void;
+  /** Кнопка оплати для замовлення, яке її ще чекає. */
+  pay?: React.ReactNode;
 }) {
   const { t, lang } = useLang();
   const st = o.status || 'new';
@@ -122,8 +125,11 @@ export default function OrderCard({
         {t('cart.total')}: {uah(o.total, lang)}
       </div>
 
-      {onRepeat || onCopy ? (
+      {onRepeat || onCopy || pay ? (
         <div className="order-card__actions">
+          {/* Оплата — найперша дія: поки грошей немає, замовлення
+              не рухається, і решта кнопок значення не мають. */}
+          {pay}
           {onRepeat ? (
             <button className="btn btn--primary btn--sm" type="button" onClick={onRepeat}>
               {t('acc.repeat')}

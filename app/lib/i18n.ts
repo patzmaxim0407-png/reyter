@@ -59,6 +59,10 @@ const uk = {
      одяг, ні за кордон, і коротший напис обіцяв зайве. */
   /* Оплата карткою */
   'pay.waiting': 'Перевіряємо оплату…',
+  'pay.again': 'Оплатити замовлення',
+  'pay.opening': 'Відкриваємо оплату…',
+  'pay.pendingTitle': 'Замовлення №{n} чекає на оплату',
+  'pay.pendingText': 'Оплата не завершилась — товар за вами не закріплений, поки гроші не надійдуть. Замовлення збережено, оплатити можна зараз.',
   'pay.done': 'Оплату отримано',
   'pay.back': 'Кошти за цим замовленням повернуто.',
   'pay.failed': 'Оплата не пройшла.',
@@ -317,7 +321,7 @@ const uk = {
   'cart.commentPh': 'Побажання до замовлення (необовʼязково)',
   /* Кнопка каже, що буде далі: не «підтвердити», а перехід на
      оплату. Людина має знати про списання ДО того, як натисне. */
-  'cart.submit': 'Онлайн-оплата карткою, GooglePay або ApplePay',
+  'cart.submit': 'Онлайн оплата',
   'cart.submitNote': 'Далі — захищена сторінка Monobank. Замовлення підтвердимо після оплати',
   'cart.sending': 'Надсилаємо…',
   'cart.fillNamePhone': 'Заповніть імʼя та телефон',
@@ -461,6 +465,10 @@ const en: Record<UIKey, string> = {
   'hero.p2': '<strong>REYTER</strong> is not only about fabrics and patterns. It is about character. About the inner strength you feel in every movement. We believe real strength starts from within — with comfort, confidence and your own style.',
   'hero.p3': 'Every man has his own character and strength. We are here to support you in that — from the first touch of the fabric on your skin.',
   'pay.waiting': 'Checking your payment…',
+  'pay.again': 'Pay for this order',
+  'pay.opening': 'Opening payment…',
+  'pay.pendingTitle': 'Order No. {n} is awaiting payment',
+  'pay.pendingText': 'The payment was not completed — the items are not reserved until the money arrives. Your order is saved, you can pay now.',
   'pay.done': 'Payment received',
   'pay.back': 'This order has been refunded.',
   'pay.failed': 'The payment did not go through.',
@@ -717,7 +725,7 @@ const en: Record<UIKey, string> = {
   'cart.tgHint': 'Optional. If your number is hidden in Telegram settings, a username makes sure we find you.',
   'cart.comment': 'Comment',
   'cart.commentPh': 'Any wishes for your order (optional)',
-  'cart.submit': 'Pay online — card, Google Pay or Apple Pay',
+  'cart.submit': 'Online payment',
   'cart.submitNote': 'Next is a secure Monobank page. We confirm the order once it is paid',
   'cart.sending': 'Sending…',
   'cart.fillNamePhone': 'Please fill in your name and phone',

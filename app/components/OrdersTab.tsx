@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import AuthPanel from './AuthPanel';
 import OrderCard, { type OrderView } from './OrderCard';
+import PayAgain from './PayAgain';
 import TrackForm from './TrackForm';
 import { useToast } from './Toasts';
 import { copyText } from '@/lib/copy';
@@ -100,7 +101,7 @@ export default function OrdersTab({
   mode: OrdersMode;
   onRows(next: Row[]): void;
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const router = useRouter();
   const toast = useToast();
   const { open } = useCart();
@@ -161,6 +162,18 @@ export default function OrdersTab({
             key={o.num + i}
             o={o}
             showStatus={mode === 'cloud'}
+            pay={
+              /* Оплату пропонуємо лише там, де вона ще має сенс:
+                 замовлення щойно створене й нікуди не поїхало. */
+              (o.status || 'new') === 'new' && o.items?.length ? (
+                <PayAgain
+                  num={o.num}
+                  items={o.items.map((i) => ({ id: i.id, size: i.size ?? '', qty: Number(i.qty) || 1 }))}
+                  lang={lang}
+                  small
+                />
+              ) : null
+            }
             onRepeat={() => repeat(o)}
             onCopy={o.message ? () => void copy(o.message ?? '', toast, t) : undefined}
             onCopyTtn={() => void copy(o.ttn ?? '', toast, t)}

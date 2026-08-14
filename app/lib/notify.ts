@@ -59,11 +59,16 @@ function workerBody(order: Order, lang: Lang, t: (k: string) => string) {
         (x) => (x.category ? x.category + ' · ' : '') + (x.name || x.id) + (x.size ? ' · ' + x.size : '')
       )
     })),
-    /* Разом = товари − знижка + доставка. У самому замовленні
-       доставка лежить окремо (правила бази не дозволяють інакше),
-       тож повну суму збираємо тут — покупець має бачити те саме
-       число, що бачив у кошику. */
-    total: uah(order.total + (order.shipping || 0), lang),
+    /* Разом беремо як є. Доставка вже всередині суми — так її
+       рахує buildOrder з 14.08.2026.
+
+       Доти доставку тут додавали ще раз, бо в замовленні вона
+       лежала окремо. Коли суму полагодили, це додавання лишилось
+       — і лист із повідомленням у Telegram казали «1 960 грн»
+       там, де в адмінці стояло 1 420. Найгірший різновид
+       помилки: покупець бачить одне число, магазин інше, і хтось
+       із них помиляється на очах у другого. */
+    total: uah(order.total, lang),
     subtotal: uah(order.subtotal, lang),
     discount: order.discount ? uah(order.discount, lang) : '',
     shipping: order.shipping ? uah(order.shipping, lang) : '',

@@ -2372,3 +2372,37 @@
   0%, 100% { opacity: 0.25; }
   50% { opacity: 1; }
 }
+
+/* ---------- Замовлення чекає на оплату ----------
+   Найчастіше цю панель бачать, повернувшись зі сторінки банку
+   кнопкою «назад»: кошик уже порожній, замовлення створене, і без
+   неї виходив глухий кут. Тому вона стоїть НАД порожнім кошиком,
+   а не під ним. */
+.payagain {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  max-width: 30rem;
+  margin: 0 auto 1.6rem;
+  padding: 18px 20px;
+  border: 1px solid #f0d29a;
+  border-radius: 16px;
+  background: #fff9ef;
+  color: #171b26;
+  text-align: center;
+}
+
+.payagain b { font-size: 1.02rem; }
+
+.payagain span {
+  color: #6e6a5e;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.payagain .btn { margin-top: 4px; }
+
+/* Кнопка оплати в списку замовлень кабінету стоїть першою й
+   помітнішою за «Повторити»: поки грошей немає, решта дій
+   значення не мають. */
+.order-card__actions .btn--primary { order: -1; }

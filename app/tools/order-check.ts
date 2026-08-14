@@ -13,7 +13,7 @@
    ============================================================ */
 
 import { loadCatalog, loadStock } from '../lib/firestore.ts';
-import { isSet, setParts, availability, ALL_SIZES, type Catalogue } from '../lib/catalog.ts';
+import { fmt, isSet, setParts, availability, ALL_SIZES, type Catalogue } from '../lib/catalog.ts';
 import {
   buildOrder,
   buildMessage,
@@ -235,6 +235,13 @@ ok(
 
 const msg = buildMessage(order, t);
 ok('у повідомленні є номер', msg.includes('Замовлення №' + order.num));
+/* Найдорожча помилка в тексті — сума. Лист і Telegram мають
+   називати рівно те число, що стоїть у замовленні: 14.08.2026
+   доставку тут додавали вдруге, і покупець читав «1 960 грн»
+   там, де в адмінці було 1 420. */
+ok('сума в повідомленні дорівнює сумі замовлення',
+   msg.includes('Разом: ' + fmt(order.total) + ' грн'),
+   msg.split('\n').find((l) => l.startsWith('Разом')) || '');
 ok('у повідомленні є промокод і знижка', msg.includes('Промокод TEST100: −100 грн'), msg.split('\n').find((l) => l.includes('Промокод')) || '');
 ok('у повідомленні є склад комплекту з відступом', /\n {6}– /.test(msg));
 ok('у повідомленні є доставка', msg.includes('🚚 Нова Пошта, Львів'));
