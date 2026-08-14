@@ -92,13 +92,24 @@ export function productById(s: StockState, id: string): Product | null {
   return s.products.find((p) => p.id === id) || null;
 }
 
-/** УВАГА: це не isSized із catalog.ts. Там розмірною сіткою
- *  вважається заповнене поле sizes, тут — лише відсутність
- *  обʼєму. Різниця навмисна: на вітрині товар без розмірів
- *  показувати нічим, а на складі його все одно треба порахувати
- *  поштучно, і сітку йому могли просто ще не проставити. */
-export function isSized(p: Product): boolean {
-  return !p.volume;
+/** Чи рахується товар за розмірами.
+ *
+ *  Розмірна сітка — це те, що стоїть у картці. Немає жодного
+ *  розміру — товар штучний: свічка, аромат, доставка окремою
+ *  позицією. Доти тут ішлося лише про обʼєм, і склад малював
+ *  такому товарові всі пʼять розмірів із нулями — рядок, у якому
+ *  все неправда.
+ *
+ *  Запобіжник для старих записів: якщо в залишках уже лежать
+ *  числа за розмірами, сітку вважаємо наявною попри порожню
+ *  картку. Інакше проставлені колись кількості зникли б з очей,
+ *  а зникати вони не мають права. */
+export function isSized(p: Product, s?: StockState): boolean {
+  if (p.volume) return false;
+  if (p.sizes && p.sizes.length) return true;
+  if (!s) return false;
+  const sizes = invOf(s, p.id).sizes || {};
+  return Object.keys(sizes).some((k) => Number(sizes[k]));
 }
 
 /** Складники комплекту, які реально є в каталозі. Схований
@@ -136,7 +147,7 @@ export function unitQty(s: StockState, pid: string): number {
 }
 
 export function totalQty(s: StockState, p: Product): number {
-  if (!isSized(p)) return unitQty(s, p.id);
+  if (!isSized(p, s)) return unitQty(s, p.id);
   const sizes = invOf(s, p.id).sizes || {};
   return Object.keys(sizes).reduce((sum, k) => sum + (Number(sizes[k]) || 0), 0);
 }
@@ -158,7 +169,7 @@ export function setSizeQty(s: StockState, p: Product, size: string): number | nu
   if (parts.some((x) => !hasInvDoc(s, x.id))) return null;
   return (
     parts.reduce((min, x) => {
-      const have = isSized(x) ? sizeQty(s, x.id, size) : unitQty(s, x.id);
+      const have = isSized(x, s) ? sizeQty(s, x.id, size) : unitQty(s, x.id);
       return Math.min(min, have);
     }, Infinity) || 0
   );
@@ -616,7 +627,7 @@ export function productRowState(s: StockState, p: Product): RowState {
   const total = totalQty(s, p);
   if (!hasInvDoc(s, p.id)) return { cls: '', label: 'не ведеться' };
   if (total <= 0) return { cls: 'is-out', label: 'немає' };
-  if (isSized(p)) {
+  if (isSized(p, s)) {
     const sizes = invOf(s, p.id).sizes || {};
     const lows = Object.keys(sizes).filter(
       (k) => Number(sizes[k]) > 0 && Number(sizes[k]) <= LOW_STOCK_AT
@@ -663,7 +674,7 @@ export interface StockRow {
  *  базу вже задано, далі склад змінюють лише прихід і замовлення,
  *  і в журналі лишається повна історія, а не тихі виправлення. */
 export function stockRow(s: StockState, p: Product): StockRow {
-  const sized = isSized(p);
+  const sized = isSized(p, s);
   return {
     state: productRowState(s, p),
     total: totalQty(s, p),
@@ -705,7 +716,7 @@ export interface SetStockRow {
 export function setStockRow(s: StockState, p: Product): SetStockRow {
   const parts = setPartsOf(s, p);
   const tracked = parts.length > 0 && parts.every((x) => hasInvDoc(s, x.id));
-  const sized = parts.some(isSized);
+  const sized = parts.some((x) => isSized(x, s));
 
   const total = tracked
     ? parts.reduce((min, x) => Math.min(min, totalQty(s, x)), Infinity)
@@ -847,7 +858,7 @@ export function planRestock(s: StockState, input: RestockInput, now: Date): Rest
     status: 'pending'
   };
 
-  if (isSized(p)) {
+  if (isSized(p, s)) {
     const items = positives(input.sizes);
     if (!Object.keys(items).length) {
       return { ok: false, message: 'Вкажіть кількість хоча б для одного розміру' };
@@ -1241,7 +1252,7 @@ export function planWriteoff(s: StockState, input: WriteoffInput): WriteoffPlan 
   const note = input.note.trim();
   const ref = title + (note ? ' · ' + note : '');
 
-  const sized = isSized(p);
+  const sized = isSized(p, s);
   const sizes = sized ? positives(input.sizes) : {};
   const qty = sized ? 0 : count(input.qty);
   const total = sized

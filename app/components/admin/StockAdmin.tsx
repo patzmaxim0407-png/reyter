@@ -155,7 +155,7 @@ export default function StockAdmin() {
 
   const sizesOf = useCallback(
     (p: Product): SizeCell[] =>
-      isSized(p)
+      isSized(p, s)
         ? stockSizes(s, p).map((it) => ({
             size: it.size,
             have: hasInvDoc(s, p.id) ? sizeQty(s, p.id, it.size) : null

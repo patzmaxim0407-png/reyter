@@ -33,6 +33,7 @@ import {
   restockTotal,
   setStockRow,
   sizeQty,
+  isSized,
   stockRow,
   stockShortage,
   stockUnits,
@@ -322,6 +323,30 @@ const asked = [...client.matchAll(/type: '([a-z-]+)'/g)].map((m) => m[1]);
 ok('клієнт шле хоч якісь типи листів', asked.length > 0, asked.join(', '));
 for (const type of [...new Set(asked)]) {
   ok(`воркер знає тип «${type}»`, worker.includes(`'${type}'`), asked.join(', '));
+}
+
+/* ---------- Товар без розмірів рахується поштучно ----------
+   Свічка має обʼєм і сітки не має ніколи. Але так само її не має
+   товар, якому розмірів просто не задали — доставка окремою
+   позицією, наприклад. Доти склад малював йому всі пʼять
+   розмірів із нулями: рядок, у якому все неправда. */
+{
+  const candle = { id: 'CN-1', name: 'Свічка', price: 500, category: 'home-collection', volume: '250 мл', sizes: [], images: [] } as unknown as Product;
+  const piece = { id: 'PC-1', name: 'Доставка', price: 1, category: 'new', sizes: [], images: [] } as unknown as Product;
+  const shirt = { id: 'SH-1', name: 'Сорочка', price: 900, category: 'sorochky', sizes: ['M', 'L'], images: [] } as unknown as Product;
+  const st = { products: [candle, piece, shirt], inv: {} } as never;
+
+  ok('свічка — поштучно', !isSized(candle, st));
+  ok('товар без жодного розміру — теж поштучно', !isSized(piece, st));
+  ok('товар із сіткою лишається розмірним', isSized(shirt, st));
+
+  /* Старі записи не зникають: якщо кількості вже проставлені за
+     розмірами, сітку вважаємо наявною попри порожню картку. */
+  const old = { products: [piece], inv: { 'PC-1': { sizes: { M: 3 } } } } as never;
+  ok('проставлені колись розміри не зникають', isSized(piece, old));
+
+  const row = stockRow(st, piece);
+  ok('у рядку складу немає розмірних клітинок', row.cells.length === 0, String(row.cells.length));
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
