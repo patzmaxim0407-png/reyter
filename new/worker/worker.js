@@ -757,6 +757,24 @@ async function priceOrder(d) {
   return { lines, goods, discount: off, shipping, total: Math.max(1, goods - off + shipping) };
 }
 
+/* Виписка банку. Вікно не довше за 31 день — це межа самого
+   Monobank, і за неї він відповідає помилкою замість даних.
+   Тому питаємо місяцями й склеюємо. */
+async function monoStatement(env, days = 30) {
+  const now = Math.floor(Date.now() / 1000);
+  const window = 30 * 24 * 3600;
+  const out = [];
+  for (let back = 0; back < days * 24 * 3600; back += window) {
+    const to = now - back;
+    const from = Math.max(now - days * 24 * 3600, to - window);
+    const r = await monoCall(env, '/statement?from=' + from + '&to=' + to, { method: 'GET' });
+    if (!r.ok) return { ok: false, error: (r.data && r.data.errText) || 'Виписка недоступна', list: out };
+    out.push(...((r.data && r.data.list) || []));
+    if (from <= now - days * 24 * 3600) break;
+  }
+  return { ok: true, error: '', list: out };
+}
+
 async function monoCall(env, path, init) {
   const res = await fetch(MONO + path, {
     ...init,
@@ -974,7 +992,7 @@ export default {
     if (
       type === 'pay-create' || type === 'pay-status' || type === 'pay-refund' ||
       type === 'pay-link' || type === 'pay-receipt' || type === 'pay-receipt-send' ||
-      type === 'pay-find'
+      type === 'pay-find' || type === 'pay-doubles'
     ) {
       // Усе, крім створення рахунку й перевірки стану, — тільки з адмінки
       const adminOnly = type !== 'pay-create' && type !== 'pay-status';
@@ -1072,19 +1090,54 @@ export default {
         const want = clip(d.orderNum || d.num, 40).trim();
         if (!want) return reply({ ok: false, error: 'Немає номера замовлення' }, 400, cors);
         // 60 днів назад: далі шукати немає сенсу, повернення теж скінчились
-        const from = Math.floor(Date.now() / 1000) - 60 * 24 * 3600;
-        const r = await monoCall(env, '/statement?from=' + from, { method: 'GET' });
-        if (!r.ok) return reply({ ok: false, error: r.data.errText || 'Виписка недоступна' }, 200, cors);
-        const found = ((r.data && r.data.list) || [])
+        const r = await monoStatement(env, 60);
+        if (!r.ok) return reply({ ok: false, error: r.error }, 200, cors);
+        const found = r.list
           .filter((x) => String(x.reference || '') === want)
-          .map((x) => ({
+          .map((x) => {
+            const back = (x.cancelList || []).reduce((n, c) => n + (Number(c.amount) || 0), 0);
+            return {
+              invoiceId: x.invoiceId,
+              status: x.status,
+              amount: Math.round((Number(x.amount) || 0) / 100),
+              refunded: Math.round(back / 100),
+              at: x.date || '',
+              card: x.maskedPan || ''
+            };
+          });
+        return reply({ ok: true, found }, 200, cors);
+      }
+
+      /* Подвійні списання — одним запитом на весь магазин.
+         Питати виписку окремо на кожне замовлення означало б
+         десятки запитів на кожне оновлення списку; тут вона одна,
+         а групування за номером замовлення робимо вже в себе. */
+      if (type === 'pay-doubles') {
+        const r = await monoStatement(env, 30);
+        if (!r.ok) return reply({ ok: false, error: r.error }, 200, cors);
+        /* Повернені платежі лишаються у виписці зі станом
+           success — про повернення каже cancelList. Тому гроші
+           рахуємо як «оплачено мінус повернуто»: інакше замовлення,
+           за яке вже все віддали, вічно значилось би оплаченим
+           двічі. */
+        const byRef = {};
+        for (const x of r.list) {
+          if (x.status !== 'success') continue;
+          const ref = String(x.reference || '');
+          if (!ref) continue;
+          const back = (x.cancelList || []).reduce((n, c) => n + (Number(c.amount) || 0), 0);
+          const left = (Number(x.amount) || 0) - back;
+          if (left <= 0) continue;
+          (byRef[ref] ||= []).push({
             invoiceId: x.invoiceId,
-            status: x.status,
-            amount: Math.round((Number(x.amount) || 0) / 100),
+            amount: Math.round(left / 100),
             at: x.date || '',
             card: x.maskedPan || ''
-          }));
-        return reply({ ok: true, found }, 200, cors);
+          });
+        }
+        const doubles = {};
+        for (const [ref, list] of Object.entries(byRef)) if (list.length > 1) doubles[ref] = list;
+        return reply({ ok: true, doubles }, 200, cors);
       }
 
       /* Повернення коштів. Сума — у гривнях; без неї Monobank
@@ -1099,6 +1152,45 @@ export default {
           return reply({ ok: false, error: r.data.errText || 'Monobank відмовив у поверненні' }, 200, cors);
         }
         return reply({ ok: true, status: r.data.status || '', at: r.data.modifiedDate || '' }, 200, cors);
+      }
+
+      /* ГОЛОВНИЙ ЗАПОБІЖНИК ВІД ПОДВІЙНОГО СПИСАННЯ.
+
+         Перед тим як виставити рахунок, питаємо банк, чи за цим
+         замовленням уже не платили. Виписка знає номер замовлення
+         в полі reference, тож відповідь не залежить ні від того,
+         які номери рахунків памʼятає браузер, ні від того, скільки
+         старих посилань лишилось живими.
+
+         Доти рішення ухвалював браузер: він знав свій рахунок, а
+         посилання з листа — ні. 15.08.2026 покупець заплатив за
+         листом, повернувся в кабінет, натиснув «оплатити ще раз» —
+         і заплатив удруге. Такі помилки коштують не збоїв, а
+         грошей і довіри, тож перевірка тепер там, де її не
+         обійти. */
+      {
+        const want = clip(d.orderNum || d.num, 40).trim();
+        if (want) {
+          const seen = await monoStatement(env, 30);
+          const paid = seen.list.find((x) => {
+            if (String(x.reference || '') !== want || x.status !== 'success') return false;
+            const back = (x.cancelList || []).reduce((n, c) => n + (Number(c.amount) || 0), 0);
+            // повернене грошима магазину вже не є — за таке замовлення можна платити знову
+            return (Number(x.amount) || 0) - back > 0;
+          });
+          if (paid) {
+            return reply({
+              ok: false,
+              paidAlready: true,
+              status: 'success',
+              invoiceId: paid.invoiceId,
+              amount: Math.round((Number(paid.amount) || 0) / 100),
+              error: 'Замовлення №' + want + ' уже оплачене (' +
+                Math.round((Number(paid.amount) || 0) / 100) + ' грн, рахунок ' + paid.invoiceId +
+                '). Новий рахунок не виставлено.'
+            }, 200, cors);
+          }
+        }
       }
 
       /* Новий рахунок скасовує старий. Без цього в замовлення

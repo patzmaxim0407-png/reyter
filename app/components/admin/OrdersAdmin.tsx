@@ -472,6 +472,61 @@ export default function OrdersAdmin() {
     [settings.workerUrl, toast, workerKey]
   );
 
+  /* Подвійне списання. Виписка приходить одним запитом на весь
+     магазин — питати її окремо на кожне замовлення означало б
+     десятки звернень у банк на кожне оновлення списку.
+
+     Повернені платежі до уваги не беруться: гроші вже віддані. */
+  const [twice, setTwice] = useState<Record<string, { invoiceId: string; amount: number; at: string }[]>>(
+    {}
+  );
+
+  useEffect(() => {
+    const url = String(settings.workerUrl || '');
+    if (!url || !workerKey) return;
+    let alive = true;
+    const look = async () => {
+      if (document.hidden) return;
+      const { payDoubles } = await import('@/lib/pay');
+      const r = await payDoubles(url, workerKey);
+      if (alive && r.ok) setTwice(r.doubles);
+    };
+    void look();
+    const t = setInterval(() => void look(), 10 * 60 * 1000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [settings.workerUrl, workerKey]);
+
+  const doubleOf = useCallback(
+    (o: AdminOrder) => (o.num ? twice[o.num] || [] : []),
+    [twice]
+  );
+
+  /* Повернути зайвий платіж. Повертаємо останній і повністю:
+     перший лишається оплатою замовлення. */
+  const refundDouble = useCallback(
+    async (o: AdminOrder) => {
+      const all = doubleOf(o);
+      if (all.length < 2) return;
+      const extra = all[all.length - 1];
+      const yes = await askDialog({
+        title: 'Повернути зайвий платіж?',
+        text:
+          'За замовленням №' + (o.num || '') + ' пройшло ' + all.length + ' оплати. ' +
+          'Повернемо останню: ' + fmt(extra.amount) + ' грн, рахунок ' + extra.invoiceId + '.',
+        okText: 'Повернути'
+      });
+      if (yes !== true) return;
+      const { payRefund } = await import('@/lib/pay');
+      const r = await payRefund(String(settings.workerUrl || ''), workerKey, extra.invoiceId, 0);
+      if (r.ok) setTwice((was) => ({ ...was, [o.num || '']: [] }));
+      toast(r.ok ? 'Зайвий платіж повертається' : 'Не вдалося: ' + r.error, r.ok ? 'success' : 'plain');
+    },
+    [askDialog, doubleOf, settings.workerUrl, toast, workerKey]
+  );
+
   /* Чек покупцеві листом. Той самий документ, що менеджер бачить
      у себе, — але без пересилання файла з власної пошти. */
   const mailReceipt = useCallback(
@@ -1011,6 +1066,8 @@ export default function OrdersAdmin() {
               onPayBack={(o, paid) => void refund(o as never, paid)}
               onReceipt={(o) => void showReceipt(o as never)}
               onSendReceipt={(o) => void mailReceipt(o as never)}
+              payTwice={(o) => doubleOf(o as never).length}
+              onRefundDouble={(o) => void refundDouble(o as never)}
               onFindPay={(o) => void findPayment(o as never)}
               onStatus={(o, next) => void onStatus(o as never, next)}
               onEdit={(o) => void editOrder(o as never)}
@@ -1130,6 +1187,8 @@ export default function OrdersAdmin() {
                       onPayBack={() => void refund(o, payOf(o)?.amount ?? o.total ?? 0)}
                       onReceipt={() => void showReceipt(o)}
                       onSendReceipt={() => void mailReceipt(o)}
+                      payTwice={doubleOf(o).length}
+                      onRefundDouble={() => void refundDouble(o)}
                       onFindPay={() => void findPayment(o)}
                       onSendTtn={() => void sendTtnLetter(o, String(o.ttn || '').trim())}
                       onMakeTtn={() => setTtnFor(o)}

@@ -108,6 +108,14 @@ export default function PayAgain({
       window.location.assign(bill.pageUrl);
       return;
     }
+
+    /* Банк відмовив, бо замовлення вже оплачене. Це не помилка —
+       це саме те, заради чого перевірка й стоїть. Прибираємо
+       кнопку, щоб людина не тиснула її вдруге. */
+    if (bill.paidAlready) {
+      setState('paid');
+      return;
+    }
     setState('pay');
   };
 

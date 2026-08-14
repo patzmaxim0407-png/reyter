@@ -46,6 +46,9 @@ export interface PayInvoice {
   pageUrl: string;
   amount: number;
   error: string;
+  /** Банк каже: за це замовлення вже платили. Рахунку не буде —
+   *  і це не помилка, а захист від подвійного списання. */
+  paidAlready?: boolean;
 }
 
 /** Позиція для рахунку. Ціни тут немає навмисно: її бере воркер
@@ -101,7 +104,8 @@ export async function payCreate(
     invoiceId: String(r.invoiceId || ''),
     pageUrl: String(r.pageUrl || ''),
     amount: Number(r.amount) || 0,
-    error: String(r.error || '')
+    error: String(r.error || ''),
+    paidAlready: r.paidAlready === true
   };
 }
 
@@ -237,6 +241,28 @@ export async function payFind(
       at: string;
       card: string;
     }[],
+    error: String(r.error || '')
+  };
+}
+
+/** Замовлення, за які заплатили двічі. Один запит на весь
+ *  магазин: виписка приходить цілком, а групування за номером
+ *  робиться вже в банку-помічнику. */
+export async function payDoubles(
+  workerUrl: string,
+  key: string
+): Promise<{
+  ok: boolean;
+  doubles: Record<string, { invoiceId: string; amount: number; at: string; card: string }[]>;
+  error: string;
+}> {
+  const r = await ask(workerUrl, { type: 'pay-doubles', key });
+  return {
+    ok: r.ok === true,
+    doubles: (r.doubles ?? {}) as Record<
+      string,
+      { invoiceId: string; amount: number; at: string; card: string }[]
+    >,
     error: String(r.error || '')
   };
 }

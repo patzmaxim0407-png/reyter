@@ -66,6 +66,8 @@ export default function OrderCard({
   onPayBack,
   onReceipt,
   onSendReceipt,
+  payTwice,
+  onRefundDouble,
   onFindPay,
   embedded,
   onSendTtn,
@@ -101,6 +103,9 @@ export default function OrderCard({
   onReceipt?(): void;
   /** Надіслати той самий чек покупцеві листом. */
   onSendReceipt?(): void;
+  /** Скільки разів за це замовлення заплатили. Два — біда. */
+  payTwice?: number;
+  onRefundDouble?(): void;
   /** Пошукати оплату в банку за номером замовлення. */
   onFindPay?(): void;
   /** Картка стоїть під рядком черги, який уже сказав номер,
@@ -365,6 +370,20 @@ export default function OrderCard({
               {pay && pay.amount ? <i>{fmt(pay.amount)} грн</i> : null}
             </span>
             {pay && pay.why ? <span className="ao-pay__why">{pay.why}</span> : null}
+            {/* Найгірше, що може статися з оплатою: з людини взяли
+                двічі. Тому це не значок збоку, а окремий рядок із
+                дією — і стоїть він перед усім іншим. */}
+            {payTwice && payTwice > 1 ? (
+              <span className="ao-pay__twice">
+                <b>Оплачено {payTwice} рази — з покупця взяли зайве</b>
+                {onRefundDouble ? (
+                  <button className="btn btn--primary btn--sm" type="button" onClick={onRefundDouble}>
+                    Повернути зайве
+                  </button>
+                ) : null}
+              </span>
+            ) : null}
+
             <span className="ao-pay__acts">
               {onPayLink && !(pay && isPaid(pay.state)) ? (
                 <button className="btn btn--ghost btn--sm" type="button" onClick={onPayLink}>

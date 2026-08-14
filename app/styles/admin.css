@@ -5946,3 +5946,20 @@ label.a-promo-product i {
 }
 
 .ao-pay__acts:empty { display: none; }
+
+/* Двічі списані гроші — не значок, а окремий рядок із дією.
+   Це найгірше, що може статися з оплатою, і виглядати воно має
+   відповідно: помітно й із готовою кнопкою. */
+.ao-pay__twice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: #fdecea;
+  border: 1px solid #f3b8b2;
+  color: #b3261e;
+  font-size: 13px;
+}

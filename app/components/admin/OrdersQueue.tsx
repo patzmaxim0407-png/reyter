@@ -46,6 +46,8 @@ export default function OrdersQueue({
   onPayBack,
   onReceipt,
   onSendReceipt,
+  payTwice,
+  onRefundDouble,
   onFindPay,
   onStatus,
   onEdit,
@@ -66,6 +68,10 @@ export default function OrdersQueue({
   onPayBack?(o: AdminOrder, paid: number): void;
   onReceipt?(o: AdminOrder): void;
   onSendReceipt?(o: AdminOrder): void;
+  /** Скільки успішних оплат за цим замовленням. Більше однієї —
+   *  з покупця взяли двічі, і це треба виправити першим. */
+  payTwice?(o: AdminOrder): number;
+  onRefundDouble?(o: AdminOrder): void;
   onFindPay?(o: AdminOrder): void;
   onStatus(o: AdminOrder, next: string): void | Promise<void>;
   onEdit?(o: AdminOrder): void;
@@ -180,6 +186,8 @@ export default function OrdersQueue({
                     }
                     onReceipt={onReceipt ? () => onReceipt(order) : undefined}
                     onSendReceipt={onSendReceipt ? () => onSendReceipt(order) : undefined}
+                    payTwice={payTwice ? payTwice(order) : 0}
+                    onRefundDouble={onRefundDouble ? () => onRefundDouble(order) : undefined}
                     onFindPay={onFindPay ? () => onFindPay(order) : undefined}
                     onStatus={(next) => onStatus(order, next)}
                     onEdit={onEdit ? () => onEdit(order) : undefined}
