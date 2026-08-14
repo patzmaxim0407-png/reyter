@@ -45,6 +45,7 @@ export default function OrdersQueue({
   onPayLink,
   onPayBack,
   onReceipt,
+  onSendReceipt,
   onFindPay,
   onStatus,
   onEdit,
@@ -64,6 +65,7 @@ export default function OrdersQueue({
   onPayLink?(o: AdminOrder): void;
   onPayBack?(o: AdminOrder, paid: number): void;
   onReceipt?(o: AdminOrder): void;
+  onSendReceipt?(o: AdminOrder): void;
   onFindPay?(o: AdminOrder): void;
   onStatus(o: AdminOrder, next: string): void | Promise<void>;
   onEdit?(o: AdminOrder): void;
@@ -177,6 +179,7 @@ export default function OrdersQueue({
                         : undefined
                     }
                     onReceipt={onReceipt ? () => onReceipt(order) : undefined}
+                    onSendReceipt={onSendReceipt ? () => onSendReceipt(order) : undefined}
                     onFindPay={onFindPay ? () => onFindPay(order) : undefined}
                     onStatus={(next) => onStatus(order, next)}
                     onEdit={onEdit ? () => onEdit(order) : undefined}

@@ -65,6 +65,7 @@ export default function OrderCard({
   onPayLink,
   onPayBack,
   onReceipt,
+  onSendReceipt,
   onFindPay,
   embedded,
   onSendTtn,
@@ -98,6 +99,8 @@ export default function OrderCard({
   onPayBack?(): void;
   /** Показати чек за оплатою. */
   onReceipt?(): void;
+  /** Надіслати той самий чек покупцеві листом. */
+  onSendReceipt?(): void;
   /** Пошукати оплату в банку за номером замовлення. */
   onFindPay?(): void;
   /** Картка стоїть під рядком черги, який уже сказав номер,
@@ -371,6 +374,11 @@ export default function OrderCard({
               {onReceipt && pay && isPaid(pay.state) ? (
                 <button className="btn btn--ghost btn--sm" type="button" onClick={onReceipt}>
                   Чек
+                </button>
+              ) : null}
+              {onSendReceipt && pay && isPaid(pay.state) ? (
+                <button className="btn btn--ghost btn--sm" type="button" onClick={onSendReceipt}>
+                  Надіслати чек
                 </button>
               ) : null}
               {/* Гроші могли пройти повз нас: покупець платив за

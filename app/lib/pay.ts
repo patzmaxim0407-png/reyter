@@ -81,10 +81,14 @@ export async function payCreate(
     shipping?: number;
     email?: string;
     lang?: Lang;
+    /** Рахунки, які треба погасити: живими має лишатись рівно
+     *  одне посилання на оплату. */
+    previous?: string[];
   }
 ): Promise<PayInvoice> {
   const r = await ask(workerUrl, {
     type: 'pay-create',
+    previousInvoiceIds: input.previous || [],
     orderNum: input.orderNum,
     items: input.items,
     promo: input.promo || '',
@@ -191,6 +195,24 @@ export async function payReceipt(
     receipt: String(r.receipt || ''),
     error: String(r.error || '')
   };
+}
+
+/** Надіслати чек покупцеві листом. Тільки з адмінки. */
+export async function payReceiptSend(
+  workerUrl: string,
+  key: string,
+  input: { invoiceId: string; email: string; orderNum: string; name?: string; lang?: Lang }
+): Promise<{ ok: boolean; error: string }> {
+  const r = await ask(workerUrl, {
+    type: 'pay-receipt-send',
+    key,
+    invoiceId: input.invoiceId,
+    to: input.email,
+    orderNum: input.orderNum,
+    name: input.name || '',
+    lang: input.lang || 'uk'
+  });
+  return { ok: r.ok === true, error: String(r.error || '') };
 }
 
 /** Знайти оплату за номером замовлення. Рятунок на випадок, коли

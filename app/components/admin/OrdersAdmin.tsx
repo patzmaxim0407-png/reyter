@@ -472,6 +472,27 @@ export default function OrdersAdmin() {
     [settings.workerUrl, toast, workerKey]
   );
 
+  /* Чек покупцеві листом. Той самий документ, що менеджер бачить
+     у себе, — але без пересилання файла з власної пошти. */
+  const mailReceipt = useCallback(
+    async (o: AdminOrder) => {
+      const invoice = paidInvoice.current(o);
+      const to = String((o.customer as Record<string, unknown>)?.email || o.email || '');
+      if (!invoice) return toast('За цим замовленням оплати немає');
+      if (!to) return toast('У замовленні немає пошти — нема куди надсилати');
+      const { payReceiptSend } = await import('@/lib/pay');
+      const r = await payReceiptSend(String(settings.workerUrl || ''), workerKey, {
+        invoiceId: invoice,
+        email: to,
+        orderNum: o.num || '',
+        name: String((o.customer as Record<string, unknown>)?.name || ''),
+        lang: (o.lang === 'en' ? 'en' : 'uk') as 'uk' | 'en'
+      });
+      toast(r.ok ? 'Чек надіслано на ' + to : 'Не вдалося: ' + r.error, r.ok ? 'success' : 'plain');
+    },
+    [settings.workerUrl, toast, workerKey]
+  );
+
   /* Пошук загубленої оплати. Буває, що покупець платив за старим
      посиланням, а в замовленні лежить уже інший рахунок — тоді
      гроші є, а адмінка про них не знає. Банк памʼятає всі платежі
@@ -989,6 +1010,7 @@ export default function OrdersAdmin() {
               onPayLink={(o) => void sendPayLink(o as never)}
               onPayBack={(o, paid) => void refund(o as never, paid)}
               onReceipt={(o) => void showReceipt(o as never)}
+              onSendReceipt={(o) => void mailReceipt(o as never)}
               onFindPay={(o) => void findPayment(o as never)}
               onStatus={(o, next) => void onStatus(o as never, next)}
               onEdit={(o) => void editOrder(o as never)}
@@ -1107,6 +1129,7 @@ export default function OrdersAdmin() {
                       onPayLink={() => void sendPayLink(o)}
                       onPayBack={() => void refund(o, payOf(o)?.amount ?? o.total ?? 0)}
                       onReceipt={() => void showReceipt(o)}
+                      onSendReceipt={() => void mailReceipt(o)}
                       onFindPay={() => void findPayment(o)}
                       onSendTtn={() => void sendTtnLetter(o, String(o.ttn || '').trim())}
                       onMakeTtn={() => setTtnFor(o)}

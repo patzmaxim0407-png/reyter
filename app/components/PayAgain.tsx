@@ -30,6 +30,7 @@ export default function PayAgain({
   promo,
   shipping,
   email,
+  invoiceId,
   lang,
   small
 }: {
@@ -39,6 +40,10 @@ export default function PayAgain({
   promo?: string;
   shipping?: number;
   email?: string;
+  /** Рахунок, який магазин вважає чинним (з бази). Може
+   *  відрізнятися від того, що памʼятає браузер: менеджер міг
+   *  виставити новий і надіслати листом. */
+  invoiceId?: string;
   lang: Lang;
   /** У списку замовлень кнопка менша й без пояснень. */
   small?: boolean;
@@ -48,15 +53,25 @@ export default function PayAgain({
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const invoice = invoiceOf(num);
-      if (!invoice) {
+      /* Дивимось обидва: той, що памʼятає браузер, і той, що
+         магазин вважає чинним. Оплачений хоч один — платити
+         більше нема за що. */
+      const list = [...new Set([invoiceId || '', invoiceOf(num)].filter(Boolean))];
+      if (!list.length) {
         if (alive) setState('pay');
         return;
       }
       const settings = (await loadNotifySettings()) as { workerUrl?: string } | null;
-      const r = await payStatus(String(settings?.workerUrl || ''), invoice);
-      if (!alive) return;
-      setState(r.ok && isPaid(r.state) ? 'paid' : 'pay');
+      const url = String(settings?.workerUrl || '');
+      for (const one of list) {
+        const r = await payStatus(url, one);
+        if (!alive) return;
+        if (r.ok && isPaid(r.state)) {
+          setState('paid');
+          return;
+        }
+      }
+      setState('pay');
     })();
     return () => {
       alive = false;
@@ -70,18 +85,24 @@ export default function PayAgain({
     const settings = (await loadNotifySettings()) as { workerUrl?: string } | null;
     const where = String(settings?.workerUrl || '');
 
-    /* Спершу пробуємо той самий рахунок: якщо він ще чекає на
-       оплату, нового не треба — і другого живого посилання теж. */
-    const invoice = invoiceOf(num);
-    if (invoice) {
-      const was = await payStatus(where, invoice);
+    /* Спершу пробуємо чинний рахунок: якщо він ще чекає на
+       оплату, нового не треба — і другого живого посилання теж.
+       Порядок важливий: спершу той, що магазин надіслав листом. */
+    const list = [...new Set([invoiceId || '', invoiceOf(num)].filter(Boolean))];
+    for (const one of list) {
+      const was = await payStatus(where, one);
       if (was.ok && (was.state === 'created' || was.state === 'processing')) {
-        window.location.assign('https://pay.monobank.ua/' + invoice);
+        window.location.assign('https://pay.monobank.ua/' + one);
         return;
       }
     }
 
-    const bill = await payCreate(where, { orderNum: num, items, promo, shipping, email, lang });
+    /* Виставляємо новий — і разом із ним гасимо всі, які знаємо:
+       посилання з листа інакше лишилося б робочим, і за замовлення
+       можна було б заплатити двічі. */
+    const bill = await payCreate(where, {
+      orderNum: num, items, promo, shipping, email, lang, previous: list
+    });
     if (bill.ok && bill.pageUrl) {
       rememberInvoice(num, bill.invoiceId);
       window.location.assign(bill.pageUrl);

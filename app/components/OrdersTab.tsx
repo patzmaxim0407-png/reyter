@@ -34,6 +34,8 @@ import type { OrderItem } from '@/lib/types';
 export interface Row extends OrderView {
   items?: OrderItem[];
   message?: string;
+  /** Чинний рахунок Monobank, як його бачить магазин. */
+  payInvoiceId?: string;
 }
 
 export type OrdersMode = 'cloud' | 'local' | 'down';
@@ -46,7 +48,11 @@ export function toRow(o: Record<string, unknown>): Row {
     total: Number(o.total) || 0,
     ttn: typeof o.ttn === 'string' ? o.ttn : '',
     items: Array.isArray(o.items) ? (o.items as OrderItem[]) : [],
-    message: typeof o.message === 'string' ? o.message : ''
+    message: typeof o.message === 'string' ? o.message : '',
+    /* Рахунок, який магазин вважає чинним. Саме його гасить нова
+       спроба оплати — інакше посилання з листа лишалося б живим
+       поруч із новим, і заплатити можна було б двічі. */
+    payInvoiceId: typeof o.payInvoiceId === 'string' ? o.payInvoiceId : ''
   };
 }
 
@@ -169,6 +175,7 @@ export default function OrdersTab({
                 <PayAgain
                   num={o.num}
                   items={o.items.map((i) => ({ id: i.id, size: i.size ?? '', qty: Number(i.qty) || 1 }))}
+                  invoiceId={o.payInvoiceId}
                   lang={lang}
                   small
                 />

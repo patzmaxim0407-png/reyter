@@ -521,7 +521,7 @@ async function tgDetect(env) {
 
 /* ---------- Resend ---------- */
 
-async function sendMail(env, to, subject, html, bcc) {
+async function sendMail(env, to, subject, html, bcc, files) {
   if (!env.RESEND_KEY) {
     return {
       ok: false,
@@ -536,6 +536,10 @@ async function sendMail(env, to, subject, html, bcc) {
     html: html
   };
   if (bcc) payload.bcc = [bcc];
+  /* Вкладення — так Resend приймає готовий PDF: імʼя файла й
+     його вміст у base64, рівно в такому вигляді, як його віддав
+     банк. */
+  if (Array.isArray(files) && files.length) payload.attachments = files;
 
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -606,6 +610,32 @@ function payHTML(d) {
           <a href="${esc(d.url)}" style="display:inline-block;padding:14px 34px;color:#fff;font-size:16px;font-weight:bold;text-decoration:none">${T.pay}</a>
         </td></tr></table>
         <p style="margin:18px 0 0;color:#8a8f99;font-size:12px">${T.note}</p>
+      </td></tr>
+      <tr><td style="background:${INK};padding:16px;text-align:center;color:#fff;font-size:12px">reyter.men</td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
+}
+
+/* Лист із чеком. Сам чек — вкладенням; у тілі листа лише те,
+   заради чого його відкривають: за що і на скільки. */
+function receiptHTML(d) {
+  const en = d.lang === 'en';
+  const T = en
+    ? { hi: 'Hello', text: 'Your receipt for the order is attached.', tax: 'Check it at the tax service', num: 'Order' }
+    : { hi: 'Вітаємо', text: 'Чек за вашим замовленням — у вкладенні.', tax: 'Перевірити в податковій', num: 'Замовлення' };
+
+  return `<!doctype html><html><body style="margin:0;background:#FCF8F0;font-family:Arial,Helvetica,sans-serif;color:#171B26">
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px">
+    <table width="100%" style="max-width:520px;background:#fff;border-radius:14px;overflow:hidden">
+      <tr><td style="background:${BLUE};padding:22px;text-align:center">
+        <img src="${LOGO}" alt="REYTER" width="150" style="display:block;margin:0 auto">
+      </td></tr>
+      <tr><td style="padding:24px">
+        <p style="margin:0 0 10px;font-size:16px">${T.hi}${d.name ? ', <b>' + esc(clip(d.name, 60)) + '</b>' : ''}!</p>
+        <p style="margin:0 0 14px;color:#5b6270">${T.text}</p>
+        <p style="margin:0 0 16px;color:#5b6270;font-size:13px">${T.num} № ${esc(clip(d.num, 40))}</p>
+        ${d.taxUrl ? '<p style="margin:0"><a href="' + esc(d.taxUrl) + '" style="color:' + BLUE + '">' + T.tax + ' →</a></p>' : ''}
       </td></tr>
       <tr><td style="background:${INK};padding:16px;text-align:center;color:#fff;font-size:12px">reyter.men</td></tr>
     </table>
@@ -943,7 +973,8 @@ export default {
 
     if (
       type === 'pay-create' || type === 'pay-status' || type === 'pay-refund' ||
-      type === 'pay-link' || type === 'pay-receipt' || type === 'pay-find'
+      type === 'pay-link' || type === 'pay-receipt' || type === 'pay-receipt-send' ||
+      type === 'pay-find'
     ) {
       // Усе, крім створення рахунку й перевірки стану, — тільки з адмінки
       const adminOnly = type !== 'pay-create' && type !== 'pay-status';
@@ -1000,6 +1031,37 @@ export default {
         }, 200, cors);
       }
 
+      /* Чек листом покупцеві. Той самий документ, що менеджер
+         бачить у себе, — але вкладенням у лист, щоб не пересилати
+         файл руками з власної пошти. */
+      if (type === 'pay-receipt-send') {
+        const inv = clip(d.invoiceId, 60);
+        const to = String(d.to || '').trim();
+        if (!inv) return reply({ ok: false, error: 'Немає номера рахунку' }, 400, cors);
+        if (!EMAIL_RE.test(to)) return reply({ ok: false, error: 'Некоректний email отримувача' }, 400, cors);
+
+        const [fiscal, receipt] = await Promise.all([
+          monoCall(env, '/invoice/fiscal-checks?invoiceId=' + encodeURIComponent(inv), { method: 'GET' }),
+          monoCall(env, '/invoice/receipt?invoiceId=' + encodeURIComponent(inv), { method: 'GET' })
+        ]);
+        const check = (((fiscal.data && fiscal.data.checks) || []).filter((c) => c && c.status === 'done'))[0];
+        const files = [];
+        if (check && check.file) files.push({ filename: 'fiskalnyi-chek.pdf', content: check.file });
+        if (receipt.data && receipt.data.file) files.push({ filename: 'kvytantsiia.pdf', content: receipt.data.file });
+        if (!files.length) {
+          return reply({ ok: false, error: 'Чека ще немає — банк формує його за кілька хвилин після оплати' }, 200, cors);
+        }
+
+        const res = await sendMail(
+          env, to,
+          (d.lang === 'en' ? 'Receipt for order No. ' : 'Чек за замовленням №') + clip(d.orderNum || d.num, 40) + ' — REYTER',
+          receiptHTML({ lang: d.lang, name: d.name, num: d.orderNum || d.num, taxUrl: (check && check.taxUrl) || '' }),
+          env.MAIL_BCC,
+          files
+        );
+        return reply(res, res.ok ? 200 : 502, cors);
+      }
+
       /* Пошук оплати за номером замовлення.
          Рахунок міг загубитись: покупець платив за одним
          посиланням, а в замовленні лежало інше. Банк памʼятає всі
@@ -1048,8 +1110,12 @@ export default {
 
          Спершу питаємо стан: якщо старий рахунок уже оплачено,
          нового не буде — інакше з людини візьмуть двічі. */
-      const previous = clip(d.previousInvoiceId, 60);
-      if (previous) {
+      const older = [
+        clip(d.previousInvoiceId, 60),
+        ...(Array.isArray(d.previousInvoiceIds) ? d.previousInvoiceIds.slice(0, 10).map((x) => clip(x, 60)) : [])
+      ].filter(Boolean);
+
+      for (const previous of [...new Set(older)]) {
         const was = await monoCall(env, '/invoice/status?invoiceId=' + encodeURIComponent(previous), { method: 'GET' });
         const state = (was.data && was.data.status) || '';
         if (state === 'success' || state === 'hold' || state === 'processing') {

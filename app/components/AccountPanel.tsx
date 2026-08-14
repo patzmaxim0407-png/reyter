@@ -106,19 +106,38 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
     }
 
     let alive = true;
-    setRows(null);
-    void fb.loadMyOrders(user.uid, user.email ?? '').then((cloud) => {
-      if (!alive) return;
-      if (cloud === null) {
-        setRows(localOrders());
-        setMode('down');
-        return;
-      }
-      setRows(cloud.map(toRow));
-      setMode('cloud');
-    });
+    const load = (first: boolean) => {
+      if (first) setRows(null);
+      void fb.loadMyOrders(user.uid, user.email ?? '').then((cloud) => {
+        if (!alive) return;
+        if (cloud === null) {
+          if (first) {
+            setRows(localOrders());
+            setMode('down');
+          }
+          return;
+        }
+        setRows(cloud.map(toRow));
+        setMode('cloud');
+      });
+    };
+
+    load(true);
+
+    /* Перечитуємо, коли покупець повертається на вкладку. Він
+       щойно платив у банку в сусідньому вікні — і, повернувшись,
+       має побачити рух: кнопка оплати зникла, замовлення
+       підтверджене. Доти для цього доводилось перезавантажувати
+       сторінку руками. */
+    const again = () => {
+      if (!document.hidden) load(false);
+    };
+    document.addEventListener('visibilitychange', again);
+    window.addEventListener('focus', again);
     return () => {
       alive = false;
+      document.removeEventListener('visibilitychange', again);
+      window.removeEventListener('focus', again);
     };
   }, [user, online]);
 
