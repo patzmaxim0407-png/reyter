@@ -283,37 +283,69 @@ export default function OrdersAdmin() {
      немає. Питаємо лише про ті замовлення, де рахунок узагалі
      виставлявся, і лише поки вкладка на очах. */
   const [pays, setPays] = useState<Map<string, PayStatus>>(new Map());
+
+  /* Рахунків у замовлення може бути кілька: перший — той, що
+     покупець отримав на сайті, наступні виставляв менеджер. Новий
+     гасить попередній, але вже оплачений лишається оплаченим, і
+     менеджер має його бачити, а не порожнє місце. */
+  const invoicesOf = useCallback((o: AdminOrder) => {
+    const all = [String(o.payInvoiceId || ''), ...(o.payAll ?? []).map(String)];
+    return [...new Set(all.filter(Boolean))];
+  }, []);
+
   const payKey = orders
-    .map((o) => String(o.payInvoiceId || ''))
-    .filter(Boolean)
-    .slice(0, 100)
+    .flatMap((o) => invoicesOf(o))
+    .slice(0, 120)
     .join('|');
 
-  useEffect(() => {
-    const list = payKey.split('|').filter(Boolean);
-    if (!list.length) return;
-
-    let alive = true;
-    const ask = async () => {
-      if (document.hidden) return;
+  const askPays = useCallback(
+    async (only?: string[]) => {
       const url = String(settings.workerUrl || '');
       if (!url) return;
+      const list = only && only.length ? only : payKey.split('|').filter(Boolean);
       /* По черзі, а не залпом: сотня одночасних запитів у банк —
          це найкоротший шлях до того, щоб він перестав відповідати
          саме тоді, коли треба. */
       for (const invoice of list) {
-        if (!alive) return;
         const r = await payStatus(url, invoice);
-        if (!alive) return;
         if (r.ok) setPays((was) => new Map(was).set(invoice, r));
       }
+    },
+    [payKey, settings.workerUrl]
+  );
+  const askRef = useRef(askPays);
+  askRef.current = askPays;
+
+  useEffect(() => {
+    if (!payKey) return;
+
+    let alive = true;
+    /* Рахунки, за якими грошей ще немає, перепитуємо часто: саме
+       їх менеджер і тримає на очах, чекаючи на оплату. Оплачені й
+       повернуті не міняються — їх досить питати зрідка.
+
+       Доти стояло п'ять хвилин на всіх, і виглядало це так, наче
+       статус не оновлюється взагалі. */
+    const tick = async (all: boolean) => {
+      if (!alive || document.hidden) return;
+      const list = payKey.split('|').filter(Boolean);
+      const waiting = list.filter((id) => {
+        const state = pays.get(id)?.state;
+        return !state || state === 'created' || state === 'processing';
+      });
+      await askRef.current(all ? list : waiting);
     };
-    void ask();
-    const t = setInterval(() => void ask(), 5 * 60 * 1000);
-    document.addEventListener('visibilitychange', () => void ask());
+
+    void tick(true);
+    const fast = setInterval(() => void tick(false), 20 * 1000);
+    const slow = setInterval(() => void tick(true), 5 * 60 * 1000);
+    const wake = () => void tick(true);
+    document.addEventListener('visibilitychange', wake);
     return () => {
       alive = false;
-      clearInterval(t);
+      clearInterval(fast);
+      clearInterval(slow);
+      document.removeEventListener('visibilitychange', wake);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payKey, settings.workerUrl]);
@@ -341,12 +373,22 @@ export default function OrdersAdmin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pays, orders]);
 
+  /* Показуємо найважливіший зі станів: якщо хоч за одним
+     рахунком гроші пройшли — замовлення оплачене, хоч би скільки
+     невдалих спроб було до того. */
+  const RANK: Record<string, number> = {
+    success: 5, hold: 4, processing: 3, reversed: 2, created: 1, failure: 0, expired: 0
+  };
   const payOf = useCallback(
     (o: AdminOrder) => {
-      const invoice = String(o.payInvoiceId || '').trim();
-      return invoice ? pays.get(invoice) : undefined;
+      const known = invoicesOf(o)
+        .map((id) => pays.get(id))
+        .filter(Boolean) as PayStatus[];
+      if (!known.length) return undefined;
+      return known.slice().sort((a, b) => (RANK[b.state] ?? 0) - (RANK[a.state] ?? 0))[0];
     },
-    [pays]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pays, invoicesOf]
   );
 
   /* Виставити рахунок і надіслати листом. Ціни бере воркер із
@@ -364,7 +406,9 @@ export default function OrdersAdmin() {
       if (yes !== true) return;
 
       const { payLink } = await import('@/lib/pay');
+      const previous = String(o.payInvoiceId || '');
       const r = await payLink(url, workerKey, {
+        previousInvoiceId: previous,
         orderNum: o.num || '',
         items: (o.items ?? []).map((i) => ({ id: i.id, size: i.size ?? '', qty: Number(i.qty) || 1 })),
         promo: o.promoCode || '',
@@ -373,12 +417,27 @@ export default function OrdersAdmin() {
         name: String((o.customer as Record<string, unknown>)?.name || ''),
         lang: (o.lang === 'en' ? 'en' : 'uk') as 'uk' | 'en'
       });
-      if (!r.ok) return toast('Рахунок не виставлено: ' + (r.error || 'банк відмовив'));
+      if (!r.ok) {
+        /* Найважливіший випадок: за замовлення вже платили.
+           Нового рахунку немає й не буде — інакше з людини
+           візьмуть удруге. */
+        toast(r.error || 'Рахунок не виставлено');
+        if (r.paidAlready) void askPays([previous]);
+        return;
+      }
 
-      /* Номер нового рахунку кладемо в замовлення: інакше
-         менеджер бачив би стан старого, уже неживого. */
+      /* Номер нового рахунку кладемо в замовлення, а старий — у
+         історію: він уже погашений, але якщо за ним усе-таки
+         пройшли гроші, менеджер має це бачити, а не порожнє
+         місце. */
       const d = db();
-      if (d) await updateDoc(doc(d, 'orders', o._id), { payInvoiceId: r.invoiceId });
+      if (d) {
+        await updateDoc(doc(d, 'orders', o._id), {
+          payInvoiceId: r.invoiceId,
+          payAll: [...new Set([...(o.payAll ?? []), previous].filter(Boolean))]
+        });
+      }
+      void askPays([r.invoiceId, previous].filter(Boolean));
       toast(
         r.mailed
           ? 'Посилання на оплату надіслано на ' + to
@@ -386,7 +445,7 @@ export default function OrdersAdmin() {
         r.mailed ? 'success' : 'plain'
       );
     },
-    [askDialog, settings.workerUrl, toast, workerKey]
+    [askDialog, askPays, settings.workerUrl, toast, workerKey]
   );
 
   /* Повернення коштів. Двічі питаємо: гроші йдуть назад одразу,
@@ -411,12 +470,14 @@ export default function OrdersAdmin() {
 
       const { payRefund } = await import('@/lib/pay');
       const r = await payRefund(String(settings.workerUrl || ''), workerKey, invoice, part);
+      // стан міняється тієї ж миті — питаємо банк одразу, не чекаючи черги
+      if (r.ok) void askPays([invoice]);
       toast(
         r.ok ? 'Кошти повертаються — банк опрацює за кілька хвилин' : 'Не вдалося: ' + r.error,
         r.ok ? 'success' : 'plain'
       );
     },
-    [askDialog, settings.workerUrl, toast, workerKey]
+    [askDialog, askPays, settings.workerUrl, toast, workerKey]
   );
 
   /* ---------- Залежності для зміни статусу ---------- */

@@ -141,11 +141,15 @@ export async function payLink(
     email: string;
     name?: string;
     lang?: Lang;
+    /** Рахунок, який був до цього: воркер його погасить, щоб за
+     *  замовлення не можна було заплатити двічі. */
+    previousInvoiceId?: string;
   }
-): Promise<PayInvoice & { mailed: boolean; mailError: string }> {
+): Promise<PayInvoice & { mailed: boolean; mailError: string; paidAlready: boolean }> {
   const r = await ask(workerUrl, {
     type: 'pay-link',
     key,
+    previousInvoiceId: input.previousInvoiceId || '',
     orderNum: input.orderNum,
     items: input.items,
     promo: input.promo || '',
@@ -162,7 +166,8 @@ export async function payLink(
     amount: Number(r.amount) || 0,
     error: String(r.error || ''),
     mailed: mail.ok === true,
-    mailError: String(mail.error || '')
+    mailError: String(mail.error || ''),
+    paidAlready: r.paidAlready === true
   };
 }
 

@@ -987,6 +987,31 @@ export default {
         return reply({ ok: true, status: r.data.status || '', at: r.data.modifiedDate || '' }, 200, cors);
       }
 
+      /* Новий рахунок скасовує старий. Без цього в замовлення
+         веде два живі посилання — те, що покупець відкрив на
+         сайті, і те, що менеджер надіслав листом, — і заплатити
+         можна за обома. Саме так 14.08.2026 гроші пройшли за
+         посиланням, про яке адмінка вже не знала: чек є, а
+         замовлення значиться неоплаченим.
+
+         Спершу питаємо стан: якщо старий рахунок уже оплачено,
+         нового не буде — інакше з людини візьмуть двічі. */
+      const previous = clip(d.previousInvoiceId, 60);
+      if (previous) {
+        const was = await monoCall(env, '/invoice/status?invoiceId=' + encodeURIComponent(previous), { method: 'GET' });
+        const state = (was.data && was.data.status) || '';
+        if (state === 'success' || state === 'hold' || state === 'processing') {
+          return reply({
+            ok: false,
+            paidAlready: true,
+            status: state,
+            error: 'За цим замовленням уже платили (рахунок ' + previous + ', стан «' + state + '»). Новий рахунок не виставлено.'
+          }, 200, cors);
+        }
+        // не оплачений — глушимо, щоб лишилось рівно одне посилання
+        await monoCall(env, '/invoice/remove', { method: 'POST', body: JSON.stringify({ invoiceId: previous }) });
+      }
+
       /* Рахунок для покупця. Ціни бере з каталогу сам воркер —
          від сайту приймається лише перелік товарів. */
       const bill = await priceOrder(d);

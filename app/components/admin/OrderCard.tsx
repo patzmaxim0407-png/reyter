@@ -37,6 +37,9 @@ export interface AdminOrder {
   pickup?: boolean;
   /** Рахунок Monobank. Стан оплати питають у банку, не в нас. */
   payInvoiceId?: string;
+  /** Рахунки, які виставлялися раніше. Новий гасить попередній,
+   *  але вже оплачений лишається оплаченим — і його треба бачити. */
+  payAll?: string[];
   lang?: string;
   note?: string;
   email?: string;
