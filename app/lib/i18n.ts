@@ -315,8 +315,10 @@ const uk = {
   'cart.tgHint': 'Необовʼязково. Якщо номер прихований у налаштуваннях Telegram, за логіном ми знайдемо вас напевно.',
   'cart.comment': 'Коментар',
   'cart.commentPh': 'Побажання до замовлення (необовʼязково)',
-  'cart.submit': 'Підтвердити замовлення',
-  'cart.submitNote': 'Менеджер звʼяжеться з вами для підтвердження',
+  /* Кнопка каже, що буде далі: не «підтвердити», а перехід на
+     оплату. Людина має знати про списання ДО того, як натисне. */
+  'cart.submit': 'Онлайн-оплата карткою, GooglePay або ApplePay',
+  'cart.submitNote': 'Далі — захищена сторінка Monobank. Замовлення підтвердимо після оплати',
   'cart.sending': 'Надсилаємо…',
   'cart.fillNamePhone': 'Заповніть імʼя та телефон',
   'cart.checkEmail': 'Вкажіть email — на нього прийде підтвердження',
@@ -715,8 +717,8 @@ const en: Record<UIKey, string> = {
   'cart.tgHint': 'Optional. If your number is hidden in Telegram settings, a username makes sure we find you.',
   'cart.comment': 'Comment',
   'cart.commentPh': 'Any wishes for your order (optional)',
-  'cart.submit': 'Confirm order',
-  'cart.submitNote': 'Our manager will contact you to confirm the order',
+  'cart.submit': 'Pay online — card, Google Pay or Apple Pay',
+  'cart.submitNote': 'Next is a secure Monobank page. We confirm the order once it is paid',
   'cart.sending': 'Sending…',
   'cart.fillNamePhone': 'Please fill in your name and phone',
   'cart.checkEmail': 'Enter your email — the confirmation goes there',
