@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useCart } from './CartProvider';
 import {
   ALL_SIZES,
@@ -16,6 +16,7 @@ import type { Lang, Product } from '@/lib/types';
 import ProductSizeGuide from './ProductSizeGuide';
 import RestockNotice from './RestockNotice';
 import { usePublishStock } from './StockStatus';
+import { metaProductParams, trackMeta } from '@/lib/meta';
 
 /* Єдиний інтерактивний острівець на сторінці товару.
    Решта сторінки — статичний HTML із сервера: так вона зʼявляється
@@ -89,6 +90,12 @@ export default function AddToCart({
   /* Значок наявності над ціною читає саме це. */
   usePublishStock({ soldOut: av.soldOut, low: !av.soldOut && low });
 
+  /* Картка може бути і повною сторінкою, і модальним вікном із
+     каталогу. В обох випадках це справжній перегляд товару. */
+  useEffect(() => {
+    trackMeta('ViewContent', metaProductParams(p));
+  }, [p.id, p.name, p.price, p.category]);
+
   function pick(partId: string, value: string) {
     setPicks((prev) => prev.map((x) => (x.id === partId ? { ...x, size: value } : x)));
   }
@@ -111,6 +118,7 @@ export default function AddToCart({
     }
 
     cart.add(p.id, size, isComplect ? picks : undefined);
+    trackMeta('AddToCart', metaProductParams(p));
     setAdded(true);
     // Зелений стан із галочкою короткий: підтвердження видно,
     // але кнопка знову доступна вже через 0.8 секунди.

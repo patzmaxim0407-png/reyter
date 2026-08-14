@@ -5,6 +5,8 @@ import { loadNotifySettings } from '@/lib/firebase';
 import { invoiceOf, orderPaid, payStatus, type PayState } from '@/lib/pay';
 import { t } from '@/lib/i18n';
 import type { Lang } from '@/lib/types';
+import { getOrders } from '@/lib/cart';
+import { metaCartParams, trackMetaOnce } from '@/lib/meta';
 
 /* ============================================================
    Чим скінчилась оплата
@@ -41,6 +43,27 @@ export default function PayResult({ num, lang }: { num?: string; lang: Lang }) {
     let alive = true;
     let tries = 0;
 
+    /* Purchase відправляємо тільки після відповіді банку
+       «success». Номер замовлення одночасно є ключем локальної
+       дедуплікації та eventID для майбутнього підключення CAPI. */
+    const purchase = (paidAmount: number) => {
+      const order = num ? getOrders().find((item) => item.num === num) : undefined;
+      const lines = (order?.items ?? []).map((item) => ({
+        id: item.id,
+        quantity: Number(item.qty) || 1,
+        item_price: Number(item.price) || 0
+      }));
+      const value = Number(paidAmount) || Number(order?.total) || 0;
+      const key = num || invoice;
+      if (!key) return;
+      trackMetaOnce(
+        `purchase:${key}`,
+        'Purchase',
+        { ...metaCartParams(lines, value), order_id: num || key },
+        `reyter_purchase_${key}`
+      );
+    };
+
     const check = async () => {
       const settings = (await loadNotifySettings()) as { workerUrl?: string } | null;
       const url = String(settings?.workerUrl || '');
@@ -53,6 +76,7 @@ export default function PayResult({ num, lang }: { num?: string; lang: Lang }) {
         const byOrder = await orderPaid(url, num);
         if (!alive) return;
         if (byOrder.ok && byOrder.paid) {
+          purchase(byOrder.amount);
           setSum(byOrder.amount);
           setState('success');
           return;
@@ -78,6 +102,7 @@ export default function PayResult({ num, lang }: { num?: string; lang: Lang }) {
       if (!alive) return;
 
       if (r.ok) {
+        if (r.state === 'success') purchase(r.amount);
         setSum(r.amount);
         setWhy(r.why);
         setState(r.state);

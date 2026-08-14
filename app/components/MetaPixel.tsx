@@ -60,7 +60,10 @@ t.src=v;s=b.getElementsByTagName(e)[0];
 s.parentNode.insertBefore(t,s)}(window, document,'script',
 'https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '${PIXEL}');
-fbq('track', 'PageView');`}
+fbq('track', 'PageView');
+var q=window.__reyterMetaQueue||[];
+for(var i=0;i<q.length;i++)fbq.apply(null,q[i]);
+window.__reyterMetaQueue=[];`}
       </Script>
 
       {/* Для тих, у кого вимкнено JavaScript. Meta просить саме

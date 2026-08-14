@@ -29,6 +29,7 @@ import { orderPlaced } from '@/lib/notify';
 import PayAgain from './PayAgain';
 import CheckoutGoogleAuth from './CheckoutGoogleAuth';
 import { promoCheck, promoMessage, promoSaveCode, promoSavedCode, type Promo } from '@/lib/promo';
+import { metaCartParams, trackMeta } from '@/lib/meta';
 
 /* ============================================================
    Оформлення замовлення
@@ -87,6 +88,26 @@ export default function CheckoutForm() {
   const nameRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
+  const checkoutTracked = useRef(false);
+
+  /* Checkout рахуємо тоді, коли кошик уже відновився з
+     localStorage. Один монтаж — одна подія, навіть якщо далі
+     зміниться адреса або вартість доставки. */
+  useEffect(() => {
+    if (!lines.length || checkoutTracked.current) return;
+    checkoutTracked.current = true;
+    trackMeta(
+      'InitiateCheckout',
+      metaCartParams(
+        lines.map((line) => ({
+          id: line.id,
+          quantity: line.qty,
+          item_price: line.p.price
+        })),
+        subtotal
+      )
+    );
+  }, [lines, subtotal]);
 
   /* Профіль підставляємо після монтування: на сервері його немає,
      і поля, заповнені одразу, розійшлися б із розміткою */
