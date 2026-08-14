@@ -54,6 +54,26 @@ export default function PayAgain({
 }) {
   const [state, setState] = useState<'check' | 'pay' | 'paid' | 'back' | 'busy'>('check');
 
+  /* Стан оплати міняється не в цій вкладці: покупець платить у
+     банку в сусідньому вікні, менеджер повертає кошти зі своєї
+     адмінки. Тому перепитуємо самі — щохвилини, поки вкладка на
+     очах, і одразу щойно людина до неї повернулась. Доти напис
+     стояв той, який застали при відкритті сторінки. */
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const again = () => {
+      if (!document.hidden) setTick((n) => n + 1);
+    };
+    const t = setInterval(again, 60_000);
+    document.addEventListener('visibilitychange', again);
+    window.addEventListener('focus', again);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', again);
+      window.removeEventListener('focus', again);
+    };
+  }, []);
+
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -99,7 +119,8 @@ export default function PayAgain({
     return () => {
       alive = false;
     };
-  }, [num]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [num, invoiceId, tick]);
 
   /* Оплачено або повернуто — платити більше нема за що, але
      мовчати теж не можна: покупець приходить у кабінет саме щоб

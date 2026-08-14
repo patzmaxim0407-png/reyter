@@ -132,10 +132,14 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
     const again = () => {
       if (!document.hidden) load(false);
     };
+    /* І щохвилини, поки вкладка на очах: статус міняє менеджер зі
+       свого боку, і покупець має побачити це без перезавантаження. */
+    const t = setInterval(again, 60_000);
     document.addEventListener('visibilitychange', again);
     window.addEventListener('focus', again);
     return () => {
       alive = false;
+      clearInterval(t);
       document.removeEventListener('visibilitychange', again);
       window.removeEventListener('focus', again);
     };
