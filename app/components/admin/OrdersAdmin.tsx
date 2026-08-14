@@ -54,7 +54,7 @@ import {
   type Parcel
 } from '@/lib/admin/np';
 import { parcelWeight } from '@/lib/customs';
-import { payLabel, payStatus, payTone, type PayStatus } from '@/lib/pay';
+import { payLabel, payStatus, payTone, type PaySum, type PayStatus } from '@/lib/pay';
 import type { OrderStatus, Stock } from '@/lib/types';
 
 /* ============================================================
@@ -472,14 +472,13 @@ export default function OrdersAdmin() {
     [settings.workerUrl, toast, workerKey]
   );
 
-  /* Подвійне списання. Виписка приходить одним запитом на весь
-     магазин — питати її окремо на кожне замовлення означало б
-     десятки звернень у банк на кожне оновлення списку.
+  /* Гроші за всіма замовленнями — одним запитом на весь магазин.
+     Питати виписку окремо на кожне замовлення означало б десятки
+     звернень у банк на кожне оновлення списку.
 
-     Повернені платежі до уваги не беруться: гроші вже віддані. */
-  const [twice, setTwice] = useState<Record<string, { invoiceId: string; amount: number; at: string }[]>>(
-    {}
-  );
+     Звідси ж видно й часткові повернення, і подвійні списання:
+     все, що потрібно знати про гроші, лежить в одній відповіді. */
+  const [money, setMoney] = useState<Record<string, PaySum>>({});
 
   useEffect(() => {
     const url = String(settings.workerUrl || '');
@@ -487,21 +486,38 @@ export default function OrdersAdmin() {
     let alive = true;
     const look = async () => {
       if (document.hidden) return;
-      const { payDoubles } = await import('@/lib/pay');
-      const r = await payDoubles(url, workerKey);
-      if (alive && r.ok) setTwice(r.doubles);
+      const { payMap } = await import('@/lib/pay');
+      const r = await payMap(url, workerKey);
+      if (alive && r.ok) setMoney(r.map);
     };
     void look();
-    const t = setInterval(() => void look(), 10 * 60 * 1000);
+    const t = setInterval(() => void look(), 30 * 1000);
+    const wake = () => void look();
+    document.addEventListener('visibilitychange', wake);
     return () => {
       alive = false;
       clearInterval(t);
+      document.removeEventListener('visibilitychange', wake);
     };
   }, [settings.workerUrl, workerKey]);
 
+  const sumOf = useCallback((o: AdminOrder) => (o.num ? money[o.num] : undefined), [money]);
+
+  /** Скільки грошей магазин справді тримає за це замовлення. */
+  const netPaid = useCallback(
+    (o: AdminOrder) => {
+      const m = sumOf(o);
+      return m ? Math.max(0, m.paid - m.refunded) : 0;
+    },
+    [sumOf]
+  );
+
   const doubleOf = useCallback(
-    (o: AdminOrder) => (o.num ? twice[o.num] || [] : []),
-    [twice]
+    (o: AdminOrder) => {
+      const m = sumOf(o);
+      return m && m.count > 1 ? m.invoices : [];
+    },
+    [sumOf]
   );
 
   /* Повернути зайвий платіж. Повертаємо останній і повністю:
@@ -511,20 +527,50 @@ export default function OrdersAdmin() {
       const all = doubleOf(o);
       if (all.length < 2) return;
       const extra = all[all.length - 1];
+      const m = sumOf(o);
+      const one = m ? Math.round((m.paid - m.refunded) / m.count) : 0;
       const yes = await askDialog({
         title: 'Повернути зайвий платіж?',
         text:
           'За замовленням №' + (o.num || '') + ' пройшло ' + all.length + ' оплати. ' +
-          'Повернемо останню: ' + fmt(extra.amount) + ' грн, рахунок ' + extra.invoiceId + '.',
+          'Повернемо останню: ' + fmt(one) + ' грн, рахунок ' + extra + '.',
         okText: 'Повернути'
       });
       if (yes !== true) return;
       const { payRefund } = await import('@/lib/pay');
-      const r = await payRefund(String(settings.workerUrl || ''), workerKey, extra.invoiceId, 0);
-      if (r.ok) setTwice((was) => ({ ...was, [o.num || '']: [] }));
+      const r = await payRefund(String(settings.workerUrl || ''), workerKey, extra, 0);
       toast(r.ok ? 'Зайвий платіж повертається' : 'Не вдалося: ' + r.error, r.ok ? 'success' : 'plain');
     },
-    [askDialog, doubleOf, settings.workerUrl, toast, workerKey]
+    [askDialog, doubleOf, settings.workerUrl, sumOf, toast, workerKey]
+  );
+
+  /* Замовлення здешевшало після оплати — знижка, прибраний товар,
+     виправлена ціна. Різниця має повернутись покупцеві, і не
+     «колись руками», а кнопкою поруч із самою різницею. */
+  const refundExtra = useCallback(
+    async (o: AdminOrder) => {
+      const paid = netPaid(o);
+      const due = Math.max(0, Number(o.total) || 0);
+      const back = paid - due;
+      if (back <= 0) return;
+
+      const invoice = (sumOf(o)?.invoices || [])[0] || String(o.payInvoiceId || '');
+      if (!invoice) return toast('Не знайшов рахунку для повернення');
+
+      const yes = await askDialog({
+        title: 'Повернути різницю?',
+        text:
+          'Оплачено ' + fmt(paid) + ' грн, до сплати ' + fmt(due) + ' грн. ' +
+          'Покупцеві повернеться ' + fmt(back) + ' грн.',
+        okText: 'Повернути ' + fmt(back) + ' грн'
+      });
+      if (yes !== true) return;
+
+      const { payRefund } = await import('@/lib/pay');
+      const r = await payRefund(String(settings.workerUrl || ''), workerKey, invoice, back);
+      toast(r.ok ? 'Різниця повертається покупцеві' : 'Не вдалося: ' + r.error, r.ok ? 'success' : 'plain');
+    },
+    [askDialog, netPaid, settings.workerUrl, sumOf, toast, workerKey]
   );
 
   /* Чек покупцеві листом. Той самий документ, що менеджер бачить
@@ -1080,6 +1126,8 @@ export default function OrdersAdmin() {
               onSendReceipt={(o) => void mailReceipt(o as never)}
               payTwice={(o) => doubleOf(o as never).length}
               onRefundDouble={(o) => void refundDouble(o as never)}
+              payMoney={(o) => sumOf(o as never)}
+              onRefundExtra={(o) => void refundExtra(o as never)}
               onFindPay={(o) => void findPayment(o as never)}
               onStatus={(o, next) => void onStatus(o as never, next)}
               onEdit={(o) => void editOrder(o as never)}
@@ -1201,6 +1249,8 @@ export default function OrdersAdmin() {
                       onSendReceipt={() => void mailReceipt(o)}
                       payTwice={doubleOf(o).length}
                       onRefundDouble={() => void refundDouble(o)}
+                      payMoney={sumOf(o)}
+                      onRefundExtra={() => void refundExtra(o)}
                       onFindPay={() => void findPayment(o)}
                       onSendTtn={() => void sendTtnLetter(o, String(o.ttn || '').trim())}
                       onMakeTtn={() => setTtnFor(o)}

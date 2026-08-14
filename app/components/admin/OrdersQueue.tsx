@@ -13,7 +13,7 @@ import {
 } from '@/lib/admin/orders';
 import type { Catalogue } from '@/lib/catalog';
 import { shortLabel, alarm, parcelState, type Parcel } from '@/lib/admin/np';
-import { payLabel, payTone, type PayStatus } from '@/lib/pay';
+import { payLabel, payTone, type PaySum, type PayStatus } from '@/lib/pay';
 
 /* ============================================================
    Черга справ
@@ -48,6 +48,8 @@ export default function OrdersQueue({
   onSendReceipt,
   payTwice,
   onRefundDouble,
+  payMoney,
+  onRefundExtra,
   onFindPay,
   onStatus,
   onEdit,
@@ -72,6 +74,8 @@ export default function OrdersQueue({
    *  з покупця взяли двічі, і це треба виправити першим. */
   payTwice?(o: AdminOrder): number;
   onRefundDouble?(o: AdminOrder): void;
+  payMoney?(o: AdminOrder): PaySum | undefined;
+  onRefundExtra?(o: AdminOrder): void;
   onFindPay?(o: AdminOrder): void;
   onStatus(o: AdminOrder, next: string): void | Promise<void>;
   onEdit?(o: AdminOrder): void;
@@ -188,6 +192,8 @@ export default function OrdersQueue({
                     onSendReceipt={onSendReceipt ? () => onSendReceipt(order) : undefined}
                     payTwice={payTwice ? payTwice(order) : 0}
                     onRefundDouble={onRefundDouble ? () => onRefundDouble(order) : undefined}
+                    payMoney={payMoney ? payMoney(order) : undefined}
+                    onRefundExtra={onRefundExtra ? () => onRefundExtra(order) : undefined}
                     onFindPay={onFindPay ? () => onFindPay(order) : undefined}
                     onStatus={(next) => onStatus(order, next)}
                     onEdit={onEdit ? () => onEdit(order) : undefined}

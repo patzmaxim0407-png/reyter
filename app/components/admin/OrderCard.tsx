@@ -5,7 +5,7 @@ import { addressLine } from '@/lib/address';
 import { fmt, type Catalogue } from '@/lib/catalog';
 import { NEXT_STEP, STATUSES, confirmText, itemCat, orderDate, statusInfo } from '@/lib/admin/orders';
 import { label, parcelState, alarm, whenText, type Parcel } from '@/lib/admin/np';
-import { isPaid, payLabel, payTone, type PayStatus } from '@/lib/pay';
+import { isPaid, payLabel, payTone, type PaySum, type PayStatus } from '@/lib/pay';
 import type { OrderItem } from '@/lib/types';
 
 /* ============================================================
@@ -68,6 +68,8 @@ export default function OrderCard({
   onSendReceipt,
   payTwice,
   onRefundDouble,
+  payMoney,
+  onRefundExtra,
   onFindPay,
   embedded,
   onSendTtn,
@@ -106,6 +108,11 @@ export default function OrderCard({
   /** Скільки разів за це замовлення заплатили. Два — біда. */
   payTwice?: number;
   onRefundDouble?(): void;
+  /** Гроші за замовленням очима банку: скільки взяли й скільки
+   *  вже повернули. Без цього часткове повернення ніде не видно. */
+  payMoney?: PaySum;
+  /** Повернути різницю, коли замовлення здешевшало після оплати. */
+  onRefundExtra?(): void;
   /** Пошукати оплату в банку за номером замовлення. */
   onFindPay?(): void;
   /** Картка стоїть під рядком черги, який уже сказав номер,
@@ -367,8 +374,30 @@ export default function OrderCard({
           <div className={'ao-pay ao-pay--' + (pay ? payTone(pay.state) : 3)}>
             <span className="ao-pay__head">
               <b>{pay ? payLabel(pay.state) : 'Оплату не починали'}</b>
-              {pay && pay.amount ? <i>{fmt(pay.amount)} грн</i> : null}
+              {payMoney && payMoney.paid ? (
+                <i>
+                  {fmt(payMoney.paid)} грн
+                  {payMoney.refunded ? ' · повернуто ' + fmt(payMoney.refunded) : ''}
+                </i>
+              ) : pay && pay.amount ? (
+                <i>{fmt(pay.amount)} грн</i>
+              ) : null}
             </span>
+
+            {/* Замовлення здешевшало після оплати: знижка, прибраний
+                товар, виправлена ціна. Різниця — борг магазину, і
+                висіти мовчки він не має права. */}
+            {onRefundExtra && payMoney && payMoney.paid - payMoney.refunded > (Number(o.total) || 0) ? (
+              <span className="ao-pay__twice">
+                <b>
+                  Оплачено на {fmt(payMoney.paid - payMoney.refunded - (Number(o.total) || 0))} грн
+                  більше, ніж до сплати
+                </b>
+                <button className="btn btn--primary btn--sm" type="button" onClick={onRefundExtra}>
+                  Повернути різницю
+                </button>
+              </span>
+            ) : null}
             {pay && pay.why ? <span className="ao-pay__why">{pay.why}</span> : null}
             {/* Найгірше, що може статися з оплатою: з людини взяли
                 двічі. Тому це не значок збоку, а окремий рядок із

@@ -270,6 +270,28 @@ export async function payFind(
   };
 }
 
+/** Гроші за всіма замовленнями — одним запитом. Ключ — номер
+ *  замовлення; paid і refunded уже в гривнях. */
+export interface PaySum {
+  paid: number;
+  refunded: number;
+  /** Скільки окремих оплат лишилось неповерненими. */
+  count: number;
+  invoices: string[];
+}
+
+export async function payMap(
+  workerUrl: string,
+  key: string
+): Promise<{ ok: boolean; map: Record<string, PaySum>; error: string }> {
+  const r = await ask(workerUrl, { type: 'pay-map', key });
+  return {
+    ok: r.ok === true,
+    map: (r.map ?? {}) as Record<string, PaySum>,
+    error: String(r.error || '')
+  };
+}
+
 /** Замовлення, за які заплатили двічі. Один запит на весь
  *  магазин: виписка приходить цілком, а групування за номером
  *  робиться вже в банку-помічнику. */

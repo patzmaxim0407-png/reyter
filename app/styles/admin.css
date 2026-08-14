@@ -5963,3 +5963,28 @@ label.a-promo-product i {
   color: #b3261e;
   font-size: 13px;
 }
+
+/* Рамка навколо заблокованої частини форми. Сама по собі
+   fieldset додає власні поля й межу — прибираємо, лишається
+   рівно те, що було, тільки вимкнене. */
+.a-locked {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.a-locked:disabled {
+  opacity: 0.65;
+}
+
+/* Пояснення, чому не можна: без нього вимкнені поля читаються як
+   поломка, а не як правило. */
+.ao-note--locked {
+  margin: 0 0 10px;
+  padding: 9px 11px;
+  border: 1px dashed rgba(217, 119, 6, 0.4);
+  border-radius: 10px;
+  background: rgba(217, 119, 6, 0.06);
+  color: #8a5a00;
+}

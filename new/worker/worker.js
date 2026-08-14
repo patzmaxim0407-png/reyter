@@ -785,7 +785,7 @@ async function monoCall(env, path, init) {
 }
 
 /** Рахунок у Monobank. Сума — тільки та, що порахував воркер. */
-async function monoInvoice(env, { total, lines, num, lang, redirect }) {
+async function monoInvoice(env, { total, lines, num, lang, hook }) {
   const site = 'https://reyter.men/new';
   const body = {
     // Monobank рахує в копійках
@@ -803,6 +803,9 @@ async function monoInvoice(env, { total, lines, num, lang, redirect }) {
       }))
     },
     redirectUrl: `${site}/thanks?num=${encodeURIComponent(clip(num, 40))}`,
+    /* Куди банк сам повідомить про оплату. Адреса — цей же
+       воркер, шлях /mono; підпис перевіряється там-таки. */
+    webHookUrl: hook || undefined,
     /* Півгодини на оплату. Менше — і людина не встигне дійти до
        картки; більше — і рахунок висить, коли товар уже продано. */
     validity: 1800,
@@ -813,6 +816,102 @@ async function monoInvoice(env, { total, lines, num, lang, redirect }) {
     return { ok: false, error: r.data.errText || r.data.errorDescription || 'Monobank не створив рахунок' };
   }
   return { ok: true, invoiceId: r.data.invoiceId, pageUrl: r.data.pageUrl };
+}
+
+/* ============================================================
+   Скільки разів поспіль можна просити рахунок
+   ------------------------------------------------------------
+   Створення рахунку відкрите для сайту — інакше покупець не зміг
+   би оплатити. Але відкритий шлях без ліку означає, що його можна
+   смикати ботом: грошей це не коштує, зате кабінет засипає
+   порожніми рахунками, а банк рано чи пізно почне відмовляти всім.
+
+   Лічильник у памʼяті воркера, не в сховищі: він живе стільки,
+   скільки живе ізолят, і при великому напливі частину запитів
+   пропустить. Це свідомий розмін — за точний лік довелося б
+   платити зверненням у сховище на КОЖЕН запит. Проти простого
+   циклу цього досить, а проти справжньої атаки однаково потрібен
+   не лічильник, а Cloudflare перед воркером.
+   ============================================================ */
+
+const SEEN = new Map();
+/** Скільки рахунків на одне замовлення за десять хвилин. */
+const PER_ORDER = 5;
+/** І скільки на весь магазин за хвилину. */
+const PER_MINUTE = 60;
+
+function tooOften(ref) {
+  const now = Date.now();
+  // прибираємо старе, щоб мапа не росла нескінченно
+  for (const [k, times] of SEEN) {
+    const live = times.filter((t) => now - t < 600_000);
+    if (live.length) SEEN.set(k, live);
+    else SEEN.delete(k);
+  }
+
+  const all = [...SEEN.values()].flat().filter((t) => now - t < 60_000);
+  if (all.length >= PER_MINUTE) return 'Забагато запитів на оплату. Спробуйте за хвилину.';
+
+  const key = String(ref || 'без-номера');
+  const mine = (SEEN.get(key) || []).filter((t) => now - t < 600_000);
+  if (mine.length >= PER_ORDER) {
+    return 'Для цього замовлення вже виставляли кілька рахунків. Зачекайте десять хвилин або напишіть нам.';
+  }
+  SEEN.set(key, [...mine, now]);
+  return '';
+}
+
+/* ============================================================
+   Вебхук Monobank
+   ------------------------------------------------------------
+   Банк сам сповіщає про оплату — і це єдиний спосіб дізнатись про
+   неї тоді, коли адмінка закрита. Але вірити такому повідомленню
+   на слово не можна: адресу вебхука видно в кожному рахунку, і
+   надіслати на неї «оплачено» може будь-хто.
+
+   Тому підпис перевіряється завжди: банк підписує тіло запиту
+   своїм ключем (ECDSA P-256 + SHA-256), а відкритий ключ віддає
+   окремим методом. Не збігся — мовчки відмовляємо.
+
+   Що робить вебхук: пише в Telegram, що гроші прийшли. Статус
+   замовлення він НЕ міняє навмисно — підтвердження списує товар
+   зі складу, а це найтонша логіка в усьому магазині, і жити вона
+   має в одному місці, а не в двох. Менеджер відкриє адмінку й
+   побачить, що замовлення вже оплачене.
+   ============================================================ */
+
+let PUBKEY = null;
+
+async function monoPubKey(env) {
+  if (PUBKEY) return PUBKEY;
+  const r = await monoCall(env, '/pubkey', { method: 'GET' });
+  const raw = r.data && r.data.key;
+  if (!raw) return null;
+
+  // ключ приходить як PEM у base64 — розгортаємо до самих байтів
+  const pem = atob(raw).replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
+  const der = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0));
+  PUBKEY = await crypto.subtle.importKey(
+    'spki', der, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']
+  );
+  return PUBKEY;
+}
+
+async function signedByMono(env, body, sign) {
+  if (!sign) return false;
+  try {
+    const key = await monoPubKey(env);
+    if (!key) return false;
+    const sig = Uint8Array.from(atob(sign), (c) => c.charCodeAt(0));
+    return await crypto.subtle.verify(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      key,
+      sig,
+      new TextEncoder().encode(body)
+    );
+  } catch (e) {
+    return false;
+  }
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -840,6 +939,45 @@ export default {
     }
     if (request.method !== 'POST') {
       return reply({ ok: false, error: 'Method not allowed' }, 405, cors);
+    }
+
+    /* Вебхук банку. Ловимо його ДО розбору JSON: підпис
+       перевіряється по сирому тілу, і будь-яка переробка тексту
+       його зламала б. */
+    if (new URL(request.url).pathname.replace(/\/+$/, '').endsWith('/mono')) {
+      const body = await request.text();
+      if (!(await signedByMono(env, body, request.headers.get('X-Sign')))) {
+        // не банк — і пояснювати чужому, що саме не так, ні до чого
+        return new Response('no', { status: 403 });
+      }
+      let w = {};
+      try {
+        w = JSON.parse(body);
+      } catch (e) {
+        return new Response('bad', { status: 400 });
+      }
+
+      /* Пишемо в Telegram лише про гроші, які справді дійшли.
+         Статус замовлення вебхук не міняє навмисно: підтвердження
+         списує товар зі складу, і ця логіка має жити в одному
+         місці — в адмінці, а не в двох. */
+      if (w.status === 'success') {
+        await tgSend(
+          env,
+          '💳 ОПЛАЧЕНО ' + clip(String(Math.round((Number(w.amount) || 0) / 100)), 12) + ' грн\n' +
+            'Замовлення №' + clip(String(w.reference || ''), 40) + '\n' +
+            'Рахунок ' + clip(String(w.invoiceId || ''), 60)
+        );
+      }
+      if (w.status === 'reversed') {
+        await tgSend(
+          env,
+          '↩️ ПОВЕРНЕНО ' + clip(String(Math.round((Number(w.amount) || 0) / 100)), 12) + ' грн\n' +
+            'Замовлення №' + clip(String(w.reference || ''), 40)
+        );
+      }
+      // банк чекає лише «прийняв»
+      return new Response('ok');
     }
 
     let d;
@@ -992,7 +1130,8 @@ export default {
     if (
       type === 'pay-create' || type === 'pay-status' || type === 'pay-refund' ||
       type === 'pay-link' || type === 'pay-receipt' || type === 'pay-receipt-send' ||
-      type === 'pay-find' || type === 'pay-doubles' || type === 'pay-paid'
+      type === 'pay-find' || type === 'pay-doubles' || type === 'pay-paid' ||
+      type === 'pay-map'
     ) {
       // Усе, крім створення рахунку й перевірки стану, — тільки з адмінки
       const adminOnly = type !== 'pay-create' && type !== 'pay-status' && type !== 'pay-paid';
@@ -1139,6 +1278,37 @@ export default {
         return reply({ ok: true, found }, 200, cors);
       }
 
+      /* Гроші за всіма замовленнями — одним запитом.
+         Раніше адмінка питала стан кожного рахунку окремо: сто
+         замовлень — сто запитів кожні пів хвилини. Тут одна
+         виписка, а розкладаємо її за номерами замовлень уже самі.
+
+         Рахуємо і повернення: часткове повернення інакше ніде не
+         видно, і картка каже «оплачено», хоч половину грошей уже
+         віддали. */
+      if (type === 'pay-map') {
+        const r = await monoStatement(env, 30);
+        if (!r.ok) return reply({ ok: false, error: r.error }, 200, cors);
+        const map = {};
+        for (const x of r.list) {
+          if (x.status !== 'success') continue;
+          const ref = String(x.reference || '');
+          if (!ref) continue;
+          const back = (x.cancelList || []).reduce((n, c) => n + (Number(c.amount) || 0), 0);
+          const at = map[ref] || (map[ref] = { paid: 0, refunded: 0, count: 0, invoices: [] });
+          at.paid += Number(x.amount) || 0;
+          at.refunded += back;
+          // за оплату рахуємо лише те, що лишилось у магазину
+          if ((Number(x.amount) || 0) - back > 0) at.count += 1;
+          at.invoices.push(x.invoiceId);
+        }
+        for (const ref of Object.keys(map)) {
+          map[ref].paid = Math.round(map[ref].paid / 100);
+          map[ref].refunded = Math.round(map[ref].refunded / 100);
+        }
+        return reply({ ok: true, map }, 200, cors);
+      }
+
       /* Подвійні списання — одним запитом на весь магазин.
          Питати виписку окремо на кожне замовлення означало б
          десятки запитів на кожне оновлення списку; тут вона одна,
@@ -1282,6 +1452,12 @@ export default {
         await monoCall(env, '/invoice/remove', { method: 'POST', body: JSON.stringify({ invoiceId: previous }) });
       }
 
+      /* Скільки разів поспіль можна просити рахунок. Стоїть саме
+         тут, після всіх перевірок: відмовляти тому, за кого вже
+         заплатили, немає сенсу. */
+      const often = tooOften(d.orderNum || d.num);
+      if (often) return reply({ ok: false, error: often }, 429, cors);
+
       /* Рахунок для покупця. Ціни бере з каталогу сам воркер —
          від сайту приймається лише перелік товарів. */
       const bill = await priceOrder(d);
@@ -1291,7 +1467,9 @@ export default {
         total: bill.total,
         lines: bill.lines,
         num: d.orderNum || d.num,
-        lang: d.lang
+        lang: d.lang,
+        // власна адреса: беремо з самого запиту, щоб не тримати її ще й у налаштуваннях
+        hook: new URL(request.url).origin + '/mono'
       });
       if (!made.ok) return reply({ ok: false, error: made.error }, 200, cors);
 

@@ -189,6 +189,12 @@ export default function ManualOrder({
     [orders, form.phone, order]
   );
 
+  /* Відправлене й виконане замовлення в частині «куди» і «що»
+     вважаємо закритим: накладна вже надрукована, товар списаний і
+     лежить у коробці. Решту — імʼя, телефон, пошту, коментар,
+     суми — правити можна, це буває треба. */
+  const sealed = !!order && (order.status === 'shipped' || order.status === 'done');
+
   if (!open) return null;
 
   const dialogs: OrderDialogs = {
@@ -337,13 +343,32 @@ export default function ManualOrder({
           ) : null}
 
           <h5 className="ao-sub">Доставка</h5>
-          <AddressFields
-            prefix="no"
-            v={addr}
-            set={(patch) => setAddr((a) => ({ ...a, ...patch }))}
-          />
+          {/* Відправлене замовлення адресу вже має — надруковану на
+              накладній. Змінити її тут означало б розійтися з
+              наклейкою на коробці: посилка поїде за старою, а
+              магазин думатиме, що за новою. Те саме з товарами:
+              вони вже в коробці й уже списані зі складу.
+
+              Заборона рамкою, а не по полю: браузер сам вимикає
+              все, що всередині, — і поля, і кнопки, і випадайки,
+              тож жодне не лишиться відкритим через недогляд. */}
+          <fieldset className="a-locked" disabled={sealed}>
+            <AddressFields
+              prefix="no"
+              v={addr}
+              set={(patch) => setAddr((a) => ({ ...a, ...patch }))}
+            />
+          </fieldset>
 
           <h5 className="ao-sub">Товари</h5>
+          {sealed ? (
+            <p className="ao-note ao-note--locked">
+              Замовлення вже {order?.status === 'done' ? 'виконане' : 'відправлене'} — адресу й товари
+              змінити не можна. Помилка в адресі виправляється новою накладною, помилка в товарах —
+              поверненням або новим замовленням.
+            </p>
+          ) : null}
+          <fieldset className="a-locked" disabled={sealed}>
           <div className="a-noitems">
             {/* Заголовки стовпців один раз угорі, а не підпис над
                 кожним полем у кожному рядку: так видно, що
@@ -591,6 +616,7 @@ export default function ManualOrder({
           >
             + Додати товар
           </button>
+          </fieldset>
 
           <h5 className="ao-sub">Підсумок</h5>
           <div className="a-grid-3">
