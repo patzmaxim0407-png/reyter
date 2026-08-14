@@ -18,12 +18,35 @@ import { repeatOrder, statusInfo, trackerHint, trackerSteps, ORDER_STATUSES } fr
 import { phoneTail, trackData, trackKey } from '../lib/track.ts';
 import { t } from '../lib/i18n.ts';
 import type { OrderItem } from '../lib/types.ts';
+import { readFileSync } from 'node:fs';
 
 let failed = 0;
 function ok(name: string, cond: boolean, extra = '') {
   if (!cond) failed++;
   console.log(`${cond ? '✓' : '✗'} ${name}${extra ? ' — ' + extra : ''}`);
 }
+
+/* ---------- Приватність гостьового кабінету ---------- */
+
+const accountPanel = readFileSync(new URL('../components/AccountPanel.tsx', import.meta.url), 'utf8');
+const ordersTab = readFileSync(new URL('../components/OrdersTab.tsx', import.meta.url), 'utf8');
+const guestBranch = ordersTab.slice(
+  ordersTab.indexOf('if (user === null)'),
+  ordersTab.indexOf('if (rows === null)')
+);
+
+ok('гостю не підвантажуємо локальні замовлення',
+   /if \(!user\) \{\s*setRows\(\[\]\)/.test(accountPanel));
+ok('гостьову гілку перевіряємо до історії',
+   ordersTab.indexOf('if (user === null)') < ordersTab.indexOf('if (rows === null)'));
+ok('гостьова гілка не малює картки замовлень',
+   !guestBranch.includes('<OrderCard'));
+ok('гостьова гілка лишає ручне відстеження',
+   guestBranch.includes('<TrackForm />'));
+ok('статистика замовлень доступна лише після входу',
+   accountPanel.includes('{signedIn && (stats.orders || stats.live)'));
+ok('лічильник замовлень доступний лише після входу',
+   accountPanel.includes('orders: signedIn ? stats.orders || null : null'));
 
 /* ---------- Крокомір ---------- */
 

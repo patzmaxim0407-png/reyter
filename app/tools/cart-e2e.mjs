@@ -162,6 +162,7 @@ ok('кількість збільшується', qty === '2', `qty: ${qty}`);
 await go(BASE + '/checkout');
 const co = await evalJs(`(() => ({
   items: document.querySelectorAll('.checkout-summary > div').length,
+  quickAuth: !!document.querySelector('.checkout-auth .auth-google[type="button"]'),
   promo: !!document.querySelector('.promo input'),
   carrier: !!document.getElementById('coCarrier'),
   city: !!document.getElementById('coCity'),
@@ -170,6 +171,7 @@ const co = await evalJs(`(() => ({
   submit: !!document.querySelector('.btn--order')
 }))()`);
 ok('позиції в підсумку', co.items > 0, `рядків: ${co.items}`);
+ok('гостю показано швидку реєстрацію через Google', co.quickAuth);
 ok('поле промокоду є', co.promo);
 ok('перевізник є', co.carrier);
 ok('поле міста є', co.city);

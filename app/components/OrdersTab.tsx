@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useLang } from './LangProvider';
-import { useRouter } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import AuthPanel from './AuthPanel';
 import OrderCard, { type OrderView } from './OrderCard';
@@ -25,10 +24,10 @@ import type { OrderItem } from '@/lib/types';
    • увійшов — беремо з бази, зі статусом і крокоміром;
    • база не відповіла — показуємо локальну копію й кажемо про це
      прямо, а не вдаємо, що замовлень немає;
-   • Firebase взагалі вимкнений — лише локальна копія браузера.
+   • Firebase не відповів після входу — локальна копія браузера.
 
-   Гостю показуємо вхід і форму відстеження: замовлення в нього
-   є, просто ми не знаємо, які саме.
+   Гостю показуємо лише вхід і форму відстеження. Локальна
+   історія не доводить, кому належать замовлення на пристрої.
    ============================================================ */
 
 export interface Row extends OrderView {
@@ -94,8 +93,7 @@ export default function OrdersTab({
   user,
   online,
   rows,
-  mode,
-  onRows
+  mode
 }: {
   c: Catalogue;
   user: User | null | undefined;
@@ -105,10 +103,8 @@ export default function OrdersTab({
      та два різні числа на одному екрані. */
   rows: Row[] | null;
   mode: OrdersMode;
-  onRows(next: Row[]): void;
 }) {
   const { t, lang } = useLang();
-  const router = useRouter();
   const toast = useToast();
   const { open } = useCart();
 
@@ -131,26 +127,19 @@ export default function OrdersTab({
     open();
   }
 
-  if (rows === null) return <p className="account-note">{t('acc.loading')}</p>;
-
-  /* Гостю пропонуємо ще й увійти: у хмарі можуть лежати
-     замовлення з інших пристроїв, яких у цьому браузері немає */
-  if (online && user === null) {
+  /* Перевіряємо гостя раніше за rows: після виходу в стані ще
+     мить можуть лежати хмарні замовлення, але показувати їх уже
+     не можна. */
+  if (user === null) {
     return (
       <>
-        {rows.length ? (
-          <>
-            <p className="account-note">{t('acc.ordersLocalNote')}</p>
-            {rows.map((o, i) => (
-              <OrderCard key={o.num + i} o={o} onRepeat={() => repeat(o)} />
-            ))}
-          </>
-        ) : null}
-        <AuthPanel />
+        {online ? <AuthPanel /> : null}
         <TrackForm />
       </>
     );
   }
+
+  if (rows === null) return <p className="account-note">{t('acc.loading')}</p>;
 
   const note =
     mode === 'cloud' ? 'acc.ordersNote' : mode === 'down' ? 'acc.cloudDown' : 'acc.ordersLocalNote';
@@ -202,21 +191,6 @@ export default function OrdersTab({
           нема сенсу: запит впаде так само. */}
       {!rows.length && mode === 'cloud' ? <TrackForm /> : null}
 
-      {mode === 'local' && rows.length ? (
-        <button
-          className="btn btn--ghost btn--sm"
-          type="button"
-          style={{ width: '100%', marginTop: '.4rem' }}
-          onClick={() => {
-            if (!confirm(t('acc.clearConfirm'))) return;
-            cart.saveOrders([]);
-            onRows([]);
-            router.refresh();
-          }}
-        >
-          {t('acc.clear')}
-        </button>
-      ) : null}
     </>
   );
 }

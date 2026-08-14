@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Category, Product } from '@/lib/types';
 import { productCats } from '@/lib/catalog';
 
@@ -31,6 +31,15 @@ export default function CategoryList({
   onReorder(from: number, to: number): void;
 }) {
   const [name, setName] = useState('');
+  const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    from: number;
+    to: number;
+    startX: number;
+    startY: number;
+    active: boolean;
+  } | null>(null);
 
   /* Товар може стояти в кількох категоріях — лічильник має це
      враховувати, інакше сума лічильників не зійдеться з життям */
@@ -40,6 +49,54 @@ export default function CategoryList({
     const to = i + step;
     if (to < 0 || to >= categories.length) return;
     onReorder(i, to);
+  };
+
+  const dragStart = (e: React.PointerEvent<HTMLButtonElement>, from: number) => {
+    // Правою кнопкою й контекстним меню категорію не тягнемо.
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = {
+      pointerId: e.pointerId,
+      from,
+      to: from,
+      startX: e.clientX,
+      startY: e.clientY,
+      active: false
+    };
+  };
+
+  const dragMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = dragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+
+    /* Поріг відділяє перетягування від звичайного кліку. Без
+       нього рука ледь здригнулась — і категорія вже переїхала. */
+    if (!d.active && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 6) return;
+    d.active = true;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const row = document
+      .elementFromPoint(e.clientX, e.clientY)
+      ?.closest<HTMLElement>('[data-cat-index]');
+    const to = Number(row?.dataset.catIndex);
+    if (!Number.isInteger(to) || to < 0 || to >= categories.length) return;
+    d.to = to;
+    setDrag((v) => (v?.from === d.from && v.to === to ? v : { from: d.from, to }));
+  };
+
+  const dragEnd = (e: React.PointerEvent<HTMLButtonElement>, commit: boolean) => {
+    const d = dragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    if (d.active) e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    dragRef.current = null;
+    setDrag(null);
+    if (commit && d.active && d.to !== d.from) onReorder(d.from, d.to);
   };
 
   return (
@@ -57,15 +114,25 @@ export default function CategoryList({
         {categories.map((c, i) => (
           <li
             key={c.id}
-            className={'a-cat' + (current === c.id ? ' is-active' : '')}
+            data-cat-index={i}
+            className={
+              'a-cat' +
+              (current === c.id ? ' is-active' : '') +
+              (drag?.from === i ? ' is-dragging' : '') +
+              (drag?.to === i && drag.from !== i ? ' is-drop-target' : '')
+            }
             onClick={() => onPick(c.id)}
           >
             <button
               type="button"
               className="a-cat__grip"
-              title="Стрілки ↑↓ змінюють порядок"
-              aria-label="Перемістити категорію"
+              title="Перетягніть або використайте стрілки ↑↓"
+              aria-label={`Перемістити категорію ${c.title}`}
               onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => dragStart(e, i)}
+              onPointerMove={dragMove}
+              onPointerUp={(e) => dragEnd(e, true)}
+              onPointerCancel={(e) => dragEnd(e, false)}
               onKeyDown={(e) => {
                 if (e.key === 'ArrowUp') {
                   e.preventDefault();

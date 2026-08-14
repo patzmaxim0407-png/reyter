@@ -716,6 +716,70 @@
   gap: 14px;
 }
 
+/* Google-вхід — корисне скорочення, але не пʼятий обовʼязковий
+   крок. Тому це компактна акцентна підказка перед формою, а
+   єдиною основною CTA лишається «Онлайн оплата». */
+.checkout-auth {
+  display: grid;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid color-mix(in srgb, var(--c-blue) 26%, var(--c-line));
+  border-radius: 20px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--c-blue) 7%, var(--c-paper)),
+    var(--c-paper) 68%
+  );
+  box-shadow: 0 8px 24px -20px color-mix(in srgb, var(--c-blue) 55%, transparent);
+}
+
+.checkout-auth__copy {
+  min-width: 0;
+}
+
+.checkout-auth__title {
+  display: block;
+  color: var(--c-blue-ink);
+  font-family: var(--font-title, inherit);
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.checkout-auth__note {
+  margin-top: 4px;
+  color: var(--c-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.checkout-auth__button {
+  min-height: 48px;
+  width: 100%;
+  background: var(--c-paper);
+  white-space: nowrap;
+}
+
+.checkout-auth__button svg {
+  flex: 0 0 18px;
+}
+
+.checkout-auth__button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--c-blue) 45%, transparent);
+  outline-offset: 3px;
+}
+
+@media (min-width: 640px) {
+  .checkout-auth {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .checkout-auth__button {
+    width: auto;
+    min-width: 240px;
+  }
+}
+
 .cosec {
   border: 1px solid var(--c-line, #e6e0d6);
   border-radius: 20px;
@@ -815,6 +879,10 @@
 }
 
 @media (max-width: 560px) {
+  .checkout-auth {
+    padding: 16px;
+  }
+
   .cosec__head {
     padding: 14px 16px;
     font-size: 15px;

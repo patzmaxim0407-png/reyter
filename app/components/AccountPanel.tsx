@@ -93,14 +93,11 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
   useEffect(() => {
     if (user === undefined) return;
 
-    /* Гість бачить свою ж локальну історію — ту, що лежить у
-       цьому браузері. На старому сайті ця гілка вмикалась лише
-       коли CDN Firebase був заблокований; тепер SDK у бандлі й
-       «не завантажитись» не може, тож без цього покупець, який
-       щойно оформив замовлення гостем, побачив би форму входу
-       замість власного замовлення. */
+    /* Локальна історія не є підтвердженням особи: на спільному
+       пристрої вона могла належати іншому покупцеві. Тому без
+       входу не віддаємо її ані вкладці, ані підсумкам у шапці. */
     if (!user) {
-      setRows(localOrders());
+      setRows([]);
       setMode('local');
       return;
     }
@@ -209,8 +206,8 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
     : t('acc.guest');
   const badge: Record<TabId, number | null> = {
     profile: null,
-    promos: stats.live || null,
-    orders: stats.orders || null
+    promos: signedIn ? stats.live || null : null,
+    orders: signedIn ? stats.orders || null : null
   };
 
   return (
@@ -263,7 +260,7 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
 
         {/* Підсумки показуємо лише коли є що показати: нулі в
             новому акаунті виглядають як докір */}
-        {stats.orders || stats.live ? (
+        {signedIn && (stats.orders || stats.live) ? (
           <dl className="account__stats">
             <div className="account__stat">
               <dt>{t('acc.statOrders')}</dt>
@@ -337,9 +334,9 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
             <p className="account-note" aria-live="polite">
               {t('acc.loading')}
             </p>
-          ) : /* Без Firebase кабінет працює на локальних даних:
-                профіль і замовлення цього браузера. Промокоди —
-                ні, вони живуть лише в базі. */
+          ) : /* Без Firebase локально може працювати профіль.
+                Замовлення без входу не показуємо, а промокоди
+                живуть лише в базі. */
           online && !user && tab !== 'orders' ? (
             tab === 'promos' ? (
               <PromosTab c={c} user={null} list={promos} />
@@ -351,7 +348,7 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
           ) : tab === 'promos' ? (
             <PromosTab c={c} user={user} list={promos} />
           ) : (
-            <OrdersTab c={c} user={user} online={online} rows={rows} mode={mode} onRows={setRows} />
+            <OrdersTab c={c} user={user} online={online} rows={rows} mode={mode} />
           )}
         </section>
       </div>

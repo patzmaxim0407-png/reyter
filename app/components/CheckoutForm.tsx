@@ -27,6 +27,7 @@ import { freeReached, quote, underwearSum, type Quote } from '@/lib/delivery';
 import { customsBlock, parcelWeight } from '@/lib/customs';
 import { orderPlaced } from '@/lib/notify';
 import PayAgain from './PayAgain';
+import CheckoutGoogleAuth from './CheckoutGoogleAuth';
 import { promoCheck, promoMessage, promoSaveCode, promoSavedCode, type Promo } from '@/lib/promo';
 
 /* ============================================================
@@ -71,6 +72,9 @@ export default function CheckoutForm() {
   const [promoBusy, setPromoBusy] = useState(false);
 
   const [user, setUser] = useState<User | null>(null);
+  /* Окремий прапорець не дає гостьовому Google-блоку мигнути
+     залогіненому покупцеві, поки Firebase відновлює сесію. */
+  const [authReady, setAuthReady] = useState(false);
 
   /* null — ще не обрано; '' — вводимо нову адресу; id — узяли
      збережену. Без книги вибирати нема з чого, і форма
@@ -112,6 +116,8 @@ export default function CheckoutForm() {
     () =>
       fb.watchAuth((u) => {
         setUser(u);
+        setAuthReady(true);
+        if (u?.displayName) setName((v) => v || u.displayName || '');
         if (u?.email) setEmail((v) => v || u.email || '');
       }),
     []
@@ -580,6 +586,16 @@ export default function CheckoutForm() {
           void submit();
         }}
       >
+        {authReady && !user && fb.auth() ? (
+          <CheckoutGoogleAuth
+            onUser={(u) => {
+              setUser(u);
+              if (u.displayName) setName((v) => v || u.displayName || '');
+              if (u.email) setEmail((v) => v || u.email || '');
+            }}
+          />
+        ) : null}
+
         <section className="cosec">
           <h2 className="cosec__head">
             <span className="cosec__num">1</span>

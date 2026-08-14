@@ -112,7 +112,9 @@ export default function AddToCart({
 
     cart.add(p.id, size, isComplect ? picks : undefined);
     setAdded(true);
-    setTimeout(() => setAdded(false), 1100);
+    // Зелений стан із галочкою короткий: підтвердження видно,
+    // але кнопка знову доступна вже через 0.8 секунди.
+    setTimeout(() => setAdded(false), 800);
   }
 
   return (

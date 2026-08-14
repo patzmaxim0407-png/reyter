@@ -88,6 +88,24 @@ ok('порядок категорій перераховується', re.ok ===
    re.ok && re.changed ? JSON.stringify(re.updates) : 'без змін');
 const reSame = reorderCategories(cats, ['briefs', 'tops']);
 ok('той самий порядок нічого не пише', reSame.ok === true && reSame.changed === false);
+
+const categoryList = readFileSync(
+  new URL('../components/admin/CategoryList.tsx', import.meta.url),
+  'utf8'
+);
+ok(
+  'ручка категорії має повний pointer-drag цикл',
+  categoryList.includes('onPointerDown') &&
+    categoryList.includes('onPointerMove') &&
+    categoryList.includes('onPointerUp') &&
+    categoryList.includes('onPointerCancel')
+);
+ok(
+  'перетягування має видиму ціль і клавіатурну альтернативу',
+  categoryList.includes('is-drop-target') &&
+    categoryList.includes("e.key === 'ArrowUp'") &&
+    categoryList.includes("e.key === 'ArrowDown'")
+);
 const reBad = reorderCategories(cats, ['briefs']);
 ok('неповний перелік не зберігається', reBad.ok === false);
 
