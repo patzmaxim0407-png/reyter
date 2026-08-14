@@ -784,23 +784,75 @@ async function monoCall(env, path, init) {
   return { ok: res.ok, status: res.status, data };
 }
 
-/** Рахунок у Monobank. Сума — тільки та, що порахував воркер. */
-async function monoInvoice(env, { total, lines, num, lang, hook }) {
+/** Рахунок у Monobank. Сума — тільки та, що порахував воркер.
+ *
+ *  Банк ЗВІРЯЄ кошик із сумою: сума всіх рядків мінус знижки має
+ *  дорівнювати amount копійка в копійку, інакше рахунок не
+ *  створюється взагалі. Доти кошик містив лише товари — і кожне
+ *  замовлення з доставкою всередині суми або зі знижкою банк
+ *  відкидав. Міжнародні падали всі до одного: там доставка в
+ *  сумі завжди. NP-замовлення з оплатою у відділенні проходили,
+ *  бо там доставка нульова, — тому поломка й ховалась так довго.
+ *
+ *  Тому доставка тепер їде окремим рядком кошика, а знижка —
+ *  полем discounts (VALUE, у копійках), розкиданим по товарних
+ *  рядках пропорційно. Хвіст від округлення лягає в перший рядок:
+ *  рівність із amount має бути точною, а не приблизною. */
+async function monoInvoice(env, { total, lines, num, lang, hook, discount, shipping }) {
   const site = 'https://reyter.men/new';
+
+  const goodsKop = (lines || []).reduce((n, l) => n + Math.round(l.price * 100) * l.qty, 0);
+  const shipKop = Math.max(0, Math.round(Number(shipping) || 0) * 100);
+  const amountKop = Math.round(total * 100);
+  /* Скільки знижки треба показати в кошику, щоб рівність зійшлась.
+     Рахуємо від фактичних чисел, а не від поля discount: після
+     округлень саме ця різниця і є істиною. */
+  let offKop = Math.max(0, goodsKop + shipKop - amountKop);
+
+  const basket = (lines || []).slice(0, 50).map((l) => ({
+    name: clip(l.name + (l.size ? ' · ' + l.size : ''), 100),
+    qty: l.qty,
+    sum: Math.round(l.price * 100),
+    unit: 'шт',
+    code: clip(l.id, 40)
+  }));
+
+  if (offKop > 0 && goodsKop > 0) {
+    let left = offKop;
+    basket.forEach((row, i) => {
+      const rowKop = row.sum * row.qty;
+      const share = i === basket.length - 1 ? left : Math.min(left, Math.round((offKop * rowKop) / goodsKop));
+      if (share > 0) {
+        row.discounts = [{ type: 'DISCOUNT', mode: 'VALUE', value: Math.min(share, rowKop) }];
+        left -= Math.min(share, rowKop);
+      }
+    });
+    // не розклалося без залишку (усе по нулях) — досипаємо в перший рядок
+    if (left > 0 && basket[0]) {
+      const first = basket[0];
+      const have = (first.discounts && first.discounts[0] && first.discounts[0].value) || 0;
+      first.discounts = [{ type: 'DISCOUNT', mode: 'VALUE', value: Math.min(have + left, first.sum * first.qty) }];
+    }
+  }
+
+  if (shipKop > 0) {
+    basket.push({
+      name: lang === 'en' ? 'Shipping' : 'Доставка',
+      qty: 1,
+      sum: shipKop,
+      unit: 'шт',
+      code: 'SHIPPING'
+    });
+  }
+
   const body = {
     // Monobank рахує в копійках
-    amount: Math.round(total * 100),
+    amount: amountKop,
     ccy: 980,
     merchantPaymInfo: {
       reference: clip(num, 40),
       destination: (lang === 'en' ? 'Order No. ' : 'Замовлення №') + clip(num, 40) + ' — REYTER',
-      basketOrder: (lines || []).slice(0, 50).map((l) => ({
-        name: clip(l.name + (l.size ? ' · ' + l.size : ''), 100),
-        qty: l.qty,
-        sum: Math.round(l.price * 100),
-        unit: 'шт',
-        code: clip(l.id, 40)
-      }))
+      basketOrder: basket
     },
     redirectUrl: `${site}/thanks?num=${encodeURIComponent(clip(num, 40))}`,
     /* Куди банк сам повідомить про оплату. Адреса — цей же
@@ -1466,6 +1518,8 @@ export default {
       const made = await monoInvoice(env, {
         total: bill.total,
         lines: bill.lines,
+        discount: bill.discount,
+        shipping: bill.shipping,
         num: d.orderNum || d.num,
         lang: d.lang,
         // власна адреса: беремо з самого запиту, щоб не тримати її ще й у налаштуваннях
