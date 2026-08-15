@@ -40,15 +40,17 @@ export default function MemberRow({
           {m.number}
           {m.instagram ? ' · @' + m.instagram : ''}
           {m.joinedAt ? ' · з ' + m.joinedAt : ''}
+          {m.clubManual ? ' · клуб руками' : ''}
         </span>
       </div>
 
       <div className="loy-row-a__lvl">
         <b>
           {p.level} рівень
-          {club ? (
-            <i className="loy-row-a__club">{m.clubManual ? 'Friendly · руками' : 'Friendly'}</i>
-          ) : null}
+          {/* Саме «Friendly» й нічого більше: довший підпис
+              переносився на другий рядок і розпирав усю комірку.
+              Те, що клуб дали руками, видно в рядку під поштою. */}
+          {club ? <i className="loy-row-a__club">Friendly</i> : null}
         </b>
         <span>−{p.percent}%</span>
       </div>

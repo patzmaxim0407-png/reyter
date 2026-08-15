@@ -165,8 +165,24 @@ export function draftDiffers(
 ): boolean {
   if (!seeded || !draft.products.length) return false;
   if (!published) return true;
-  return stableStr({ c: draft.categories, p: draft.products }) !==
-         stableStr({ c: published.categories || [], p: published.products || [] });
+
+  /* Товари звіряємо за вмістом, а не за порядком у масиві.
+
+     Опубліковане зібране з двох документів — відкритого й
+     закритого, — і закриті товари при складанні опиняються в
+     кінці, хоч у чернетці стоять серед інших. Порівняння «рядок
+     у рядок» через це завжди бачило б різницю, і кнопка
+     «Опублікувати» світилася б вічно: опублікуєш, оновиш
+     сторінку — а вона знову горить.
+
+     Втратити цим нічого: порядок товарів руками ніде не
+     міняють — на відміну від категорій, які так і звіряються за
+     порядком. */
+  const byId = (list: Product[]) =>
+    [...list].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
+  return stableStr({ c: draft.categories, p: byId(draft.products) }) !==
+         stableStr({ c: published.categories || [], p: byId(published.products || []) });
 }
 
 /** Чернетку правили вже після того, як розклад зберегли: у
@@ -330,12 +346,29 @@ function splitFriendly(snap: Snapshot): { open: Snapshot; closed: Snapshot } {
 export async function loadPublished(db: Firestore | null): Promise<PublishedPair | null> {
   if (!db) return null;
   try {
-    const [current, next] = await Promise.all([
+    const [current, next, closed] = await Promise.all([
       getDoc(pubDoc(db, 'catalog')),
-      getDoc(pubDoc(db, 'next'))
+      getDoc(pubDoc(db, 'next')),
+      getDoc(pubDoc(db, 'friendly'))
     ]);
+
+    /* Опубліковане ЗБИРАЄМО НАЗАД із двох документів.
+
+       Закриті товари лежать окремо — так їх не бачить сторонній.
+       Але адмінка порівнює чернетку саме з опублікованим, і без
+       цього складання кожен клубний товар вічно значився б
+       «неопублікованим»: опублікуєш, оновиш сторінку — і він
+       знову в переліку змін, бо у відкритому каталозі його немає
+       й бути не може. */
+    const open = current.exists() ? (current.data() as PublishedDoc) : null;
+    const mine = closed.exists() ? (closed.data() as PublishedDoc) : null;
+    const both =
+      open && mine?.products?.length
+        ? { ...open, products: [...(open.products || []), ...mine.products] }
+        : open;
+
     return {
-      published: current.exists() ? (current.data() as PublishedDoc) : null,
+      published: both,
       scheduled: next.exists() ? (next.data() as ScheduledDoc) : null
     };
   } catch {

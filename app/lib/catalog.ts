@@ -59,6 +59,7 @@ export function cartCatalogue(
       set: p.set,
       hidden: p.hidden,
       friendly: p.friendly,
+      friendlyMark: p.friendlyMark,
       sale: p.sale,
       volume: p.volume,
       sizes: p.sizes,

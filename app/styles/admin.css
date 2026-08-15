@@ -6038,7 +6038,9 @@ label.a-promo-product i {
 
 .loy-row-a {
   display: grid;
-  grid-template-columns: minmax(180px, 2fr) 1fr 1fr 1fr auto;
+  /* Колонки з числами вузькі й фіксовані: інакше довга пошта
+     тягне на себе всю ширину, а рівень із балами тиснуться. */
+  grid-template-columns: minmax(200px, 2fr) 150px 130px 130px auto;
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
@@ -6054,7 +6056,14 @@ label.a-promo-product i {
   background: rgba(217, 119, 6, 0.04);
 }
 
-.loy-row-a__who b { display: block; word-break: break-all; }
+.loy-row-a__who b { display: block; word-break: break-all; line-height: 1.25; }
+
+/* Рівень і відсоток — одним рядком, без переносів. */
+.loy-row-a__lvl b {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
 .loy-row-a__who span,
 .loy-row-a__lvl span,
 .loy-row-a__pts span,
@@ -6069,6 +6078,9 @@ label.a-promo-product i {
 
 .loy-row-a__club {
   margin-left: 6px;
+  /* не переносити ніколи: підпис, розірваний навпіл, розпирав
+     комірку й зсував увесь рядок */
+  white-space: nowrap;
   padding: 1px 7px;
   border-radius: 999px;
   background: rgba(1, 74, 173, 0.12);

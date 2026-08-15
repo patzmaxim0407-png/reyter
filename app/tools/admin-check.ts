@@ -232,6 +232,15 @@ ok('undefined і відсутнє поле — одне й те саме',
    stableStr({ a: 1, b: undefined }));
 
 const draft = { categories: cats, products: catalog };
+/* Закриті товари клубу лежать окремим документом і при складанні
+   опиняються в кінці переліку. Порівняння «рядок у рядок» через
+   це бачило б різницю завжди, і кнопка «Опублікувати» світилася б
+   вічно: опублікуєш, оновиш сторінку — а вона знову горить. */
+ok('порядок товарів не вважається зміною',
+   draftDiffers(draft, { categories: cats, products: [...catalog].reverse() }, true) === false);
+ok('а от справжня зміна помічається',
+   draftDiffers(draft, { categories: cats, products: catalog.slice(1) }, true) === true);
+
 ok('без імпорту змін не буває', draftDiffers(draft, null, false) === false);
 ok('перша публікація — це зміна', draftDiffers(draft, null, true) === true);
 ok('однакові чернетка й публікація змін не дають',

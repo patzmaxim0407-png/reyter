@@ -72,6 +72,15 @@ export default function ProductCard({
           </span>
         ) : null}
 
+        {/* Позначка клубу. Стоїть окремо від «Продано» й «Sale»:
+            вона не про стан товару, а про те, чий він, і показати
+            її треба разом із ними, а не замість. */}
+        {p.friendly || p.friendlyMark ? (
+          <span className="pcard__badges pcard__badges--club">
+            <span className="badge badge--club">Friendly</span>
+          </span>
+        ) : null}
+
         {!av.soldOut && av.low.length ? (
           <span className="pcard__badges pcard__badges--low">
             <span className="badge badge--low">

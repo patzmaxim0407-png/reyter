@@ -72,13 +72,9 @@ export default function FriendlyShelf() {
         </div>
         <div className="pgrid">
           {list.map((p) => (
-            /* Позначку малюємо обгорткою, а не всередині картки:
-               картка спільна з рештою каталогу, і додавати їй
-               знання про клуб заради одного місця не варто. */
-            <div className="fshelf__item" key={p.id}>
-              <span className="fshelf__mark">Friendly</span>
-              <ProductCard p={p} c={c} lang={lang} />
-            </div>
+            /* Позначку малює сама картка: тепер вона буває й у
+               відкритому каталозі, тож місце в неї одне. */
+            <ProductCard key={p.id} p={p} c={c} lang={lang} />
           ))}
         </div>
       </div>

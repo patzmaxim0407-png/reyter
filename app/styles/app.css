@@ -1481,3 +1481,14 @@
   letter-spacing: 0.04em;
   pointer-events: none;
 }
+
+/* Клубна позначка на картці товару. Стоїть під бейджами стану
+   («Продано», «Sale»), а не замість них: вона не про наявність,
+   а про те, чий це товар. */
+.pcard__badges--club { top: auto; bottom: 10px; }
+
+.badge--club {
+  background: #014AAD;
+  color: #fff;
+  letter-spacing: 0.04em;
+}
