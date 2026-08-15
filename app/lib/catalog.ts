@@ -104,6 +104,25 @@ export function inCategory(p: Product, catId: string): boolean {
   return productCats(p).includes(catId);
 }
 
+/** Розміри САМЕ ЦЬОГО товару, у сталому порядку.
+ *
+ *  Не всі речі шиються в усіх розмірах: бріфи бувають S–L, а
+ *  чогось немає в XS зовсім. Показувати такому товару всю сітку —
+ *  означає малювати XS і XL перекресленими, ніби вони закінчились,
+ *  і покупець чекає на них замість того, щоб узяти свій.
+ *
+ *  Порядок беремо з ALL_SIZES, а не з того, як розміри записані в
+ *  картці: у переліку вони мусять стояти від меншого до більшого
+ *  завжди, хоч би в якій послідовності їх набрали.
+ *
+ *  Порожній перелік — спадок найперших товарів, у яких сітки не
+ *  було зовсім. Їм лишаємо всю: краще зайвий розмір, ніж жодного. */
+export function productSizes(p: Product): string[] {
+  const own = Array.isArray(p.sizes) ? p.sizes.filter(Boolean) : [];
+  if (!own.length) return [...ALL_SIZES];
+  return ALL_SIZES.filter((s) => own.includes(s));
+}
+
 /** Чи має товар розмірну сітку (свічки й аромати її не мають). */
 export function isSized(p: Product | null): boolean {
   return !!(p && !p.volume && p.sizes && p.sizes.length);

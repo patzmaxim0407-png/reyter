@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useCart } from './CartProvider';
 import {
-  ALL_SIZES,
+  productSizes,
   availability,
   uah,
   isSet,
@@ -41,8 +41,8 @@ export default function AddToCart({
   /* Перший доступний розмір — саме в порядку сітки, а не в тому,
      в якому розміри лежать у базі: підсвіченою має бути та сама
      пілюля, що стоїть першою на екрані. */
-  const firstFree = (a: { soldOut: boolean; sizes: string[] }) =>
-    a.soldOut ? null : ALL_SIZES.find((s) => a.sizes.includes(s)) ?? null;
+  const firstFree = (a: { soldOut: boolean; sizes: string[] }, of: Product = p) =>
+    a.soldOut ? null : productSizes(of).find((s) => a.sizes.includes(s)) ?? null;
 
   const [size, setSize] = useState<string | null>(() => {
     if (isSet(p) && parts.length) return null;
@@ -56,7 +56,7 @@ export default function AddToCart({
     parts.map((part) => {
       const pav = availability(c, part);
       if (!isSized(part)) return { id: part.id, size: pav.soldOut ? null : part.volume ?? '' };
-      return { id: part.id, size: firstFree(pav) };
+      return { id: part.id, size: firstFree(pav, part) };
     })
   );
 
@@ -140,7 +140,8 @@ export default function AddToCart({
             {parts.map((part, n) => {
               const pav = availability(c, part);
               const chosen = picks[n]?.size ?? null;
-              const options = isSized(part) ? ALL_SIZES : [part.volume ?? ''];
+              /* Складник комплекту — теж товар зі своєю сіткою. */
+              const options = isSized(part) ? productSizes(part) : [part.volume ?? ''];
               return (
                 <div className={'setpart' + (pav.soldOut ? ' is-out' : '')} key={part.id}>
                   <div className="setpart__head">
@@ -199,7 +200,7 @@ export default function AddToCart({
             {!p.volume ? <ProductSizeGuide lang={lang} /> : null}
           </div>
           <div className={'sizes' + (shake ? ' shake' : '')}>
-            {(p.volume ? [p.volume] : ALL_SIZES).map((s) => {
+            {(p.volume ? [p.volume] : productSizes(p)).map((s) => {
               const has = !av.soldOut && (p.volume ? true : av.sizes.includes(s));
               const isLow = has && av.low.includes(s);
               return has ? (

@@ -14,7 +14,7 @@
 
 import { readFileSync } from 'node:fs';
 import { loadCatalog, loadStock } from '../lib/firestore.ts';
-import { fmt, isSet, setParts, availability, ALL_SIZES, type Catalogue } from '../lib/catalog.ts';
+import { fmt, isSet, setParts, availability, productSizes, ALL_SIZES, type Catalogue } from '../lib/catalog.ts';
 import {
   buildOrder,
   buildMessage,
@@ -303,6 +303,20 @@ const SITE_ORDER_KEYS = [
 
 const extraKeys = SITE_ORDER_KEYS.filter((k) => !ALLOWED_ORDER_KEYS.includes(k));
 ok('сайт не пише полів поза правилами', !extraKeys.length, extraKeys.join(', ') || 'зайвих немає');
+
+/* Розміри, яких у товару немає, показувати не можна: перекреслені
+   XS і XL читаються як «закінчились», і покупець чекає на них
+   замість того, щоб узяти свій. */
+{
+  const sized = { id: 'X', name: 'X', price: 1, category: 'c', sizes: ['L', 'S'] } as never;
+  const list = productSizes(sized);
+  ok('показуємо лише розміри товару', list.join(',') === 'S,L', list.join(','));
+  ok('порядок сталий, від меншого до більшого', list[0] === 'S');
+
+  const legacy = { id: 'Y', name: 'Y', price: 1, category: 'c' } as never;
+  ok('товару без сітки лишається вся — це найперші записи',
+     productSizes(legacy).join(',') === ALL_SIZES.join(','));
+}
 
 /* Кошик, який бачить покупець на сторінці банку.
 
