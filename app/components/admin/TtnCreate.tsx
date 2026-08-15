@@ -5,7 +5,7 @@ import Combobox from '../Combobox';
 import { useToast } from '../Toasts';
 import { npCities, npWarehouses } from '@/lib/address';
 import { createWaybill, type Cabinet } from '@/lib/admin/np';
-import type { AdminOrder } from '@/lib/admin/orders';
+import { paidForGoods, type AdminOrder } from '@/lib/admin/orders';
 
 /* ============================================================
    Накладна просто із замовлення
@@ -81,7 +81,12 @@ export default function TtnCreate({
   const [phone, setPhone] = useState(String(c.phone || '').trim());
   const [weightText, setWeight] = useState(String(weight || 0.5));
   const [descr, setDesc] = useState(description || 'Чоловіча білизна');
-  const [declared, setDeclared] = useState(String(order.total || 0));
+  /* Оголошена вартість — це ціна вкладення, а не сума до сплати.
+     Доставка в неї не входить: за неї перевізник відповідає й
+     так, а страхує він те, що всередині коробки. Коли покупець
+     оплатив доставку разом із замовленням, різниця саме на неї —
+     і платити з неї страховий відсоток нема за що. */
+  const [declared, setDeclared] = useState(String(paidForGoods(order) || order.total || 0));
   const [payer, setPayer] = useState<'Sender' | 'Recipient'>('Recipient');
   const [backMoney, setCod] = useState('');
   const [sending, setSending] = useState(false);
@@ -134,6 +139,11 @@ export default function TtnCreate({
       phone: phone,
       cityRecipient: (c.city || '').replace(/^м\.\s*/i, ''),
       warehouseRecipient: num,
+      /* Посилання із замовлення — ті самі, за якими рахувалась
+         доставка в кошику. За ними перевізник знаходить село
+         однозначно, а за назвою — ні. */
+      cityRef: String(c.cityRef || ''),
+      branchRef: String(c.branchRef || ''),
       description: descr,
       weight: toNumber(weightText) || 0.5,
       cost: toNumber(declared) || 1,

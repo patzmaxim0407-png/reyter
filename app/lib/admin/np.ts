@@ -384,8 +384,79 @@ export interface NewWaybill {
   box?: { length: number; width: number; height: number };
   /** Отримувач забирає з поштомата, а не з відділення. */
   postomat?: boolean;
+  /** Посилання на місто й відділення із замовлення. Якщо вони є,
+   *  назви беруться з довідника перевізника, а не з тексту
+   *  адреси: для сіл текст його не влаштовує. */
+  cityRef?: string;
+  branchRef?: string;
   /** Скільки повернути грошей за післяплатою; 0 — без неї. */
   backMoney?: number;
+}
+
+/** Відділення так, як його називає сам перевізник.
+ *
+ *  НАВІЩО ЦЕЙ ЗАПИТ. Накладна оформлюється «новою адресою»: ми
+ *  не заводимо отримувача контрагентом, а даємо перевізникові
+ *  назву міста, номер відділення й телефон — і він створює все
+ *  сам. Дешево й чисто, але назву він шукає по своєму довіднику.
+ *
+ *  Для міста цього досить, а для села — ні. «Поляниць» в Україні
+ *  кілька, і на саму назву перевізник відповідає одразу чотирма
+ *  відмовами: область не обрано, місто хибне, отримувача не
+ *  створено, поштомата не знайдено. Виглядає як поломка, а
+ *  насправді він просто не знає, котре село мається на увазі.
+ *
+ *  Замовлення ж зберігає ПОСИЛАННЯ на місто й відділення — ті
+ *  самі, за якими рахувалась доставка в кошику. За ними питаємо
+ *  довідник і беремо звідти назви його ж словами: область,
+ *  населений пункт, номер. Далі помилятися вже нема в чому. */
+export interface NpPlace {
+  cityName: string;
+  area: string;
+  regions: string;
+  number: string;
+  postomat: boolean;
+}
+
+export async function placeByRef(
+  cab: Cabinet | null,
+  cityRef: string,
+  branchRef: string,
+  /** Номер відділення — щоб не гортати весь довідник міста. */
+  hint = ''
+): Promise<NpPlace | null> {
+  if (!cityRef || !branchRef) return null;
+
+  type Row = {
+    Ref?: string;
+    Number?: string;
+    CategoryOfWarehouse?: string;
+    CityDescription?: string;
+    SettlementDescription?: string;
+    SettlementAreaDescription?: string;
+    SettlementRegionsDescription?: string;
+  };
+
+  const find = async (props: Record<string, string>) => {
+    const res = await npCall<Row>(cab, 'AddressGeneral', 'getWarehouses', { CityRef: cityRef, Page: '1', ...props });
+    return res.ok ? res.data.find((w) => String(w.Ref || '') === branchRef) || null : null;
+  };
+
+  /* У великому місті відділень більше, ніж влазить в одну
+     сторінку, тож спершу звужуємо пошук номером — саме так шукає
+     і покупець у кошику. Не знайшлось — беремо перелік цілком:
+     у селі він короткий, а саме село нас і цікавить. */
+  const row =
+    (hint ? await find({ FindByString: hint, Limit: '50' }) : null) || (await find({ Limit: '500' }));
+  if (!row) return null;
+
+  return {
+    cityName: String(row.SettlementDescription || row.CityDescription || ''),
+    area: String(row.SettlementAreaDescription || ''),
+    regions: String(row.SettlementRegionsDescription || ''),
+    number: String(row.Number || ''),
+    postomat: String(row.CategoryOfWarehouse || '') === 'Postomat'
+  };
 }
 
 /** Створити накладну. Повертає її номер. */
@@ -398,6 +469,15 @@ export async function createWaybill(
 
   const box = n.box || { length: 30, width: 20, height: 10 };
 
+  /* Назви — словами самого перевізника, коли є за чим питати.
+     Не вийшло спитати — лишаємось із тим, що записано в
+     замовленні: для міст цього вистачає, і краще спробувати
+     створити накладну, ніж не створити зовсім. */
+  const place = await placeByRef(cab, n.cityRef || '', n.branchRef || '', n.warehouseRecipient);
+  const cityName = place?.cityName || n.cityRecipient;
+  const addressName = place?.number || n.warehouseRecipient;
+  const postomat = place ? place.postomat : !!n.postomat;
+
   const props: Record<string, unknown> = {
     NewAddress: '1',
     PayerType: n.payer,
@@ -407,7 +487,7 @@ export async function createWaybill(
     Weight: String(Math.max(0.1, n.weight)),
     /* Поштомат — окремий тип послуги. З «відділення–відділення»
        перевізник посилку в поштомат не оформить. */
-    ServiceType: n.postomat ? 'WarehousePostomat' : 'WarehouseWarehouse',
+    ServiceType: postomat ? 'WarehousePostomat' : 'WarehouseWarehouse',
     SeatsAmount: String(Math.max(1, n.seats || 1)),
     Description: n.description.slice(0, 100),
     Cost: String(Math.max(1, Math.round(n.cost))),
@@ -420,8 +500,8 @@ export async function createWaybill(
        створює його сам із назви міста, номера відділення й
        телефону. Інакше на кожне замовлення в кабінеті осідав би
        новий контрагент, і довідник за місяць став би непридатним. */
-    RecipientCityName: n.cityRecipient,
-    RecipientAddressName: n.warehouseRecipient,
+    RecipientCityName: cityName,
+    RecipientAddressName: addressName,
     RecipientName: n.name,
     RecipientType: 'PrivatePerson',
     RecipientsPhone: String(n.phone || '').replace(/\D/g, ''),
@@ -441,6 +521,12 @@ export async function createWaybill(
       }
     ]
   };
+
+  /* Область і район — саме їх бракувало селам. Порожніми не
+     передаємо: у місті вони зайві, а зайве поле перевізник теж
+     уміє не зрозуміти. */
+  if (place?.area) props.RecipientArea = place.area;
+  if (place?.regions) props.RecipientAreaRegions = place.regions;
 
   if (n.backMoney && n.backMoney > 0) {
     props.BackwardDeliveryData = [
