@@ -57,6 +57,13 @@ export interface Order {
   /** Номер рахунку Monobank. Сам по собі нічого не відкриває:
    *  стан оплати питають у банку, а не в нас. */
   payInvoiceId?: string;
+  /* Знижка розкладена на дві частини: скільки дав промокод і
+     скільки — рівень лояльності. Разом вони дорівнюють discount,
+     і саме це звіряють правила бази. За однією цифрою не видно,
+     за що магазин недоотримав, а менеджерові це знати треба. */
+  promoOff?: number;
+  loyaltyOff?: number;
+  loyaltyLevel?: number;
 }
 
 export const MESSENGERS = [
@@ -190,8 +197,15 @@ export function buildOrder(input: {
   lines: CartLine[];
   customer: Customer;
   subtotal: number;
+  /** Обидві знижки разом — те, що бачить покупець у підсумку. */
   discount: number;
   promoCode: string;
+  /** Скільки з них дав промокод, а скільки — рівень лояльності.
+   *  Порізно вони потрібні і правилам бази, і менеджерові: за
+   *  однією цифрою не видно, за що саме магазин недоотримав. */
+  promoOff?: number;
+  loyaltyOff?: number;
+  loyaltyLevel?: number;
   /** Доставка, яку покупець платить разом із замовленням. */
   shipping?: number;
   /** Довідковий рядок для тих, хто платить у відділенні. */
@@ -208,6 +222,12 @@ export function buildOrder(input: {
     subtotal: input.subtotal,
     discount: input.discount,
     promoCode: input.promoCode,
+    /* Пишемо завжди, навіть нулями: правила бази розрізняють
+       стару форму замовлення й нову за наявністю поля, і
+       «іноді є, іноді немає» перетворило б це на лотерею. */
+    promoOff: Math.max(0, Math.round(input.promoOff ?? input.discount)),
+    loyaltyOff: Math.max(0, Math.round(input.loyaltyOff ?? 0)),
+    loyaltyLevel: Math.max(0, Math.round(input.loyaltyLevel ?? 0)),
     shipping: Math.max(0, Math.round(input.shipping ?? 0)),
     /* Сума — це те, що покупець має заплатити магазину. Коли він
        обрав платити доставку разом із замовленням, вона в суму

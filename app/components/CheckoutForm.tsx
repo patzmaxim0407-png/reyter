@@ -11,6 +11,8 @@ import PromoField from './PromoField';
 import type { User } from 'firebase/auth';
 import * as cart from '@/lib/cart';
 import * as fb from '@/lib/firebase';
+import { DEFAULT_RULES, discountFor, percentOf, type DiscountRules, type LevelNo } from '@/lib/loyalty';
+import { readMember, type MemberDoc } from '@/lib/admin/loyalty-db';
 import { catTitle, getProduct, uah } from '@/lib/catalog';
 import {
   EMPTY_FORM,
@@ -248,7 +250,59 @@ export default function CheckoutForm() {
      отриманні, тож так і стоїть за замовчуванням. За кордон
      платить відправник, тобто ми, — там вибору немає, і сума
      входить у замовлення. */
-  const goods = Math.max(0, subtotal - discount);
+  /* Знижка за рівнем програми лояльності.
+
+     Покупець вирішує сам, застосувати її чи ні: бали
+     нараховуються від СПЛАЧЕНОЇ суми, тож застосована знижка
+     зменшує бали рівно на свою величину. Біля порога рівня
+     вигідніше заплатити повну ціну й перейти на рівень, де
+     знижка більша назавжди. */
+  const [member, setMember] = useState<MemberDoc | null>(null);
+  const [loyaltyOn, setLoyaltyOn] = useState(true);
+  const [rules, setRules] = useState<DiscountRules>(DEFAULT_RULES);
+
+  useEffect(() => {
+    if (!user?.email) return;
+    /* Пошта в замовленні — завжди акаунтна. Профіль міг зберегти
+       іншу ще з часів, коли поле було відкрите. */
+    setEmail(user.email);
+    let alive = true;
+    const d = fb.db();
+    if (!d) return;
+    void readMember(d, user.email, new Date()).then((m) => {
+      if (alive) setMember(m);
+    });
+    void fb.loadNotifySettings().then((raw) => {
+      const box = (raw ?? {}) as { loyalty?: Partial<DiscountRules> };
+      if (alive && box.loyalty) setRules({ ...DEFAULT_RULES, ...box.loyalty });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [user]);
+
+  /* Рахуємо тими самими правилами, що й воркер: він виставить
+     рахунок сам, і два різні підрахунки означали б, що покупець
+     платить не ту суму, яку бачив. */
+  const money = useMemo(
+    () =>
+      discountFor(
+        (member?.level ?? 1) as LevelNo,
+        lines.map((l) => ({
+          sum: l.sum,
+          category: String(l.p?.category ?? ''),
+          sale: !!l.p?.sale
+        })),
+        discount,
+        rules,
+        loyaltyOn && !!member
+      ),
+    [member, lines, discount, rules, loyaltyOn]
+  );
+
+  const loyaltyOff = money.loyalty;
+  const offTotal = money.total;
+  const goods = Math.max(0, subtotal - offTotal);
   const freeShip = freeReached(underwearSum(c, lines));
   const [ship, setShip] = useState<Quote | null>(null);
   const [payShip, setPayShip] = useState<'branch' | 'order'>('branch');
@@ -396,8 +450,11 @@ export default function CheckoutForm() {
         lines,
         customer,
         subtotal,
-        discount: off,
+        discount: offTotal,
         promoCode: code,
+        promoOff: money.promo,
+        loyaltyOff,
+        loyaltyLevel: loyaltyOn && member ? member.level : 0,
         shipping: shipInTotal,
         /* Коли платить отримувач, сума в замовлення не входить —
            але менеджер має її бачити, інакше рахунок і каса
@@ -429,7 +486,15 @@ export default function CheckoutForm() {
       const { payCreate, rememberInvoice } = await import('@/lib/pay');
       const { metaBrowserContext } = await import('@/lib/meta');
       const settings = (await fb.loadNotifySettings()) as { workerUrl?: string } | null;
+      /* Рівень воркер перевірить сам, нашим токеном. Якщо токен
+         не дістанеться (вийшли з акаунта в сусідній вкладці) —
+         рахунок буде без знижки лояльності, і це чесніше, ніж
+         повірити браузеру на слово. */
+      const idToken = user ? await user.getIdToken().catch(() => '') : '';
+
       const bill = await payCreate(String(settings?.workerUrl || ''), {
+        idToken,
+        loyalty: loyaltyOn && !!member,
         orderNum: order.num,
         items: order.items.map((i) => ({ id: i.id, size: i.size || '', qty: i.qty })),
         promo: code,
@@ -685,6 +750,18 @@ export default function CheckoutForm() {
               />
             </div>
 
+            {/* Залогіненому покупцеві пошту міняти не можна, і
+                причин дві.
+
+                Перша — правила бази: у замовленні від залогіненого
+                вони приймають ЛИШЕ його власну пошту. Вписав чужу —
+                і замовлення відхиляється мовчки, бо запис ковтає
+                помилку. Досі це поле було відкрите, і пастка стояла
+                заряджена.
+
+                Друга — програма лояльності. Бали й рівень живуть на
+                акаунті, а не на рядку в формі: інакше знижку можна
+                було б узяти, вписавши чужу пошту. */}
             <div className="field">
               <label htmlFor="coEmail">{t('cart.email')}</label>
               <input
@@ -693,11 +770,15 @@ export default function CheckoutForm() {
                 className={bad?.field === 'email' ? 'is-invalid' : undefined}
                 type="email"
                 required
+                readOnly={!!user?.email}
                 autoComplete="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+              {user?.email ? (
+                <p className="field__hint">{t('cart.emailLocked')}</p>
+              ) : null}
             </div>
           </div>
         </section>
@@ -816,17 +897,42 @@ export default function CheckoutForm() {
                 </div>
               ))}
 
-              {discount || ship ? (
+              {offTotal || ship ? (
                 <div>
                   <span>{t('cart.subtotal')}</span>
                   <span>{uah(subtotal, lang)}</span>
                 </div>
               ) : null}
-              {discount ? (
+              {money.promo ? (
                 <div className="is-off">
                   <span>{t('cart.discount')} · {promo?.code}</span>
-                  <span>−{uah(discount, lang)}</span>
+                  <span>−{uah(money.promo, lang)}</span>
                 </div>
+              ) : null}
+
+              {/* Знижку за рівнем показуємо окремим рядком і з
+                  перемикачем: покупець має бачити, що вона його,
+                  і мати змогу відмовитись. Відмова не примха —
+                  бали рахуються від сплаченого, тож біля порога
+                  рівня вигідніше заплатити повну ціну. */}
+              {member && percentOf(member.level) > 0 ? (
+                <div className={'is-off loy-row' + (loyaltyOn ? '' : ' is-off-off')}>
+                  <label className="loy-row__switch">
+                    <input
+                      type="checkbox"
+                      checked={loyaltyOn}
+                      onChange={(e) => setLoyaltyOn(e.target.checked)}
+                    />
+                    <span>
+                      {t('cart.loyalty')} · −{percentOf(member.level)}%
+                    </span>
+                  </label>
+                  <span>{loyaltyOn ? '−' + uah(loyaltyOff, lang) : '—'}</span>
+                </div>
+              ) : null}
+
+              {money.capped ? (
+                <p className="loy-cap">{t('cart.loyaltyCap')}</p>
               ) : null}
 
               {/* Рядок доставки не зникає ніколи: поки міста немає —

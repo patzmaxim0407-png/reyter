@@ -674,11 +674,57 @@ function fbFields(fields) {
   return out;
 }
 
-async function fbGet(path) {
-  const res = await fetch(`${FB}/${path}`);
+async function fbGet(path, idToken) {
+  const res = await fetch(`${FB}/${path}`, {
+    headers: idToken ? { Authorization: 'Bearer ' + idToken } : {}
+  });
   if (!res.ok) return null;
   const json = await res.json().catch(() => null);
   return json && json.fields ? fbFields(json.fields) : null;
+}
+
+/* ============================================================
+   Рівень програми лояльності
+   ------------------------------------------------------------
+   Воркер мусить порахувати ту саму суму, що показав кошик, —
+   інакше покупець побачить у банку інше число, ніж хвилину тому
+   на сайті. Але рівень не можна взяти з браузера: там його
+   перепишуть за десять секунд.
+
+   Тому браузер передає свій підписаний Google токен, а воркер
+   читає ним документ учасника — ПРАВАМИ САМОГО ПОКУПЦЯ. Підробити
+   тут нічого: токен підписує Google, а в документ учасника пише
+   лише адмінка. Своїх прав у воркера немає й не треба.
+
+   Пошту беремо з того ж токена, а не з полів запиту: інакше можна
+   було б підставити чужу адресу й отримати чужий рівень.
+   ============================================================ */
+
+/** Пошта з тіла токена. Підпис НЕ перевіряємо — його перевірить
+ *  сам Firestore, коли ми цим токеном щось попросимо. Тут потрібно
+ *  лише знати, за яким ключем шукати документ. */
+function emailFromToken(idToken) {
+  try {
+    const body = String(idToken || '').split('.')[1] || '';
+    const json = atob(body.replace(/-/g, '+').replace(/_/g, '/'));
+    const data = JSON.parse(json);
+    return String(data.email || '').trim().toLowerCase();
+  } catch (e) {
+    return '';
+  }
+}
+
+/* Драбина рівнів. Продубльована з app/lib/loyalty.ts і з правил
+   бази — воркер не може покликати наш код. При зміні ставок
+   правити треба всі три місця. */
+const LOYALTY = [0, 0, 4, 8, 15];
+
+async function loyaltyPercent(idToken) {
+  const mail = emailFromToken(idToken);
+  if (!mail) return 0;
+  const m = await fbGet('loyalty/' + encodeURIComponent(mail), idToken);
+  const level = Math.max(0, Math.min(4, Math.round(Number(m && m.level) || 0)));
+  return LOYALTY[level] || 0;
 }
 
 /** Каталог, який ЗАРАЗ бачить покупець: запланована публікація
@@ -725,7 +771,7 @@ function promoOff(promo, lines, email) {
 
 /** Рахунок за замовленням. Ціни — з каталогу, знижка — з коду,
  *  доставка — від сайту, але в межах здорового глузду. */
-async function priceOrder(d) {
+async function priceOrder(d, idToken) {
   const products = await catalogueNow();
   const byId = new Map(products.map((p) => [String(p.id), p]));
 
@@ -740,6 +786,7 @@ async function priceOrder(d) {
       category: String(p.category || ''),
       size: clip(raw.size, 12),
       price: Math.max(0, Math.round(Number(p.price) || 0)),
+      sale: p.sale === true,
       qty: qty
     });
   }
@@ -760,7 +807,35 @@ async function priceOrder(d) {
      мільйон за «доставку» нікому не потрібен. */
   const shipping = Math.max(0, Math.min(5000, Math.round(Number(d.shipping) || 0)));
 
-  return { lines, goods, discount: off, shipping, total: Math.max(1, goods - off + shipping) };
+  /* Знижка за рівнем. Правила винятків і стеля лежать у
+     settings/public — там же, звідки їх бере сайт, тож обидва
+     рахують однаково. */
+  let loyalty = 0;
+  if (d.loyalty !== false && idToken) {
+    const percent = await loyaltyPercent(idToken);
+    if (percent > 0) {
+      const box = (await fbGet('settings/public')) || {};
+      const rules = (box.loyalty && typeof box.loyalty === 'object') ? box.loyalty : {};
+      const skipSale = rules.skipSale === true;
+      const skipCats = Array.isArray(rules.skipCats) ? rules.skipCats.map(String) : [];
+      const cap = Math.max(0, Math.round(Number(rules.cap) || 0));
+
+      const base = lines
+        .filter((l) => !(skipSale && l.sale) && !skipCats.includes(String(l.category || '')))
+        .reduce((s, l) => s + l.price * l.qty, 0);
+      loyalty = Math.round((base * percent) / 100);
+
+      /* Стеля зрізає саме лояльність: промокод — обіцянка,
+         названа числом, яку покупець уже прочитав. */
+      if (cap > 0) {
+        const ceiling = Math.floor((goods * cap) / 100);
+        if (off + loyalty > ceiling) loyalty = Math.max(0, ceiling - off);
+      }
+    }
+  }
+
+  const discount = Math.min(goods, off + loyalty);
+  return { lines, goods, discount, promoOff: off, loyalty, shipping, total: Math.max(1, goods - discount + shipping) };
 }
 
 /* Виписка банку. Вікно не довше за 31 день — це межа самого
@@ -1713,7 +1788,7 @@ export default {
 
       /* Рахунок для покупця. Ціни бере з каталогу сам воркер —
          від сайту приймається лише перелік товарів. */
-      const bill = await priceOrder(d);
+      const bill = await priceOrder(d, clip(d.idToken, 4000));
       if (bill.error) return reply({ ok: false, error: bill.error }, 400, cors);
 
       const made = await monoInvoice(env, {
@@ -1772,6 +1847,8 @@ export default {
         amount: bill.total,
         goods: bill.goods,
         discount: bill.discount,
+        promoOff: bill.promoOff,
+        loyalty: bill.loyalty,
         shipping: bill.shipping,
         email: mail
       }, 200, cors);

@@ -32,6 +32,7 @@ import {
 } from '../lib/loyalty.ts';
 import { paidForGoods, planStatusChange, type AdminOrder } from '../lib/admin/orders.ts';
 import { planHistory } from '../lib/admin/loyalty-db.ts';
+import { readFileSync } from 'node:fs';
 
 let failed = 0;
 const ok = (name: string, cond: boolean, extra = '') => {
@@ -313,6 +314,23 @@ console.log('\nСТАТУС ЗАМОВЛЕННЯ');
   m = refund(m, 1400);
   m = credit(m, 1400, '2026-08-20');
   ok('виконано → відкат → виконано дає рівно одне нарахування', m.points === 1400, String(m.points));
+}
+
+/* ---------- Кошик і воркер мусять збігтися ----------
+   Найдорожча розбіжність з усіх: покупець бачить у кошику одну
+   суму, а банк просить іншу. Тому драбину у воркері звіряємо
+   з нашою просто текстом його ж файла. */
+console.log('\nВОРКЕР');
+{
+  const src = readFileSync(new URL('../../worker/worker.js', import.meta.url), 'utf8');
+  const m = src.match(/const LOYALTY = \[([^\]]+)\]/);
+  const inWorker = (m ? m[1] : '').split(',').map((x) => Number(x.trim()));
+  const ours = [0, ...LEVELS.map((l) => l.percent)];
+  ok('ставки у воркері ті самі', JSON.stringify(inWorker) === JSON.stringify(ours),
+     JSON.stringify(inWorker) + ' проти ' + JSON.stringify(ours));
+  ok('воркер читає рівень токеном покупця', /Authorization: 'Bearer ' \+ idToken/.test(src));
+  ok('пошта береться з токена, а не з полів запиту', /function emailFromToken/.test(src));
+  ok('стеля зрізає саме лояльність', /ceiling - off/.test(src));
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));

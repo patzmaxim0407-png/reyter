@@ -90,10 +90,23 @@ export async function payCreate(
     /** Рахунки, які треба погасити: живими має лишатись рівно
      *  одне посилання на оплату. */
     previous?: string[];
+    /** Підписаний Google токен покупця.
+     *
+     *  Ним воркер читає рівень лояльності — правами самого
+     *  покупця, а не своїми. Це єдиний спосіб, у якому рівень
+     *  неможливо підробити з браузера: у документ учасника пише
+     *  лише адмінка, а токен підписує Google. Без токена знижки
+     *  за рівнем у рахунку просто не буде — і покупець побачить
+     *  у банку більшу суму, ніж у кошику. */
+    idToken?: string;
+    /** Чи застосовувати знижку за рівнем. Покупець вирішує сам. */
+    loyalty?: boolean;
   }
 ): Promise<PayInvoice> {
   const r = await ask(workerUrl, {
     type: 'pay-create',
+    idToken: input.idToken || '',
+    loyalty: input.loyalty !== false,
     previousInvoiceIds: input.previous || [],
     orderNum: input.orderNum,
     items: input.items,
