@@ -238,7 +238,13 @@ export default function OrdersAdmin() {
     const inTransit = orders
       .filter(
         (o) =>
-          (o.status === 'shipped' || o.status === 'done') && String(o.ttn || '').trim()
+          /* Підтверджені з накладною питаємо теж. Доти трекер їх
+             не бачив — і рядок виглядав так, ніби накладної немає
+             зовсім: ані номера, ані значка. А саме на цьому кроці
+             її й створюють, і саме тоді корисно знати, що
+             перевізник посилку ще не прийняв. */
+          (o.status === 'confirmed' || o.status === 'shipped' || o.status === 'done') &&
+          String(o.ttn || '').trim()
       )
       /* Спершу ті, що їдуть: у жваві дні сотня найновіших — це
          переважно виконані, і саме ті посилки, заради яких усе
@@ -926,10 +932,16 @@ export default function OrdersAdmin() {
 
   /** Що каже перевізник — для рядка списку. */
   function parcelForRow(o: AdminOrder) {
-    const parcel = parcels.get(String(o.ttn || '').trim());
-    return parcel
-      ? { text: shortLabel(parcel), tone: alarm(parcel), state: parcelState(parcel.code) }
-      : undefined;
+    const ttn = String(o.ttn || '').trim();
+    const parcel = parcels.get(ttn);
+    if (parcel) {
+      return { text: shortLabel(parcel), tone: alarm(parcel), state: parcelState(parcel.code) };
+    }
+    /* Накладна є, а перевізник ще не відповів — між створенням і
+       першою відповіддю проходять хвилини. Мовчати про це не
+       можна: менеджер щойно її створив і мусить бачити, що вона
+       на місці, інакше зробить другу. */
+    return ttn ? { text: 'Накладна є', tone: 0 as const, state: 'created' } : undefined;
   }
 
   /** Коли це було — коротко, для рядка списку. */
