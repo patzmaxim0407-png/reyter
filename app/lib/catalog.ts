@@ -54,6 +54,7 @@ export function cartCatalogue(
       categories: p.categories,
       set: p.set,
       hidden: p.hidden,
+      friendly: p.friendly,
       sale: p.sale,
       volume: p.volume,
       sizes: p.sizes,
@@ -68,8 +69,21 @@ export function getProduct(c: Catalogue, id: string): Product | null {
   return c.products.find((p) => p.id === id) ?? null;
 }
 
+/** Що бачить звичайний відвідувач.
+ *
+ *  Закриті товари сюди не потрапляють — і саме тому сторінка,
+ *  яку бачать усі, лишається однаковою для всіх. Це важливо:
+ *  вітрина статична й спільна, сервер не знає, хто прийшов, тож
+ *  «показати учасникам» можна тільки в браузері. */
 export function visibleProducts(c: Catalogue): Product[] {
-  return c.products.filter((p) => !p.hidden);
+  return c.products.filter((p) => !p.hidden && !p.friendly);
+}
+
+/** Закриті товари для тих, кому вони належать. Малює їх уже
+ *  браузер учасника — з того самого каталогу, що й так їде в
+ *  сторінку для кошика. */
+export function friendlyProducts(c: Catalogue): Product[] {
+  return c.products.filter((p) => !p.hidden && p.friendly);
 }
 
 /** Товар може стояти в кількох категоріях одразу: наприклад

@@ -16,7 +16,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
      має бути в карті. alternates каже пошуковику, що це та сама
      сторінка іншою мовою, а не дубль. */
   const items = products
-    .filter((p) => !p.hidden)
+    /* Закриті товари в карту не йдуть: інакше Google приведе на
+       них будь-кого, і закритість скінчиться в перший же тиждень. */
+    .filter((p) => !p.hidden && !p.friendly)
     .flatMap((p) => {
       const path = `/p/${encodeURIComponent(p.id)}`;
       const alternates = { languages: { uk: base + path, en: `${base}/en${path}` } };

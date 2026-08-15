@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import PublishControl from './PublishControl';
 import SettingsDialog from './SettingsDialog';
 import MemberRow from './MemberRow';
@@ -10,13 +10,15 @@ import { useToast } from '../Toasts';
 import { db } from '@/lib/firebase';
 import { watchDraft, EMPTY_DRAFT, type Draft } from '@/lib/admin/store';
 import { watchMembers, watchOrders, type Doc } from '@/lib/admin/live';
-import { DEFAULT_RULES, LEVELS, type DiscountRules } from '@/lib/loyalty';
+import { DEFAULT_RULES, LEVELS, deadlineOf, isFriendly, type DiscountRules } from '@/lib/loyalty';
 import {
   findMembers,
+  inClub,
   loadRules,
   planHistoryDone,
   planManual,
   saveRules,
+  sweepHistory,
   statsOf,
   writeMove,
   type HistorySource,
@@ -44,6 +46,10 @@ import {
    ============================================================ */
 
 type Tab = 'members' | 'rules';
+/** Кого показувати: усі, за рівнем, у клубі, «рівень дозволив,
+ *  але Instagram не вписано», черга на зарахування. */
+type Only = 'all' | '1' | '2' | '3' | '4' | 'club' | 'ready' | 'wait';
+type Sort = 'points' | 'level' | 'new' | 'soon';
 
 export default function LoyaltyAdmin() {
   const user = useAdminUser();
@@ -56,8 +62,13 @@ export default function LoyaltyAdmin() {
   const [rules, setRules] = useState<DiscountRules>(DEFAULT_RULES);
   const [tab, setTab] = useState<Tab>('members');
   const [find, setFind] = useState('');
+  const [only, setOnly] = useState<Only>('all');
+  const [sort, setSort] = useState<Sort>('points');
   const [busy, setBusy] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /* Один прохід на одне відкриття екрана. Без цього кожна нова
+     порція даних із бази запускала б зарахування наново. */
+  const swept = useRef(false);
 
   const need = () => {
     const d = db();
@@ -81,20 +92,69 @@ export default function LoyaltyAdmin() {
     };
   }, []);
 
+  /* Зарахування історії — автоматичне.
+
+     Учасник вступає сам, але порахувати свої минулі покупки не
+     може: бали пише лише адмін. Тому це робить адмінка, щойно її
+     відкрили. Чекати, поки менеджер натисне кнопку, означало б
+     тримати людину з порожнім рахунком невідомо скільки.
+
+     Чекаємо саме на замовлення: доки вони не приїхали, історія
+     виглядала б порожньою, і ми чесно записали б «нічого не
+     знайшлось», знявши прапорець назавжди. */
+  useEffect(() => {
+    if (swept.current) return;
+    if (!orders.length) return;
+    const queue = members.filter((m) => m.historyPending);
+    if (!queue.length) return;
+
+    swept.current = true;
+    const d = db();
+    if (!d) return;
+    void sweepHistory(d, queue, orders, user.email ?? '').then(({ done, points }) => {
+      if (!done) return;
+      toast(
+        points
+          ? `Зараховано історію: ${done} учасникам, ${points.toLocaleString('uk')} балів ✓`
+          : `Опрацьовано ${done} — минулих замовлень не знайшлось`,
+        'success'
+      );
+    });
+  }, [members, orders, user, toast]);
+
   const stats = useMemo(
     () => statsOf(members, orders as { loyaltyOff?: number }[]),
     [members, orders]
   );
 
-  /* Черга на зарахування — завжди зверху. Решта за балами:
-     хто витратив більше, того менеджер шукає частіше. */
+  /* Відбір і порядок.
+
+     Черга на зарахування завжди зверху — хоч би що обрали: це
+     єдина незакрита справа, і ховати її за сортуванням було б
+     дивно.
+
+     «Скоро згорять» — найкорисніший порядок із усіх: він
+     показує тих, у кого рік добігає кінця, а до наступного рівня
+     не вистачає. Саме їм варто написати, і саме про них ніхто
+     ніколи не згадає сам. */
   const view = useMemo(() => {
-    const found = findMembers(members, find);
-    return [...found].sort((a, b) => {
+    let list = findMembers(members, find);
+
+    if (only === 'club') list = list.filter((m) => inClub(m));
+    else if (only === 'ready') list = list.filter((m) => isFriendly(m.level) && !m.instagram);
+    else if (only === 'wait') list = list.filter((m) => m.historyPending);
+    else if (only !== 'all') list = list.filter((m) => String(m.level) === only);
+
+    const till = (m: MemberDoc) => deadlineOf(m) ?? '9999-99-99';
+
+    return [...list].sort((a, b) => {
       if (!!a.historyPending !== !!b.historyPending) return a.historyPending ? -1 : 1;
+      if (sort === 'level') return b.level - a.level || b.points - a.points;
+      if (sort === 'new') return String(b.joinedAt || '').localeCompare(String(a.joinedAt || ''));
+      if (sort === 'soon') return till(a).localeCompare(till(b));
       return b.points - a.points;
     });
-  }, [members, find]);
+  }, [members, find, only, sort]);
 
   async function creditHistory(m: MemberDoc) {
     const d = need();
@@ -209,13 +269,17 @@ export default function LoyaltyAdmin() {
             </p>
           </div>
           {stats.pending ? (
+            /* Зарахування й так іде саме, щойно екран відкрито.
+               Кнопка лишається на випадок, коли треба зараз: коли
+               замовлення щойно перевели у «Виконано» й чекати
+               наступного відкриття адмінки не хочеться. */
             <button
-              className="btn btn--primary"
+              className="btn btn--ghost"
               type="button"
               disabled={busy === 'all'}
               onClick={() => void creditAll()}
             >
-              {busy === 'all' ? 'Зараховуємо…' : `Зарахувати історію (${stats.pending})`}
+              {busy === 'all' ? 'Зараховуємо…' : `Зарахувати зараз (${stats.pending})`}
             </button>
           ) : null}
         </div>
@@ -265,13 +329,42 @@ export default function LoyaltyAdmin() {
               </button>
             </div>
             {tab === 'members' ? (
-              <input
-                className="ao-search"
-                value={find}
-                placeholder="пошта, номер або Instagram"
-                autoComplete="off"
-                onChange={(e) => setFind(e.target.value)}
-              />
+              <>
+                <select
+                  className="ao-select"
+                  value={only}
+                  aria-label="Кого показувати"
+                  onChange={(e) => setOnly(e.target.value as Only)}
+                >
+                  <option value="all">Усі учасники</option>
+                  <option value="wait">Чекають зарахування</option>
+                  <option value="club">У Friendly Club</option>
+                  <option value="ready">Рівень дозволив, без Instagram</option>
+                  {LEVELS.map((l) => (
+                    <option key={l.level} value={String(l.level)}>
+                      Рівень {l.level} · −{l.percent}%
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="ao-select"
+                  value={sort}
+                  aria-label="Порядок"
+                  onChange={(e) => setSort(e.target.value as Sort)}
+                >
+                  <option value="points">Спершу з більшими балами</option>
+                  <option value="level">Спершу вищий рівень</option>
+                  <option value="new">Спершу нові</option>
+                  <option value="soon">Спершу ті, у кого скоро згорять</option>
+                </select>
+                <input
+                  className="ao-search"
+                  value={find}
+                  placeholder="пошта, номер або Instagram"
+                  autoComplete="off"
+                  onChange={(e) => setFind(e.target.value)}
+                />
+              </>
             ) : null}
           </div>
 

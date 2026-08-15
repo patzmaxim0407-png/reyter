@@ -1,4 +1,5 @@
 import ProductCard from '@/components/ProductCard';
+import FriendlyShelf from '@/components/FriendlyShelf';
 import { FriendlyClub, HomeEffects, ReadMore, SizeGuideImage, ToTop } from '@/components/HomeInteractive';
 import { loadCatalog, loadDraftCatalog, loadStock } from '@/lib/firestore';
 import { inCategory, visibleProducts } from '@/lib/catalog';
@@ -74,6 +75,10 @@ export default async function HomeView({ lang, previewDraft = false }: { lang: L
       <header className="section-head section-head--sub reveal"><h3 className="section-title section-title--sm">{t('contacts.msgTitle', lang)}</h3><p className="section-sub">{t('contacts.msgSub', lang)}</p></header>
       <div className="contacts__grid contacts__grid--msg reveal">{messengers.map(([icon, name, href, extra]) => <a className={`soc-card ${extra}`} href={href} target="_blank" rel="noopener" key={name}><i className={icon} aria-hidden="true"/><span>{name}</span></a>)}</div>
     </div></section>
+
+    {/* Закриті товари. Малює їх браузер учасника — сервер не
+        знає, хто відкрив сторінку, і рендерить її раз на всіх. */}
+    <FriendlyShelf />
 
     <HomeEffects categoryIds={sections.map(({ cat }) => cat.id)} />
     <ToTop lang={lang} />

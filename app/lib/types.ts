@@ -50,6 +50,9 @@ export interface Product {
   saleNote?: string;
   saleNoteEn?: string;
   hidden?: boolean;
+  /** Тільки для Friendly Club: у відкритому каталозі товару не
+   *  видно, його бачать лише учасники з третього рівня. */
+  friendly?: boolean;
 
   colors?: ColorRaw[];
   images: string[];

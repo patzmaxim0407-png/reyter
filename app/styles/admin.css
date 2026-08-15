@@ -6105,3 +6105,21 @@ label.a-promo-product i {
   font-style: normal;
   color: #9a958a;
 }
+
+/* Відбір і порядок у переліку учасників. Виглядають як поле
+   пошуку поруч — щоб панель читалась одним рядком, а не
+   набором різнорідних елементів. */
+.ao-select {
+  padding: 0.5rem 0.85rem;
+  border: 1.5px solid var(--c-line);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.85rem;
+  background: var(--c-paper);
+  max-width: 100%;
+}
+
+.ao-select:focus {
+  outline: none;
+  border-color: var(--c-blue);
+}

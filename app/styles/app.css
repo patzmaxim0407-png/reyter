@@ -1446,3 +1446,38 @@
   color: transparent;
   min-height: 92px;
 }
+
+/* ---------- Полиця Friendly Club ----------
+   Стоїть окремою секцією, а не всередині каталогу: це не «ще
+   кілька товарів», а те, заради чого людина піднімалась до
+   третього рівня. Тому їй потрібен власний заголовок і повітря. */
+
+.fshelf { padding-block: clamp(2rem, 5vw, 3.5rem); }
+
+.fshelf__head { margin-bottom: 20px; }
+
+.fshelf__head h2 {
+  margin: 0 0 6px;
+  font-family: var(--font-display, inherit);
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  color: var(--c-blue-ink, #062B5C);
+}
+
+.fshelf__head p { margin: 0; color: #6e6a5e; }
+
+.fshelf__item { position: relative; }
+
+.fshelf__mark {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  left: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #014AAD;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}

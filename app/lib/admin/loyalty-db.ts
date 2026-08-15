@@ -29,6 +29,7 @@ import {
   Timestamp,
   Transaction,
   collection,
+  runTransaction,
   doc,
   getDoc,
   getDocs,
@@ -409,6 +410,66 @@ export function planHistoryDone(
       by
     }
   };
+}
+
+/* ============================================================
+   АВТОМАТИЧНЕ ЗАРАХУВАННЯ ІСТОРІЇ
+   ------------------------------------------------------------
+   Учасник вступає сам, але порахувати свої минулі покупки не
+   може: писати бали дозволено лише адмінові. Тому зарахування
+   робить адмінка — сама, щойно її відкрили, без жодної кнопки.
+
+   ЧОМУ ТРАНЗАКЦІЯ. Менеджерів може бути двоє, вкладок — теж.
+   Обидві бачать той самий прапорець «зарахуйте історію» і обидві
+   кинуться рахувати. Проста перевірка «чи прапорець стоїть» тут
+   не рятує: між читанням і записом устигає пройти чужий запис.
+   Транзакція перечитує документ у момент запису й відступає,
+   якщо прапорець уже знято, — і бали не подвоюються.
+   ============================================================ */
+
+export async function applyHistoryTx(
+  db: Firestore,
+  who: string,
+  all: HistorySource[],
+  by: string
+): Promise<number> {
+  return runTransaction(db, async (tx) => {
+    const ref = doc(db, MEMBERS_COL, keyOf(who));
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return 0;
+
+    const m = fresh(snap.data() as MemberDoc, new Date());
+    // хтось устиг раніше — це успіх, але без другого нарахування
+    if (!m.historyPending) return 0;
+
+    const plan = planHistoryDone(m, all, by);
+    tx.set(ref, plan.member, { merge: true });
+    tx.set(doc(collection(db, MOVES_COL)), { ...plan.move, at: Timestamp.now() });
+    return plan.move.points;
+  });
+}
+
+/** Пройтись по всіх, хто чекає. Невдача одного не спиняє решти:
+ *  його прапорець лишається, і наступного разу він знову буде
+ *  в черзі. */
+export async function sweepHistory(
+  db: Firestore,
+  members: MemberDoc[],
+  all: HistorySource[],
+  by: string
+): Promise<{ done: number; points: number }> {
+  let done = 0;
+  let points = 0;
+  for (const m of members) {
+    if (!m.historyPending) continue;
+    try {
+      points += await applyHistoryTx(db, m.who, all, by);
+      done += 1;
+    } catch {
+      /* мовчки: наступного відкриття адмінки спробуємо знову */
+    }
+  }
+  return { done, points };
 }
 
 export interface Stats {
