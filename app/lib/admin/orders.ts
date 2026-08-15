@@ -55,7 +55,7 @@ import {
 } from '../promo';
 import { SITE_CONFIG } from '../site-config';
 import { phoneTail, trackCreate, trackDelete, trackKey, trackUpdate } from '../track';
-import { planCredit, planRefund, readMemberTx, writeMoveTx } from './loyalty-db';
+import { paidGoods, planCredit, planRefund, readMemberTx, writeMoveTx } from './loyalty-db';
 import type { OrderItem, OrderStatus } from '../types';
 import {
   adjustOrderStock,
@@ -813,9 +813,7 @@ function isoDay(d: Date): string {
 }
 
 export function paidForGoods(order: AdminOrder): number {
-  const goods = Math.max(0, Math.round(Number(order.subtotal) || 0));
-  const off = Math.max(0, Math.round(Number(order.discount) || 0));
-  return Math.max(0, goods - off);
+  return paidGoods(order);
 }
 
 export interface StatusPlan {
@@ -1168,6 +1166,13 @@ export async function applyStatus(
 
       transaction.update(ref, {
         ...plan.update,
+        /* Позначка «бали за це замовлення нараховані» має бути
+           правдою. Раніше вона ставилась і тоді, коли нараховувати
+           не було кому: покупець ще не в програмі, документа немає,
+           руху немає — а замовлення вже позначене нарахованим.
+           Потім, при вступі, зарахування історії не мало як
+           відрізнити таке замовлення від справді врахованого. */
+        ...(plan.points.kind === 'credit' && !moved ? { pointsApplied: false } : {}),
         ...(freshTtn ? { ttn: freshTtn } : {}),
         ...(pickup && !fresh.pickup ? { pickup: true } : {}),
         statusLog: arrayUnion(plan.entry)
@@ -1770,6 +1775,8 @@ export interface ManualDraft {
   shipping: number;
   promoCode: string;
   customer: Customer;
+  /** Товари без доставки й до знижки. */
+  subtotal: number;
   total: number;
 }
 
@@ -1853,9 +1860,19 @@ export function planManualOrder(form: ManualForm, rows: ManualRow[], c: Catalogu
          зіпсував би статистику використань промокоду. */
       promoCode: discount ? promoNormalize(form.promo) : '',
       customer: customer,
-      total: Math.max(0, items.reduce((s, i) => s + i.price * i.qty, 0) - discount + shipping)
+      /* Сума товарів окремим полем — так само, як у замовленні з
+         сайту. Без неї ручне замовлення виглядало б для програми
+         лояльності як нульове: бали рахуються саме від subtotal,
+         і ручні покупки мовчки не давали б нічого. */
+      subtotal: goods(items),
+      total: Math.max(0, goods(items) - discount + shipping)
     }
   };
+}
+
+/** Скільки коштують самі товари, без доставки й знижок. */
+function goods(items: OrderItem[]): number {
+  return Math.max(0, items.reduce((s, i) => s + i.price * i.qty, 0));
 }
 
 /** Документ orders/<id> для щойно створеного замовлення. */
@@ -1866,6 +1883,8 @@ export interface OrderDoc {
   discount: number;
   promoCode: string;
   shipping: number;
+  /** Товари без доставки й до знижки — від нього рахуються бали. */
+  subtotal: number;
   total: number;
   customer: Customer;
   email: string;
@@ -1978,6 +1997,10 @@ export async function createManualOrder(
         discount: updated.discount,
         promoCode: updated.promoCode,
         shipping: updated.shipping,
+        /* Перезбереження — нагода дописати суму товарів тим
+           замовленням, які створювались, коли цього поля ще не
+           було. Без неї бали за таке замовлення не нарахуються. */
+        subtotal: updated.subtotal ?? goods(updated.items || []),
         total: updated.total,
         customer: updated.customer,
         email: updated.email,
@@ -2012,6 +2035,7 @@ export async function createManualOrder(
     discount: d.discount,
     promoCode: d.promoCode,
     shipping: d.shipping,
+    subtotal: d.subtotal,
     total: d.total,
     customer: d.customer,
     email: d.customer.email,

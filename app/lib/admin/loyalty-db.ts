@@ -84,6 +84,9 @@ export interface MemberDoc extends Member {
    *  при вступі, знімає адмінка, коли порахує: підсумувати свої
    *  ж покупки він не може — правила бази не дають писати бали. */
   historyPending?: boolean;
+  /** Номери замовлень, уже зарахованих історією. Тримаємо їх,
+   *  щоб повторний прохід не нарахував ті самі покупки вдруге. */
+  historyNums?: string[];
 }
 
 export type MoveKind = 'order' | 'return' | 'manual' | 'history' | 'expire';
@@ -318,13 +321,25 @@ export function planHistory(m: MemberDoc, past: PastOrder[], by: string): MovePl
   /* Межу тримаємо тут, а не в тому, хто збирає замовлення:
      інакше вона рано чи пізно розійшлася б із написом у кабінеті,
      і покупець рахував би одне, а програма — інше. */
-  const mine = past.filter((o) => String(o.at || '') >= HISTORY_FROM);
+  const after = past.filter((o) => String(o.at || '') >= HISTORY_FROM);
+
+  /* Що вже зараховано — те вдруге не рахується. Без цього списку
+     повторний прохід (а він потрібен: причину нуля іноді
+     виправляють і рахують ще раз) додавав би ті самі замовлення
+     знову, і бали тихо подвоювались би. */
+  const had = new Set(m.historyNums || []);
+  const mine = after.filter((o) => !o.num || !had.has(o.num));
+
   const sum = mine.reduce((n, o) => n + Math.max(0, Math.floor(o.paid)), 0);
   if (!sum) return null;
 
   const points = m.points + sum;
   const level = levelOf(points);
-  const member = withFriendly({ ...m, points, level, cycleStart: null }, iso(new Date()));
+  const nums = [...had, ...mine.map((o) => o.num).filter(Boolean)];
+  const member = withFriendly(
+    { ...m, points, level, cycleStart: null, historyNums: nums },
+    iso(new Date())
+  );
   return {
     member,
     move: {
@@ -387,10 +402,30 @@ export function cachedMember(email: string): MemberDoc | null {
  *  й після знижок. Та сама формула, що й при нарахуванні на
  *  «Виконано», — інакше зарахована історія розійшлася б із тим,
  *  що людина отримала б, замовляючи вже в програмі. */
-export function paidGoods(o: { subtotal?: number; discount?: number }): number {
-  const goods = Math.max(0, Math.round(Number(o.subtotal) || 0));
+export function paidGoods(o: {
+  subtotal?: number;
+  discount?: number;
+  items?: Array<{ price?: number; qty?: number }> | null;
+}): number {
+  const goods = Math.max(0, Math.round(itemsSum(o)));
   const off = Math.max(0, Math.round(Number(o.discount) || 0));
   return Math.max(0, goods - off);
+}
+
+/** Сума товарів. Головне джерело — поле subtotal, яке пише сайт.
+ *
+ *  Але замовлення, заведене в адмінці руками, його довго не мало
+ *  зовсім, і для програми лояльності такі покупки виглядали
+ *  нульовими: бали не нараховувались ні на «Виконано», ні при
+ *  зарахуванні історії, і жодного сліду про це не лишалось.
+ *  Поле тепер пишеться, але старі замовлення в базі так і лежать
+ *  без нього — тож рахуємо за товарами, як їх рахує сама
+ *  адмінка, коли складає замовлення. */
+function itemsSum(o: { subtotal?: number; items?: Array<{ price?: number; qty?: number }> | null }): number {
+  const said = Number(o.subtotal);
+  if (Number.isFinite(said) && said > 0) return said;
+  const rows = Array.isArray(o.items) ? o.items : [];
+  return rows.reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.qty) || 0), 0);
 }
 
 export interface HistorySource {
@@ -400,7 +435,95 @@ export interface HistorySource {
   date?: string;
   subtotal?: number;
   discount?: number;
+  items?: Array<{ price?: number; qty?: number }> | null;
   customer?: { email?: string } | null;
+  /** Бали за це замовлення вже нараховані на «Виконано». */
+  pointsApplied?: boolean;
+}
+
+/** Київський день замовлення.
+ *
+ *  Дата в базі — ISO за Гринвічем, а межа програми названа днем:
+ *  «з 9 серпня». Зріз рядка по десятому символу дає день UTC, і
+ *  замовлення, зроблене 9 серпня о першій ночі за Києвом,
+ *  вважалося б восьмим — тобто випало б із програми на очах у
+ *  покупця, який чудово памʼятає, коли він замовляв. */
+export function orderDay(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Kyiv',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(d);
+}
+
+/** Розбір минулих замовлень — з причинами, а не самим підсумком.
+ *
+ *  Нуль балів має щонайменше чотири різні причини, і всі вони
+ *  виглядають на екрані однаково. Доки код повертав саме нуль,
+ *  власник бачив зниклу кнопку й порожній рахунок, а в журналі
+ *  лежало «минулих замовлень не знайшлось» — твердження, якого
+ *  ніхто не перевіряв і яке частіше було неправдою.
+ *
+ *  Тому рахуємо не лише те, що зараховується, а й те, що
+ *  відпало, і чому саме. */
+export interface HistoryScan {
+  /** Замовлень із цією поштою — усіх, хоч би що з ними далі. */
+  mine: number;
+  /** З них виконаних. */
+  done: number;
+  /** Виконані, але раніші за межу програми. */
+  early: number;
+  /** Виконані й свіжі, але сума вийшла нульова — це вже привід
+   *  подивитись на замовлення руками. */
+  empty: number;
+  /** Уже нараховані звичайним шляхом, на «Виконано». */
+  already: number;
+  /** Ті, що дають бали. */
+  take: PastOrder[];
+  sum: number;
+}
+
+export function scanHistory(who: string, all: HistorySource[], joinedAt = ''): HistoryScan {
+  const key = keyOf(who);
+  const mine = all.filter((o) => keyOf(o.email || o.customer?.email || '') === key);
+  const done = mine.filter((o) => String(o.status || '') === 'done');
+
+  const scan: HistoryScan = {
+    mine: mine.length, done: done.length, early: 0, empty: 0, already: 0, take: [], sum: 0
+  };
+
+  for (const o of done) {
+    const at = orderDay(String(o.date || ''));
+    if (at < HISTORY_FROM) {
+      scan.early += 1;
+      continue;
+    }
+
+    /* Замовлення, зроблене вже після вступу, бали отримало
+       звичайним шляхом — на «Виконано». Історія його не чіпає,
+       інакше та сама покупка нарахувалася б двічі.
+
+       Дата вступу тут не формальність, а межа довіри: до неї
+       позначка «нараховано» могла стояти й на замовленні, за яке
+       насправді ніхто нічого не отримував — покупця ще не було в
+       програмі. Такі беремо, і це правильно. */
+    if (o.pointsApplied === true && joinedAt && at >= joinedAt) {
+      scan.already += 1;
+      continue;
+    }
+    const paid = paidGoods(o);
+    if (paid <= 0) {
+      scan.empty += 1;
+      continue;
+    }
+    scan.take.push({ num: String(o.num || ''), paid, at });
+  }
+
+  scan.sum = scan.take.reduce((n, o) => n + Math.floor(o.paid), 0);
+  return scan;
 }
 
 /** Минулі замовлення учасника — ті, що справді дають бали.
@@ -409,43 +532,87 @@ export interface HistorySource {
  *  давало б і сьогодні, тож зараховувати його заднім числом
  *  було б подарунком, якого програма не обіцяла. */
 export function pastOrdersOf(who: string, all: HistorySource[]): PastOrder[] {
-  const key = keyOf(who);
-  return all
-    .filter((o) => keyOf(o.email || o.customer?.email || '') === key)
-    .filter((o) => String(o.status || '') === 'done')
-    .map((o) => ({
-      num: String(o.num || ''),
-      paid: paidGoods(o),
-      at: String(o.date || '').slice(0, 10)
-    }))
-    .filter((o) => o.paid > 0);
+  return scanHistory(who, all).take;
 }
 
-/** Порахувати історію й прибрати прапорець.
+/** Порахувати історію, зняти прапорець і сказати правду.
  *
- *  Прапорець знімається ЗАВЖДИ, навіть коли зараховувати нічого:
- *  учасник без жодного виконаного замовлення інакше лишався б у
- *  черзі назавжди й щоразу потрапляв би менеджерові на очі. */
-export function planHistoryDone(
-  m: MemberDoc,
-  all: HistorySource[],
-  by: string
-): MovePlan {
-  const past = pastOrdersOf(m.who, all);
-  const plan = planHistory(m, past, by);
-  if (plan) return { ...plan, member: { ...plan.member, historyPending: false } };
+ *  Прапорець знімається майже завжди: учасник без жодного
+ *  придатного замовлення інакше лишався б у черзі назавжди й
+ *  щоразу потрапляв би менеджерові на очі.
+ *
+ *  ОДИН ВИНЯТОК — замовлення знайшлись, виконані й свіжі, а сума
+ *  вийшла нульова. Це не відповідь програми, а несправність
+ *  даних, і знімати прапорець тут не можна: другої спроби потім
+ *  не буде ніколи. Такий учасник лишається в черзі на видноті, і
+ *  запису в журнал ми не робимо — писати нема про що, нічого не
+ *  сталося. */
+export interface HistoryOutcome {
+  scan: HistoryScan;
+  /** Що записати. null — не чіпаємо нічого, лишаємо в черзі. */
+  plan: MovePlan | null;
+}
+
+export function planHistoryDone(m: MemberDoc, all: HistorySource[], by: string): HistoryOutcome {
+  const scan = scanHistory(m.who, all, orderDay(m.joinedAt) || m.joinedAt || '');
+  const plan = planHistory(m, scan.take, by);
+  if (plan) {
+    return { scan, plan: { ...plan, member: { ...plan.member, historyPending: false } } };
+  }
+
+  if (scan.empty > 0) return { scan, plan: null };
+
   return {
-    member: { ...m, historyPending: false },
-    move: {
-      who: m.who,
-      kind: 'history',
-      points: 0,
-      after: m.points,
-      level: m.level,
-      note: 'минулих замовлень не знайшлось',
-      by
+    scan,
+    plan: {
+      member: { ...m, historyPending: false },
+      move: {
+        who: m.who,
+        kind: 'history',
+        points: 0,
+        after: m.points,
+        level: m.level,
+        note: historyNote(scan),
+        by
+      }
     }
   };
+}
+
+/** Чому нуль — словами, у журнал. Саме цього запису бракувало:
+ *  «минулих замовлень не знайшлось» писалось і тоді, коли
+ *  замовлення були, і читати його як доказ було не можна. */
+export function historyNote(scan: HistoryScan): string {
+  if (scan.take.length) {
+    return `зараховано ${scan.take.length} ${plural(scan.take.length)} на ${scan.sum.toLocaleString('uk')} грн`;
+  }
+  if (scan.empty) {
+    return `без суми, перевірте вручну: ${scan.empty}`;
+  }
+  if (scan.early) {
+    return `раніше за ${dayText(HISTORY_FROM)}, поза межею програми: ${scan.early}`;
+  }
+  if (scan.already) {
+    return `уже нараховано на «Виконано»: ${scan.already}`;
+  }
+  if (scan.mine) {
+    return `на цю пошту ${scan.mine} — жодного виконаного`;
+  }
+  return 'замовлень на цю пошту немає';
+}
+
+function plural(n: number): string {
+  const t = n % 100;
+  if (t >= 11 && t <= 14) return 'замовлень';
+  const one = n % 10;
+  if (one === 1) return 'замовлення';
+  if (one >= 2 && one <= 4) return 'замовлення';
+  return 'замовлень';
+}
+
+function dayText(isoDay: string): string {
+  const d = new Date(isoDay);
+  return Number.isNaN(d.getTime()) ? isoDay : d.toLocaleDateString('uk-UA');
 }
 
 /* ============================================================
@@ -467,7 +634,11 @@ export async function applyHistoryTx(
   db: Firestore,
   who: string,
   all: HistorySource[],
-  by: string
+  by: string,
+  /** Повторний прохід руками — коли прапорець уже знято, а
+   *  причину нуля виправили. Автоматичний прохід так не робить
+   *  ніколи: він рахує кожного рівно раз. */
+  again = false
 ): Promise<number> {
   return runTransaction(db, async (tx) => {
     const ref = doc(db, MEMBERS_COL, keyOf(who));
@@ -476,9 +647,12 @@ export async function applyHistoryTx(
 
     const m = fresh(snap.data() as MemberDoc, new Date());
     // хтось устиг раніше — це успіх, але без другого нарахування
-    if (!m.historyPending) return 0;
+    if (!m.historyPending && !again) return 0;
 
-    const plan = planHistoryDone(m, all, by);
+    const { plan } = planHistoryDone(m, all, by);
+    // нічого не вирішено — лишаємо в черзі, журнал не засмічуємо
+    if (!plan) return 0;
+
     tx.set(ref, plan.member, { merge: true });
     tx.set(doc(collection(db, MOVES_COL)), { ...plan.move, at: Timestamp.now() });
     return plan.move.points;

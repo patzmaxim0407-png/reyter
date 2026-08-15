@@ -75,11 +75,19 @@ export default function MemberRow({
       </div>
 
       <div className="loy-row-a__act">
-        {m.historyPending ? (
-          <button className="btn btn--primary btn--sm" type="button" disabled={busy} onClick={onHistory}>
-            {busy ? '…' : 'Зарахувати історію'}
-          </button>
-        ) : null}
+        {/* Кнопка лишається й після зарахування — саме її
+            зникнення й ховало причину нуля: порахували в нуль,
+            прапорець зняли, і спробувати ще раз стало нічим.
+            Тепер це «перерахувати»: ті самі замовлення вдруге не
+            зарахуються, бо їхні номери лежать в учасника. */}
+        <button
+          className={'btn btn--sm ' + (m.historyPending ? 'btn--primary' : 'btn--ghost')}
+          type="button"
+          disabled={busy}
+          onClick={onHistory}
+        >
+          {busy ? '…' : m.historyPending ? 'Зарахувати історію' : 'Перерахувати історію'}
+        </button>
         <button className="btn btn--ghost btn--sm" type="button" disabled={busy} onClick={onAdjust}>
           Правка балів
         </button>

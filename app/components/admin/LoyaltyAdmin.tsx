@@ -26,6 +26,7 @@ import {
   findMembers,
   inClub,
   loadRules,
+  historyNote,
   planHistoryDone,
   planManual,
   saveRules,
@@ -167,18 +168,27 @@ export default function LoyaltyAdmin() {
     });
   }, [members, find, only, sort]);
 
+  /** Зарахувати історію руками. Тим самим натисканням і
+   *  ПЕРЕрахувати: якщо причину нуля виправили — дописали суму
+   *  ручному замовленню, перевели його у «Виконано» — має бути
+   *  чим спробувати ще раз. Двічі ті самі замовлення не
+   *  зарахуються: їхні номери лежать в учасника. */
   async function creditHistory(m: MemberDoc) {
     const d = need();
     if (!d) return;
     setBusy(m.who);
     try {
-      const plan = planHistoryDone(m, orders, user.email ?? '');
+      const { scan, plan } = planHistoryDone(m, orders, user.email ?? '');
+      if (!plan) {
+        toast(historyNote(scan), 'plain');
+        return;
+      }
       await writeMove(d, plan);
       toast(
         plan.move.points
           ? `Зараховано ${plan.move.points.toLocaleString('uk')} балів ✓`
-          : 'Минулих замовлень не знайшлось — прапорець знято',
-        'success'
+          : historyNote(scan),
+        plan.move.points ? 'success' : 'plain'
       );
     } catch {
       toast('Не вдалося зарахувати');
@@ -203,9 +213,18 @@ export default function LoyaltyAdmin() {
     if (!d) return;
     setBusy('all');
     let done = 0;
+    let kept = 0;
     for (const m of queue) {
       try {
-        await writeMove(d, planHistoryDone(m, orders, user.email ?? ''));
+        const { plan } = planHistoryDone(m, orders, user.email ?? '');
+        /* Замовлення є, а сума нульова — учасник лишається в
+           черзі: це несправність даних, а не відповідь програми,
+           і закривати її мовчки не можна. */
+        if (!plan) {
+          kept += 1;
+          continue;
+        }
+        await writeMove(d, plan);
         done += 1;
       } catch {
         /* один невдалий не має спиняти решту: наступного разу він
@@ -213,7 +232,10 @@ export default function LoyaltyAdmin() {
       }
     }
     setBusy('');
-    toast(`Опрацьовано ${done} із ${queue.length}`, done ? 'success' : 'plain');
+    toast(
+      `Опрацьовано ${done} із ${queue.length}` + (kept ? `, ${kept} потребують перевірки` : ''),
+      done ? 'success' : 'plain'
+    );
   }
 
   async function adjust(m: MemberDoc) {

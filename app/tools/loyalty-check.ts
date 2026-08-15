@@ -34,6 +34,7 @@ import {
 import { paidForGoods, planStatusChange, type AdminOrder } from '../lib/admin/orders.ts';
 import {
   findMembers,
+  orderDay,
   pastOrdersOf,
   planHistory,
   planHistoryDone,
@@ -345,16 +346,90 @@ console.log('\nАДМІНКА');
   ok('лише виконані', !past.some((o) => o.num === 'R-3' || o.num === 'R-4'));
   ok('доставка не рахується, знижка віднімається', past[0].paid === 1800, String(past[0].paid));
 
-  const plan = planHistoryDone(m, orders, 'me@reyter.men');
-  ok('зараховано тільки те, що після межі', plan.member.points === 2800, String(plan.member.points));
-  ok('прапорець знято', plan.member.historyPending === false);
+  const { plan, scan } = planHistoryDone(m, orders, 'me@reyter.men');
+  ok('зараховано тільки те, що після межі', plan!.member.points === 2800, String(plan!.member.points));
+  ok('прапорець знято', plan!.member.historyPending === false);
+  ok('номери зарахованих записано', (plan!.member.historyNums || []).join(',') === 'R-1,R-2',
+     (plan!.member.historyNums || []).join(','));
+  ok('розбір бачить відкинуте за межею', scan.early === 1, String(scan.early));
+  ok('і чуже не рахує своїм', scan.mine === 5, String(scan.mine));
+
+  /* Повторний прохід — після того, як причину нуля виправили.
+     Ті самі замовлення вдруге зарахуватись не можуть. */
+  const twice = planHistoryDone(plan!.member as never, orders, 'me@reyter.men');
+  ok('перерахунок не подвоює бали', twice.plan === null || twice.plan.move.points === 0,
+     String(twice.plan?.move.points));
 
   /* Учасник без жодного виконаного замовлення інакше лишався б у
      черзі назавжди й щоразу муляв би менеджерові очі. */
-  const empty = planHistoryDone(m, [], 'me@reyter.men');
-  ok('порожня історія теж знімає прапорець', empty.member.historyPending === false);
-  ok('і лишає слід у журналі', (empty.move.note || '').length > 0, empty.move.note || '');
-  ok('балів при цьому не додає', empty.member.points === 0);
+  const none = planHistoryDone(m, [], 'me@reyter.men');
+  ok('порожня історія теж знімає прапорець', none.plan!.member.historyPending === false);
+  ok('і лишає слід у журналі', (none.plan!.move.note || '').length > 0, none.plan!.move.note || '');
+  ok('балів при цьому не додає', none.plan!.member.points === 0);
+
+  /* ЧОТИРИ РІЗНІ ПРИЧИНИ НУЛЯ. Доки журнал на всі писав
+     «минулих замовлень не знайшлось», відрізнити їх було нічим —
+     і саме цей запис знищував єдиний доказ. */
+  const only = (o: Record<string, unknown>) => planHistoryDone(m, [o] as never, 'x').plan!.move.note || '';
+  ok('нуль через межу названо межею',
+     /поза межею/.test(only({ email: 'petro@ukr.net', status: 'done', num: 'A', date: '2026-08-01T10:00:00Z', subtotal: 900 })),
+     only({ email: 'petro@ukr.net', status: 'done', num: 'A', date: '2026-08-01T10:00:00Z', subtotal: 900 }));
+  ok('нуль через статус названо статусом',
+     /жодного виконаного/.test(only({ email: 'petro@ukr.net', status: 'shipped', num: 'B', date: '2026-08-12T10:00:00Z', subtotal: 900 })));
+  ok('нуль через пошту названо відсутністю замовлень',
+     /немає/.test(only({ email: 'hto@ukr.net', status: 'done', num: 'C', date: '2026-08-12T10:00:00Z', subtotal: 900 })));
+
+  /* Замовлення є, виконане, свіже — а сума нульова. Це вже
+     несправність даних, і прапорець тут знімати НЕ можна:
+     інакше другої спроби не буде ніколи. */
+  const broken = planHistoryDone(m, [
+    { email: 'petro@ukr.net', status: 'done', num: 'D', date: '2026-08-12T10:00:00Z' }
+  ] as never, 'x');
+  ok('замовлення без суми лишає учасника в черзі', broken.plan === null);
+  ok('і це видно окремим числом', broken.scan.empty === 1, String(broken.scan.empty));
+
+  /* Ручне замовлення довго не мало поля subtotal — і всі такі
+     покупки програма бачила нульовими. */
+  const manual = planHistoryDone(m, [
+    { email: 'petro@ukr.net', status: 'done', num: 'E', date: '2026-08-12T10:00:00Z',
+      items: [{ price: 1200, qty: 2 }], discount: 400 }
+  ] as never, 'x');
+  ok('ручне замовлення рахується за товарами', manual.plan!.move.points === 2000,
+     String(manual.plan?.move.points));
+
+  /* Доставка балів не дає — тому запасним шляхом ніколи не може
+     стати total: у ньому сидить вартість доставки. */
+  const ship = planHistoryDone(m, [
+    { email: 'petro@ukr.net', status: 'done', num: 'F', date: '2026-08-12T10:00:00Z',
+      items: [{ price: 500, qty: 1 }], shipping: 90, total: 590 }
+  ] as never, 'x');
+  ok('доставка в бали не потрапляє', ship.plan!.move.points === 500, String(ship.plan?.move.points));
+
+  /* Замовлення, зроблене вже після вступу, бали отримало
+     звичайним шляхом. Історія його не чіпає — інакше та сама
+     покупка нарахувалася б двічі. */
+  const after = planHistoryDone(m, [
+    { email: 'petro@ukr.net', status: 'done', num: 'G', date: '2026-08-25T10:00:00Z',
+      subtotal: 1000, pointsApplied: true }
+  ] as never, 'x');
+  ok('нараховане на «Виконано» історія не рахує вдруге', after.scan.already === 1, String(after.scan.already));
+  ok('і каже про це прямо', /уже нараховано/.test(after.plan!.move.note || ''), after.plan!.move.note || '');
+
+  /* А от до вступу така позначка нічого не означала: покупця в
+     програмі не було, отримувати бали не було кому. */
+  const before = planHistoryDone(m, [
+    { email: 'petro@ukr.net', status: 'done', num: 'H', date: '2026-08-12T10:00:00Z',
+      subtotal: 1000, pointsApplied: true }
+  ] as never, 'x');
+  ok('до вступу позначка не відбирає балів', before.plan!.move.points === 1000,
+     String(before.plan?.move.points));
+
+  /* Межа — це київський день, а не зріз ISO по Гринвічу.
+     Замовлення 9 серпня о 01:30 ночі за Києвом зроблене восьмого
+     за UTC, і покупець такого пояснення не прийме. */
+  ok('ніч на 9 серпня за Києвом уже в програмі', orderDay('2026-08-08T22:30:00Z') === '2026-08-09',
+     orderDay('2026-08-08T22:30:00Z'));
+  ok('день без дати не вигадується', orderDay('') === '');
 }
 {
   const mk = (points: number, insta: string, pending = false) => ({

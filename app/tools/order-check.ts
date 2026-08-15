@@ -12,6 +12,7 @@
    node --experimental-strip-types tools/order-check.ts
    ============================================================ */
 
+import { readFileSync } from 'node:fs';
 import { loadCatalog, loadStock } from '../lib/firestore.ts';
 import { fmt, isSet, setParts, availability, ALL_SIZES, type Catalogue } from '../lib/catalog.ts';
 import {
@@ -302,6 +303,21 @@ const SITE_ORDER_KEYS = [
 
 const extraKeys = SITE_ORDER_KEYS.filter((k) => !ALLOWED_ORDER_KEYS.includes(k));
 ok('сайт не пише полів поза правилами', !extraKeys.length, extraKeys.join(', ') || 'зайвих немає');
+
+/* Ручне замовлення — той самий документ, і перевіряти його треба
+   тим самим набором. Саме тому, що набір полів ручного замовлення
+   не перевіряв ніхто, воно роками лягало в базу без subtotal — а
+   без нього програма лояльності бачить покупку нульовою й мовчки
+   не дає балів ні при «Виконано», ні при зарахуванні історії. */
+{
+  const src = readFileSync(new URL('../lib/admin/orders.ts', import.meta.url), 'utf8');
+  const doc = (src.match(/const order: OrderDoc = \{([\s\S]*?)\n  \};/) || [])[1] || '';
+  const has = (k: string) => new RegExp('(^|\\n)\\s*' + k + ':').test(doc);
+  const missing = ['num', 'date', 'items', 'subtotal', 'discount', 'shipping', 'total', 'email', 'status']
+    .filter((k) => !has(k));
+  ok('ручне замовлення пише ті самі гроші, що й сайт', !missing.length,
+     missing.length ? 'немає: ' + missing.join(', ') : 'усі поля на місці');
+}
 
 
 /* ---------- Доставка й сума замовлення ----------
