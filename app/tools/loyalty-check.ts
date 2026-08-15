@@ -30,6 +30,7 @@ import {
   type LevelNo,
   type Member
 } from '../lib/loyalty.ts';
+import { paidForGoods, planStatusChange, type AdminOrder } from '../lib/admin/orders.ts';
 
 let failed = 0;
 const ok = (name: string, cond: boolean, extra = '') => {
@@ -247,6 +248,49 @@ console.log(
       ((40000 - 20000) / (1 - percentOf(3) / 100) - (40000 - 20000))
     ).toLocaleString('uk') + ' грн знижок'
 );
+
+/* ---------- Нарахування за статусом замовлення ---------- */
+console.log('\nСТАТУС ЗАМОВЛЕННЯ');
+{
+  const order = {
+    _id: 'x', num: 'R-1', subtotal: 1500, discount: 100, shipping: 80, total: 1480,
+    items: [], customer: {}, date: '2026-08-15', status: 'shipped'
+  } as unknown as AdminOrder;
+  const at = { now: new Date('2026-08-15'), by: 'me@reyter.men' };
+  const noAsk = { putBack: true, lost: null } as never;
+
+  ok('доставка балів не дає', paidForGoods(order) === 1400, String(paidForGoods(order)));
+
+  const done = planStatusChange(order, 'done', noAsk, at);
+  ok('«Виконано» нараховує', done.points.kind === 'credit', done.points.kind);
+  ok('ознака ставиться', done.update.pointsApplied === true);
+
+  const again = planStatusChange({ ...order, status: 'done', pointsApplied: true } as AdminOrder, 'done', noAsk, at);
+  ok('удруге не нараховує', again.points.kind === 'none', again.points.kind);
+
+  /* Найтонше місце: цей перехід лишається всередині CONSUMING,
+     склад не рухається — а бали зніматись мусять. */
+  const back = planStatusChange(
+    { ...order, status: 'done', pointsApplied: true, stockApplied: true } as AdminOrder,
+    'shipped', noAsk, at
+  );
+  ok('відкат «Виконано → Відправлено» знімає бали', back.points.kind === 'refund', back.points.kind);
+  ok('склад при цьому не рухається', back.stock.kind === 'none', back.stock.kind);
+  ok('ознака знімається', back.update.pointsApplied === false);
+
+  const cancel = planStatusChange({ ...order, status: 'done', pointsApplied: true } as AdminOrder, 'cancelled', noAsk, at);
+  ok('скасування теж знімає', cancel.points.kind === 'refund');
+
+  const confirm = planStatusChange(order, 'confirmed', noAsk, at);
+  ok('«Підтверджено» балів не дає', confirm.points.kind === 'none');
+
+  /* Туди-сюди-туди не має подвоїти. */
+  let m: Member = { points: 0, level: 1, cycleStart: null };
+  m = credit(m, 1400, '2026-08-15');
+  m = refund(m, 1400);
+  m = credit(m, 1400, '2026-08-20');
+  ok('виконано → відкат → виконано дає рівно одне нарахування', m.points === 1400, String(m.points));
+}
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
 if (failed) process.exit(1);

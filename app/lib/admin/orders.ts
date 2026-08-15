@@ -55,6 +55,7 @@ import {
 } from '../promo';
 import { SITE_CONFIG } from '../site-config';
 import { phoneTail, trackCreate, trackDelete, trackKey, trackUpdate } from '../track';
+import { planCredit, planRefund, readMemberTx, writeMoveTx } from './loyalty-db';
 import type { OrderItem, OrderStatus } from '../types';
 import {
   adjustOrderStock,
@@ -392,6 +393,10 @@ export interface AdminOrder {
   createdBy?: string;
   /** Товар за цим замовленням уже знято з залишків. */
   stockApplied?: boolean;
+  /** Бали програми лояльності за це замовлення вже нараховані.
+   *  Окрема ознака, а не висновок зі статусу: інакше відкат
+   *  «Виконано → Відправлено → Виконано» нарахував би вдруге. */
+  pointsApplied?: boolean;
   /** Останній відкат: товар повернули в залишки чи ні. */
   stockReturned?: boolean;
   writeoff?: WriteoffMark;
@@ -786,8 +791,31 @@ export type StockAction =
 export interface StatusUpdate {
   status: OrderStatus;
   stockApplied?: boolean;
+  pointsApplied?: boolean;
   stockReturned?: boolean;
   writeoff?: WriteoffMark;
+}
+
+/** Що робити з балами. Ознака своя, і рахується вона НЕ за
+ *  переліком CONSUMING: перехід «Виконано → Відправлено» лишається
+ *  всередині нього, склад не рухається — а бали зніматись мусять,
+ *  бо замовлення вже не виконане. */
+export type PointsAction =
+  | { kind: 'none' }
+  | { kind: 'credit'; paid: number }
+  | { kind: 'refund'; paid: number };
+
+/** Скільки сплачено за самі товари. Доставка не рахується: вона
+ *  не товар, і давати за неї бали було б несправедливо до тих,
+ *  хто забирає сам. */
+function isoDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+export function paidForGoods(order: AdminOrder): number {
+  const goods = Math.max(0, Math.round(Number(order.subtotal) || 0));
+  const off = Math.max(0, Math.round(Number(order.discount) || 0));
+  return Math.max(0, goods - off);
 }
 
 export interface StatusPlan {
@@ -796,6 +824,7 @@ export interface StatusPlan {
   entry: StatusLogEntry;
   update: StatusUpdate;
   stock: StockAction;
+  points: PointsAction;
   toast: Toast;
 }
 
@@ -821,6 +850,21 @@ export function planStatusChange(
   const entry = statusLogEntry(next, at.now, at.by);
   const update: StatusUpdate = { status: next };
   let stock: StockAction = { kind: 'none' };
+
+  /* Бали — тільки за виконане замовлення, і рівно один раз.
+     Склад тут не зразок: він рухається на «Підтверджено», бо
+     товар відкладено з полиці, а бали — це подяка за завершену
+     покупку, і до неї ще далеко. */
+  const hadPoints = !!order.pointsApplied;
+  const willEarn = next === 'done';
+  let points: PointsAction = { kind: 'none' };
+  if (willEarn && !hadPoints) {
+    points = { kind: 'credit', paid: paidForGoods(order) };
+    update.pointsApplied = true;
+  } else if (!willEarn && hadPoints) {
+    points = { kind: 'refund', paid: paidForGoods(order) };
+    update.pointsApplied = false;
+  }
   let toast: Toast = { text: 'Статус: ' + statusInfo(next).title + ' ✓', success: true };
 
   if (willConsume && !wasApplied) {
@@ -869,7 +913,7 @@ export function planStatusChange(
     update.stockReturned = answer.putBack;
   }
 
-  return { entry, update, stock, toast };
+  return { entry, update, stock, points, toast };
 }
 
 export interface StatusChangeDeps {
@@ -1079,6 +1123,29 @@ export async function applyStatus(
         { now: deps.now, by: deps.by }
       );
 
+      /* Учасника читаємо ТУТ — до першого запису.
+
+         Firestore вимагає, щоб усі читання транзакції стояли
+         перед усіма записами; читання після запису валить усю
+         транзакцію, а разом із балами не збереглися б ні статус,
+         ні рух складу. Тому місце цього рядка не косметичне.
+
+         Балів немає в того, хто не вступив у програму: документа
+         немає — руху немає. Його минулі замовлення зарахуються
+         пізніше, при вступі. */
+      const mail = String(fresh.email || fresh.customer?.email || '').trim();
+      const member =
+        plan.points.kind !== 'none' && mail
+          ? await readMemberTx(transaction, deps.db, mail, deps.now)
+          : null;
+
+      const moved =
+        member && plan.points.kind === 'credit'
+          ? planCredit(member, plan.points.paid, isoDay(deps.now), fresh.num || '', deps.by)
+          : member && plan.points.kind === 'refund'
+            ? planRefund(member, plan.points.paid, fresh.num || '', deps.by)
+            : null;
+
       if (plan.stock.kind === 'consume') {
         adjustOrderStock(w, transaction, s, fresh, -1);
       } else if (plan.stock.kind === 'return') {
@@ -1093,6 +1160,12 @@ export async function applyStatus(
         applyStockPlan(w, transaction, moved);
       }
 
+      /* Бали — тією ж транзакцією, що й статус. Порізно вони
+         рано чи пізно розійшлися б: запис статусу пройшов би, а
+         запис балів — ні, і замовлення назавжди лишилось би
+         виконаним без нарахування. */
+      if (moved) writeMoveTx(transaction, deps.db, moved);
+
       transaction.update(ref, {
         ...plan.update,
         ...(freshTtn ? { ttn: freshTtn } : {}),
@@ -1100,7 +1173,7 @@ export async function applyStatus(
         statusLog: arrayUnion(plan.entry)
       });
 
-      return { order: fresh, plan };
+      return { order: fresh, plan, moved };
     });
 
     /* Хтось інший устиг поставити той самий статус. Це успіх,

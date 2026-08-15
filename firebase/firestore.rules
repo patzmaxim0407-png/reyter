@@ -51,6 +51,43 @@ service cloud.firestore {
       );
     }
 
+    /* ============================================================
+       ПРОГРАМА ЛОЯЛЬНОСТІ
+       ------------------------------------------------------------
+       Ключ документа — пошта покупця. Не uid: бали має отримати й
+       той, хто замовив гостем, а потім завів акаунт на ту саму
+       пошту, — інакше історія розсипалась би на дві.
+
+       ПИШЕ ЛИШЕ АДМІН. Це головне правило всієї програми: якби
+       покупець міг писати сюди сам, він виставив би собі
+       четвертий рівень із консолі браузера за десять секунд і мав
+       би пʼятнадцять відсотків назавжди. Бали нараховує адмінка,
+       коли замовлення стає «Виконано».
+
+       Читає власник — і ним же читає воркер оплати: браузер
+       передає воркеру свій підписаний токен, і той питає базу
+       правами самого покупця. Тому рахунок у банку виходить на ту
+       саму суму, яку покупець бачив у кошику.
+
+       list заборонено навмисно: за переліком видно всі пошти
+       покупців разом із сумами, які вони витратили.
+       ============================================================ */
+    match /loyalty/{who} {
+      // ключ завжди малими літерами: інакше Petro@ і petro@ були б
+      // двома різними учасниками з різними балами
+      allow get: if isAdmin() || (signedIn() && userEmail().lower() == who);
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    /* Журнал нарахувань: кожен рух балів окремим записом. Читає
+       власник і адмін — покупець має бачити, звідки взявся кожен
+       бал, інакше перше ж непорозуміння не буде чим закрити. */
+    match /loyalty_moves/{id} {
+      allow get, list: if isAdmin() || (signedIn() && resource.data.who == userEmail().lower());
+      allow write: if isAdmin();
+    }
+
     // Профілі покупців: власник читає і пише, адмін може читати
     match /users/{uid} {
       allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
@@ -114,9 +151,33 @@ service cloud.firestore {
               timestamp.value(p.endsAt + 'T23:59:59Z').toMillis() >= today);
     }
 
-    function discountAllowed() {
+    /* Знижка за рівнем програми лояльності.
+
+       Рівень лежить у loyalty/{пошта} і пишеться ЛИШЕ адміном —
+       покупець свій рівень підняти не може. Тут звіряємо, що
+       відсоток у замовленні відповідає справжньому рівню й що
+       база знижки не більша за суму товарів.
+
+       Незалогінений покупець знижки лояльності не має зовсім:
+       програма живе на акаунті. */
+    function loyaltyDoc() {
+      return get(/databases/$(database)/documents/loyalty/$(userEmail())).data;
+    }
+
+    function loyaltyPercentOk() {
       let d = request.resource.data;
-      return d.discount == 0
+      return d.loyaltyOff == 0 || (
+        signedIn()
+        && exists(/databases/$(database)/documents/loyalty/$(userEmail()))
+        && d.loyaltyOff <= (d.subtotal * loyaltyDoc().percent) / 100
+      );
+    }
+
+    /* Знижка від промокоду. Лишилась такою, якою була: код має
+       існувати, бути живим і не перевищувати своєї межі. */
+    function promoOffAllowed() {
+      let d = request.resource.data;
+      return !('promoOff' in d) ? oldDiscountAllowed() : d.promoOff == 0
         ? d.promoCode == ''
         : (
             d.promoCode is string && d.promoCode.size() > 0
@@ -125,6 +186,49 @@ service cloud.firestore {
             && promoHasUsesLeft(d.promoCode)
             // строки дії перевіряються й тут, а не лише в браузері:
             // інакше вчорашній код працював би вічно
+            && promoInDateRange(d.promoCode)
+            && promoMinTotalOk(d.promoCode, d.subtotal)
+            && d.promoOff <= maxDiscount(d.promoCode, d.subtotal)
+          );
+    }
+
+    /* Разом.
+
+       Дві форми замовлення, і обидві мусять проходити. Причина
+       не в акуратності, а в порядку подій: правила публікуються
+       руками в консолі Firebase, і між ними та новою збіркою
+       сайту минає час. Якби нові поля стали обовʼязковими одразу,
+       живий сайт перестав би приймати замовлення — і мовчки:
+       createOrder ловить виняток і повертає null, тобто покупець
+       побачив би «прийнято», а магазин не побачив би нічого.
+
+       СТАРА форма: одне поле discount, за ним лише промокод.
+       НОВА: discount розкладений на promoOff + loyaltyOff, і сума
+       мусить сходитись — інакше в discount можна було б написати
+       будь-що, лишивши обидві складові чесними. */
+    function discountAllowed() {
+      let d = request.resource.data;
+      return ('loyaltyOff' in d)
+        ? (
+            d.discount == d.promoOff + d.loyaltyOff
+            && d.discount <= d.subtotal
+            && promoOffAllowed()
+            && loyaltyPercentOk()
+          )
+        : oldDiscountAllowed();
+    }
+
+    /* Як було до програми лояльності. Лишається живим, поки на
+       сайті ще може бути стара збірка. */
+    function oldDiscountAllowed() {
+      let d = request.resource.data;
+      return d.discount == 0
+        ? d.promoCode == ''
+        : (
+            d.promoCode is string && d.promoCode.size() > 0
+            && exists(/databases/$(database)/documents/promos/$(d.promoCode))
+            && promoDoc(d.promoCode).active != false
+            && promoHasUsesLeft(d.promoCode)
             && promoInDateRange(d.promoCode)
             && promoMinTotalOk(d.promoCode, d.subtotal)
             && d.discount <= maxDiscount(d.promoCode, d.subtotal)
@@ -139,6 +243,10 @@ service cloud.firestore {
         'num', 'date', 'items', 'subtotal', 'discount', 'promoCode',
         'shipping', 'total', 'customer', 'message', 'status', 'uid',
         'email', 'source', 'lang', 'trackKey', 'created',
+        /* Знижка розкладена на дві частини: скільки дав промокод
+           і скільки — рівень лояльності. Разом вони мусять
+           дорівнювати discount, це звіряє discountAllowed(). */
+        'promoOff', 'loyaltyOff', 'loyaltyLevel',
         // номер рахунку Monobank: сам по собі він нічого не
         // відкриває — стан оплати питають у банку, а не в нас
         'payInvoiceId',
