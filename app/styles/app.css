@@ -1346,3 +1346,75 @@
   font-size: 12px;
   color: #8a5a00;
 }
+
+/* ---------- Умови програми ----------
+   Довідник, а не текст для щоденного читання: людина відкриває
+   саме той пункт, через який прийшла. Тому все згорнуте, а
+   заголовки набрані так, щоб потрібний знаходився поглядом. */
+
+.loy-terms { display: grid; gap: 2px; margin-top: 6px; }
+
+.loy-terms h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9a958a;
+}
+
+.loy-term {
+  border-top: 1px solid rgba(6, 43, 92, 0.08);
+}
+
+.loy-term:last-of-type { border-bottom: 1px solid rgba(6, 43, 92, 0.08); }
+
+.loy-term > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 2px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--c-blue-ink, #062B5C);
+  /* прибираємо рідний трикутник — замість нього свій знак */
+  list-style: none;
+}
+
+.loy-term > summary::-webkit-details-marker { display: none; }
+
+.loy-term > summary::after {
+  content: '+';
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(1, 74, 173, 0.08);
+  color: #014AAD;
+  font-weight: 700;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.loy-term[open] > summary::after { content: '−'; }
+.loy-term > summary:hover { color: #014AAD; }
+
+.loy-term > summary:focus-visible {
+  outline: 2px solid #014AAD;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.loy-term__body { padding: 0 2px 14px; }
+
+.loy-term__body p {
+  margin: 0 0 10px;
+  color: #6e6a5e;
+  line-height: 1.6;
+  max-width: 62ch;
+}
+
+.loy-term__body p:last-child { margin-bottom: 0; }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { User } from 'firebase/auth';
 import { HISTORY_FROM, LEVELS, instagramLogin, instagramOk, progressOf } from '@/lib/loyalty';
 import type { MemberDoc } from '@/lib/admin/loyalty-db';
+import { loyaltyTerms } from '@/lib/loyalty-terms';
 import { t } from '@/lib/i18n';
 import type { Lang } from '@/lib/types';
 
@@ -53,6 +54,7 @@ export default function FriendlyTab({
         <Intro lang={lang} />
         <Ladder lang={lang} level={0} />
         <p className="loy__foot">{t('fc.guest', lang)}</p>
+        <Terms lang={lang} />
       </div>
     );
   }
@@ -69,6 +71,7 @@ export default function FriendlyTab({
         <button className="btn btn--primary loy__cta" type="button" disabled={busy} onClick={onJoin}>
           {busy ? t('fc.joining', lang) : t('fc.join', lang)}
         </button>
+        <Terms lang={lang} />
       </div>
     );
   }
@@ -164,7 +167,38 @@ export default function FriendlyTab({
       {member.historyPending ? (
         <p className="account-note loy__pending">{t('fc.pending', lang)}</p>
       ) : null}
+
+      <Terms lang={lang} />
     </div>
+  );
+}
+
+/** Умови програми повністю.
+ *
+ *  Згорнуті, бо на екрані вони — довідник, а не текст, який
+ *  читають щодня: людина відкриває саме той пункт, через який
+ *  прийшла. Розгортання рідне, елементом details: воно працює
+ *  без нашого коду, слухається клавіатури й зчитувача екрана, і
+ *  його не зламає жодне оновлення.
+ *
+ *  Числа в тексті беруться з правил програми, а не набрані
+ *  руками. Умови, які розійшлися з програмою, гірші за
+ *  відсутні: за ними покупець рахує своє й має рацію. */
+function Terms({ lang }: { lang: Lang }) {
+  return (
+    <section className="loy-terms">
+      <h4>{t('fc.terms', lang)}</h4>
+      {loyaltyTerms(lang).map((term) => (
+        <details key={term.title} className="loy-term">
+          <summary>{term.title}</summary>
+          <div className="loy-term__body">
+            {term.body.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </div>
+        </details>
+      ))}
+    </section>
   );
 }
 
