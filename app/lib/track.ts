@@ -232,6 +232,32 @@ export async function trackDelete(key?: string | null): Promise<void> {
   }
 }
 
+/** Чи живе ще замовлення — за ключем, який браузер зберіг собі
+ *  при оформленні.
+ *
+ *  Питання виникає в одному місці: на порожньому кошику ми
+ *  пропонуємо доплатити за незавершене замовлення, і пропозиція
+ *  ця береться з памʼяті браузера. А в магазині замовлення могли
+ *  за цей час скасувати чи видалити — і покупець бачив кнопку
+ *  «Оплатити» над тим, чого вже немає. Заплатити за таке він теж
+ *  міг: банк про наші статуси не знає.
+ *
+ *  Відповідь навмисно куца — лише статус. Ключ це той самий
+ *  відбиток, за яким працює публічне відстеження: у чужі
+ *  замовлення з ним не зайти. */
+export async function trackStatus(key?: string | null): Promise<{ alive: boolean; status: string }> {
+  if (!key) return { alive: true, status: '' }; // нічого не знаємо — не заважаємо
+  const d = db();
+  if (!d) return { alive: true, status: '' };
+  try {
+    const snap = await getDoc(doc(d, 'tracking', key));
+    if (!snap.exists()) return { alive: false, status: '' };
+    return { alive: true, status: String((snap.data() as TrackDoc).status || '') };
+  } catch {
+    return { alive: true, status: '' };
+  }
+}
+
 /* ---------- Пошук для покупця ---------- */
 
 export async function trackFind(num?: string | null, phone?: string | null): Promise<TrackResult> {

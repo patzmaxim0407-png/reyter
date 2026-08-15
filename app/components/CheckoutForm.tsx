@@ -604,16 +604,46 @@ export default function CheckoutForm() {
       return;
     }
     const last = (cart.getOrders() || [])[0] as
-      | { num?: string; items?: { id: string; size?: string; qty: number }[]; promoCode?: string; shipping?: number; customer?: { email?: string } }
+      | {
+          num?: string;
+          items?: { id: string; size?: string; qty: number }[];
+          promoCode?: string;
+          shipping?: number;
+          customer?: { email?: string };
+          trackKey?: string;
+        }
       | undefined;
     if (!last?.num || !last.items?.length) return;
-    setPending({
-      num: String(last.num),
-      items: last.items.map((i) => ({ id: i.id, size: i.size ?? '', qty: Number(i.qty) || 1 })),
-      promo: last.promoCode || '',
-      shipping: Number(last.shipping) || 0,
-      email: String(last.customer?.email || '')
-    });
+
+    /* Памʼять браузера — не джерело правди про замовлення.
+       Магазин міг його вже скасувати чи видалити, а тут і далі
+       висіла б кнопка «Оплатити»: банк про наші статуси не знає й
+       гроші прийме. Тому спершу питаємо публічне відстеження — по
+       ключу, який зберегли собі при оформленні.
+
+       Не відповіло — показуємо: мовчання мережі не привід ховати
+       від людини її ж незавершену оплату. */
+    let alive = true;
+    /* Модуль відстеження підвантажуємо, а не тягнемо в сторінку:
+       він веде за собою базу, а більшості відкриттів кошика вона
+       тут не потрібна зовсім. Так само зроблено при оформленні. */
+    void import('@/lib/track')
+      .then(({ trackStatus }) => trackStatus(last.trackKey))
+      .then((state) => {
+        if (!alive) return;
+        const dead = !state.alive || state.status === 'cancelled' || state.status === 'done';
+        if (dead) return;
+        setPending({
+          num: String(last.num),
+          items: (last.items || []).map((i) => ({ id: i.id, size: i.size ?? '', qty: Number(i.qty) || 1 })),
+          promo: last.promoCode || '',
+          shipping: Number(last.shipping) || 0,
+          email: String(last.customer?.email || '')
+        });
+      });
+    return () => {
+      alive = false;
+    };
   }, [lines.length]);
 
   const summary = useMemo(

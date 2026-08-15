@@ -712,6 +712,7 @@ html {
 }
 
 .field__hint {
+  display: block;
   font-size: 0.75rem;
   color: var(--c-muted);
   margin-top: 0.35rem;

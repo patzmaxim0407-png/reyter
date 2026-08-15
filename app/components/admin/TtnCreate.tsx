@@ -87,7 +87,18 @@ export default function TtnCreate({
      оплатив доставку разом із замовленням, різниця саме на неї —
      і платити з неї страховий відсоток нема за що. */
   const [declared, setDeclared] = useState(String(paidForGoods(order) || order.total || 0));
-  const [payer, setPayer] = useState<'Sender' | 'Recipient'>('Recipient');
+  /* Хто платить перевізникові.
+  
+     Коли доставка сидить у сумі замовлення, покупець уже заплатив
+     її НАМ — і платити ще раз у відділенні він не має. Тому в
+     таких замовленнях одразу «Ми»: інакше з людини візьмуть
+     гроші двічі, а дізнаємось ми про це з її повідомлення.
+  
+     Коли ж shipping нульовий, доставка в замовлення не входила:
+     ціна лежала довідковим рядком, і платить її отримувач на
+     місці, як і домовлялись. */
+  const paidShipping = Math.round(Number(order.shipping) || 0) > 0;
+  const [payer, setPayer] = useState<'Sender' | 'Recipient'>(paidShipping ? 'Sender' : 'Recipient');
   const [backMoney, setCod] = useState('');
   const [sending, setSending] = useState(false);
   /* Відмову перевізника лишаємо у вікні, а не в тості: вона
@@ -275,6 +286,16 @@ export default function TtnCreate({
               <option value="Recipient">Отримувач</option>
               <option value="Sender">Ми</option>
             </select>
+            {paidShipping && payer === 'Sender' ? (
+              <span className="field__hint">
+                доставка вже в сумі замовлення — {Math.round(Number(order.shipping) || 0)} грн
+              </span>
+            ) : null}
+            {paidShipping && payer === 'Recipient' ? (
+              <span className="field__hint is-warn">
+                покупець уже оплатив доставку разом із замовленням — у відділенні з нього візьмуть удруге
+              </span>
+            ) : null}
           </label>
           <label className="ao-field">
             <span>Післяплата, грн</span>
