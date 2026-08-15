@@ -75,9 +75,42 @@ service cloud.firestore {
     match /loyalty/{who} {
       // ключ завжди малими літерами: інакше Petro@ і petro@ були б
       // двома різними учасниками з різними балами
-      allow get: if isAdmin() || (signedIn() && userEmail().lower() == who);
+      allow get: if isAdmin() || (signedIn() && mine(who));
       allow list: if isAdmin();
-      allow write: if isAdmin();
+
+      /* Вступ покупець робить сам — але вступає з НУЛЯ. Рівень і
+         бали в новому документі мусять бути порожні, інакше
+         вступ перетворився б на роздачу відсотків: вписав собі
+         сорок тисяч балів і маєш пʼятнадцять відсотків назавжди.
+
+         historyPending — прохання зарахувати минулі замовлення.
+         Порахувати їх самому покупцеві нема як: чужі суми
+         підсумовувати не можна, а свої він міг би й завищити.
+         Тому він лише піднімає прапорець, а рахує адмінка. */
+      allow create: if isAdmin() || (
+        signedIn() && mine(who)
+        && request.resource.data.who == who
+        && request.resource.data.points == 0
+        && request.resource.data.level == 1
+        && request.resource.data.cycleStart == null
+        && request.resource.data.keys().hasOnly([
+          'who', 'points', 'level', 'cycleStart', 'number',
+          'instagram', 'friendlyAt', 'joinedAt', 'historyPending'
+        ])
+      );
+
+      /* Далі покупець міняє рівно одне поле — логін Instagram.
+         Усе інше пише лише адмінка. */
+      allow update: if isAdmin() || (
+        signedIn() && mine(who)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['instagram'])
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    function mine(who) {
+      return signedIn() && userEmail().lower() == who;
     }
 
     /* Журнал нарахувань: кожен рух балів окремим записом. Читає

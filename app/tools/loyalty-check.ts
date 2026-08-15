@@ -220,7 +220,9 @@ console.log('\nПОКАЗ');
 
 /* ---------- Дрібниці ---------- */
 console.log('\nДРІБНИЦІ');
-ok('номер учасника читається вголос', memberNumber(42) === 'FC-000042', memberNumber(42));
+ok('номер учасника читається вголос', /^FC-\d{8}$/.test(memberNumber('petro@ukr.net')), memberNumber('petro@ukr.net'));
+ok('номер сталий', memberNumber('Petro@Ukr.net') === memberNumber('petro@ukr.net '));
+ok('різні пошти — різні номери', memberNumber('a@b.c') !== memberNumber('d@e.f'));
 ok('логін чиститься від адреси',
    instagramLogin('https://instagram.com/Reyter.UA/') === 'reyter.ua',
    instagramLogin('https://instagram.com/Reyter.UA/'));

@@ -68,6 +68,10 @@ export interface MemberDoc extends Member {
   /** Коли вступив у клуб. Порожньо — ще не вступив. */
   friendlyAt: string;
   joinedAt: string;
+  /** Просить зарахувати минулі замовлення. Ставить сам покупець
+   *  при вступі, знімає адмінка, коли порахує: підсумувати свої
+   *  ж покупки він не може — правила бази не дають писати бали. */
+  historyPending?: boolean;
 }
 
 export type MoveKind = 'order' | 'return' | 'manual' | 'history' | 'expire';
@@ -92,15 +96,25 @@ export function keyOf(email: string): string {
   return String(email || '').trim().toLowerCase();
 }
 
-export function blankMember(email: string, seq: number, now: Date): MemberDoc {
+export function blankMember(email: string, now: Date): MemberDoc {
   return {
     ...NEW_MEMBER,
     who: keyOf(email),
-    number: memberNumber(seq),
+    number: memberNumber(email),
     instagram: '',
     friendlyAt: '',
-    joinedAt: iso(now)
+    joinedAt: iso(now),
+    historyPending: true
   };
+}
+
+/** Вступ. Робить сам покупець зі свого кабінету — але вступає з
+ *  нуля: правила бази дозволяють створити документ лише з
+ *  порожніми балами. Минулі замовлення зарахує адмінка. */
+export async function joinProgram(db: Firestore, email: string, now: Date): Promise<MemberDoc> {
+  const doc0 = blankMember(email, now);
+  await setDoc(doc(db, MEMBERS_COL, doc0.who), doc0);
+  return doc0;
 }
 
 /** Стан учасника з уже переміряним річним строком.

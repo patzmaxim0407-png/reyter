@@ -1134,3 +1134,101 @@
 .field__hint + .field__hint {
   margin-top: 4px;
 }
+
+/* ============================================================
+   Кабінет: програма лояльності
+   ------------------------------------------------------------
+   Головне число — бали — має читатися з першого погляду, тому
+   воно велике й окремо. Драбина рівнів під ним пояснює, куди
+   веде дорога: без неї накопичувати немає сенсу.
+   ============================================================ */
+
+.fclub { display: grid; gap: 14px; }
+
+.fclub__title { margin: 0; font-size: 20px; }
+
+.fclub__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fclub__level { font-size: 15px; font-weight: 700; color: var(--ink, #062B5C); }
+
+/* Позначка клубу — та сама, що на закритих товарах. */
+.fclub__mark,
+.fclub__ladder-lvl i {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(1, 74, 173, 0.1);
+  color: #014AAD;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.fclub__percent { font-size: 26px; font-weight: 800; color: #014AAD; }
+
+.fclub__points { display: flex; align-items: baseline; gap: 8px; }
+.fclub__points b { font-size: 34px; line-height: 1; }
+.fclub__points span { color: #6e6a5e; }
+
+.fclub__bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(1, 74, 173, 0.12);
+  overflow: hidden;
+}
+
+.fclub__bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #014AAD;
+  /* Смужка їде, а не стрибає: рух показує, що число живе. */
+  transition: width 0.5s ease;
+}
+
+.fclub__need { margin: 0; font-weight: 600; }
+.fclub__till, .fclub__past, .fclub__pending { margin: 0; }
+
+.fclub__ladder { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+
+.fclub__ladder li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.fclub__ladder li.is-now {
+  background: rgba(1, 74, 173, 0.07);
+  font-weight: 700;
+}
+
+.fclub__ladder-pts { color: #6e6a5e; font-variant-numeric: tabular-nums; }
+.fclub__ladder-off { min-width: 46px; text-align: right; font-weight: 700; }
+
+.fclub__join, .fclub__inclub {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #FCF8F0;
+  display: grid;
+  gap: 10px;
+}
+
+.fclub__inclub { grid-template-columns: 1fr auto; align-items: center; gap: 12px; }
+.fclub__join p { margin: 0; }
+.fclub__num { margin: 0; color: #6e6a5e; font-size: 13px; }
+
+@media (max-width: 560px) {
+  .fclub__ladder li { grid-template-columns: 1fr auto; }
+  .fclub__ladder-off { grid-column: 2; }
+  .fclub__points b { font-size: 28px; }
+}

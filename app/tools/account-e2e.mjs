@@ -80,7 +80,8 @@ await go(BASE + '/account');
 ok('кабінет відкривається', await ev('!!document.querySelector(".account")'));
 
 const tabs = await ev(`[...document.querySelectorAll('.account__tab')].map(x => x.querySelector('.account__tab-label').textContent)`);
-ok('три вкладки', tabs.length === 3, tabs.join(' | '));
+ok('чотири вкладки', tabs.length === 4, tabs.join(' | '));
+ok('Friendly Club — остання, після замовлень', tabs[3] === 'Friendly Club', tabs[3]);
 
 ok('гостю показано вхід', await ev('!!document.querySelector(".auth-google")'));
 ok('є вхід поштою', await ev('!!document.getElementById("auEmail") && !!document.getElementById("auPass")'));

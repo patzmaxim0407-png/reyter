@@ -8,10 +8,12 @@ import ProfileTab from './ProfileTab';
 import PromosTab from './PromosTab';
 import OrdersTab, { toRow, type OrdersMode, type Row } from './OrdersTab';
 import AuthPanel from './AuthPanel';
+import FriendlyTab from './FriendlyTab';
 import PageTop from './PageTop';
 import { useToast } from './Toasts';
 import * as cart from '@/lib/cart';
 import * as fb from '@/lib/firebase';
+import { joinProgram, readMember, saveInstagram, type MemberDoc } from '@/lib/admin/loyalty-db';
 import { sortMyPromos } from '@/lib/account';
 import { promoLive, type Promo } from '@/lib/promo';
 import { uah, type Catalogue } from '@/lib/catalog';
@@ -34,13 +36,16 @@ import { uah, type Catalogue } from '@/lib/catalog';
 const ICONS: Record<string, React.ReactNode> = {
   profile: <><circle cx="12" cy="8" r="3.6" /><path d="M4.5 20a7.5 7.5 0 0 1 15 0" /></>,
   promos: <><path d="M20 12a2 2 0 0 1 0-4V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2a2 2 0 0 1 0 4 2 2 0 0 1 0 4v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2a2 2 0 0 1 0-4Z" /><path d="M12 7v10" /></>,
-  orders: <><path d="M8 3h8l3 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8l3-5Z" /><path d="M5 8h14" /><path d="M9.5 12a2.5 2.5 0 0 0 5 0" /></>
+  orders: <><path d="M8 3h8l3 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8l3-5Z" /><path d="M5 8h14" /><path d="M9.5 12a2.5 2.5 0 0 0 5 0" /></>,
+  friendly: <><path d="M12 3.5 14.6 9l6 .9-4.3 4.2 1 6-5.3-2.8-5.3 2.8 1-6L3.4 9.9l6-.9Z" /></>
 };
 
 const TABS = [
   { id: 'profile', title: 'acc.profile' },
   { id: 'promos', title: 'acc.myPromos' },
-  { id: 'orders', title: 'acc.orders' }
+  { id: 'orders', title: 'acc.orders' },
+  // за умовою — одразу після «Мої замовлення»
+  { id: 'friendly', title: 'acc.friendly' }
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -86,6 +91,9 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [mode, setMode] = useState<OrdersMode>('local');
   const [promos, setPromos] = useState<Promo[] | null>(null);
+  /** null — ще не вступив або ще не прочитали. */
+  const [member, setMember] = useState<MemberDoc | null>(null);
+  const [fcBusy, setFcBusy] = useState(false);
 
   const localOrders = () =>
     cart.getOrders().map((o) => toRow(o as unknown as Record<string, unknown>));
@@ -159,6 +167,58 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
     };
   }, [user]);
 
+  /* Стан у програмі лояльності. Читається тут, а не всередині
+     вкладки: рівень показує ще й лічильник на самій вкладці, і
+     двічі ходити в базу за тим самим числом ні до чого. */
+  useEffect(() => {
+    if (user === undefined) return;
+    if (!user?.email) {
+      setMember(null);
+      return;
+    }
+    let alive = true;
+    const d = fb.db();
+    if (!d) return;
+    void readMember(d, user.email, new Date()).then((m) => {
+      if (alive) setMember(m);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [user]);
+
+  const join = useCallback(async () => {
+    const d = fb.db();
+    if (!d || !user?.email) return;
+    setFcBusy(true);
+    try {
+      setMember(await joinProgram(d, user.email, new Date()));
+      toast(t('fc.joined'), 'success');
+    } catch {
+      toast(t('fc.failed'));
+    } finally {
+      setFcBusy(false);
+    }
+  }, [user, toast, t]);
+
+  const setInsta = useCallback(
+    async (login: string) => {
+      const d = fb.db();
+      if (!d || !user?.email) return;
+      setFcBusy(true);
+      try {
+        const saved = await saveInstagram(d, user.email, login);
+        setMember((m) => (m ? { ...m, instagram: saved } : m));
+        toast(t('fc.opened'), 'success');
+      } catch {
+        toast(t('fc.failed'));
+      } finally {
+        setFcBusy(false);
+      }
+    },
+    [user, toast, t]
+  );
+
   /* ---------- Підсумки для шапки ---------- */
 
   const stats = useMemo(() => {
@@ -207,7 +267,9 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
   const badge: Record<TabId, number | null> = {
     profile: null,
     promos: signedIn ? stats.live || null : null,
-    orders: signedIn ? stats.orders || null : null
+    orders: signedIn ? stats.orders || null : null,
+    // на вкладці показуємо рівень, а не кількість: це головне число
+    friendly: signedIn && member ? member.level : null
   };
 
   return (
@@ -340,6 +402,17 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
           online && !user && tab !== 'orders' ? (
             tab === 'promos' ? (
               <PromosTab c={c} user={null} list={promos} />
+            ) : tab === 'friendly' ? (
+              /* Своя розповідь замість форми входу: спершу
+                 причина, потім прохання увійти. */
+              <FriendlyTab
+                user={null}
+                member={null}
+                lang={lang}
+                busy={false}
+                onJoin={() => {}}
+                onInstagram={() => {}}
+              />
             ) : (
               <AuthPanel />
             )
@@ -347,6 +420,15 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
             <ProfileTab user={user} online={online} />
           ) : tab === 'promos' ? (
             <PromosTab c={c} user={user} list={promos} />
+          ) : tab === 'friendly' ? (
+            <FriendlyTab
+              user={user}
+              member={member}
+              lang={lang}
+              busy={fcBusy}
+              onJoin={() => void join()}
+              onInstagram={(login) => void setInsta(login)}
+            />
           ) : (
             <OrdersTab c={c} user={user} online={online} rows={rows} mode={mode} />
           )}
