@@ -88,6 +88,19 @@ export default function RestockForm({
   const selected = products.find((p) => p.id === pid) ?? null;
   const cells = useMemo(() => (selected ? sizesOf(selected) : []), [selected, sizesOf]);
 
+  /* Що станеться після оприбуткування — кажемо ДО нього.
+     Залишок лишається за своєю ціною, нова партія йде за новою:
+     спершу продасться старе, і лише потім нове. */
+  const blend = useMemo(() => {
+    const now = Math.round(Number(cost) || 0);
+    const was = Math.round(Number(selected?.cost) || 0);
+    if (!now) return null;
+    const have = cells.reduce((n, x) => n + Math.max(0, x.have ?? 0), 0);
+    const add = cells.reduce((n, x) => n + Math.max(0, Number(qty[x.size]) || 0), 0);
+    if (!add) return null;
+    return { have, add, was, now };
+  }, [cost, selected, cells, qty]);
+
   /* Перемикання напрямку — це вже інша операція: кількості й
      нотатка від попередньої до неї не належать. Товар лишаємо:
      часто саме його щойно й дивились. */
@@ -287,7 +300,11 @@ export default function RestockForm({
             onChange={(e) => setCost(e.target.value)}
           />
           <i>
-            стане поточною, коли прихід оприбуткують — виконані замовлення не зміняться
+            {blend && blend.have && blend.was && blend.was !== blend.now
+              ? `спершу продасться залишок — ${blend.have} шт по ${blend.was} грн, і лише потім нова партія по ${blend.now}`
+              : blend
+                ? `${blend.add} шт по ${blend.now} грн стануть у чергу продажу`
+                : 'ціна цієї партії: продаватись вона почне після залишку'}
           </i>
         </label>
       ) : null}

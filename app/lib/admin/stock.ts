@@ -31,6 +31,7 @@ import {
   deleteDoc,
   deleteField,
   doc,
+  getDoc,
   getDocs,
   increment,
   limit,
@@ -866,6 +867,151 @@ function positives(src: Record<string, number> | undefined): Record<string, numb
   return out;
 }
 
+/* ============================================================
+   ЧЕРГА ПАРТІЙ: ЩО ПРИЙШЛО ПЕРШИМ, ТЕ Й ПРОДАЄТЬСЯ ПЕРШИМ
+   ------------------------------------------------------------
+   Питання, з якого це народилось: лишалось три пари по 300,
+   приїхало десять по 330 — по чому рахувати ті три?
+
+   Відповідь власника однозначна: залишок лишається за старою
+   ціною, нова партія йде за новою. Це FIFO, і в товарному обліку
+   він і є нормою: пари, куплені дешевше, справді принесли більшу
+   маржу, і розмазувати її по наступних партіях — значить не
+   бачити ані першої вигоди, ані подорожчання.
+
+   ЩО ЛЕЖИТЬ У ЧЕРЗІ. Партії в порядку приходу: скільки одиниць і
+   по чому. Продаж їсть її з голови: три по 300, далі десять по
+   330. Розміри тут ні до чого — ціна закупівлі однакова для
+   всієї партії, а скільки саме розмірів у ній, склад знає й так.
+
+   ДЕ ЛЕЖИТЬ. Окремим документом stock_costs/{товар}, а не в
+   картці товару. Причина не в стрункості: картку публікують, і
+   кожна зміна в ній піднімає кнопку «Опублікувати». Прихід
+   товару до публікації каталогу не має жодного стосунку.
+   ============================================================ */
+
+export const COSTS_COL = 'stock_costs';
+
+export interface CostBatch {
+  /** Скільки одиниць цієї партії ще не продано. */
+  qty: number;
+  /** По чому куплена одиниця. */
+  cost: number;
+  /** Коли оприбуткована — щоб черга читалась очима. */
+  at: string;
+}
+
+export interface CostQueue {
+  batches: CostBatch[];
+}
+
+export function emptyQueue(): CostQueue {
+  return { batches: [] };
+}
+
+/** Додати партію в кінець черги. */
+export function pushBatch(q: CostQueue, qty: number, cost: number, at: string): CostQueue {
+  const units = Math.max(0, Math.round(qty));
+  const price = Math.max(0, Math.round(cost));
+  if (!units || !price) return q;
+  return { batches: [...(q.batches || []), { qty: units, cost: price, at }] };
+}
+
+/** Продаж: беремо потрібне з голови черги.
+ *
+ *  Повертає нову чергу й СЕРЕДНЮ ціну одиниці саме цього продажу
+ *  — коли він перетнув межу партій, у ньому справді дві ціни, і
+ *  чесно віддати одну можна тільки так. Число заморожується в
+ *  замовленні, тож далі воно вже не зміниться ніколи.
+ *
+ *  Черга скінчилась, а товар продається — так буває: щось
+ *  оприбуткували без ціни, щось лежало ще до цієї механіки.
+ *  Тоді беремо ціну останньої відомої партії, а як і її немає —
+ *  кажемо про це нулем, і аналітика такий товар просто не рахує
+ *  в маржу. Вигадувати тут не можна. */
+export function takeUnits(q: CostQueue, qty: number): { queue: CostQueue; unit: number } {
+  const need = Math.max(0, Math.round(qty));
+  const batches = (q.batches || []).map((b) => ({ ...b }));
+  if (!need) return { queue: { batches }, unit: 0 };
+
+  let left = need;
+  let spent = 0;
+  let taken = 0;
+
+  while (left > 0 && batches.length) {
+    const head = batches[0];
+    const take = Math.min(head.qty, left);
+    spent += take * head.cost;
+    taken += take;
+    head.qty -= take;
+    left -= take;
+    if (head.qty <= 0) batches.shift();
+  }
+
+  /* Не вистачило черги — решту рахуємо останньою відомою ціною. */
+  if (left > 0) {
+    const last = spent && taken ? Math.round(spent / taken) : lastKnown(q);
+    if (last) {
+      spent += left * last;
+      taken += left;
+    }
+  }
+
+  return { queue: { batches }, unit: taken ? Math.round(spent / taken) : 0 };
+}
+
+function lastKnown(q: CostQueue): number {
+  const list = q.batches || [];
+  return list.length ? list[list.length - 1].cost : 0;
+}
+
+/** Повернення: одиниці стають знову першими в черзі — вони й
+ *  були найстарішими. Без цього скасоване замовлення тихо
+ *  вкрало б у магазину дешеву партію. */
+export function giveBack(q: CostQueue, qty: number, cost: number, at: string): CostQueue {
+  const units = Math.max(0, Math.round(qty));
+  const price = Math.max(0, Math.round(cost));
+  if (!units || !price) return q;
+  return { batches: [{ qty: units, cost: price, at }, ...(q.batches || [])] };
+}
+
+/** Скільки коштує наступна одиниця — для картки товару й для
+ *  замовлень, яким черга нічого не сказала. */
+export function headCost(q: CostQueue): number {
+  const list = (q.batches || []).filter((b) => b.qty > 0);
+  return list.length ? list[0].cost : lastKnown(q);
+}
+
+/** Скільки грошей лежить на складі цього товару. */
+export function queueValue(q: CostQueue): number {
+  return (q.batches || []).reduce((n, b) => n + Math.max(0, b.qty) * Math.max(0, b.cost), 0);
+}
+
+/** Черга з бази. Немає документа — складаємо початкову з того,
+ *  що вже лежить на складі й що вписано в картці товару: інакше
+ *  перший же прихід зробив би вигляд, ніби до нього магазин не
+ *  торгував нічим. */
+export async function readQueue(
+  w: { db: Firestore },
+  pid: string,
+  s?: StockState
+): Promise<CostQueue> {
+  try {
+    const snap = await getDoc(doc(w.db, COSTS_COL, pid));
+    if (snap.exists()) {
+      const box = snap.data() as CostQueue;
+      if (Array.isArray(box.batches)) return { batches: box.batches.filter((b) => b && b.qty > 0) };
+    }
+  } catch {
+    /* немає прав або звʼязку — краще порожня черга, ніж падіння */
+  }
+
+  const p = s ? productById(s, pid) : null;
+  const cost = Math.max(0, Math.round(Number(p?.cost) || 0));
+  const have = p && s ? totalQty(s, p) : 0;
+  return cost > 0 && have > 0 ? { batches: [{ qty: have, cost, at: '' }] } : emptyQueue();
+}
+
 /** Тіло документа restocks/*. created і by дописує сам запис. */
 export interface RestockDoc {
   productId: string;
@@ -1162,7 +1308,12 @@ export async function receiveRestock(
        майбутнє, а не минуле. */
     const batchCost = Math.max(0, Math.round(Number(r.cost) || 0));
     if (batchCost > 0) {
-      batch.set(doc(w.db, 'catalog_products', r.productId), { cost: batchCost }, { merge: true });
+      const add = plan.mode === 'sizes'
+        ? Object.values(plan.sizes).reduce((n, v) => n + (Number(v) || 0), 0)
+        : plan.qty;
+      const was = await readQueue(w, r.productId, s);
+      const next = pushBatch(was, add, batchCost, todayISO(new Date()));
+      batch.set(doc(w.db, COSTS_COL, r.productId), next, { merge: false });
     }
 
     batch.update(doc(w.db, RESTOCKS_COL, r._id), {

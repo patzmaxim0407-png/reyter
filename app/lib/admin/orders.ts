@@ -63,7 +63,13 @@ import {
   collectStock,
   consumesStock,
   emptyPlan,
+  giveBack,
+  readQueue,
   stockShortage,
+  stockUnits,
+  takeUnits,
+  COSTS_COL,
+  type CostQueue,
   writeoffTitle,
   WRITEOFF_REASONS,
   type StockState,
@@ -921,15 +927,71 @@ export function planStatusChange(
 }
 
 /** Скільки коштували товари замовлення на момент продажу.
- *  Порожньо — жодному з них собівартість не вписана. */
-export function costsFrom(order: AdminOrder, c: Catalogue): { costs?: Record<string, number> } {
+ *
+ *  Ціну беремо з ЧЕРГИ ПАРТІЙ: що прийшло першим, те й
+ *  продається першим. Лишалось три пари по 300, приїхало десять
+ *  по 330 — перші три продажі підуть по 300, і лише далі по 330.
+ *
+ *  Черга при цьому зменшується: продані одиниці з неї зникають.
+ *  Тому функція не чиста — вона й читає, і пише, — і викликається
+ *  рівно один раз на замовлення, у мить, коли воно стає
+ *  виконаним.
+ *
+ *  Замовлення, у якому продаж перетнув межу партій, отримує
+ *  середню ціну саме цього продажу: у ньому справді дві ціни, і
+ *  одним числом їх можна віддати тільки так. Далі воно
+ *  заморожене й не змінюється ніколи. */
+export async function costsFrom(
+  db: Firestore,
+  order: AdminOrder,
+  c: Catalogue,
+  now: Date
+): Promise<{ costs?: Record<string, number>; queues: { pid: string; queue: CostQueue }[] }> {
   const byId = new Map((c.products || []).map((p) => [String(p.id), p]));
   const out: Record<string, number> = {};
-  for (const i of order.items || []) {
-    const cost = Number(byId.get(String(i.id || ''))?.cost);
-    if (Number.isFinite(cost) && cost > 0) out[String(i.id)] = Math.round(cost);
+  const queues: { pid: string; queue: CostQueue }[] = [];
+
+  /* Комплекти списують складники, тож і ціну беруть з них.
+     Ту саму розкладку робить склад — беремо її ж, щоб черга й
+     залишки їли те саме. */
+  const units = stockUnits(order as never);
+  const need = new Map<string, number>();
+  for (const u of units) need.set(u.id, (need.get(u.id) || 0) + Math.max(0, u.qty));
+
+  for (const [pid, qty] of need) {
+    if (!byId.has(pid)) continue;
+    const queue = await readQueue({ db }, pid);
+    const { queue: left, unit } = takeUnits(queue, qty);
+    if (unit > 0) {
+      out[pid] = unit;
+      queues.push({ pid, queue: left });
+    }
   }
-  return Object.keys(out).length ? { costs: out } : {};
+
+  void now;
+  return { ...(Object.keys(out).length ? { costs: out } : {}), queues };
+}
+
+/** Повернути продані одиниці в чергу партій. Ціну беремо ту, що
+ *  заморожена в самому замовленні: саме за нею вони й пішли. */
+export async function returnToQueue(
+  db: Firestore,
+  order: AdminOrder,
+  now: Date
+): Promise<{ pid: string; queue: CostQueue }[]> {
+  const out: { pid: string; queue: CostQueue }[] = [];
+  const need = new Map<string, number>();
+  for (const u of stockUnits(order as never)) {
+    need.set(u.id, (need.get(u.id) || 0) + Math.max(0, u.qty));
+  }
+
+  for (const [pid, qty] of need) {
+    const cost = Math.round(Number(order.costs?.[pid]) || 0);
+    if (!cost || !qty) continue;
+    const queue = await readQueue({ db }, pid);
+    out.push({ pid, queue: giveBack(queue, qty, cost, now.toISOString().slice(0, 10)) });
+  }
+  return out;
 }
 
 export interface StatusChangeDeps {
@@ -1124,6 +1186,24 @@ export async function applyStatus(
        адміністратори можуть одночасно бачити старе false, але
        після першого запису Firestore повторить другу транзакцію
        вже зі свіжим true — і другого списання не буде. */
+    /* Ціну з черги партій рахуємо ДО транзакції: там читання
+       вже неможливе після першого запису, а черга лежить в
+       окремих документах. Значення абсолютне, тож повтор
+       транзакції нічого не подвоїть — вона запише те саме. */
+    const frozen =
+      next === 'done' && !order.costs
+        ? await costsFrom(deps.db, order, deps.c, deps.now)
+        : null;
+
+    /* Замовлення перестало бути виконаним — одиниці вертаються в
+       чергу, і саме на її початок: вони й були найстарішими. Без
+       цього скасоване замовлення тихо вкрало б у магазину дешеву
+       партію, а наступний продаж пішов би вже за новою ціною. */
+    const returned =
+      prev === 'done' && next !== 'done' && order.costs
+        ? await returnToQueue(deps.db, order, deps.now)
+        : null;
+
     const committed = await runTransaction(deps.db, async (transaction) => {
       const ref = doc(deps.db, ORDER_COL, order._id);
       const snap = await transaction.get(ref);
@@ -1182,6 +1262,17 @@ export async function applyStatus(
          виконаним без нарахування. */
       if (moved) writeMoveTx(transaction, deps.db, moved);
 
+      /* Черга партій після продажу: проданих одиниць у ній уже
+         немає. Тією ж транзакцією, що й статус, — інакше товар
+         поїхав би, а черга лишилась повною, і наступний продаж
+         дістав би стару дешеву партію вдруге. */
+      for (const q of frozen?.queues || []) {
+        transaction.set(doc(deps.db, COSTS_COL, q.pid), q.queue);
+      }
+      for (const q of returned || []) {
+        transaction.set(doc(deps.db, COSTS_COL, q.pid), q.queue);
+      }
+
       transaction.update(ref, {
         ...plan.update,
         /* Собівартість заморожуємо в мить продажу.
@@ -1196,7 +1287,7 @@ export async function applyStatus(
 
            Пишемо один раз: якщо замовлення відкотили й закрили
            знову, продаж від цього не став іншим. */
-        ...(plan.points.kind === 'credit' && !order.costs ? costsFrom(fresh, deps.c) : {}),
+        ...(frozen?.costs ? { costs: frozen.costs } : {}),
         /* Позначка «бали за це замовлення нараховані» має бути
            правдою. Раніше вона ставилась і тоді, коли нараховувати
            не було кому: покупець ще не в програмі, документа немає,

@@ -27,6 +27,12 @@ import {
   movesPage,
   planReceive,
   planRestock,
+  emptyQueue,
+  giveBack,
+  headCost,
+  pushBatch,
+  queueValue,
+  takeUnits,
   planWriteoff,
   lastReceived,
   pendingRestocks,
@@ -355,8 +361,45 @@ const client = readFileSync(new URL('../lib/notify.ts', import.meta.url), 'utf8'
   ok('без собівартості поля в документі немає',
      none.ok === true && (none as { doc: { cost?: number } }).doc.cost === undefined);
 
-  ok('оприбуткування переписує собівартість товару',
-     /catalog_products.*\{ cost: batchCost \}/.test(
+  /* Той самий випадок, з якого це й почалось: лишалось три пари
+     по 300, приїхало десять по 330. Залишок має продатись за
+     старою ціною, і лише потім починається нова партія. */
+  let q = pushBatch(emptyQueue(), 3, 300, '2026-08-01');
+  q = pushBatch(q, 10, 330, '2026-08-16');
+  ok('у черзі дві партії', q.batches.length === 2);
+
+  const one = takeUnits(q, 1);
+  ok('перший продаж іде за старою ціною', one.unit === 300, String(one.unit));
+  ok('черга зменшилась', one.queue.batches[0].qty === 2);
+
+  const three = takeUnits(q, 3);
+  ok('останній зі старої партії — теж 300', three.unit === 300, String(three.unit));
+  ok('стара партія зникла з черги', three.queue.batches.length === 1);
+
+  const four = takeUnits(q, 4);
+  ok('продаж через межу партій дає середню саме цього продажу',
+     four.unit === Math.round((3 * 300 + 1 * 330) / 4), String(four.unit));
+
+  const after = takeUnits(three.queue, 2);
+  ok('далі продається нова партія', after.unit === 330, String(after.unit));
+
+  const dry = takeUnits(emptyQueue(), 2);
+  ok('порожня черга не вигадує ціни', dry.unit === 0, String(dry.unit));
+
+  const over = takeUnits(pushBatch(emptyQueue(), 1, 300, ''), 3);
+  ok('коли черги забракло, решта йде останньою відомою ціною',
+     over.unit === 300, String(over.unit));
+
+  const back = giveBack(three.queue, 3, 300, '2026-08-17');
+  ok('повернення стає знову першим у черзі',
+     back.batches[0].cost === 300 && takeUnits(back, 1).unit === 300);
+
+  ok('гроші на складі рахуються',
+     queueValue(q) === 3 * 300 + 10 * 330, String(queueValue(q)));
+  ok('наступна одиниця — з голови черги', headCost(q) === 300);
+
+  ok('прихід кладе партію в чергу, а не переписує картку',
+     /COSTS_COL, r\.productId\), next/.test(
        readFileSync(new URL('../lib/admin/stock.ts', import.meta.url), 'utf8')
      ));
 }
