@@ -105,6 +105,20 @@ console.log('\nРЯДКИ');
   ok('без собівартості — null, а не нуль', linesOf(orders[2], byId as never)[0].cost === null);
 }
 
+/* Заморожена собівартість сильніша за каталог: інакше правка
+   ціни закупівлі переписувала б звіти за минулі місяці. */
+{
+  const byId = new Map(c.products.map((p) => [p.id, p]));
+  const frozen = { ...orders[0], costs: { A: 900 } } as AdminOrder;
+  const lines = linesOf(frozen, byId as never);
+  ok('береться собівартість із замовлення, а не з картки', lines[0].cost === 900, String(lines[0].cost));
+  ok('товар без заморозки бере поточну', lines[1].cost === 300, String(lines[1].cost));
+
+  const k = kpiOf([frozen], c, from, to);
+  // (1000−900) + (500−300)
+  ok('маржа рахується замороженою ціною', k.margin === 300, String(k.margin));
+}
+
 /* ---------- Підсумки ---------- */
 console.log('\nПІДСУМКИ');
 {

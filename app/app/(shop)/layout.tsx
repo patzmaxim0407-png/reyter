@@ -5,6 +5,7 @@ import LangProvider from '@/components/LangProvider';
 import CartDrawer from '@/components/CartDrawer';
 import ShopChrome from '@/components/ShopChrome';
 import Analytics from '@/components/Analytics';
+import Attribution from '@/components/Attribution';
 import { loadCatalog, loadStock } from '@/lib/firestore';
 import { cartCatalogue } from '@/lib/catalog';
 
@@ -36,6 +37,9 @@ export default async function ShopLayout({
           {productModal}
           <CartDrawer />
           <Analytics />
+          {/* Звідки прийшла людина — памʼятає браузер, а в
+              замовлення це кладе кошик. */}
+          <Attribution />
         </CartProvider>
     </LangProvider>
   );

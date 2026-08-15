@@ -356,6 +356,12 @@ export interface AdminCustomer extends Address {
 export interface AdminOrder {
   /** id документа — у самому документі його немає. */
   _id: string;
+  /** Собівартість товарів, заморожена в мить продажу: артикул →
+   *  ціна закупівлі за одиницю. Пише адмінка, коли замовлення
+   *  стає виконаним. Далі це число не міняється ніколи — саме
+   *  тому звіт за минулий місяць не переписується, коли власник
+   *  виправляє собівартість у картці товару. */
+  costs?: Record<string, number>;
   num?: string;
   date?: string;
   /** Проставляє сервер. Є не всюди: у найперших замовленнях
@@ -914,6 +920,18 @@ export function planStatusChange(
   return { entry, update, stock, points, toast };
 }
 
+/** Скільки коштували товари замовлення на момент продажу.
+ *  Порожньо — жодному з них собівартість не вписана. */
+export function costsFrom(order: AdminOrder, c: Catalogue): { costs?: Record<string, number> } {
+  const byId = new Map((c.products || []).map((p) => [String(p.id), p]));
+  const out: Record<string, number> = {};
+  for (const i of order.items || []) {
+    const cost = Number(byId.get(String(i.id || ''))?.cost);
+    if (Number.isFinite(cost) && cost > 0) out[String(i.id)] = Math.round(cost);
+  }
+  return Object.keys(out).length ? { costs: out } : {};
+}
+
 export interface StatusChangeDeps {
   db: Firestore;
   /** Каталог і живі залишки: за ними рахується нестача й списання. */
@@ -1166,6 +1184,19 @@ export async function applyStatus(
 
       transaction.update(ref, {
         ...plan.update,
+        /* Собівартість заморожуємо в мить продажу.
+
+           Ціни закупівлі змінюються: інша партія, інший курс,
+           інший постачальник. Якби звіт брав сьогоднішнє число,
+           то щоразу, коли власник виправляє собівартість, у
+           нього переписувався б і минулий рік — торішній
+           прибуток ставав би іншим від однієї правки в картці.
+           Тому в замовленні лишається те число, яке було
+           правдою, коли товар поїхав.
+
+           Пишемо один раз: якщо замовлення відкотили й закрили
+           знову, продаж від цього не став іншим. */
+        ...(plan.points.kind === 'credit' && !order.costs ? costsFrom(fresh, deps.c) : {}),
         /* Позначка «бали за це замовлення нараховані» має бути
            правдою. Раніше вона ставилась і тоді, коли нараховувати
            не було кому: покупець ще не в програмі, документа немає,

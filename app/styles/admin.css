@@ -6320,3 +6320,5 @@ label.a-promo-product i {
 .ins-slice__track { height: 8px; border-radius: 999px; background: var(--c-cream-dark); overflow: hidden; }
 .ins-slice__track i { display: block; height: 100%; background: var(--c-blue); }
 .ins-slice b { text-align: right; font-variant-numeric: tabular-nums; color: var(--c-blue-ink); }
+
+.ins__foot { margin: 12px 0 0; font-size: 12px; color: var(--c-muted); line-height: 1.5; }

@@ -6,9 +6,11 @@ import {
   SPANS,
   bcgOf,
   byCategory,
+  channelOf,
   cityOf,
   grainFor,
   growth,
+  knownSource,
   kpiOf,
   previous,
   rangeOf,
@@ -77,6 +79,14 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
       bcg: bcgOf(rows),
       line: seriesOf(orders, c, from, to, grainFor(span, orders)),
       cities: sliceBy(orders, from, to, cityOf).slice(0, 8),
+      /* Гроші за джерелами, а не замовлення: канал, який дає
+         два дорогі замовлення, вартіший за той, що дає пʼять
+         дешевих, і в переліку по штуках це видно навпаки. */
+      channels: sliceBy(orders, from, to, channelOf, (o) =>
+        (o.items || []).reduce((s2, i) => s2 + (Number(i.price) || 0) * (Number(i.qty) || 0), 0) -
+        Math.max(0, Number(o.discount) || 0)
+      ).filter((x) => x.id !== '—'),
+      known: knownSource(orders, from, to),
       sources: sliceBy(orders, from, to, (o) => String(o.source || 'Сайт')),
       pays: sliceBy(orders, from, to, (o) =>
         o.payInvoiceId ? 'Картка онлайн' : 'При отриманні'
@@ -172,10 +182,36 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
       <div className="ins__two">
         <section className="ins__card">
           <header className="ins__card-head">
+            <h3>Звідки клієнти</h3>
+            <span>за грошима, які принесли</span>
+          </header>
+          {view.channels.length ? (
+            <>
+              <Slices list={view.channels} />
+              {view.known < 0.999 ? (
+                <p className="ins__foot">
+                  Джерело відоме для {Math.round(view.known * 100)}% замовлень періоду: воно
+                  записується з дня, коли зʼявилась ця вкладка, і в старих замовленнях його немає.
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className="ins__empty">
+              Джерела ще не накопичились. Вони записуються з першого візиту після оновлення —
+              реклама, пошук, Instagram, прямий захід.
+            </p>
+          )}
+        </section>
+
+        <section className="ins__card">
+          <header className="ins__card-head">
             <h3>Куди возимо</h3>
           </header>
           <Slices list={view.cities} />
         </section>
+      </div>
+
+      <div className="ins__two">
         <section className="ins__card">
           <header className="ins__card-head">
             <h3>Як платять і звідки приходять</h3>

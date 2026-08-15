@@ -15,6 +15,7 @@
 
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import type { Product } from './types';
+import { fromNow } from './attribution';
 import {
   getAuth,
   onAuthStateChanged,
@@ -370,6 +371,18 @@ function noHoles<T>(value: T): T {
   return value;
 }
 
+/** Дописати до покупця те, що браузер знає про його прихід.
+ *  Не знає нічого — лишаємо як було: порожні поля в базі гірші
+ *  за відсутні. */
+function withFrom(customer: NewOrder['customer']): NewOrder['customer'] {
+  try {
+    const box = fromNow();
+    return box ? ({ ...customer, from: box } as NewOrder['customer']) : customer;
+  } catch {
+    return customer;
+  }
+}
+
 export async function createOrder(
   order: NewOrder,
   opts: { trackKey?: string; lang?: string } = {}
@@ -387,7 +400,16 @@ export async function createOrder(
       promoCode: order.promoCode || '',
       shipping: Number(order.shipping) || 0,
       total: order.total,
-      customer: order.customer,
+      /* Звідки прийшов покупець — усередині customer, а не
+         окремим полем.
+
+         Причина не в стрункості, а в порядку подій: правила бази
+         перелічують дозволені поля замовлення й публікуються
+         руками. Нове поле верхнього рівня означало б, що живий
+         сайт перестане приймати замовлення до тієї хвилини, коли
+         правила опублікують, — і перестане МОВЧКИ. Усередині
+         customer місця скільки завгодно вже сьогодні. */
+      customer: withFrom(order.customer),
       message: order.message ?? '',
       status: 'new',
       uid: user ? user.uid : null,
