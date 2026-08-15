@@ -64,6 +64,25 @@ Chat ID підкаже сама адмінка після кроку 5 — кн�
 | `TG_CHAT` | Text | Chat ID отримувачів, кілька — через кому |
 | `ALLOW_ORIGIN` | Text | `https://reyter.men` |
 | `ADMIN_KEY` | Secret | *необовʼязково* — пароль для службових кнопок адмінки |
+| `META_CAPI_TOKEN` | Secret | токен Meta Conversions API для Pixel `1564358352080564` |
+| `META_TEST_EVENT_CODE` | Secret | *необовʼязково* — код із «Test events» лише на час перевірки |
+
+Для серверної події `Purchase` Worker також має KV binding
+`CAPI_PENDING`. У репозиторії він уже описаний у `wrangler.jsonc`;
+окреме сховище зберігає контекст рахунку максимум сім днів і не
+змішується з кешем сайту.
+
+Токен Meta не вставляйте у `worker.js` або `wrangler.jsonc`. Його
+треба додати як Secret у Cloudflare або через безпечний інтерактивний
+виклик із цієї теки:
+
+```bash
+npx --prefix ../app wrangler secret put META_CAPI_TOKEN --config wrangler.jsonc
+```
+
+Після цього Worker відправляє `Purchase` з підписаного webhook
+Monobank. Браузерний Pixel використовує той самий `event_id`, тому
+Meta дедуплікує пару Browser + Server в одну покупку.
 
 > ⚠️ Після додавання змінних обовʼязково натисніть **Deploy** — без
 > цього воркер їх не побачить. Назви мають бути точно такі, без пробілів

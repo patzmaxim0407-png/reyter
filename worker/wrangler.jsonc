@@ -1,0 +1,15 @@
+{
+  "$schema": "../app/node_modules/wrangler/config-schema.json",
+  "name": "reyter",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-14",
+  "kv_namespaces": [
+    {
+      "binding": "CAPI_PENDING",
+      "id": "19cd3d0b103844a3a725cf358bd9671c"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

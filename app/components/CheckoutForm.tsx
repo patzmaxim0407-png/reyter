@@ -427,6 +427,7 @@ export default function CheckoutForm() {
          замовили. Якби суму передавали звідси, її можна було б
          переписати в консолі браузера й купити все за гривню. */
       const { payCreate, rememberInvoice } = await import('@/lib/pay');
+      const { metaBrowserContext } = await import('@/lib/meta');
       const settings = (await fb.loadNotifySettings()) as { workerUrl?: string } | null;
       const bill = await payCreate(String(settings?.workerUrl || ''), {
         orderNum: order.num,
@@ -434,6 +435,8 @@ export default function CheckoutForm() {
         promo: code,
         shipping: shipInTotal,
         email: customer.email,
+        phone: customer.phone,
+        meta: metaBrowserContext(),
         lang: 'uk'
       });
       if (bill.ok && bill.invoiceId) {

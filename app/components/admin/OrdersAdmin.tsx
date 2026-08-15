@@ -420,6 +420,7 @@ export default function OrdersAdmin() {
         promo: o.promoCode || '',
         shipping: Number(o.shipping) || 0,
         email: to,
+        phone: String((o.customer as Record<string, unknown>)?.phone || ''),
         name: String((o.customer as Record<string, unknown>)?.name || ''),
         lang: (o.lang === 'en' ? 'en' : 'uk') as 'uk' | 'en'
       });

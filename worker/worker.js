@@ -20,6 +20,9 @@
      MONO_TOKEN  — токен еквайрингу Monobank (Secret). Дає право
                    виставляти рахунки й повертати гроші, тож у
                    браузер не потрапляє ніколи
+     META_CAPI_TOKEN — токен Meta Conversions API (Secret)
+     CAPI_PENDING — KV binding для короткого збереження контексту
+                    покупки до підписаного webhook Monobank
      ALLOW_ORIGIN— (необовʼязково) домени, з яких дозволені запити.
                    Кілька — через кому. За замовчуванням
                    https://reyter.men та https://admin.reyter.men
@@ -646,6 +649,9 @@ function receiptHTML(d) {
 const MONO = 'https://api.monobank.ua/api/merchant';
 const FB_PROJECT = 'reyter-18d2c';
 const FB = `https://firestore.googleapis.com/v1/projects/${FB_PROJECT}/databases/(default)/documents`;
+const META_PIXEL = '1564358352080564';
+const META_GRAPH = 'v25.0';
+const META_CONTEXT_TTL = 7 * 24 * 60 * 60;
 
 /* Firestore віддає значення в обгортках виду {stringValue: '…'}.
    Розгортаємо рівно так само, як це робить сайт. */
@@ -782,6 +788,176 @@ async function monoCall(env, path, init) {
   });
   const data = await res.json().catch(() => ({}));
   return { ok: res.ok, status: res.status, data };
+}
+
+/* ============================================================
+   Meta Conversions API: Purchase
+   ------------------------------------------------------------
+   Браузерний Pixel і сервер надсилають один event_id, тому Meta
+   бачить одну покупку, а не дві. Серверна подія народжується не
+   зі сторінки «дякуємо», а з підписаного webhook Monobank — її
+   не можна підробити з консолі й вона не губиться через блокер.
+
+   При створенні рахунку кладемо у KV лише потрібний мінімум:
+   хеші пошти/телефону, _fbp/_fbc, технічні дані запиту та склад
+   кошика. Сирі контакти в KV не потрапляють. Через сім днів
+   запис видаляється сам — довше Meta стару подію не прийме.
+   ============================================================ */
+
+function metaKey(invoiceId) {
+  return 'purchase:' + clip(invoiceId, 60);
+}
+
+function normalizeMetaEmail(value) {
+  const email = String(value || '').trim().toLowerCase();
+  return EMAIL_RE.test(email) ? email : '';
+}
+
+function normalizeMetaPhone(value) {
+  let phone = String(value || '').replace(/\D/g, '');
+  // Український локальний запис 0XX… → міжнародний 380XX…
+  if (phone.length === 10 && phone.startsWith('0')) phone = '38' + phone;
+  return phone.length >= 8 && phone.length <= 15 ? phone : '';
+}
+
+async function sha256(value) {
+  if (!value) return '';
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function metaCookie(value) {
+  const cookie = clip(value, 250).trim();
+  return /^fb\.\d+\.\d+\.[A-Za-z0-9._-]+$/.test(cookie) ? cookie : '';
+}
+
+function metaEventId(orderNum) {
+  return 'reyter_purchase_' + clip(orderNum, 40).trim();
+}
+
+async function rememberMetaPurchase(env, request, d, bill, invoiceId, type) {
+  if (!env.CAPI_PENDING || !invoiceId) return false;
+
+  const orderNum = clip(d.orderNum || d.num, 40).trim();
+  if (!orderNum) return false;
+
+  const [emailHash, phoneHash] = await Promise.all([
+    sha256(normalizeMetaEmail(d.to || d.email)),
+    sha256(normalizeMetaPhone(d.phone))
+  ]);
+  const meta = d.meta && typeof d.meta === 'object' ? d.meta : {};
+  const fromBuyer = type === 'pay-create';
+  const fbp = metaCookie(meta.fbp);
+  const fbc = metaCookie(meta.fbc);
+  const context = {
+    version: 1,
+    orderNum,
+    eventId: metaEventId(orderNum),
+    createdAt: new Date().toISOString(),
+    userData: {
+      ...(emailHash ? { em: [emailHash] } : {}),
+      ...(phoneHash ? { ph: [phoneHash] } : {}),
+      ...(fbp ? { fbp } : {}),
+      ...(fbc ? { fbc } : {}),
+      /* Для рахунку, який створив менеджер, це були б IP та
+         браузер менеджера, а не покупця — такі дані гірші за
+         відсутні, тому беремо їх лише з кошика покупця. */
+      ...(fromBuyer && request.headers.get('CF-Connecting-IP')
+        ? { client_ip_address: clip(request.headers.get('CF-Connecting-IP'), 64) }
+        : {}),
+      ...(fromBuyer && request.headers.get('User-Agent')
+        ? { client_user_agent: clip(request.headers.get('User-Agent'), 500) }
+        : {})
+    },
+    contentIds: (bill.lines || []).slice(0, 50).map((line) => String(line.id)),
+    contents: (bill.lines || []).slice(0, 50).map((line) => ({
+      id: String(line.id),
+      quantity: Number(line.qty) || 1,
+      item_price: Number(line.price) || 0
+    })),
+    numItems: (bill.lines || []).reduce((sum, line) => sum + (Number(line.qty) || 1), 0)
+  };
+
+  await env.CAPI_PENDING.put(metaKey(invoiceId), JSON.stringify(context), {
+    expirationTtl: META_CONTEXT_TTL
+  });
+  return true;
+}
+
+function metaEventTime(payment) {
+  const raw = Date.parse(payment.modifiedDate || payment.createdDate || '');
+  const now = Date.now();
+  // Meta приймає серверні події лише в межах останніх семи днів.
+  const at = Number.isFinite(raw) && raw <= now + 5 * 60_000 && now - raw < META_CONTEXT_TTL * 1000
+    ? raw
+    : now;
+  return Math.floor(at / 1000);
+}
+
+async function sendMetaPurchase(env, payment) {
+  if (!env.CAPI_PENDING) return { ok: false, skipped: 'kv_missing' };
+  if (!env.META_CAPI_TOKEN) return { ok: false, skipped: 'token_missing' };
+
+  const invoiceId = clip(payment.invoiceId, 60);
+  if (!invoiceId) return { ok: false, skipped: 'invoice_missing' };
+  const context = await env.CAPI_PENDING.get(metaKey(invoiceId), 'json');
+  if (!context) return { ok: false, skipped: 'context_missing' };
+  if (context.sentAt) return { ok: true, skipped: 'already_sent' };
+
+  const userData = context.userData && typeof context.userData === 'object' ? context.userData : {};
+  if (!Object.keys(userData).length) return { ok: false, skipped: 'user_data_missing' };
+
+  const amount = Math.max(0, Math.round(Number(payment.amount) || 0) / 100);
+  if (!amount) return { ok: false, skipped: 'amount_missing' };
+
+  const payload = {
+    data: [{
+      event_name: 'Purchase',
+      event_time: metaEventTime(payment),
+      event_id: context.eventId,
+      action_source: 'website',
+      event_source_url: 'https://reyter.men/thanks?num=' + encodeURIComponent(context.orderNum),
+      user_data: userData,
+      custom_data: {
+        currency: 'UAH',
+        value: amount,
+        order_id: context.orderNum,
+        content_type: 'product',
+        content_ids: context.contentIds || [],
+        contents: context.contents || [],
+        num_items: Number(context.numItems) || 0
+      }
+    }],
+    ...(env.META_TEST_EVENT_CODE ? { test_event_code: env.META_TEST_EVENT_CODE } : {})
+  };
+
+  const pixel = clip(env.META_PIXEL_ID || META_PIXEL, 30).replace(/\D/g, '');
+  const res = await fetch(`https://graph.facebook.com/${META_GRAPH}/${pixel}/events`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + env.META_CAPI_TOKEN,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+  const result = await res.json().catch(() => ({}));
+  if (!res.ok || Number(result.events_received) < 1) {
+    const error = result && result.error ? result.error : {};
+    console.error('meta_capi_failed', {
+      status: res.status,
+      code: error.code || 0,
+      subcode: error.error_subcode || 0,
+      message: clip(error.message || 'Meta не прийняла подію', 180)
+    });
+    return { ok: false, skipped: '', status: res.status };
+  }
+
+  await env.CAPI_PENDING.put(metaKey(invoiceId), JSON.stringify({
+    ...context,
+    sentAt: new Date().toISOString()
+  }), { expirationTtl: META_CONTEXT_TTL });
+  console.log('meta_capi_purchase_sent', { eventId: context.eventId, eventsReceived: result.events_received });
+  return { ok: true, skipped: '' };
 }
 
 /** Рахунок у Monobank. Сума — тільки та, що порахував воркер.
@@ -971,9 +1147,8 @@ async function signedByMono(env, body, sign) {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     /* Сайт і адмінка живуть на різних доменах, тож дозволених
        origin кілька. Браузер приймає в заголовку рівно один —
        віддаємо той, з якого прийшов запит, якщо він у списку. */
@@ -1015,21 +1190,32 @@ export default {
       /* Пишемо в Telegram лише про гроші, які справді дійшли.
          Статус замовлення вебхук не міняє навмисно: підтвердження
          списує товар зі складу, і ця логіка має жити в одному
-         місці — в адмінці, а не в двох. */
+         місці — в адмінці, а не в двох.
+
+         Telegram і CAPI не тримають відповідь банку відкритою:
+         Cloudflare дочекається їх через waitUntil уже після «ok». */
+      const background = [];
       if (w.status === 'success') {
-        await tgSend(
+        background.push(tgSend(
           env,
           '💳 ОПЛАЧЕНО ' + clip(String(Math.round((Number(w.amount) || 0) / 100)), 12) + ' грн\n' +
             'Замовлення №' + clip(String(w.reference || ''), 40) + '\n' +
             'Рахунок ' + clip(String(w.invoiceId || ''), 60)
-        );
+        ));
+        background.push(sendMetaPurchase(env, w));
       }
       if (w.status === 'reversed') {
-        await tgSend(
+        background.push(tgSend(
           env,
           '↩️ ПОВЕРНЕНО ' + clip(String(Math.round((Number(w.amount) || 0) / 100)), 12) + ' грн\n' +
             'Замовлення №' + clip(String(w.reference || ''), 40)
-        );
+        ));
+      }
+      if (background.length) {
+        ctx.waitUntil(Promise.allSettled(background).then((results) => {
+          const failed = results.filter((result) => result.status === 'rejected').length;
+          if (failed) console.error('mono_webhook_background_failed', { failed });
+        }));
       }
       // банк чекає лише «прийняв»
       return new Response('ok');
@@ -1237,10 +1423,22 @@ export default {
 
         let paid = 0;
         let back = 0;
+        let latestPaid = null;
         for (const x of seen.list) {
           if (String(x.reference || '') !== want || x.status !== 'success') continue;
+          if (!latestPaid) latestPaid = x;
           paid += Number(x.amount) || 0;
           back += (x.cancelList || []).reduce((n, c) => n + (Number(c.amount) || 0), 0);
+        }
+        /* Резервний повтор CAPI: якщо Meta була недоступна саме
+           під час webhook, сторінка подяки дає ще одну спробу.
+           KV і event_id не дозволяють порахувати покупку двічі. */
+        if (paid - back > 0 && latestPaid) {
+          ctx.waitUntil(sendMetaPurchase(env, {
+            ...latestPaid,
+            amount: paid - back,
+            reference: want
+          }));
         }
         return reply({
           ok: true,
@@ -1529,6 +1727,19 @@ export default {
         hook: new URL(request.url).origin + '/mono'
       });
       if (!made.ok) return reply({ ok: false, error: made.error }, 200, cors);
+
+      /* Контекст CAPI записуємо після того, як банк дав invoiceId,
+         але до того, як віддаємо покупцеві сторінку оплати. Так
+         навіть дуже швидкий webhook уже знайде потрібний запис. */
+      try {
+        await rememberMetaPurchase(env, request, d, bill, made.invoiceId, type);
+      } catch (e) {
+        // Оплату не блокуємо через аналітику, але причина лишається
+        // у структурованому логу Cloudflare.
+        console.error('meta_capi_context_failed', {
+          message: clip(e && e.message ? e.message : String(e || ''), 180)
+        });
+      }
 
       /* Рахунок із адмінки ще й летить покупцеві листом: інакше
          менеджерові довелося б копіювати посилання руками. */

@@ -16,6 +16,7 @@
    ============================================================ */
 
 import { normalizeUrl } from './notify';
+import type { MetaBrowserContext } from './meta';
 import type { Lang } from './types';
 
 /** Стан рахунку словами самого Monobank. */
@@ -83,6 +84,8 @@ export async function payCreate(
     promo?: string;
     shipping?: number;
     email?: string;
+    phone?: string;
+    meta?: MetaBrowserContext;
     lang?: Lang;
     /** Рахунки, які треба погасити: живими має лишатись рівно
      *  одне посилання на оплату. */
@@ -97,6 +100,8 @@ export async function payCreate(
     promo: input.promo || '',
     shipping: input.shipping || 0,
     to: input.email || '',
+    phone: input.phone || '',
+    meta: input.meta || {},
     lang: input.lang || 'uk'
   });
   return {
@@ -163,6 +168,7 @@ export async function payLink(
     promo?: string;
     shipping?: number;
     email: string;
+    phone?: string;
     name?: string;
     lang?: Lang;
     /** Рахунок, який був до цього: воркер його погасить, щоб за
@@ -179,6 +185,7 @@ export async function payLink(
     promo: input.promo || '',
     shipping: input.shipping || 0,
     to: input.email,
+    phone: input.phone || '',
     name: input.name || '',
     lang: input.lang || 'uk'
   });

@@ -1,6 +1,7 @@
 /* Перевірка формату й дедуплікації Meta Pixel без мережі. */
 
 import {
+  metaBrowserContext,
   metaCartParams,
   metaProductParams,
   trackMeta,
@@ -17,13 +18,21 @@ const stored = new Map<string, string>();
 const calls: unknown[][] = [];
 Object.assign(globalThis, {
   window: {
+    location: { href: 'https://reyter.men/checkout?fbclid=Ad_Click_123' },
     localStorage: {
       getItem: (key: string) => stored.get(key) ?? null,
       setItem: (key: string, value: string) => stored.set(key, value)
     },
     fbq: (...args: unknown[]) => calls.push(args)
+  },
+  document: {
+    cookie: '_fbp=fb.1.1720000000000.987654321'
   }
 });
+
+const browser = metaBrowserContext();
+ok('CAPI отримує _fbp з cookie', browser.fbp === 'fb.1.1720000000000.987654321');
+ok('CAPI складає _fbc із fbclid', browser.fbc?.endsWith('.Ad_Click_123') === true);
 
 const product = metaProductParams({ id: 'SW-003', name: 'Swimwear', price: 880, category: 'swim' });
 trackMeta('ViewContent', product);
@@ -48,7 +57,7 @@ ok('назви подій правильні',
 ok('checkout передає артикули, кількість, суму й валюту',
    JSON.stringify(calls[2]?.[2]) === JSON.stringify(checkout));
 ok('Purchase не дублюється', calls.filter((call) => call[1] === 'Purchase').length === 1);
-ok('Purchase має eventID для майбутнього CAPI',
+ok('Purchase має той самий eventID, що й CAPI',
    (calls[3]?.[3] as { eventID?: string })?.eventID === 'reyter_purchase_R-TEST-1');
 
 if (failed) process.exit(1);

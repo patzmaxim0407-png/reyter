@@ -35,6 +35,48 @@ export interface MetaLine {
   item_price: number;
 }
 
+export interface MetaBrowserContext {
+  fbp?: string;
+  fbc?: string;
+}
+
+/** Ідентифікатори, які Meta сама залишає у браузері. Передаємо
+ *  їх платіжному Worker разом зі створенням рахунку, щоб після
+ *  банківського webhook серверна Purchase знайшла ту саму
+ *  людину й дедуплікувалась із браузерною подією. */
+export function metaBrowserContext(): MetaBrowserContext {
+  if (typeof window === 'undefined') return {};
+
+  const cookies = typeof document === 'undefined' ? '' : document.cookie;
+  const cookie = (name: string) => {
+    const row = cookies
+      .split(';')
+      .map((item) => item.trim())
+      .find((item) => item.startsWith(`${name}=`));
+    if (!row) return '';
+    try {
+      return decodeURIComponent(row.slice(name.length + 1));
+    } catch {
+      return row.slice(name.length + 1);
+    }
+  };
+
+  const fbp = cookie('_fbp');
+  let fbc = cookie('_fbc');
+  try {
+    const fbclid = new URL(window.location.href).searchParams.get('fbclid');
+    if (!fbc && fbclid) fbc = `fb.1.${Date.now()}.${fbclid}`;
+  } catch {
+    /* У тестовому або обмеженому браузері location може бути
+       недоступним. Cookie _fbc/_fbp однаково лишаються корисні. */
+  }
+
+  return {
+    ...(fbp ? { fbp } : {}),
+    ...(fbc ? { fbc } : {})
+  };
+}
+
 /** Спільний формат товарів для кошика, checkout і покупки. */
 export function metaCartParams(lines: MetaLine[], value: number): MetaParams {
   return {
