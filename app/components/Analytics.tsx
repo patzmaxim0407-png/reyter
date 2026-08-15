@@ -10,10 +10,10 @@ import MetaPixel from './MetaPixel';
    Десяток переглядів картки на день — це не покупці, а той, хто
    виписує накладні, і відрізнити їх у звіті вже неможливо.
 
-   Два показники, а не один. G-HECJJF2HXF — новий потік для
-   reyter.men; G-BWRC6C9CV8 лишається, бо в ньому вся попередня
-   історія й на нього ж звітує старий сайт у корені домену. Один
-   зайвий рядок — і жоден звіт не обривається посеред року.
+   Лічильників кілька, і це навмисно. Основний — той, у який
+   дивляться зараз; решта лишається, бо в них попередня історія, і
+   обірвати її означало б втратити порівняння «рік до року». Один
+   зайвий рядок коштує нічого, а зниклий звіт не відновити.
 
    Переходи всередині сайту рахує сам GA: у потоці ввімкнено
    «розширену статистику», а вона слухає зміну адреси в історії
@@ -25,8 +25,9 @@ import MetaPixel from './MetaPixel';
    у MetaPixel.tsx.
    ============================================================ */
 
-const MAIN = 'G-HECJJF2HXF';
-const OLD = 'G-BWRC6C9CV8';
+const MAIN = 'G-7S5QT2F8NF';
+/** Попередні потоки: пишуть далі, щоб історія не обривалась. */
+const ALSO = ['G-HECJJF2HXF', 'G-BWRC6C9CV8'];
 
 export default function Analytics() {
   if (process.env.NODE_ENV !== 'production') return null;
@@ -35,7 +36,8 @@ export default function Analytics() {
     <>
       <Script src={`https://www.googletagmanager.com/gtag/js?id=${MAIN}`} strategy="afterInteractive" />
       <Script id="reyter-ga" strategy="afterInteractive">
-        {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${MAIN}');gtag('config','${OLD}');`}
+        {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());` +
+          [MAIN, ...ALSO].map((id) => `gtag('config','${id}');`).join('')}
       </Script>
       <MetaPixel />
     </>
