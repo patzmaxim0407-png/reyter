@@ -188,10 +188,12 @@ export default function LoyaltyAdmin() {
       /* Замовлення питаємо поштою цієї людини, а не беремо зі
          списку останніх пʼятисот: саме давня покупка й буває
          причиною, через яку сюди натиснули. */
-      const mine = await ordersOfEmail(d, m.who);
-      const { scan, plan } = planHistoryDone(m, mine, user.email ?? '');
-      if (!plan) {
-        toast(historyNote(scan), 'plain');
+      const look = await ordersOfEmail(d, m.who);
+      const { scan, plan } = planHistoryDone(m, look.rows, user.email ?? '');
+      /* Не вирішено — або замовлення без суми, або ми не змогли
+         передивитись усе. Мовчазний нуль тут гірший за чекання. */
+      if (!plan || (!look.sure && plan.move.points === 0)) {
+        toast(look.sure ? historyNote(scan) : 'Не вдалося передивитись усі замовлення — спробуйте пізніше', 'plain');
         return;
       }
       await writeMove(d, plan);
@@ -227,11 +229,12 @@ export default function LoyaltyAdmin() {
     let kept = 0;
     for (const m of queue) {
       try {
-        const { plan } = planHistoryDone(m, await ordersOfEmail(d, m.who), user.email ?? '');
+        const look = await ordersOfEmail(d, m.who);
+        const { plan } = planHistoryDone(m, look.rows, user.email ?? '');
         /* Замовлення є, а сума нульова — учасник лишається в
            черзі: це несправність даних, а не відповідь програми,
            і закривати її мовчки не можна. */
-        if (!plan) {
+        if (!plan || (!look.sure && plan.move.points === 0)) {
           kept += 1;
           continue;
         }

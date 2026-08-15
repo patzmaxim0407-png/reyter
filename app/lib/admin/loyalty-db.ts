@@ -644,7 +644,9 @@ export async function applyHistoryTx(
   /** Повторний прохід руками — коли прапорець уже знято, а
    *  причину нуля виправили. Автоматичний прохід так не робить
    *  ніколи: він рахує кожного рівно раз. */
-  again = false
+  again = false,
+  /** Чи певні ми, що бачили всі замовлення цієї людини. */
+  sure = true
 ): Promise<number> {
   return runTransaction(db, async (tx) => {
     const ref = doc(db, MEMBERS_COL, keyOf(who));
@@ -656,10 +658,16 @@ export async function applyHistoryTx(
     if (!m.historyPending && !again) return 0;
 
     const { plan } = planHistoryDone(m, all, by);
+
     /* Нічого не вирішено — лишаємо в черзі, журнал не засмічуємо.
        Але позначаємо, щоб наступний автоматичний прохід не бився
-       об ту саму людину замість нових. */
-    if (!plan) {
+       об ту саму людину замість нових.
+
+       Сюди ж потрапляє «нуль, але ми не додивились»: записати в
+       такому разі «замовлень на цю пошту немає» означало б
+       поставити брехню в журнал і зняти прапорець назавжди — а
+       саме проти цього все й писалося. */
+    if (!plan || (!sure && plan.move.points === 0)) {
       if (!m.historyStuck) tx.set(ref, { historyStuck: true }, { merge: true });
       return 0;
     }
@@ -792,18 +800,35 @@ export async function pendingMembers(db: Firestore, max = 20): Promise<MemberDoc
 /** Замовлення цієї пошти — з обох місць, де вона буває.
  *  Гостьове замовлення кладе пошту в customer, замовлення з
  *  акаунта — ще й у верхнє поле; шукаємо там і там. */
-export async function ordersOfEmail(db: Firestore, email: string): Promise<HistorySource[]> {
+export interface OrdersLook {
+  rows: HistorySource[];
+  /** Чи певні ми, що подивились усе, що могло дати бали.
+   *
+   *  Різниця між «замовлень немає» і «я не додивився» — це
+   *  різниця між правдою й тихою втратою: за першим прапорець
+   *  знімається назавжди, і людину вже ніхто не порахує. Тому
+   *  невпевненість повертається окремим полем, а не ховається за
+   *  порожнім переліком. */
+  sure: boolean;
+}
+
+const EXACT = 200;
+const SCAN = 500;
+
+export async function ordersOfEmail(db: Firestore, email: string): Promise<OrdersLook> {
   const key = keyOf(email);
   const both = await Promise.all([
-    getDocs(query(collection(db, 'orders'), where('email', '==', key), limit(200))),
-    getDocs(query(collection(db, 'orders'), where('customer.email', '==', key), limit(200)))
+    getDocs(query(collection(db, 'orders'), where('email', '==', key), limit(EXACT))),
+    getDocs(query(collection(db, 'orders'), where('customer.email', '==', key), limit(EXACT)))
   ]);
 
   const seen = new Map<string, HistorySource>();
   for (const snap of both) {
     for (const d of snap.docs) seen.set(d.id, d.data() as HistorySource);
   }
-  if (seen.size) return [...seen.values()];
+  if (seen.size) {
+    return { rows: [...seen.values()], sure: both.every((s) => s.docs.length < EXACT) };
+  }
 
   /* Нічого не знайшлось — а могло й бути. Пошта в замовленні
      лежить так, як її набрали: «Petro@Gmail.com» теж трапляється,
@@ -823,13 +848,22 @@ export async function ordersOfEmail(db: Firestore, email: string): Promise<Histo
   const since = await getDocs(
     query(
       collection(db, 'orders'),
-      where('created', '>=', Timestamp.fromDate(new Date(HISTORY_FROM))),
-      limit(500)
+      /* Початок київського дня, а не UTC-опівночі: інакше вибірка
+         відрізала б замовлення, зроблені ввечері напередодні за
+         Гринвічем, — а вони вже наш дев'яте серпня. Та сама межа,
+         за якою рахує orderDay. */
+      where('created', '>=', Timestamp.fromDate(new Date(HISTORY_FROM + 'T00:00:00+03:00'))),
+      limit(SCAN)
     )
   );
-  return since.docs
-    .map((d) => d.data() as HistorySource)
-    .filter((o) => keyOf(o.email || o.customer?.email || '') === key);
+  return {
+    rows: since.docs
+      .map((d) => d.data() as HistorySource)
+      .filter((o) => keyOf(o.email || o.customer?.email || '') === key),
+    /* Упершись у межу вибірки, ми не знаємо, чи не лишилось там
+       іще чогось. Тоді краще нічого не вирішувати. */
+    sure: since.docs.length < SCAN
+  };
 }
 
 /** Пройтись по черзі самостійно. Повертає, скільки нарахували, —
@@ -842,8 +876,8 @@ export async function sweepPending(db: Firestore, by: string): Promise<{ done: n
   let points = 0;
   for (const m of queue) {
     try {
-      const mine = await ordersOfEmail(db, m.who);
-      const got = await applyHistoryTx(db, m.who, mine, by);
+      const look = await ordersOfEmail(db, m.who);
+      const got = await applyHistoryTx(db, m.who, look.rows, by, false, look.sure);
       points += got;
       done += 1;
     } catch {
