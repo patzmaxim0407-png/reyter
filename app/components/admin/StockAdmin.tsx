@@ -180,7 +180,14 @@ export default function StockAdmin() {
           w,
           s,
           restocks,
-          { productId: v.productId, expected: v.expected, note: v.note, sizes: v.qty, qty: v.qty[''] },
+          {
+            productId: v.productId,
+            expected: v.expected,
+            note: v.note,
+            sizes: v.qty,
+            qty: v.qty[''],
+            cost: v.cost
+          },
           new Date()
         );
         if (!res.ok) {

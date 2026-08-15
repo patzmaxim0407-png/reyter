@@ -26,6 +26,7 @@ import {
   hasInvDoc,
   movesPage,
   planReceive,
+  planRestock,
   planWriteoff,
   lastReceived,
   pendingRestocks,
@@ -337,6 +338,29 @@ ok('нерозбірливу дату вітрина показує як є', et
    не видно ніде: адмінка каже «оприбутковано», а лист не йде. */
 
 const client = readFileSync(new URL('../lib/notify.ts', import.meta.url), 'utf8');
+/* Собівартість партії. Прихід — те місце, де ціна закупівлі
+   справді змінюється, і саме звідти вона має потрапляти в товар:
+   інакше власник вписував би її двічі, у картці й у приході, і
+   рано чи пізно вони розійшлися б. */
+{
+  const plan = planRestock(s, {
+    productId: products[0].id, expected: '', note: '', sizes: { M: 3 }, cost: 640
+  } as never, new Date('2026-08-16T10:00:00'));
+  ok('собівартість партії зберігається в приході',
+     plan.ok === true && (plan as { doc: { cost?: number } }).doc.cost === 640);
+
+  const none = planRestock(s, {
+    productId: products[0].id, expected: '', note: '', sizes: { M: 3 }
+  } as never, new Date('2026-08-16T10:00:00'));
+  ok('без собівартості поля в документі немає',
+     none.ok === true && (none as { doc: { cost?: number } }).doc.cost === undefined);
+
+  ok('оприбуткування переписує собівартість товару',
+     /catalog_products.*\{ cost: batchCost \}/.test(
+       readFileSync(new URL('../lib/admin/stock.ts', import.meta.url), 'utf8')
+     ));
+}
+
 const worker = readFileSync(new URL('../../worker/worker.js', import.meta.url), 'utf8');
 const asked = [...client.matchAll(/type: '([a-z-]+)'/g)].map((m) => m[1]);
 ok('клієнт шле хоч якісь типи листів', asked.length > 0, asked.join(', '));

@@ -42,6 +42,8 @@ export interface RestockSubmit {
   /** Списання: причина. */
   reason: string;
   note: string;
+  /** Прихід: собівартість одиниці в цій партії. 0 — не міняємо. */
+  cost?: number;
 }
 
 export default function RestockForm({
@@ -77,6 +79,10 @@ export default function RestockForm({
   const [expected, setExpected] = useState(today);
   const [reason, setReason] = useState(reasons[0]?.id ?? 'lost');
   const [note, setNote] = useState('');
+  /* Собівартість партії. Підставляємо ту, що вже стоїть у товарі:
+     найчастіше вона й не змінилась, а набирати те саме число
+     щоразу — вірний спосіб перестати його вписувати взагалі. */
+  const [cost, setCost] = useState('');
 
   const off = mode === 'off';
   const selected = products.find((p) => p.id === pid) ?? null;
@@ -90,6 +96,7 @@ export default function RestockForm({
     setMode(next);
     setQty({});
     setNote('');
+    setCost('');
     setExpected(today);
     setReason(reasons[0]?.id ?? 'lost');
   }
@@ -106,11 +113,13 @@ export default function RestockForm({
           qty,
           expected,
           reason,
-          note: note.trim()
+          note: note.trim(),
+          cost: Number(cost) || 0
         });
         if (!done) return;
         setQty({});
         setNote('');
+        setCost('');
         setPid('');
         setSearch('');
         setExpected(today);
@@ -264,6 +273,24 @@ export default function RestockForm({
           ))
         )}
       </div>
+
+      {/* Собівартість — лише для приходу: списання нічого не
+          купує, і питати там ціну закупівлі ні до чого. */}
+      {!off ? (
+        <label className="ao-restock-form__cost">
+          <span>Собівартість, грн</span>
+          <input
+            type="number"
+            min="0"
+            placeholder={selected?.cost ? String(selected.cost) : '—'}
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
+          />
+          <i>
+            стане поточною, коли прихід оприбуткують — виконані замовлення не зміняться
+          </i>
+        </label>
+      ) : null}
 
       <input
         aria-label="Нотатка"

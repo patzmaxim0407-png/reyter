@@ -6322,3 +6322,10 @@ label.a-promo-product i {
 .ins-slice b { text-align: right; font-variant-numeric: tabular-nums; color: var(--c-blue-ink); }
 
 .ins__foot { margin: 12px 0 0; font-size: 12px; color: var(--c-muted); line-height: 1.5; }
+
+/* Собівартість партії в формі приходу. Стоїть окремим рядком, а
+   не в ряду кількостей: це число іншої природи — не скільки
+   привезли, а по чому. */
+.ao-restock-form__cost { display: grid; gap: 4px; }
+.ao-restock-form__cost > span { font-size: 12px; font-weight: 600; color: var(--c-muted); }
+.ao-restock-form__cost > i { font-style: normal; font-size: 11px; color: #9a958a; line-height: 1.4; }

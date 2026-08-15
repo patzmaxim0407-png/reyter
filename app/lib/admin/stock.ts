@@ -784,6 +784,11 @@ export interface Restock {
   expected?: string;
   note?: string;
   status?: 'pending' | 'received';
+  /** Собівартість одиниці в цій партії, грн. Саме прихід — те
+   *  місце, де ціна закупівлі й змінюється: інша партія, інший
+   *  курс, інший постачальник. При оприбуткуванні вона стає
+   *  поточною собівартістю товару. */
+  cost?: number;
   /** Кількості по розмірах або одним числом: що саме, залежить
    *  від товару на момент створення приходу. */
   items?: Record<string, number>;
@@ -870,6 +875,7 @@ export interface RestockDoc {
   status: 'pending';
   items?: Record<string, number>;
   qty?: number;
+  cost?: number;
 }
 
 export interface RestockInput {
@@ -879,6 +885,9 @@ export interface RestockInput {
   note: string;
   sizes?: Record<string, number>;
   qty?: number;
+  /** Скільки коштує одиниця в цій партії. Порожньо — лишається
+   *  та, що була. */
+  cost?: number;
 }
 
 export type RestockPlan = { ok: true; doc: RestockDoc } | { ok: false; message: string };
@@ -887,12 +896,14 @@ export function planRestock(s: StockState, input: RestockInput, now: Date): Rest
   const p = productById(s, input.productId);
   if (!p) return { ok: false, message: 'Оберіть товар' };
 
+  const cost = Math.max(0, Math.round(Number(input.cost) || 0));
   const base: RestockDoc = {
     productId: input.productId,
     productName: p.name,
     expected: input.expected || todayISO(now),
     note: input.note.trim(),
-    status: 'pending'
+    status: 'pending',
+    ...(cost > 0 ? { cost } : {})
   };
 
   if (isSized(p, s)) {
@@ -1137,6 +1148,23 @@ export async function receiveRestock(
 
     logMoves(w, batch, plan.moves);
     batch.set(doc(w.db, INVENTORY_COL, r.productId), upd, { merge: true });
+
+    /* Нова партія — нова собівартість.
+
+       Саме тут вона й змінюється насправді: товар приїхав за
+       іншою ціною, і від цієї хвилини кожен наступний продаж
+       коштує магазину інакше. Пишемо в ЧЕРНЕТКУ товару, і
+       публікації для цього не потрібно — у відкритий каталог це
+       число не потрапляє взагалі.
+
+       Уже виконані замовлення від цього не змінюються: у них
+       собівартість заморожена в мить продажу. Партія міняє
+       майбутнє, а не минуле. */
+    const batchCost = Math.max(0, Math.round(Number(r.cost) || 0));
+    if (batchCost > 0) {
+      batch.set(doc(w.db, 'catalog_products', r.productId), { cost: batchCost }, { merge: true });
+    }
+
     batch.update(doc(w.db, RESTOCKS_COL, r._id), {
       status: 'received',
       receivedAt: serverTimestamp(),
