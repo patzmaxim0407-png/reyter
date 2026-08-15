@@ -332,10 +332,26 @@ function pubDoc(db: Firestore, id: 'catalog' | 'next' | 'friendly') {
    закритість, а не ширма. */
 function splitFriendly(snap: Snapshot): { open: Snapshot; closed: Snapshot } {
   const all = snap.products || [];
+  /* Розподіл мусить бути ПОВНИЙ: кожен товар рівно в одному з
+     двох документів. Спершу я викидав із закритого ще й
+     прихованих — і товар, позначений і прихованим, і клубним,
+     не потрапляв нікуди. Наслідок був не там, де причина:
+     адмінка після кожної публікації знову бачила його як
+     неопублікований, бо в опублікованому його не було зовсім.
+
+     Прихованість тут узагалі ні до чого — її розбирає сайт, і
+     так само в відкритому каталозі. */
   return {
     open: { ...snap, products: all.filter((p) => !p.friendly) },
-    closed: { ...snap, products: all.filter((p) => !!p.friendly && !p.hidden) }
+    closed: { ...snap, products: all.filter((p) => !!p.friendly) }
   };
+}
+
+/** Розподіл нічого не губить. Винесено окремо, щоб перевірка
+ *  могла це стверджувати, а не сподіватись. */
+export function splitKeepsAll(snap: Snapshot): boolean {
+  const { open, closed } = splitFriendly(snap);
+  return open.products.length + closed.products.length === (snap.products || []).length;
 }
 
 /** Обидві версії однією дією.

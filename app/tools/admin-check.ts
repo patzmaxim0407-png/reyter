@@ -29,7 +29,14 @@ import {
   checkCategoryDelete,
   countIn
 } from '../lib/admin/draft.ts';
-import { diffSummary, draftDiffers, fewNames, stableStr, checkScheduleTime } from '../lib/admin/publish.ts';
+import {
+  diffSummary,
+  draftDiffers,
+  fewNames,
+  splitKeepsAll,
+  stableStr,
+  checkScheduleTime
+} from '../lib/admin/publish.ts';
 import type { Category, Product } from '../lib/types.ts';
 
 let failed = 0;
@@ -232,6 +239,17 @@ ok('undefined і відсутнє поле — одне й те саме',
    stableStr({ a: 1, b: undefined }));
 
 const draft = { categories: cats, products: catalog };
+/* Розподіл на відкрите й закрите мусить бути повний: товар,
+   що не потрапив нікуди, назавжди лишається «неопублікованим». */
+ok('розподіл нічого не губить',
+   splitKeepsAll({ categories: cats, products: catalog, seeded: true } as never));
+ok('і коли товар і прихований, і клубний',
+   splitKeepsAll({
+     categories: cats,
+     products: [...catalog, { ...catalog[0], id: 'X-1', hidden: true, friendly: true }],
+     seeded: true
+   } as never));
+
 /* Закриті товари клубу лежать окремим документом і при складанні
    опиняються в кінці переліку. Порівняння «рядок у рядок» через
    це бачило б різницю завжди, і кнопка «Опублікувати» світилася б
