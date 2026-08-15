@@ -791,6 +791,14 @@ function promoOff(promo, lines, email) {
   return Math.max(0, Math.min(Math.round(off), goods));
 }
 
+/** Перше фото товару — саме те, що покупець бачить на картці.
+ *  Порожньо, якщо його немає або адреса не схожа на адресу. */
+function firstImage(p) {
+  const list = Array.isArray(p && p.images) ? p.images : [];
+  const url = String(list[0] || '').trim();
+  return /^https:\/\//.test(url) && url.length <= 500 ? url : '';
+}
+
 /** Рахунок за замовленням. Ціни — з каталогу, знижка — з коду,
  *  доставка — від сайту, але в межах здорового глузду. */
 async function priceOrder(d, idToken) {
@@ -809,7 +817,11 @@ async function priceOrder(d, idToken) {
       size: clip(raw.size, 12),
       price: Math.max(0, Math.round(Number(p.price) || 0)),
       sale: p.sale === true,
-      qty: qty
+      qty: qty,
+      /* Фото для сторінки оплати. Банк показує кошик, і без
+         картинок там сірі заглушки — людина бачить рахунок на
+         тисячу гривень і чотири порожні квадрати. */
+      icon: firstImage(p)
     });
   }
   if (!lines.length) return { error: 'У замовленні немає жодного товару з каталогу' };
@@ -1086,13 +1098,18 @@ async function monoInvoice(env, { total, lines, num, lang, hook, discount, shipp
      округлень саме ця різниця і є істиною. */
   let offKop = Math.max(0, goodsKop + shipKop - amountKop);
 
-  const basket = (lines || []).slice(0, 50).map((l) => ({
-    name: clip(l.name + (l.size ? ' · ' + l.size : ''), 100),
-    qty: l.qty,
-    sum: Math.round(l.price * 100),
-    unit: 'шт',
-    code: clip(l.id, 40)
-  }));
+  const basket = (lines || []).slice(0, 50).map((l) => {
+    const row = {
+      name: clip(l.name + (l.size ? ' · ' + l.size : ''), 100),
+      qty: l.qty,
+      sum: Math.round(l.price * 100),
+      unit: 'шт',
+      code: clip(l.id, 40)
+    };
+    // порожнього поля не кладемо: банк уміє не зрозуміти й таке
+    if (l.icon) row.icon = l.icon;
+    return row;
+  });
 
   if (offKop > 0 && goodsKop > 0) {
     let left = offKop;
@@ -1140,7 +1157,25 @@ async function monoInvoice(env, { total, lines, num, lang, hook, discount, shipp
     validity: 1800,
     paymentType: 'debit'
   };
-  const r = await monoCall(env, '/invoice/create', { method: 'POST', body: JSON.stringify(body) });
+  let r = await monoCall(env, '/invoice/create', { method: 'POST', body: JSON.stringify(body) });
+
+  /* Якщо банк не прийняв рахунок, а в кошику були фото — пробуємо
+     ще раз без них.
+
+     Фото тут прикраса: без них сторінка оплати виглядає гірше, з
+     ними — краще, але жодне з цього не варте незробленої оплати.
+     Банк уже одного разу відкидав кошик мовчки (за доставку в
+     сумі), і ціна тієї помилки — жодне міжнародне замовлення не
+     оплачувалось місяцями. Другого такого разу не буде. */
+  if ((!r.ok || !r.data.invoiceId) && basket.some((x) => x.icon)) {
+    body.merchantPaymInfo.basketOrder = basket.map((x) => {
+      const copy = Object.assign({}, x);
+      delete copy.icon;
+      return copy;
+    });
+    r = await monoCall(env, '/invoice/create', { method: 'POST', body: JSON.stringify(body) });
+  }
+
   if (!r.ok || !r.data.invoiceId) {
     return { ok: false, error: r.data.errText || r.data.errorDescription || 'Monobank не створив рахунок' };
   }
