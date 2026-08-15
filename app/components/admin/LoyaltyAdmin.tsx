@@ -24,6 +24,7 @@ import {
 import {
   MEMBERS_COL,
   findMembers,
+  clubPending,
   inClub,
   loadRules,
   ordersOfEmail,
@@ -160,7 +161,7 @@ export default function LoyaltyAdmin() {
     let list = findMembers(members, find);
 
     if (only === 'club') list = list.filter((m) => inClub(m));
-    else if (only === 'ready') list = list.filter((m) => isFriendly(m.level) && !m.instagram);
+    else if (only === 'ready') list = list.filter((m) => clubPending(m));
     else if (only === 'wait') list = list.filter((m) => m.historyPending);
     else if (only !== 'all') list = list.filter((m) => String(m.level) === only);
 
@@ -367,10 +368,10 @@ export default function LoyaltyAdmin() {
               <b>{stats.inClub}</b>
               <span>
                 у Friendly Club
-                {stats.friendlyReady > stats.inClub ? (
-                  /* Різниця між «рівень дозволив» і «справді в клубі» —
-                     це рівно ті, кому лишилось вписати Instagram. */
-                  <i className="ao-stat__hint"> · {stats.friendlyReady - stats.inClub} без Instagram</i>
+                {stats.noInsta ? (
+                  /* Доступ у них уже є — бракує лише логіна, тобто
+                     знайти їх у соцмережах ми не можемо. */
+                  <i className="ao-stat__hint"> · {stats.noInsta} без Instagram</i>
                 ) : null}
               </span>
             </div>
@@ -412,7 +413,7 @@ export default function LoyaltyAdmin() {
                   <option value="all">Усі учасники</option>
                   <option value="wait">Чекають зарахування</option>
                   <option value="club">У Friendly Club</option>
-                  <option value="ready">Рівень дозволив, без Instagram</option>
+                  <option value="ready">У клубі, без Instagram</option>
                   {LEVELS.map((l) => (
                     <option key={l.level} value={String(l.level)}>
                       Рівень {l.level} · −{l.percent}%

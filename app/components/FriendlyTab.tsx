@@ -21,11 +21,10 @@ import type { Lang } from '@/lib/types';
    і до якого числа. Це головний екран, і він мусить відповідати
    на одне питання з першого погляду: скільки ще треба.
 
-   FRIENDLY CLUB — окремим блоком, і рівнем він НЕ обіцяється.
-   Туди запрошують, дивлячись не лише на покупки, тож напис «ваш
-   рівень відкрив клуб» був би обіцянкою, якої програма не дає.
-   Instagram лишився як контакт: його питають у всіх і нічого за
-   нього не обіцяють.
+   FRIENDLY CLUB — з третього рівня він відкривається сам, і ще
+   його дають руками тим, хто живе з брендом у соцмережах.
+   Instagram не ключ від цих дверей: його просять уже в учасника,
+   щоб знати, кого відмічати.
    ============================================================ */
 
 export default function FriendlyTab({
@@ -143,25 +142,24 @@ export default function FriendlyTab({
 
       {/* Клуб.
 
-          Раніше цей блок показувався лише з третього рівня й
-          звучав як двері з ключем: «ваш рівень відкрив клуб,
-          вкажіть Instagram». Тепер клуб — запрошення, а не щабель,
-          тож обіцяти його рівнем не можна.
+          Порядок тут не випадковий: спершу «ви у клубі», і лише
+          потім прохання вписати Instagram. Раніше було навпаки —
+          блок звучав як двері з ключем: «ваш рівень відкрив клуб,
+          вкажіть Instagram», — і людина, яка заслужила клуб
+          покупками, лишалась за порогом через незаповнене поле.
 
-          Instagram лишився, але вже як контакт: його питають у
-          всіх і нічого за нього не обіцяють. Хто в клубі — бачить
-          це прямо; решта просто лишає свій логін. */}
+          Тепер доступ уже її, а логін ми просимо, щоб знати, кого
+          відмічати. Тому й просимо лише в учасника клубу: питати
+          Instagram у того, хто до клубу ще не дійшов, — питання
+          без причини. */}
       {inClub(member) ? (
         <div className="loy__member">
           <b>{t('fc.inClub', lang)}</b>
           {member.instagram ? <span>@{member.instagram}</span> : null}
         </div>
-      ) : member.instagram ? (
-        <div className="loy__member loy__member--quiet">
-          <b>Instagram</b>
-          <span>@{member.instagram}</span>
-        </div>
-      ) : (
+      ) : null}
+
+      {member.instagram ? null : inClub(member) ? (
         <div className="loy__join">
           <p>{t('fc.needInsta', lang)}</p>
           <div className="field">
@@ -191,7 +189,7 @@ export default function FriendlyTab({
             {busy ? t('fc.joining', lang) : t('fc.openClub', lang)}
           </button>
         </div>
-      )}
+      ) : null}
 
       <p className="loy__num">
         {t('fc.number', lang)}: <b>{member.number}</b>
@@ -269,6 +267,7 @@ function Ladder({ lang, level }: { lang: Lang; level: number }) {
           className={
             'loy-step' +
             (l.level === level ? ' is-now' : '') +
+            (l.friendly ? ' is-club' : '') +
             (level && l.level < level ? ' is-done' : '')
           }
         >
@@ -278,6 +277,7 @@ function Ladder({ lang, level }: { lang: Lang; level: number }) {
             {l.from.toLocaleString(uk ? 'uk' : 'en')}
             {l.to === null ? '+' : '–' + l.to.toLocaleString(uk ? 'uk' : 'en')}
           </span>
+          {l.friendly ? <span className="loy-step__club">Friendly</span> : null}
         </li>
       ))}
     </ol>

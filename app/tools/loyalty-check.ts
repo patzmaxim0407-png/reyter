@@ -440,8 +440,11 @@ console.log('\nАДМІНКА');
   const st = statsOf(list, [{ loyaltyOff: 120 }, { loyaltyOff: 80 }, {}]);
   ok('учасників порахвано', st.members === 5);
   ok('за рівнями', st.byLevel.join('/') === '1/1/2/1', st.byLevel.join('/'));
-  ok('рівень дозволив клуб трьом', st.friendlyReady === 3, String(st.friendlyReady));
-  ok('але в клубі лише ті, хто вписав Instagram', st.inClub === 2, String(st.inClub));
+  /* У клубі всі, кому дозволив рівень: логін на доступ не
+     впливає. А от нагадати про нього варто саме тим, хто його не
+     лишив, — це окреме число. */
+  ok('у клубі всі, кому дозволив рівень', st.inClub === 3, String(st.inClub));
+  ok('і видно, скільки з них без Instagram', st.noInsta === 1, String(st.noInsta));
   ok('черга на історію видна', st.pending === 1);
   ok('віддано знижок', st.given === 200, String(st.given));
 
@@ -502,8 +505,12 @@ console.log('\nКЛУБ');
     ...NEW_MEMBER, who: 'a@b.c', number: 'FC', instagram: '', friendlyAt: '', joinedAt: '', ...o
   }) as MemberDoc;
 
-  ok('третій рівень без Instagram — ще не в клубі', !inClub(mk({ level: 3, points: 20000 })));
-  ok('третій рівень з Instagram — у клубі', inClub(mk({ level: 3, points: 20000, instagram: 'petro' })));
+  /* Клуб відкриває сам рівень. Instagram — не ключ: його просять
+     уже в учасника, щоб знати, кого відмічати. Поки він був
+     умовою, людина заслуговувала клуб покупками й лишалась за
+     порогом через незаповнене поле. */
+  ok('третій рівень — уже в клубі, без жодного логіна', inClub(mk({ level: 3, points: 20000 })));
+  ok('третій рівень з Instagram — так само в клубі', inClub(mk({ level: 3, points: 20000, instagram: 'petro' })));
   ok('перший рівень з Instagram — не в клубі', !inClub(mk({ level: 1, instagram: 'petro' })));
 
   /* Клуб руками не питає ні рівня, ні Instagram: це запрошення
@@ -520,11 +527,11 @@ console.log('\nКЛУБ');
      !inClub(mk({ level: 4, points: 90000, instagram: 'petro', clubManual: false })));
   ok('відсутній запис — вирішує рівень',
      inClub(mk({ level: 3, points: 20000, instagram: 'petro' })));
-  ok('забраний назад у чергу не стає', !clubPending(mk({ level: 3, clubManual: false })));
 
-  ok('«заслужив, але не вписав» видно окремо',
+  ok('«у клубі, але без логіна» видно окремо',
      clubPending(mk({ level: 3, points: 20000 })) && !clubPending(mk({ level: 3, instagram: 'x' })));
-  ok('той, кому дали руками, у черзі не висить', !clubPending(mk({ level: 3, clubManual: true })));
+  ok('кому дали руками — теж просимо логін', clubPending(mk({ level: 1, clubManual: true })));
+  ok('забраний руками ні про що не просить', !clubPending(mk({ level: 3, clubManual: false })));
 
   /* Драбину задає магазин — клуб може відчинятися й з другого. */
   const early = makeLevels([
@@ -571,8 +578,8 @@ console.log('\nПРАВИЛА БАЗИ');
      /match \/published\/friendly \{\s*\n\s*allow read: if isAdmin\(\) \|\| inFriendlyClub\(\)/.test(src));
   ok('забране руками зачиняє двері',
      /function clubBanned/.test(src) && /&& !clubBanned\(\)/.test(src));
-  ok('рівню замало без Instagram',
-     /function clubByLevel\(\)[\s\S]{0,240}?'instagram' in m/.test(src));
+  ok('рівня досить — логін у правилах не питається',
+     !/function clubByLevel\(\)[\s\S]{0,300}?'instagram' in m/.test(src));
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));

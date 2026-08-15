@@ -70,7 +70,8 @@ export interface MemberDoc extends Member {
   who: string;
   /** Показуємо людині: FC-000042. */
   number: string;
-  /** Логін Instagram — без нього клуб не відчиняється. */
+  /** Логін Instagram. Не ключ від клубу: його просять уже в
+   *  учасника, щоб знати, кого відмічати в соцмережах. */
   instagram: string;
   /** Коли вступив у клуб. Порожньо — ще не вступив. */
   friendlyAt: string;
@@ -247,23 +248,27 @@ export function inClub(m: MemberDoc | null, levels?: Level[]): boolean {
      а товари на місці. Слово власника має важити більше за
      драбину — і в обидва боки. */
   if (m.clubManual === false) return false;
-  return isFriendly(m.level, levels) && !!m.instagram;
+  /* Третій рівень відчиняє клуб САМ. Instagram тут ні до чого:
+     його просять уже в учасника, щоб знати, кого відмічати, — а
+     не як ключ від дверей. Поки він був ключем, людина
+     заслуговувала клуб покупками й лишалась за порогом через
+     незаповнене поле. */
+  return isFriendly(m.level, levels);
 }
 
 /** Звідки в людини клуб — для одного рядка в адмінці. */
 export function clubSource(m: MemberDoc, levels?: Level[]): 'hand' | 'level' | 'banned' | 'none' {
   if (m.clubManual === true) return 'hand';
   if (m.clubManual === false) return 'banned';
-  return isFriendly(m.level, levels) && !!m.instagram ? 'level' : 'none';
+  return isFriendly(m.level, levels) ? 'level' : 'none';
 }
 
-/** Рівень дозволив, але людина ще не вписала Instagram. Саме ці
- *  й лишаються за дверима, хоч і заслужили — їм варто написати. */
+/** У клубі, але Instagram ще не вписав. За дверима такі вже НЕ
+ *  лишаються — клуб у них є. Просто ми не знаємо, кого відмічати
+ *  й до кого писати, а це половина сенсу клубу. Саме їм і варто
+ *  нагадати. */
 export function clubPending(m: MemberDoc, levels?: Level[]): boolean {
-  /* Рішення руками — хоч «дати», хоч «забрати» — знімає питання:
-     чекати такій людині нема на що. */
-  if (m.clubManual !== undefined) return false;
-  return isFriendly(m.level, levels) && !m.instagram;
+  return inClub(m, levels) && !m.instagram;
 }
 
 /* ============================================================
@@ -705,9 +710,11 @@ export interface Stats {
   members: number;
   /** Скільки на кожному рівні: [1, 2, 3, 4]. */
   byLevel: [number, number, number, number];
-  /** Рівень дозволив клуб. */
-  friendlyReady: number;
-  /** І логін вписано — тобто справді в клубі. */
+  /** У клубі, але Instagram ще не вписав. Саме їм і варто
+   *  нагадати: доступ у них є, а знайти їх у соцмережах ми не
+   *  можемо. */
+  noInsta: number;
+  /** У клубі — за рівнем або руками. */
   inClub: number;
   pending: number;
   points: number;
@@ -717,7 +724,7 @@ export interface Stats {
 
 export function statsOf(list: MemberDoc[], orders: { loyaltyOff?: number }[] = []): Stats {
   const byLevel: [number, number, number, number] = [0, 0, 0, 0];
-  let friendlyReady = 0;
+  let noInsta = 0;
   let club = 0;
   let pending = 0;
   let points = 0;
@@ -726,15 +733,15 @@ export function statsOf(list: MemberDoc[], orders: { loyaltyOff?: number }[] = [
     const lvl = Math.max(1, Math.min(4, m.level)) as LevelNo;
     byLevel[lvl - 1] += 1;
     points += Math.max(0, m.points);
-    if (isFriendly(lvl)) friendlyReady += 1;
     if (inClub(m)) club += 1;
+    if (clubPending(m)) noInsta += 1;
     if (m.historyPending) pending += 1;
   }
 
   return {
     members: list.length,
     byLevel,
-    friendlyReady,
+    noInsta,
     inClub: club,
     pending,
     points,
