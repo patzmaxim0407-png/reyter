@@ -233,13 +233,28 @@ function withFriendly(m: MemberDoc, at: string): MemberDoc {
 export function inClub(m: MemberDoc | null, levels?: Level[]): boolean {
   if (!m) return false;
   if (m.clubManual === true) return true;
+  /* Забрали руками — рівень назад не пускає. Інакше «Забрати
+     клуб» у третьорівневого не робило б нічого: кнопку натиснуто,
+     а товари на місці. Слово власника має важити більше за
+     драбину — і в обидва боки. */
+  if (m.clubManual === false) return false;
   return isFriendly(m.level, levels) && !!m.instagram;
+}
+
+/** Звідки в людини клуб — для одного рядка в адмінці. */
+export function clubSource(m: MemberDoc, levels?: Level[]): 'hand' | 'level' | 'banned' | 'none' {
+  if (m.clubManual === true) return 'hand';
+  if (m.clubManual === false) return 'banned';
+  return isFriendly(m.level, levels) && !!m.instagram ? 'level' : 'none';
 }
 
 /** Рівень дозволив, але людина ще не вписала Instagram. Саме ці
  *  й лишаються за дверима, хоч і заслужили — їм варто написати. */
 export function clubPending(m: MemberDoc, levels?: Level[]): boolean {
-  return !m.clubManual && isFriendly(m.level, levels) && !m.instagram;
+  /* Рішення руками — хоч «дати», хоч «забрати» — знімає питання:
+     чекати такій людині нема на що. */
+  if (m.clubManual !== undefined) return false;
+  return isFriendly(m.level, levels) && !m.instagram;
 }
 
 /* ============================================================

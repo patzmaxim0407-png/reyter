@@ -480,14 +480,25 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    /* Чи в клубі. Рівень задає драбина магазину — той самий
-       запис, за яким рахується знижка. Плюс ручне рішення
-       власника: клуб можна дати й тому, чий рівень до нього ще
-       не дійшов. */
+    /* Чи в клубі. Три можливі стани, і рахуються вони саме в
+       такому порядку.
+
+       Слово власника — головне, і воно важить в обидва боки:
+       clubManual == true пускає того, чий рівень ще не дійшов, а
+       clubManual == false зачиняє двері, хоч би який рівень був.
+       Без другого «Забрати клуб» у третьорівневого не робило б
+       нічого: кнопку натиснуто, а товари на місці.
+
+       Немає ручного рішення — вирішує драбина магазину, той
+       самий запис, за яким рахується знижка. Але рівня мало:
+       потрібен ще вписаний Instagram. Так каже кабінет, так має
+       казати й база — правило, м'якше за застосунок, тихо
+       відчиняє двері, які на екрані показані замкненими. */
     function inFriendlyClub() {
       let mail = userEmail().lower();
       return signedIn()
         && exists(/databases/$(database)/documents/loyalty/$(mail))
+        && !clubBanned()
         && (
           clubByHand() || clubByLevel()
         );
@@ -498,13 +509,21 @@ service cloud.firestore {
       return ('clubManual' in m) && m.clubManual == true;
     }
 
+    function clubBanned() {
+      let m = loyaltyDoc();
+      return ('clubManual' in m) && m.clubManual == false;
+    }
+
     function clubByLevel() {
       let m = loyaltyDoc();
       let rows = loyaltyLevels();
       let lvl = m.level;
-      return (rows.size() == 4 && lvl >= 1 && lvl <= 4)
-        ? rows[lvl - 1].friendly == true
-        : lvl >= 3;
+      return ('instagram' in m) && m.instagram is string && m.instagram != ''
+        && (
+          (rows.size() == 4 && lvl >= 1 && lvl <= 4)
+            ? rows[lvl - 1].friendly == true
+            : lvl >= 3
+        );
     }
 
     match /published/friendly {

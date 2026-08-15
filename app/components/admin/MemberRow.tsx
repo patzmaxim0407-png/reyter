@@ -1,7 +1,7 @@
 'use client';
 
 import { progressOf } from '@/lib/loyalty';
-import { inClub, type MemberDoc } from '@/lib/admin/loyalty-db';
+import { clubSource, inClub, type MemberDoc } from '@/lib/admin/loyalty-db';
 
 /* ============================================================
    Рядок учасника
@@ -31,6 +31,7 @@ export default function MemberRow({
 }) {
   const p = progressOf(m);
   const club = inClub(m);
+  const src = clubSource(m);
 
   return (
     <div className={'loy-row-a' + (m.historyPending ? ' is-wait' : '')}>
@@ -40,7 +41,8 @@ export default function MemberRow({
           {m.number}
           {m.instagram ? ' · @' + m.instagram : ''}
           {m.joinedAt ? ' · з ' + m.joinedAt : ''}
-          {m.clubManual ? ' · клуб руками' : ''}
+          {src === 'hand' ? ' · клуб руками' : ''}
+          {src === 'banned' ? ' · клуб забрано' : ''}
         </span>
       </div>
 
@@ -82,9 +84,12 @@ export default function MemberRow({
           Правка балів
         </button>
         {/* Клуб можна дати й тому, чий рівень до нього не дійшов:
-            моделі, другові магазину, гостю з іншого міста. */}
+            моделі, другові магазину, гостю з іншого міста. І так
+            само забрати в того, кому рівень його дав, — тому
+            напис іде за тим, чи людина в клубі ЗАРАЗ, а не за
+            тим, чи є ручний запис. */}
         <button className="btn btn--ghost btn--sm" type="button" disabled={busy} onClick={onClub}>
-          {m.clubManual ? 'Забрати клуб' : 'Дати клуб'}
+          {club ? 'Забрати клуб' : 'Дати клуб'}
         </button>
       </div>
     </div>

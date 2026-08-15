@@ -57,6 +57,13 @@ export default async function HomeView({ lang, previewDraft = false }: { lang: L
         <header className="category__head reveal"><h2 className="category__title">{tf(cat, 'title', lang)}</h2><span className="category__count">{items.length}</span><span className="category__rule" /></header>
         <div className="pgrid">{items.map((p) => { const eager = eagerLeft-- > 0; return <ProductCard key={p.id} c={c} p={p} eager={eager} lang={lang} />; })}</div>
       </section>)}</div>
+
+      {/* Закриті товари клубу домальовує браузер учасника — прямо
+          в сітки цих самих категорій. Компонент стоїть тут, у
+          каталозі, бо тут його місце: те, що не вмістилось у
+          жодну намальовану категорію, ляже полицею одразу під
+          нею, а не під підвалом сторінки. */}
+      <FriendlyShelf />
     </section>
 
     <section className="size-guide" id="size-guide"><div className="container">
@@ -78,8 +85,6 @@ export default async function HomeView({ lang, previewDraft = false }: { lang: L
 
     {/* Закриті товари. Малює їх браузер учасника — сервер не
         знає, хто відкрив сторінку, і рендерить її раз на всіх. */}
-    <FriendlyShelf />
-
     <HomeEffects categoryIds={sections.map(({ cat }) => cat.id)} />
     <ToTop lang={lang} />
     {previewDraft ? <div className="draft-pill">{lang === 'en' ? 'Draft — this is how the site will look after publishing' : 'Чернетка — так виглядатиме сайт після публікації'}</div> : null}

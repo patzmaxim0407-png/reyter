@@ -436,6 +436,17 @@ console.log('\nКЛУБ');
   ok('клуб руками діє з першого рівня', inClub(mk({ level: 1, clubManual: true })));
   ok('і без Instagram теж', inClub(mk({ level: 1, clubManual: true, instagram: '' })));
 
+  /* І назад: забране руками сильніше за рівень. Інакше «Забрати
+     клуб» у третьорівневого не робило б рівно нічого — кнопку
+     натиснуто, а закриті товари на місці. */
+  ok('клуб забрано руками — рівень не повертає',
+     !inClub(mk({ level: 3, points: 20000, instagram: 'petro', clubManual: false })));
+  ok('забрано й у четвертого теж',
+     !inClub(mk({ level: 4, points: 90000, instagram: 'petro', clubManual: false })));
+  ok('відсутній запис — вирішує рівень',
+     inClub(mk({ level: 3, points: 20000, instagram: 'petro' })));
+  ok('забраний назад у чергу не стає', !clubPending(mk({ level: 3, clubManual: false })));
+
   ok('«заслужив, але не вписав» видно окремо',
      clubPending(mk({ level: 3, points: 20000 })) && !clubPending(mk({ level: 3, instagram: 'x' })));
   ok('той, кому дали руками, у черзі не висить', !clubPending(mk({ level: 3, clubManual: true })));
@@ -469,6 +480,24 @@ console.log('\nВОРКЕР');
   ok('воркер читає рівень токеном покупця', /Authorization: 'Bearer ' \+ idToken/.test(src));
   ok('пошта береться з токена, а не з полів запиту', /function emailFromToken/.test(src));
   ok('стеля зрізає саме лояльність', /ceiling - off/.test(src));
+}
+
+/* Правила бази — остання межа закритих товарів, і вони мусять
+   казати те саме, що застосунок. Правило, м'якше за екран, тихо
+   відчиняє двері, показані замкненими; суворіше — ховає товари в
+   того, кому їх щойно обіцяли. Звіряємо текстом: виконати
+   правила звідси нічим. */
+console.log('\nПРАВИЛА БАЗИ');
+{
+  const src = readFileSync(new URL('../../firebase/firestore.rules', import.meta.url), 'utf8');
+  ok('закритий каталог виведений з-під загального дозволу',
+     /allow read: if docId != 'friendly'/.test(src));
+  ok('у закритий каталог пускає лише клуб',
+     /match \/published\/friendly \{\s*\n\s*allow read: if isAdmin\(\) \|\| inFriendlyClub\(\)/.test(src));
+  ok('забране руками зачиняє двері',
+     /function clubBanned/.test(src) && /&& !clubBanned\(\)/.test(src));
+  ok('рівню замало без Instagram',
+     /function clubByLevel\(\)[\s\S]{0,240}?'instagram' in m/.test(src));
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));

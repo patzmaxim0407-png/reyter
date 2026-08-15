@@ -257,12 +257,12 @@ export default function LoyaltyAdmin() {
   /** Клуб руками. Причини не питаємо: рішення власника, і воно
    *  видно в самому рядку — «Friendly · руками». */
   async function toggleClub(m: MemberDoc) {
-    const on = !m.clubManual;
+    const on = !inClub(m);
     const yes = await ask({
       title: on ? 'Дати Friendly Club?' : 'Забрати Friendly Club?',
       text: on
         ? `${m.who} отримає доступ до закритих товарів незалежно від рівня.`
-        : `${m.who} втратить доступ до закритих товарів. Якщо рівень дозволяє клуб, доступ лишиться за рівнем.`,
+        : `${m.who} втратить доступ до закритих товарів — навіть якщо рівень клуб дозволяє. Повернути можна тією ж кнопкою.`,
       okText: on ? 'Дати' : 'Забрати'
     });
     if (yes !== true) return;
