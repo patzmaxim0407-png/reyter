@@ -258,8 +258,40 @@ export function HomeEffects({ categoryIds }: { categoryIds: string[] }) {
     const reveal = reduced ? null : new IntersectionObserver((entries) => entries.forEach((entry) => entry.isIntersecting && entry.target.classList.add('is-visible')), { rootMargin: '0px 0px -8% 0px' });
     nodes.forEach((node) => reveal?.observe(node));
     const sections = categoryIds.map((id) => document.getElementById(`cat-${id}`)).filter(Boolean) as HTMLElement[];
+    const strip = document.querySelector<HTMLElement>('.cat-chips');
     const chips = Array.from(document.querySelectorAll<HTMLAnchorElement>('.cat-chips .chip'));
-    const active = new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) chips.forEach((chip) => chip.classList.toggle('is-active', chip.hash === `#${entry.target.id}`)); }), { rootMargin: '-30% 0px -60% 0px' });
+
+    /* Стрічка категорій має їхати за читачем.
+
+       Вона липка й ширша за екран: на телефоні видно чотири
+       чипси з дванадцяти. Позначати активний і не рухати саму
+       стрічку — те саме, що поставити стрілку в невидиме місце:
+       людина прокрутила до Swimwear, а вгорі так і висить «New
+       drop», і де вона зараз — незрозуміло.
+
+       Рухаємо лише тоді, коли активний чипс справді за краєм:
+       смикати стрічку під рукою в того, хто гортає її сам, —
+       гірше, ніж не рухати зовсім. */
+    const follow = (chip: HTMLAnchorElement) => {
+      if (!strip || strip.scrollWidth <= strip.clientWidth) return;
+      const edge = 24;
+      const left = chip.offsetLeft;
+      const right = left + chip.offsetWidth;
+      if (left >= strip.scrollLeft + edge && right <= strip.scrollLeft + strip.clientWidth - edge) return;
+      strip.scrollTo({
+        left: Math.max(0, left - (strip.clientWidth - chip.offsetWidth) / 2),
+        behavior: reduced ? 'auto' : 'smooth'
+      });
+    };
+
+    const active = new IntersectionObserver((entries) => entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      chips.forEach((chip) => {
+        const on = chip.hash === `#${entry.target.id}`;
+        chip.classList.toggle('is-active', on);
+        if (on) follow(chip);
+      });
+    }), { rootMargin: '-30% 0px -60% 0px' });
     sections.forEach((section) => active.observe(section));
     return () => { reveal?.disconnect(); active.disconnect(); };
   }, [categoryIds]);

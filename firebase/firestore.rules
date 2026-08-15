@@ -45,9 +45,14 @@ service cloud.firestore {
     }
 
     function isAdmin() {
+      /* Пошта малими літерами: документи в admins/ заводяться саме
+         такими, а в токені вона лежить так, як людина її набрала
+         при реєстрації. Звірка буква в букву тихо позбавляла прав
+         адміна, чия пошта має хоч одну велику літеру: екран
+         адмінки відкривався, а кожен запит отримував відмову. */
       return isFounder() || (
         signedIn() && verified() &&
-        exists(/databases/$(database)/documents/admins/$(userEmail()))
+        exists(/databases/$(database)/documents/admins/$(userEmail().lower()))
       );
     }
 

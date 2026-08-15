@@ -1311,6 +1311,10 @@
 }
 
 .loy__member { grid-template-columns: 1fr auto; align-items: center; }
+/* Вписаний Instagram у того, кого в клуб ще не запросили. Це не
+   досягнення й не обіцянка — просто контакт, який ми знаємо, тож
+   і виглядати він має тихіше за картку учасника клубу. */
+.loy__member--quiet { background: transparent; border: 1px solid #efe9dd; color: #7a746a; }
 .loy__join p { margin: 0; line-height: 1.5; }
 .loy__num { margin: 0; color: #9a958a; font-size: 12px; }
 .loy__pending { margin: 0; color: #8a5a00; font-size: 13px; }

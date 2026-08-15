@@ -24,7 +24,13 @@ export interface Term {
   body: string[];
   /** Перелік у стовпчик — там, де рядок у підбір читається гірше.
    *  Драбина рівнів саме така: чотири пороги з відсотками в одну
-   *  стрічку зливаються, і знайти в ній свій рівень не виходить. */
+   *  стрічку зливаються, і знайти в ній свій рівень не виходить.
+   *
+   *  Клубу в тій драбині немає навмисно. Рівень дає знижку — це
+   *  обіцянка, яку програма виконує сама, числом. Friendly Club не
+   *  щабель і не нагорода за суму: туди запрошують, дивлячись не
+   *  лише на покупки, і ставити його поруч із порогом означало б
+   *  обіцяти те, чого програма не вирішує. */
   list?: string[];
   /** Що йде після переліку. */
   after?: string[];
@@ -39,7 +45,7 @@ function ladder(lang: Lang): string[] {
     (l) =>
       `${lang === 'en' ? 'Level' : 'Рівень'} ${l.level}: ${f(l.from)}${
         l.to === null ? '+' : '–' + f(l.to)
-      } — ${l.percent}%${l.friendly ? (lang === 'en' ? ' · Friendly Club' : ' · Friendly Club') : ''}`
+      } — ${l.percent}%`
   );
 }
 
@@ -93,9 +99,20 @@ function ukrainian(): Term[] {
     {
       title: 'Friendly Club',
       body: [
-        'Friendly Club відчиняється з третього рівня. Це не окрема програма, а її верхня частина.',
-        'Щоб зайти, вкажіть у кабінеті свій Instagram. Знижку рівень дає й без цього, а от закриті товари — лише учасникам клубу.',
-        'Що дає клуб: товари, яких немає у відкритому каталозі, і ранній доступ до нових запусків.'
+        'Friendly Club — це комʼюніті людей, які є частиною Reyter.',
+        'Тут ми ділимося: раннім доступом до нових дропів, емоціями, закуліссям бренду, спеціальними пропозиціями та іншими приємними бонусами.',
+        'Потрапити до Friendly Club можна не за заявкою, а природно — якщо ти регулярно обираєш Reyter, взаємодієш із брендом і залишаєшся частиною нашої спільноти.',
+        'Ми запрошуємо людей, які:'
+      ],
+      list: [
+        'регулярно обирають Reyter;',
+        'взаємодіють із брендом у соцмережах;',
+        'відмічають нас у своїх публікаціях або сторіс;',
+        'залишаються на звʼязку з нами та підтримують наше комʼюніті.'
+      ],
+      after: [
+        'Ми дивимося не лише на покупки, а й на справжній інтерес до бренду.',
+        'Учасникам клубу відкриваються товари, яких немає у відкритому каталозі.'
       ]
     },
     {
@@ -163,9 +180,20 @@ function english(): Term[] {
     {
       title: 'Friendly Club',
       body: [
-        'The Friendly Club opens from level 3. It is not a separate programme but the top part of this one.',
-        'To enter, add your Instagram in your account. The level gives you the discount either way; private items require the club.',
-        'What the club gives: items that are not in the open catalogue, and early access to new drops.'
+        'The Friendly Club is a community of people who are part of Reyter.',
+        'Here we share early access to new drops, emotions, behind-the-scenes of the brand, special offers and other pleasant bonuses.',
+        'You do not apply to join — it happens naturally, if you regularly choose Reyter, engage with the brand and stay part of our community.',
+        'We invite people who:'
+      ],
+      list: [
+        'regularly choose Reyter;',
+        'engage with the brand on social media;',
+        'tag us in their posts or stories;',
+        'stay in touch with us and support our community.'
+      ],
+      after: [
+        'We look not only at purchases, but at genuine interest in the brand.',
+        'Club members get items that are not in the open catalogue.'
       ]
     },
     {

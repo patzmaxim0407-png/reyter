@@ -26,11 +26,12 @@ import {
   findMembers,
   inClub,
   loadRules,
+  ordersOfEmail,
   historyNote,
   planHistoryDone,
   planManual,
   saveRules,
-  sweepHistory,
+  sweepPending,
   statsOf,
   writeMove,
   type HistorySource,
@@ -116,23 +117,29 @@ export default function LoyaltyAdmin() {
      знайшлось», знявши прапорець назавжди. */
   useEffect(() => {
     if (swept.current) return;
-    if (!orders.length) return;
     const queue = members.filter((m) => m.historyPending);
     if (!queue.length) return;
 
     swept.current = true;
     const d = db();
     if (!d) return;
-    void sweepHistory(d, queue, orders, user.email ?? '').then(({ done, points }) => {
+    /* Той самий прохід, що й в оболонці адмінки, — але тут ще й
+       кажемо, що зробили: на цьому екрані власник саме про це й
+       прийшов дізнатися.
+
+       Замовлення бере сам прохід, поштою кожного учасника, а не
+       зі списку останніх пʼятисот: людина з давньою покупкою в
+       той список не потрапляє, і історія виходила б нульовою. */
+    void sweepPending(d, user.email ?? '').then(({ done, points }) => {
       if (!done) return;
       toast(
         points
           ? `Зараховано історію: ${done} учасникам, ${points.toLocaleString('uk')} балів ✓`
-          : `Опрацьовано ${done} — минулих замовлень не знайшлось`,
-        'success'
+          : `Опрацьовано ${done} — зараховувати не було чого`,
+        points ? 'success' : 'plain'
       );
     });
-  }, [members, orders, user, toast]);
+  }, [members, user, toast]);
 
   const stats = useMemo(
     () => statsOf(members, orders as { loyaltyOff?: number }[]),
@@ -178,7 +185,11 @@ export default function LoyaltyAdmin() {
     if (!d) return;
     setBusy(m.who);
     try {
-      const { scan, plan } = planHistoryDone(m, orders, user.email ?? '');
+      /* Замовлення питаємо поштою цієї людини, а не беремо зі
+         списку останніх пʼятисот: саме давня покупка й буває
+         причиною, через яку сюди натиснули. */
+      const mine = await ordersOfEmail(d, m.who);
+      const { scan, plan } = planHistoryDone(m, mine, user.email ?? '');
       if (!plan) {
         toast(historyNote(scan), 'plain');
         return;
@@ -216,7 +227,7 @@ export default function LoyaltyAdmin() {
     let kept = 0;
     for (const m of queue) {
       try {
-        const { plan } = planHistoryDone(m, orders, user.email ?? '');
+        const { plan } = planHistoryDone(m, await ordersOfEmail(d, m.who), user.email ?? '');
         /* Замовлення є, а сума нульова — учасник лишається в
            черзі: це несправність даних, а не відповідь програми,
            і закривати її мовчки не можна. */

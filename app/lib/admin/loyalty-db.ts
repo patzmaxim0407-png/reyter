@@ -87,6 +87,12 @@ export interface MemberDoc extends Member {
   /** Номери замовлень, уже зарахованих історією. Тримаємо їх,
    *  щоб повторний прохід не нарахував ті самі покупки вдруге. */
   historyNums?: string[];
+  /** Замовлення знайшлись, а сума вийшла нульова: рахувати нема
+   *  чого, але й закривати питання не можна. Такий учасник
+   *  лишається в черзі, проте автоматичний прохід його більше не
+   *  бере — інакше кілька таких зайняли б усю чергу, і нові
+   *  учасники не дочекались би своїх балів ніколи. */
+  historyStuck?: boolean;
 }
 
 export type MoveKind = 'order' | 'return' | 'manual' | 'history' | 'expire';
@@ -650,10 +656,15 @@ export async function applyHistoryTx(
     if (!m.historyPending && !again) return 0;
 
     const { plan } = planHistoryDone(m, all, by);
-    // нічого не вирішено — лишаємо в черзі, журнал не засмічуємо
-    if (!plan) return 0;
+    /* Нічого не вирішено — лишаємо в черзі, журнал не засмічуємо.
+       Але позначаємо, щоб наступний автоматичний прохід не бився
+       об ту саму людину замість нових. */
+    if (!plan) {
+      if (!m.historyStuck) tx.set(ref, { historyStuck: true }, { merge: true });
+      return 0;
+    }
 
-    tx.set(ref, plan.member, { merge: true });
+    tx.set(ref, { ...plan.member, historyStuck: false }, { merge: true });
     tx.set(doc(collection(db, MOVES_COL)), { ...plan.move, at: Timestamp.now() });
     return plan.move.points;
   });
@@ -734,6 +745,113 @@ export function findMembers(list: MemberDoc[], query: string): MemberDoc[] {
       String(m.number || '').toLowerCase().includes(q) ||
       String(m.instagram || '').toLowerCase().includes(q)
   );
+}
+
+/* ============================================================
+   САМОСТІЙНЕ ЗАРАХУВАННЯ ІСТОРІЇ
+   ------------------------------------------------------------
+   Покупець вступає в програму й одразу хоче побачити свої бали
+   за минулі покупки. Порахувати їх сам він не може — писати бали
+   дозволено лише адмінові, і послабити це правило не можна:
+   тоді четвертий рівень виставлявся б із консолі браузера.
+
+   Сервер порахувати теж не може: воркер ходить у базу читанням
+   від імені самого покупця, службового ключа в нього немає — а
+   заводити його заради тимчасової механіки не варто.
+
+   Лишається адмінка, і саме тому цей прохід живе НЕ на екрані
+   програми, а в самій оболонці: власник відкриває замовлення
+   десятки разів на день, і зарахування відбувається саме тоді,
+   без жодної кнопки й незалежно від того, куди він зайшов.
+
+   ЗАМОВЛЕННЯ ПИТАЄМО ПОШТОЮ, А НЕ БЕРЕМО ЗІ СПИСКУ. Список в
+   адмінці — це п'ятсот останніх; учасник із давньою покупкою в
+   нього просто не потрапляє, і його історія мовчки виходила б
+   нульовою. Запит за поштою знаходить її хоч якої давнини, і
+   коштує двох читань на людину.
+   ============================================================ */
+
+/** Хто чекає на зарахування. Порожньо — і далі нічого не
+ *  робимо: це найчастіший випадок, і він майже безкоштовний.
+ *
+ *  Застряглих пропускаємо. Учасник, у якого замовлення є, а сума
+ *  нульова, лишається в черзі навмисно — але місця в проході він
+ *  займати не має: набралося б двадцять таких, і жоден новий
+ *  учасник не дочекався б своїх балів ніколи. */
+export async function pendingMembers(db: Firestore, max = 20): Promise<MemberDoc[]> {
+  const snap = await getDocs(
+    query(collection(db, MEMBERS_COL), where('historyPending', '==', true), limit(100))
+  );
+  const now = new Date();
+  return snap.docs
+    .map((d) => fresh(d.data() as MemberDoc, now))
+    .filter((m) => !m.historyStuck)
+    .slice(0, max);
+}
+
+/** Замовлення цієї пошти — з обох місць, де вона буває.
+ *  Гостьове замовлення кладе пошту в customer, замовлення з
+ *  акаунта — ще й у верхнє поле; шукаємо там і там. */
+export async function ordersOfEmail(db: Firestore, email: string): Promise<HistorySource[]> {
+  const key = keyOf(email);
+  const both = await Promise.all([
+    getDocs(query(collection(db, 'orders'), where('email', '==', key), limit(200))),
+    getDocs(query(collection(db, 'orders'), where('customer.email', '==', key), limit(200)))
+  ]);
+
+  const seen = new Map<string, HistorySource>();
+  for (const snap of both) {
+    for (const d of snap.docs) seen.set(d.id, d.data() as HistorySource);
+  }
+  if (seen.size) return [...seen.values()];
+
+  /* Нічого не знайшлось — а могло й бути. Пошта в замовленні
+     лежить так, як її набрали: «Petro@Gmail.com» теж трапляється,
+     а запит рівністю регістру не пробачає. Опустити її при записі
+     не можна — правила бази звіряють це поле з поштою в токені
+     буква в букву, і замовлення просто не створилося б.
+
+     Тому переглядаємо самі. Але не «останні N»: таке вікно
+     закривається з ростом магазину, і одного дня почало б мовчки
+     ховати чиюсь історію. Беремо межу самої програми — раніші
+     замовлення балів не дають узагалі, тож шукати їх нема
+     потреби. Вибірка від цього не росте з часом безмежно, а
+     звужується до того, що взагалі може щось дати.
+
+     Трапляється це рідко: лише коли точний запит порожній, тобто
+     здебільшого в того, у кого історії й справді немає. */
+  const since = await getDocs(
+    query(
+      collection(db, 'orders'),
+      where('created', '>=', Timestamp.fromDate(new Date(HISTORY_FROM))),
+      limit(500)
+    )
+  );
+  return since.docs
+    .map((d) => d.data() as HistorySource)
+    .filter((o) => keyOf(o.email || o.customer?.email || '') === key);
+}
+
+/** Пройтись по черзі самостійно. Повертає, скільки нарахували, —
+ *  щоб було що показати, коли є про що казати. */
+export async function sweepPending(db: Firestore, by: string): Promise<{ done: number; points: number }> {
+  const queue = await pendingMembers(db);
+  if (!queue.length) return { done: 0, points: 0 };
+
+  let done = 0;
+  let points = 0;
+  for (const m of queue) {
+    try {
+      const mine = await ordersOfEmail(db, m.who);
+      const got = await applyHistoryTx(db, m.who, mine, by);
+      points += got;
+      done += 1;
+    } catch {
+      /* один невдалий не спиняє решти: прапорець лишається, і
+         наступного відкриття адмінки спробуємо знову */
+    }
+  }
+  return { done, points };
 }
 
 export async function loadMembers(db: Firestore): Promise<MemberDoc[]> {

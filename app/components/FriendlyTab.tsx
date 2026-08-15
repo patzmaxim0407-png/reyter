@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { User } from 'firebase/auth';
 import { HISTORY_FROM, LEVELS, instagramLogin, instagramOk, progressOf } from '@/lib/loyalty';
-import type { MemberDoc } from '@/lib/admin/loyalty-db';
+import { inClub, type MemberDoc } from '@/lib/admin/loyalty-db';
 import { loyaltyTerms } from '@/lib/loyalty-terms';
 import { t } from '@/lib/i18n';
 import type { Lang } from '@/lib/types';
@@ -21,9 +21,11 @@ import type { Lang } from '@/lib/types';
    і до якого числа. Це головний екран, і він мусить відповідати
    на одне питання з першого погляду: скільки ще треба.
 
-   ТРЕТІЙ РІВЕНЬ І ВИЩЕ — плюс запрошення в клуб: вписати
-   Instagram. Доти рівень уже дає свої вісім відсотків, а от
-   закриті товари відчиняються саме після цього кроку.
+   FRIENDLY CLUB — окремим блоком, і рівнем він НЕ обіцяється.
+   Туди запрошують, дивлячись не лише на покупки, тож напис «ваш
+   рівень відкрив клуб» був би обіцянкою, якої програма не дає.
+   Instagram лишився як контакт: його питають у всіх і нічого за
+   нього не обіцяють.
    ============================================================ */
 
 export default function FriendlyTab({
@@ -103,7 +105,9 @@ export default function FriendlyTab({
       <div className="loy-card">
         <span className="loy-card__lvl">
           {t('fc.level', lang)} {p.level}
-          {p.friendly ? <i className="loy-card__club">Friendly</i> : null}
+          {/* Позначка — лише тим, хто в клубі СПРАВДІ. Рівень
+              сам по собі туди не заводить. */}
+          {inClub(member) ? <i className="loy-card__club">Friendly</i> : null}
         </span>
         <span className="loy-card__off">−{p.percent}%</span>
         <span className="loy-card__pts">
@@ -137,45 +141,57 @@ export default function FriendlyTab({
 
       <Ladder lang={lang} level={p.level} />
 
-      {/* Клуб: рівень дозволив, лишилось назватися. */}
-      {p.friendly ? (
-        member.instagram ? (
-          <div className="loy__member">
-            <b>{t('fc.inClub', lang)}</b>
-            <span>@{member.instagram}</span>
-          </div>
-        ) : (
-          <div className="loy__join">
-            <p>{t('fc.needInsta', lang)}</p>
-            <div className="field">
-              <label htmlFor="fcInsta">{t('fc.insta', lang)}</label>
-              <input
-                id="fcInsta"
-                value={login}
-                autoComplete="off"
-                placeholder="reyter.ua"
-                onChange={(e) => {
-                  setLogin(e.target.value);
-                  setBad('');
-                }}
-              />
-              {bad ? <p className="field__err">{bad}</p> : null}
-            </div>
-            <button
-              className="btn btn--primary"
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                const clean = instagramLogin(login);
-                if (!instagramOk(clean)) return setBad(t('fc.instaBad', lang));
-                onInstagram(clean);
+      {/* Клуб.
+
+          Раніше цей блок показувався лише з третього рівня й
+          звучав як двері з ключем: «ваш рівень відкрив клуб,
+          вкажіть Instagram». Тепер клуб — запрошення, а не щабель,
+          тож обіцяти його рівнем не можна.
+
+          Instagram лишився, але вже як контакт: його питають у
+          всіх і нічого за нього не обіцяють. Хто в клубі — бачить
+          це прямо; решта просто лишає свій логін. */}
+      {inClub(member) ? (
+        <div className="loy__member">
+          <b>{t('fc.inClub', lang)}</b>
+          {member.instagram ? <span>@{member.instagram}</span> : null}
+        </div>
+      ) : member.instagram ? (
+        <div className="loy__member loy__member--quiet">
+          <b>Instagram</b>
+          <span>@{member.instagram}</span>
+        </div>
+      ) : (
+        <div className="loy__join">
+          <p>{t('fc.needInsta', lang)}</p>
+          <div className="field">
+            <label htmlFor="fcInsta">{t('fc.insta', lang)}</label>
+            <input
+              id="fcInsta"
+              value={login}
+              autoComplete="off"
+              placeholder="reyter.ua"
+              onChange={(e) => {
+                setLogin(e.target.value);
+                setBad('');
               }}
-            >
-              {busy ? t('fc.joining', lang) : t('fc.openClub', lang)}
-            </button>
+            />
+            {bad ? <p className="field__err">{bad}</p> : null}
           </div>
-        )
-      ) : null}
+          <button
+            className="btn btn--primary"
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              const clean = instagramLogin(login);
+              if (!instagramOk(clean)) return setBad(t('fc.instaBad', lang));
+              onInstagram(clean);
+            }}
+          >
+            {busy ? t('fc.joining', lang) : t('fc.openClub', lang)}
+          </button>
+        </div>
+      )}
 
       <p className="loy__num">
         {t('fc.number', lang)}: <b>{member.number}</b>
@@ -253,7 +269,6 @@ function Ladder({ lang, level }: { lang: Lang; level: number }) {
           className={
             'loy-step' +
             (l.level === level ? ' is-now' : '') +
-            (l.friendly ? ' is-club' : '') +
             (level && l.level < level ? ' is-done' : '')
           }
         >
@@ -263,7 +278,6 @@ function Ladder({ lang, level }: { lang: Lang; level: number }) {
             {l.from.toLocaleString(uk ? 'uk' : 'en')}
             {l.to === null ? '+' : '–' + l.to.toLocaleString(uk ? 'uk' : 'en')}
           </span>
-          {l.friendly ? <span className="loy-step__club">Friendly</span> : null}
         </li>
       ))}
     </ol>

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import '../../../styles/admin.css';
 import AdminGate from '@/components/admin/AdminGate';
 import AskProvider from '@/components/admin/AskProvider';
+import HistorySweep from '@/components/admin/HistorySweep';
 import LangProvider from '@/components/LangProvider';
 import Toasts from '@/components/Toasts';
 import ChunkGuard from '@/components/ChunkGuard';
@@ -28,6 +29,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <ChunkGuard />
         <Toasts>
           <AskProvider>
+            {/* Минулі замовлення новим учасникам зараховуються
+                тут, в оболонці: власник відкриває адмінку щодня,
+                а вкладку «Бали» — раз на місяць. Мовчки й без
+                кнопки. */}
+            <HistorySweep />
             <div className="admin-body">{children}</div>
           </AskProvider>
         </Toasts>
