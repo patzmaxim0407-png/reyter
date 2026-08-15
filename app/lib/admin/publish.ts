@@ -330,7 +330,7 @@ function pubDoc(db: Firestore, id: 'catalog' | 'next' | 'friendly') {
    учасників клубу. Не бачить його ні пошуковик, ні сервер
    вітрини, ні воркер без токена покупця — і саме тому це
    закритість, а не ширма. */
-function splitFriendly(snap: Snapshot): { open: Snapshot; closed: Snapshot } {
+export function splitFriendly(snap: Snapshot): { open: Snapshot; closed: Snapshot } {
   const all = snap.products || [];
   /* Розподіл мусить бути ПОВНИЙ: кожен товар рівно в одному з
      двох документів. Спершу я викидав із закритого ще й
@@ -342,9 +342,25 @@ function splitFriendly(snap: Snapshot): { open: Snapshot; closed: Snapshot } {
      Прихованість тут узагалі ні до чого — її розбирає сайт, і
      так само в відкритому каталозі. */
   return {
-    open: { ...snap, products: all.filter((p) => !p.friendly) },
-    closed: { ...snap, products: all.filter((p) => !!p.friendly) }
+    open: { ...snap, products: all.filter((p) => !p.friendly).map(noCost) },
+    closed: { ...snap, products: all.filter((p) => !!p.friendly).map(noCost) }
   };
+}
+
+/** Собівартість лишається в адмінці.
+ *
+ *  Опублікований каталог читає весь світ — і відкритий, і
+ *  клубний: другий вужчий за колом, але так само чужий для цього
+ *  числа. Ціна закупівлі в тому документі — це і подарунок
+ *  конкурентові, і привід для розмови, якої магазин не хоче.
+ *
+ *  Зрізаємо саме тут, у розподілі: через нього проходить кожна
+ *  публікація, і забути про нього ніде. */
+function noCost(p: Product): Product {
+  if (p.cost === undefined) return p;
+  const copy = { ...p };
+  delete copy.cost;
+  return copy;
 }
 
 /** Розподіл нічого не губить. Винесено окремо, щоб перевірка

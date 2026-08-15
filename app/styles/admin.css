@@ -6163,3 +6163,160 @@ label.a-promo-product i {
   .loy-ladder__no { grid-column: 1 / -1; padding-bottom: 0; }
   .loy-ladder__club { grid-column: 1 / -1; padding-top: 0; }
 }
+
+/* ============================================================
+   АНАЛІТИКА
+   ------------------------------------------------------------
+   Екран читають зверху вниз і здебільшого один раз на тиждень,
+   тому щільність тут менша, ніж у черзі замовлень: між блоками
+   є повітря, а числа великі. Кольори — ті самі три, що й у всій
+   адмінці: синій — гроші, зелений — маржа, бурштин — те, на що
+   варто глянути.
+   ============================================================ */
+
+.ins { display: grid; gap: 18px; }
+
+.ins__head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  justify-content: space-between;
+}
+
+.ins__spans { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.ins__span {
+  border: 1px solid var(--c-line); background: var(--c-paper);
+  border-radius: 999px; padding: 7px 15px; font-size: 13px; font-weight: 600;
+  color: var(--c-muted); cursor: pointer;
+}
+.ins__span:hover { border-color: rgba(1, 74, 173, .35); color: var(--c-blue-ink); }
+.ins__span.is-on { background: var(--c-blue-ink); border-color: var(--c-blue-ink); color: #fff; }
+
+.ins__cover { font-size: 12px; color: var(--c-muted); }
+.ins__cover.is-warn { color: var(--c-amber); font-weight: 600; }
+
+/* ---------- Числа ---------- */
+
+.ins__kpis {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.ins-kpi {
+  background: var(--c-paper); border: 1px solid var(--c-line);
+  border-radius: 16px; padding: 16px 18px; display: grid; gap: 5px;
+}
+.ins-kpi__title {
+  font-size: 11px; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--c-muted);
+}
+.ins-kpi__value {
+  font-size: 27px; line-height: 1.05; font-weight: 800; color: var(--c-blue-ink);
+  font-variant-numeric: tabular-nums;
+}
+.ins-kpi__value i { font-size: 14px; font-weight: 600; font-style: normal; color: var(--c-muted); }
+.ins-kpi.is-big .ins-kpi__value { font-size: 32px; }
+.ins-kpi.is-green .ins-kpi__value { color: var(--c-green); }
+.ins-kpi.is-warn .ins-kpi__value { color: var(--c-amber); }
+.ins-kpi__foot { font-size: 12px; color: var(--c-muted); }
+.ins-kpi__foot em { font-style: normal; font-weight: 700; }
+.ins-kpi__foot .is-up { color: var(--c-green); }
+.ins-kpi__foot .is-down { color: var(--c-red); }
+.ins-kpi__foot .is-quiet { color: #9a958a; }
+
+/* ---------- Картка блоку ---------- */
+
+.ins__card {
+  background: var(--c-paper); border: 1px solid var(--c-line);
+  border-radius: 18px; padding: 18px 20px 20px;
+}
+.ins__card-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.ins__card-head h3 { margin: 0; font-size: 16px; color: var(--c-blue-ink); }
+.ins__card-head span { font-size: 12px; color: var(--c-muted); }
+
+.ins__two { display: grid; gap: 18px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 900px) { .ins__two { grid-template-columns: 1fr; } }
+
+.ins__empty { margin: 0; padding: 26px 0; text-align: center; color: var(--c-muted); font-size: 14px; }
+
+/* ---------- Лінія ---------- */
+
+.ins-chart svg { width: 100%; height: 250px; display: block; }
+.ins-chart__legend {
+  display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+  font-size: 13px; color: var(--c-ink); padding-top: 8px;
+}
+.ins-chart__legend .dot {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px;
+}
+.ins-chart__legend .is-quiet { color: var(--c-muted); }
+
+/* ---------- Матриця ---------- */
+
+.ins-matrix svg { width: 100%; height: auto; display: block; }
+.ins-dot { cursor: default; }
+.ins-matrix__note {
+  display: flex; gap: 14px; flex-wrap: wrap; align-items: baseline;
+  font-size: 13px; padding-top: 10px; min-height: 22px;
+}
+.ins-matrix__note .is-quiet { color: var(--c-muted); }
+
+.ins__quads {
+  display: grid; gap: 10px; margin-top: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+.ins__quad {
+  border: 1px solid var(--c-line); border-radius: 12px; padding: 10px 12px;
+  display: grid; gap: 3px; font-size: 12px; color: var(--c-muted);
+  border-left-width: 3px;
+}
+.ins__quad b { font-size: 13px; color: var(--c-ink); display: flex; gap: 7px; align-items: center; }
+.ins__quad b i {
+  font-style: normal; font-weight: 700; font-size: 11px; color: var(--c-muted);
+  background: var(--c-cream); border-radius: 999px; padding: 1px 7px;
+}
+.ins__quad--star { border-left-color: #15803D; }
+.ins__quad--cow { border-left-color: #014AAD; }
+.ins__quad--question { border-left-color: #B45309; }
+.ins__quad--dog { border-left-color: #9AA0AA; }
+
+/* ---------- Переліки ---------- */
+
+.ins-table { display: grid; gap: 2px; }
+.ins-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 90px 130px;
+  gap: 12px; align-items: center; padding: 7px 0;
+  border-bottom: 1px solid rgba(23, 27, 38, .05);
+}
+.ins-row:last-child { border-bottom: 0; }
+.ins-row__name { display: grid; gap: 1px; min-width: 0; }
+.ins-row__name b {
+  font-size: 13px; font-weight: 600; color: var(--c-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ins-row__name i { font-style: normal; font-size: 11px; color: var(--c-muted); }
+.ins-row__bar { height: 6px; border-radius: 999px; background: var(--c-cream-dark); overflow: hidden; }
+.ins-row__bar i { display: block; height: 100%; background: var(--c-blue); }
+.ins-row__sum { text-align: right; display: grid; gap: 1px; }
+.ins-row__sum b { font-size: 14px; font-weight: 700; color: var(--c-blue-ink); font-variant-numeric: tabular-nums; }
+.ins-row__sum i { font-style: normal; font-size: 11px; color: var(--c-muted); }
+
+.ins-bars { display: grid; gap: 9px; }
+.ins-bar { display: grid; grid-template-columns: minmax(0, 120px) 1fr 90px; gap: 10px; align-items: center; }
+.ins-bar__name {
+  font-size: 13px; color: var(--c-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ins-bar__track { height: 10px; border-radius: 999px; background: var(--c-cream-dark); overflow: hidden; }
+.ins-bar__track i { display: block; height: 100%; background: var(--c-blue-ink); }
+.ins-bar__val { text-align: right; font-size: 13px; font-weight: 700; color: var(--c-blue-ink); font-variant-numeric: tabular-nums; }
+
+.ins-slices { display: grid; gap: 8px; }
+.ins-slices + .ins-slices { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--c-line); }
+.ins-slice { display: grid; grid-template-columns: minmax(0, 1fr) 90px 44px; gap: 10px; align-items: center; font-size: 13px; }
+.ins-slice > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ins-slice__track { height: 8px; border-radius: 999px; background: var(--c-cream-dark); overflow: hidden; }
+.ins-slice__track i { display: block; height: 100%; background: var(--c-blue); }
+.ins-slice b { text-align: right; font-variant-numeric: tabular-nums; color: var(--c-blue-ink); }

@@ -33,6 +33,7 @@ import {
   diffSummary,
   draftDiffers,
   fewNames,
+  splitFriendly,
   splitKeepsAll,
   stableStr,
   checkScheduleTime
@@ -249,6 +250,28 @@ ok('і коли товар і прихований, і клубний',
      products: [...catalog, { ...catalog[0], id: 'X-1', hidden: true, friendly: true }],
      seeded: true
    } as never));
+
+/* Собівартість — комерційна таємниця, а опублікований каталог
+   читає весь світ. Одне зайве поле тут коштує дорожче за будь-яку
+   помилку в розрахунках: його побачить і конкурент, і покупець. */
+{
+  const withCost = {
+    categories: cats,
+    products: [
+      { ...catalog[0], id: 'CST-1', cost: 250 },
+      { ...catalog[0], id: 'CST-2', cost: 300, friendly: true }
+    ],
+    seeded: true
+  } as never;
+  const split = splitFriendly(withCost);
+  const leaks = [...split.open.products, ...split.closed.products].filter(
+    (p: { cost?: number }) => p.cost !== undefined
+  );
+  ok('собівартість не потрапляє в опублікований каталог', !leaks.length,
+     leaks.map((p: { id: string }) => p.id).join(', ') || 'жодного поля');
+  ok('і в закритий документ клубу теж', !split.closed.products.some((p: { cost?: number }) => p.cost !== undefined));
+  ok('решта полів товару лишається', split.open.products[0].price === catalog[0].price);
+}
 
 /* Закриті товари клубу лежать окремим документом і при складанні
    опиняються в кінці переліку. Порівняння «рядок у рядок» через

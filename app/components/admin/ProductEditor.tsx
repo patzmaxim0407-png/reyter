@@ -306,6 +306,33 @@ export default function ProductEditor({
 
             <div className="a-grid-2">
               <div className="field">
+                <label htmlFor="fCost">Собівартість, грн</label>
+                <input
+                  id="fCost"
+                  type="number"
+                  min="0"
+                  placeholder="—"
+                  value={p.cost || ''}
+                  onChange={(e) => set('cost', Number(e.target.value) || undefined)}
+                />
+                {/* Число комерційне, і покупцеві його бачити не
+                    можна. Тому кажемо прямо, що воно не публікується:
+                    інакше його або не заповнять зі страху, або
+                    заповнять і потім злякаються. */}
+                <p className="field__hint">
+                  Тільки для аналітики: у каталог на сайт не потрапляє.
+                  {p.cost && p.price ? (
+                    <>
+                      {' '}Маржа <b>{Math.max(0, Math.round(p.price - p.cost))} грн</b>
+                      {' '}({Math.round(((p.price - p.cost) / p.price) * 100)}%)
+                    </>
+                  ) : null}
+                </p>
+              </div>
+            </div>
+
+            <div className="a-grid-2">
+              <div className="field">
                 <label htmlFor="fStatus">Наявність</label>
                 <select
                   id="fStatus"

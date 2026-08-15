@@ -8,6 +8,7 @@ import OrdersQueue from './OrdersQueue';
 import TtnCreate from './TtnCreate';
 import ManualOrder from './ManualOrder';
 import { ArchiveBar, BulkBar } from './OrderFilters';
+import Insights from './Insights';
 import OrderRow from './OrderRow';
 import { useAdminUser } from './AdminGate';
 import { useAsk } from './AskProvider';
@@ -146,7 +147,7 @@ export default function OrdersAdmin() {
   /* Який екран показувати. Памʼять на пристрої, не в базі: у двох
      менеджерів можуть бути різні звички, а перемикач має
      вимикатись будь-якої миті без викладки. */
-  const [view, setScreen] = useState<'queue' | 'archive'>('queue');
+  const [view, setScreen] = useState<'queue' | 'archive' | 'insights'>('queue');
   /** Яке замовлення розкрите в архіві. */
   const [openId, setOpen] = useState('');
   /** Для якого замовлення зараз створюємо накладну. */
@@ -184,12 +185,12 @@ export default function OrdersAdmin() {
   useEffect(() => {
     try {
       const v = localStorage.getItem('reyter:orders-view');
-      if (v === 'archive' || v === 'queue') setScreen(v);
+      if (v === 'archive' || v === 'queue' || v === 'insights') setScreen(v);
     } catch {
       /* приватне вікно — лишається типове */
     }
   }, []);
-  const pickView = (v: 'queue' | 'archive') => {
+  const pickView = (v: 'queue' | 'archive' | 'insights') => {
     setScreen(v);
     try {
       localStorage.setItem('reyter:orders-view', v);
@@ -941,7 +942,14 @@ export default function OrdersAdmin() {
        першою відповіддю проходять хвилини. Мовчати про це не
        можна: менеджер щойно її створив і мусить бачити, що вона
        на місці, інакше зробить другу. */
-    return ttn ? { text: 'Накладна є', tone: 0 as const, state: 'created' } : undefined;
+    if (ttn) return { text: 'Накладна є', tone: 0 as const, state: 'created' };
+
+    /* Накладної немає — і це теж новина, а не порожнє місце.
+       Порожнеча в цій колонці читалась однаково і як «ще не
+       робили», і як «зробили, але не видно». Скасованим не
+       кажемо нічого: там її вже й не буде. */
+    if (o.status === 'cancelled') return undefined;
+    return { text: 'Без ТТН', tone: (o.status === 'shipped' ? 2 : 0) as 0 | 2 };
   }
 
   /** Коли це було — коротко, для рядка списку. */
@@ -1136,6 +1144,15 @@ export default function OrdersAdmin() {
             >
               Архів і пошук
             </button>
+            {/* Аналітика — третьою, а не першою: щоденна робота
+                це черга, а сюди заходять подумати. */}
+            <button
+              type="button"
+              className={'ao-tab' + (view === 'insights' ? ' is-on' : '')}
+              onClick={() => pickView('insights')}
+            >
+              Аналітика
+            </button>
 
             {/* Статуси з Нової Пошти. Вимикач тут, а не в
                 налаштуваннях: це рішення міняють не раз на рік, а
@@ -1155,7 +1172,9 @@ export default function OrdersAdmin() {
               коли замовлення є, а їх не видно. */}
           {error ? <p className="ao-note ao-error">{error}</p> : null}
 
-          {view === 'queue' ? (
+          {view === 'insights' ? (
+            <Insights orders={orders as never} c={c} />
+          ) : view === 'queue' ? (
             <OrdersQueue
               orders={orders as never}
               c={c}
