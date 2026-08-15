@@ -122,44 +122,26 @@ const local = await ev(`(() => ({
   total: document.querySelector('.order-card__total')?.textContent || '',
   tracker: !!document.querySelector('.tracker')
 }))()`);
-ok('локальне замовлення показано гостю', local.cards === 1, JSON.stringify(local));
-ok('вхід і пошук лишились під ним',
+/* Гостю локальну історію НЕ показуємо — і це навмисно.
+
+   Раніше показували: людина, яка щойно оформила замовлення без
+   акаунта, інакше бачила б форму входу замість власної покупки.
+   15.08.2026 правило змінили на протилежне, і причина вагоміша:
+   локальна історія не є підтвердженням особи. На спільному
+   комп'ютері вона могла належати іншому, і кабінет показував би
+   чуже ім'я, товари й суму кожному, хто його відкриє.
+
+   Замість неї гість отримує пошук за номером і телефоном — те,
+   що знає лише власник замовлення.
+
+   САМ ПОВТОР ЗАМОВЛЕННЯ тут більше не перевіряється: без входу
+   картки немає, а увійти в прогоні нема як. Логіка повтору
+   покрита модульно в tools/account-check.ts — і склад комплекту,
+   і кількість, і зниклий товар. */
+ok('локальна історія гостю не показується', local.cards === 0, JSON.stringify(local));
+ok('замість неї — пошук за номером і вхід',
    await ev('!!document.querySelector(".auth-google") && !!document.getElementById("trkNum")'));
-ok('склад комплекту видно', /Сліпи/.test(local.parts) && /Майки/.test(local.parts), local.parts);
-ok('сума показана', /1\s250/u.test(local.total), local.total);
-ok('локальному замовленню не малюємо крокомір', !local.tracker);
-
-/* ---------- Повторення замовлення ---------- */
-
-const repeat = await ev(`(() => {
-  const b = [...document.querySelectorAll('.order-card__actions button')]
-    .find(x => x.className.includes('btn--primary'));
-  if (!b) return null;
-  b.click();
-  return true;
-})()`);
-await wait(900);
-/* Саме кількість: cart.add кладе одну штуку, тож замовлення
-   на три легко перетворюється на одне — і це непомітно */
-ok('замовлення повторюється з тією самою кількістю', repeat === true &&
-   (await ev(`document.querySelector('.cart-count')?.textContent`)) === '3',
-   'бейдж: ' + (await ev(`document.querySelector('.cart-count')?.textContent`)));
-
-/* Повтор удруге додає до наявного, а не заміняє його */
-await ev(`document.querySelector('.drawer__close')?.click()`);
-await wait(300);
-await go(BASE + '/account?tab=orders');
-await ev(`[...document.querySelectorAll('.order-card__actions button')]
-  .find(x => x.className.includes('btn--primary'))?.click()`);
-await wait(900);
-ok('повтор удруге додає, а не заміняє',
-   (await ev(`document.querySelector('.cart-count')?.textContent`)) === '6',
-   'бейдж: ' + (await ev(`document.querySelector('.cart-count')?.textContent`)));
-ok('панель кошика відкрилась після повтору',
-   await ev(`document.querySelector('.drawer')?.classList.contains('is-open')`));
-const rp = await ev(`localStorage.getItem('reyter:cart')`);
-ok('повторено з тими самими розмірами складників',
-   /"size":"S"/.test(rp) && (rp.match(/"size":"S"/g) || []).length === 2, rp);
+ok('чужа сума на спільному пристрої не світиться', !/1\s250/u.test(local.total), local.total);
 
 /* ---------- Відстеження ---------- */
 
