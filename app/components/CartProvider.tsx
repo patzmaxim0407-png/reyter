@@ -6,9 +6,11 @@ import {
   useMemo,
   useState,
   useSyncExternalStore,
-  type ReactNode
+  type ReactNode,
+  useEffect
 } from 'react';
 import * as cart from '@/lib/cart';
+import * as fb from '@/lib/firebase';
 import { getProduct, type Catalogue } from '@/lib/catalog';
 import type { CartLine, CartPart, Product } from '@/lib/types';
 
@@ -65,6 +67,33 @@ const EMPTY: CartLine[] = [];
 export default function CartProvider({ c, children }: { c: Catalogue; children: ReactNode }) {
   const [isOpen, setOpen] = useState(false);
 
+  /* Закриті товари клубу в серверному каталозі відсутні —
+     навмисно: він їде в розмітку кожної сторінки й читається
+     будь-ким. Учасник дістає їх своїм входом, і аж тоді вони
+     потрапляють у кошик: без цього його ж покупка виглядала б
+     як «товар зник із каталогу» і вилітала б із кошика сама. */
+  const [mine, setMine] = useState<Product[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    const off = fb.watchAuth((user) => {
+      if (!alive) return;
+      if (!user?.email) return setMine([]);
+      void fb.loadFriendlyProducts().then((rows) => {
+        if (alive) setMine(rows);
+      });
+    });
+    return () => {
+      alive = false;
+      off();
+    };
+  }, []);
+
+  const full = useMemo<Catalogue>(
+    () => (mine.length ? { ...c, products: [...c.products, ...mine] } : c),
+    [c, mine]
+  );
+
   const raw = useSyncExternalStore(cart.subscribe, cart.snapshot, () => EMPTY);
 
   /* Перший рендер у браузері мусить збігтися з серверним, інакше
@@ -76,11 +105,11 @@ export default function CartProvider({ c, children }: { c: Catalogue; children: 
     if (!ready) return [];
     // items() звіряє сховище з каталогом: викидає зниклі товари
     // й комплекти зі старим складом
-    return cart.items(c).map((i, idx) => {
-      const p = getProduct(c, i.id) as Product;
+    return cart.items(full).map((i, idx) => {
+      const p = getProduct(full, i.id) as Product;
       return { ...i, p, idx, sum: p.price * i.qty };
     });
-  }, [c, raw, ready]);
+  }, [full, raw, ready]);
 
   const count = useMemo(() => lines.reduce((s, i) => s + i.qty, 0), [lines]);
   const subtotal = useMemo(() => lines.reduce((s, i) => s + i.sum, 0), [lines]);

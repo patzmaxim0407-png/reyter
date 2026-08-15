@@ -14,6 +14,7 @@
    ============================================================ */
 
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
+import type { Product } from './types';
 import {
   getAuth,
   onAuthStateChanged,
@@ -107,6 +108,27 @@ export function auth(): Auth | null {
 }
 
 /* ---------- Авторизація ---------- */
+
+/** Закриті товари клубу. Читаються ВХОДОМ САМОГО ПОКУПЦЯ:
+ *  правила пускають у цей документ лише учасника, і саме тому
+ *  його немає ні в розмітці сторінки, ні у відкритому каталозі.
+ *
+ *  Порожньо — або не учасник, або товарів немає. Розрізняти ці
+ *  два випадки нема потреби: показувати однаково нічого. */
+export async function loadFriendlyProducts(): Promise<Product[]> {
+  const d = db();
+  if (!d) return [];
+  try {
+    const { doc, getDoc } = await import('firebase/firestore');
+    const snap = await getDoc(doc(d, 'published', 'friendly'));
+    if (!snap.exists()) return [];
+    const data = snap.data() as { products?: Product[] };
+    return Array.isArray(data.products) ? data.products : [];
+  } catch {
+    // немає прав — це не помилка, а відповідь «вам не видно»
+    return [];
+  }
+}
 
 export function watchAuth(fn: (user: User | null) => void): () => void {
   const a = auth();

@@ -297,8 +297,29 @@ export function buildDataJs(snap: Snapshot, config: SiteConfig, now: Date): stri
    FIRESTORE
    ============================================================ */
 
-function pubDoc(db: Firestore, id: 'catalog' | 'next') {
+function pubDoc(db: Firestore, id: 'catalog' | 'next' | 'friendly') {
   return doc(db, 'published', id);
+}
+
+/* ============================================================
+   ЗАКРИТІ ТОВАРИ ЛЕЖАТЬ ОКРЕМО
+   ------------------------------------------------------------
+   published/catalog читає весь світ — інакше сайт не відкрився б
+   без входу й не був би швидким. Тому товар, позначений «тільки
+   для Friendly Club», у цей документ не потрапляє ВЗАГАЛІ: інакше
+   його побачив би кожен, хто вміє дивитись у мережеві запити,
+   і вся закритість була б лише на вигляд.
+
+   Він іде в published/friendly, а туди правила пускають лише
+   учасників клубу. Не бачить його ні пошуковик, ні сервер
+   вітрини, ні воркер без токена покупця — і саме тому це
+   закритість, а не ширма. */
+function splitFriendly(snap: Snapshot): { open: Snapshot; closed: Snapshot } {
+  const all = snap.products || [];
+  return {
+    open: { ...snap, products: all.filter((p) => !p.friendly) },
+    closed: { ...snap, products: all.filter((p) => !!p.friendly && !p.hidden) }
+  };
 }
 
 /** Обидві версії однією дією.
@@ -410,8 +431,18 @@ export async function publishNow(draft: Draft, deps: PublishDeps): Promise<Publi
   try {
     const db = required(deps.db);
     const snap = snapshotDraft(draft);
+    const { open, closed } = splitFriendly(snap);
+
     await setDoc(pubDoc(db, 'catalog'), {
-      ...snap,
+      ...open,
+      publishedAt: serverTimestamp(),
+      publishedBy: deps.user?.email || ''
+    });
+    /* Закриті — окремим документом і завжди, навіть коли їх нема
+       жодного: інакше після зняття прапорця з останнього товару
+       в ньому назавжди лишився б попередній перелік. */
+    await setDoc(pubDoc(db, 'friendly'), {
+      ...closed,
       publishedAt: serverTimestamp(),
       publishedBy: deps.user?.email || ''
     });
@@ -454,8 +485,12 @@ export async function schedulePublish(
   try {
     const db = required(deps.db);
     const snap = snapshotDraft(draft);
+    /* У заплановану версію закриті товари не кладемо: сайт читає
+       її анонімно, і вона стала б дірою в тій самій стіні. Вони
+       поїдуть у published/friendly, коли версія оживе. */
+    const { open } = splitFriendly(snap);
     await setDoc(pubDoc(db, 'next'), {
-      ...snap,
+      ...open,
       publishAt: ts,
       scheduledAt: serverTimestamp(),
       scheduledBy: deps.user?.email || ''

@@ -56,6 +56,7 @@ import {
   memberNumber,
   refund,
   type DiscountRules,
+  type Level,
   type LevelNo,
   type Member
 } from '../loyalty';
@@ -74,6 +75,11 @@ export interface MemberDoc extends Member {
   /** Коли вступив у клуб. Порожньо — ще не вступив. */
   friendlyAt: string;
   joinedAt: string;
+  /** Клуб, даний руками — незалежно від рівня. Пише лише адмін.
+   *  Потрібен для тих, кого хочеться бачити в клубі раніше, ніж
+   *  вони наберуть балів: моделей, друзів магазину, тих, хто
+   *  прийшов з іншого міста по одній речі. */
+  clubManual?: boolean;
   /** Просить зарахувати минулі замовлення. Ставить сам покупець
    *  при вступі, знімає адмінка, коли порахує: підсумувати свої
    *  ж покупки він не може — правила бази не дають писати бали. */
@@ -218,9 +224,22 @@ function withFriendly(m: MemberDoc, at: string): MemberDoc {
   return { ...m, friendlyAt: at };
 }
 
-/** Учасник у клубі: рівень дозволив І логін вписаний. */
-export function inClub(m: MemberDoc | null): boolean {
-  return !!m && isFriendly(m.level) && !!m.instagram;
+/** Учасник у клубі.
+ *
+ *  Два шляхи, і обидва рівноправні: рівень дозволив або власник
+ *  дав руками. Instagram потрібен лише на першому — це вхідний
+ *  ритуал самої програми; кого запросили особисто, того не
+ *  змушують нічого вписувати. */
+export function inClub(m: MemberDoc | null, levels?: Level[]): boolean {
+  if (!m) return false;
+  if (m.clubManual === true) return true;
+  return isFriendly(m.level, levels) && !!m.instagram;
+}
+
+/** Рівень дозволив, але людина ще не вписала Instagram. Саме ці
+ *  й лишаються за дверима, хоч і заслужили — їм варто написати. */
+export function clubPending(m: MemberDoc, levels?: Level[]): boolean {
+  return !m.clubManual && isFriendly(m.level, levels) && !m.instagram;
 }
 
 /* ============================================================

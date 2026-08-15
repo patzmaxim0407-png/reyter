@@ -741,16 +741,25 @@ async function loyaltyLevel(idToken) {
 }
 
 /** Каталог, який ЗАРАЗ бачить покупець: запланована публікація
- *  вмикається сама, щойно настає її час — так само, як на сайті. */
-async function catalogueNow() {
-  const [next, current] = await Promise.all([
+ *  вмикається сама, щойно настає її час — так само, як на сайті.
+ *
+ *  Закриті товари лежать окремим документом, який без прав не
+ *  прочитати. Тому їх питаємо ТОКЕНОМ ПОКУПЦЯ: якщо він у клубі —
+ *  побачимо й порахуємо, якщо ні — просто не побачимо, і
+ *  замовлення з таким товаром не оплатиться. Це не прикрість, а
+ *  та сама стіна: хто не в клубі, той і купити не може. */
+async function catalogueNow(idToken) {
+  const [next, current, closed] = await Promise.all([
     fbGet('published/next'),
-    fbGet('published/catalog')
+    fbGet('published/catalog'),
+    idToken ? fbGet('published/friendly', idToken) : Promise.resolve(null)
   ]);
   const at = Number((next && next.publishAt) || 0);
   const due = !!next && at > 0 && at <= Date.now();
   const snap = due ? next : current;
-  return Array.isArray(snap && snap.products) ? snap.products : [];
+  const open = Array.isArray(snap && snap.products) ? snap.products : [];
+  const mine = Array.isArray(closed && closed.products) ? closed.products : [];
+  return open.concat(mine);
 }
 
 /* Знижка за промокодом — ті самі правила, що й на сайті. Код тут
@@ -785,7 +794,7 @@ function promoOff(promo, lines, email) {
 /** Рахунок за замовленням. Ціни — з каталогу, знижка — з коду,
  *  доставка — від сайту, але в межах здорового глузду. */
 async function priceOrder(d, idToken) {
-  const products = await catalogueNow();
+  const products = await catalogueNow(idToken);
   const byId = new Map(products.map((p) => [String(p.id), p]));
 
   const lines = [];

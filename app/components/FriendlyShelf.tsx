@@ -5,8 +5,8 @@ import ProductCard from './ProductCard';
 import { useCart } from './CartProvider';
 import { useLang } from './LangProvider';
 import * as fb from '@/lib/firebase';
-import { friendlyProducts } from '@/lib/catalog';
-import { cachedMember, inClub, readMember, rememberMember, type MemberDoc } from '@/lib/admin/loyalty-db';
+
+import type { Product } from '@/lib/types';
 
 /* ============================================================
    Полиця Friendly Club
@@ -35,27 +35,24 @@ import { cachedMember, inClub, readMember, rememberMember, type MemberDoc } from
 export default function FriendlyShelf() {
   const { c } = useCart();
   const { t, lang } = useLang();
-  const [member, setMember] = useState<MemberDoc | null | undefined>(undefined);
+  /** Закриті товари. Читаються входом самого покупця — у розмітці
+   *  сторінки їх немає, і бути не може. */
+  const [list, setList] = useState<Product[]>([]);
 
   useEffect(() => {
     let alive = true;
     const off = fb.watchAuth((user) => {
       if (!alive) return;
       if (!user?.email) {
-        setMember(null);
+        setList([]);
         return;
       }
-      /* Спершу памʼять браузера, щоб полиця не блимала на кожному
-         оновленні, потім база — вона й вирішує. */
-      const known = cachedMember(user.email);
-      if (known) setMember(known);
-
-      const d = fb.db();
-      if (!d) return;
-      void readMember(d, user.email, new Date()).then((m) => {
-        if (!alive) return;
-        setMember(m);
-        rememberMember(m);
+      /* Питаємо базу, а не звіряємось із рівнем у себе: чи
+         пускати — вирішують правила, і вони знають і про ручний
+         клуб, і про змінену драбину. Відмова приходить порожнім
+         переліком, і це правильна відповідь, а не помилка. */
+      void fb.loadFriendlyProducts().then((rows) => {
+        if (alive) setList(rows);
       });
     });
     return () => {
@@ -64,9 +61,6 @@ export default function FriendlyShelf() {
     };
   }, []);
 
-  if (!inClub(member ?? null)) return null;
-
-  const list = friendlyProducts(c);
   if (!list.length) return null;
 
   return (

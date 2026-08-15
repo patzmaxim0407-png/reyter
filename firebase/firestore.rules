@@ -97,6 +97,8 @@ service cloud.firestore {
           'who', 'points', 'level', 'cycleStart', 'number',
           'instagram', 'friendlyAt', 'joinedAt', 'historyPending'
         ])
+        // клуб руками дає лише адмін, тож у власному створенні його бути не може
+        && !('clubManual' in request.resource.data)
       );
 
       /* Далі покупець міняє рівно одне поле — логін Instagram.
@@ -464,8 +466,49 @@ service cloud.firestore {
     // зафіксований знімок published/catalog. Запланована версія
     // лежить у published/next і вмикається сама, щойно настає
     // її час — порівнянням часу в браузері покупця, без сервера.
+    /* Опублікований каталог читає весь світ — інакше сайт не
+       відкрився б без входу й не був би швидким.
+
+       КРІМ ОДНОГО ДОКУМЕНТА. published/friendly — це товари, які
+       бачать лише учасники клубу, і він навмисно виведений
+       з-під загального дозволу. Порядок тут не рятує: правила не
+       перекривають одне одного, вони додаються. Тому загальне
+       правило саме ВИКЛЮЧАЄ цей документ, а не «уточнюється»
+       нижче. */
     match /published/{docId} {
-      allow read: if true;
+      allow read: if docId != 'friendly';
+      allow write: if isAdmin();
+    }
+
+    /* Чи в клубі. Рівень задає драбина магазину — той самий
+       запис, за яким рахується знижка. Плюс ручне рішення
+       власника: клуб можна дати й тому, чий рівень до нього ще
+       не дійшов. */
+    function inFriendlyClub() {
+      let mail = userEmail().lower();
+      return signedIn()
+        && exists(/databases/$(database)/documents/loyalty/$(mail))
+        && (
+          clubByHand() || clubByLevel()
+        );
+    }
+
+    function clubByHand() {
+      let m = loyaltyDoc();
+      return ('clubManual' in m) && m.clubManual == true;
+    }
+
+    function clubByLevel() {
+      let m = loyaltyDoc();
+      let rows = loyaltyLevels();
+      let lvl = m.level;
+      return (rows.size() == 4 && lvl >= 1 && lvl <= 4)
+        ? rows[lvl - 1].friendly == true
+        : lvl >= 3;
+    }
+
+    match /published/friendly {
+      allow read: if isAdmin() || inFriendlyClub();
       allow write: if isAdmin();
     }
 

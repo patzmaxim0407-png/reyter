@@ -37,7 +37,10 @@ import {
   pastOrdersOf,
   planHistory,
   planHistoryDone,
-  statsOf
+  clubPending,
+  inClub,
+  statsOf,
+  type MemberDoc
 } from '../lib/admin/loyalty-db.ts';
 import { readFileSync } from 'node:fs';
 
@@ -417,6 +420,37 @@ console.log('\nДРАБИНА З НАЛАШТУВАНЬ');
   ok('знижка рахується за драбиною магазину', d.loyalty === 200, String(d.loyalty));
 }
 
+/* ---------- Клуб і закриті товари ---------- */
+console.log('\nКЛУБ');
+{
+  const mk = (o: Partial<MemberDoc>) => ({
+    ...NEW_MEMBER, who: 'a@b.c', number: 'FC', instagram: '', friendlyAt: '', joinedAt: '', ...o
+  }) as MemberDoc;
+
+  ok('третій рівень без Instagram — ще не в клубі', !inClub(mk({ level: 3, points: 20000 })));
+  ok('третій рівень з Instagram — у клубі', inClub(mk({ level: 3, points: 20000, instagram: 'petro' })));
+  ok('перший рівень з Instagram — не в клубі', !inClub(mk({ level: 1, instagram: 'petro' })));
+
+  /* Клуб руками не питає ні рівня, ні Instagram: це запрошення
+     від власника, а не зароблений щабель. */
+  ok('клуб руками діє з першого рівня', inClub(mk({ level: 1, clubManual: true })));
+  ok('і без Instagram теж', inClub(mk({ level: 1, clubManual: true, instagram: '' })));
+
+  ok('«заслужив, але не вписав» видно окремо',
+     clubPending(mk({ level: 3, points: 20000 })) && !clubPending(mk({ level: 3, instagram: 'x' })));
+  ok('той, кому дали руками, у черзі не висить', !clubPending(mk({ level: 3, clubManual: true })));
+
+  /* Драбину задає магазин — клуб може відчинятися й з другого. */
+  const early = makeLevels([
+    { from: 0, percent: 0, friendly: false },
+    { from: 1000, percent: 5, friendly: true },
+    { from: 5000, percent: 10, friendly: true },
+    { from: 9000, percent: 15, friendly: true }
+  ]);
+  ok('клуб там, де його поставили в драбині',
+     inClub(mk({ level: 2, points: 1000, instagram: 'petro' }), early));
+}
+
 /* ---------- Кошик і воркер мусять збігтися ----------
    Найдорожча розбіжність з усіх: покупець бачить у кошику одну
    суму, а банк просить іншу. Тому драбину у воркері звіряємо
@@ -430,6 +464,8 @@ console.log('\nВОРКЕР');
   ok('запасні ставки у воркері ті самі', JSON.stringify(inWorker) === JSON.stringify(ours),
      JSON.stringify(inWorker) + ' проти ' + JSON.stringify(ours));
   ok('воркер бере драбину з налаштувань', /function percentFrom/.test(src) && /rules\.levels/.test(src));
+  ok('воркер читає закритий каталог токеном покупця',
+     /published\/friendly', idToken/.test(src));
   ok('воркер читає рівень токеном покупця', /Authorization: 'Bearer ' \+ idToken/.test(src));
   ok('пошта береться з токена, а не з полів запиту', /function emailFromToken/.test(src));
   ok('стеля зрізає саме лояльність', /ceiling - off/.test(src));

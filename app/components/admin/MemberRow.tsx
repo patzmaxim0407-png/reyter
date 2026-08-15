@@ -20,12 +20,14 @@ export default function MemberRow({
   m,
   busy,
   onHistory,
-  onAdjust
+  onAdjust,
+  onClub
 }: {
   m: MemberDoc;
   busy: boolean;
   onHistory(): void;
   onAdjust(): void;
+  onClub(): void;
 }) {
   const p = progressOf(m);
   const club = inClub(m);
@@ -44,7 +46,9 @@ export default function MemberRow({
       <div className="loy-row-a__lvl">
         <b>
           {p.level} рівень
-          {club ? <i className="loy-row-a__club">Friendly</i> : null}
+          {club ? (
+            <i className="loy-row-a__club">{m.clubManual ? 'Friendly · руками' : 'Friendly'}</i>
+          ) : null}
         </b>
         <span>−{p.percent}%</span>
       </div>
@@ -74,6 +78,11 @@ export default function MemberRow({
         ) : null}
         <button className="btn btn--ghost btn--sm" type="button" disabled={busy} onClick={onAdjust}>
           Правка балів
+        </button>
+        {/* Клуб можна дати й тому, чий рівень до нього не дійшов:
+            моделі, другові магазину, гостю з іншого міста. */}
+        <button className="btn btn--ghost btn--sm" type="button" disabled={busy} onClick={onClub}>
+          {m.clubManual ? 'Забрати клуб' : 'Дати клуб'}
         </button>
       </div>
     </div>

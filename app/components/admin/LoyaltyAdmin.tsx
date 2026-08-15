@@ -8,6 +8,7 @@ import { useAdminUser } from './AdminGate';
 import { useAsk } from './AskProvider';
 import { useToast } from '../Toasts';
 import { db } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import { watchDraft, EMPTY_DRAFT, type Draft } from '@/lib/admin/store';
 import { watchMembers, watchOrders, type Doc } from '@/lib/admin/live';
 import {
@@ -21,6 +22,7 @@ import {
   type LadderRow
 } from '@/lib/loyalty';
 import {
+  MEMBERS_COL,
   findMembers,
   inClub,
   loadRules,
@@ -252,6 +254,32 @@ export default function LoyaltyAdmin() {
     }
   }
 
+  /** Клуб руками. Причини не питаємо: рішення власника, і воно
+   *  видно в самому рядку — «Friendly · руками». */
+  async function toggleClub(m: MemberDoc) {
+    const on = !m.clubManual;
+    const yes = await ask({
+      title: on ? 'Дати Friendly Club?' : 'Забрати Friendly Club?',
+      text: on
+        ? `${m.who} отримає доступ до закритих товарів незалежно від рівня.`
+        : `${m.who} втратить доступ до закритих товарів. Якщо рівень дозволяє клуб, доступ лишиться за рівнем.`,
+      okText: on ? 'Дати' : 'Забрати'
+    });
+    if (yes !== true) return;
+
+    const d = need();
+    if (!d) return;
+    setBusy(m.who);
+    try {
+      await setDoc(doc(d, MEMBERS_COL, m.who), { clubManual: on }, { merge: true });
+      toast(on ? 'Клуб відкрито ✓' : 'Клуб закрито', on ? 'success' : 'plain');
+    } catch {
+      toast('Не вдалося змінити');
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function keepRules(next: DiscountRules) {
     const d = need();
     if (!d) return;
@@ -406,6 +434,7 @@ export default function LoyaltyAdmin() {
                     busy={busy === m.who}
                     onHistory={() => void creditHistory(m)}
                     onAdjust={() => void adjust(m)}
+                    onClub={() => void toggleClub(m)}
                   />
                 ))}
               </div>

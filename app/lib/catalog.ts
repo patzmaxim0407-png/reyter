@@ -45,7 +45,11 @@ export function cartCatalogue(
   return {
     stock,
     categories,
-    products: products.map((p) => ({
+    /* Закритих товарів тут немає й бути не може: цей перелік їде
+       в розмітку КОЖНОЇ сторінки, і будь-хто прочитає його в
+       мережевих запитах. Учасник дістане їх окремо — своїм
+       входом, із документа, куди стороннього не пускають. */
+    products: products.filter((p) => !p.friendly).map((p) => ({
       id: p.id,
       name: p.name,
       nameEn: p.nameEn,
