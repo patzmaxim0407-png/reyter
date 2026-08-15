@@ -42,6 +42,7 @@ import {
 } from 'firebase/firestore';
 
 import {
+  HISTORY_FROM,
   NEW_MEMBER,
   credit,
   expire,
@@ -275,7 +276,11 @@ export interface PastOrder {
 }
 
 export function planHistory(m: MemberDoc, past: PastOrder[], by: string): MovePlan | null {
-  const sum = past.reduce((n, o) => n + Math.max(0, Math.floor(o.paid)), 0);
+  /* Межу тримаємо тут, а не в тому, хто збирає замовлення:
+     інакше вона рано чи пізно розійшлася б із написом у кабінеті,
+     і покупець рахував би одне, а програма — інше. */
+  const mine = past.filter((o) => String(o.at || '') >= HISTORY_FROM);
+  const sum = mine.reduce((n, o) => n + Math.max(0, Math.floor(o.paid)), 0);
   if (!sum) return null;
 
   const points = m.points + sum;
@@ -289,7 +294,7 @@ export function planHistory(m: MemberDoc, past: PastOrder[], by: string): MovePl
       points: sum,
       after: points,
       level,
-      note: `зараховано минулих замовлень: ${past.length}`,
+      note: `зараховано минулих замовлень: ${mine.length} (з ${HISTORY_FROM})`,
       by
     }
   };

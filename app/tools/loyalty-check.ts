@@ -31,6 +31,7 @@ import {
   type Member
 } from '../lib/loyalty.ts';
 import { paidForGoods, planStatusChange, type AdminOrder } from '../lib/admin/orders.ts';
+import { planHistory } from '../lib/admin/loyalty-db.ts';
 
 let failed = 0;
 const ok = (name: string, cond: boolean, extra = '') => {
@@ -250,6 +251,26 @@ console.log(
       ((40000 - 20000) / (1 - percentOf(3) / 100) - (40000 - 20000))
     ).toLocaleString('uk') + ' грн знижок'
 );
+
+/* ---------- Межа зарахування історії ---------- */
+console.log('\nІСТОРІЯ ПРИ ВСТУПІ');
+{
+  const m = { ...NEW_MEMBER, who: 'a@b.c', number: 'FC-1', instagram: '', friendlyAt: '', joinedAt: '2026-08-15' };
+  const past = [
+    { num: 'R-1', paid: 5000, at: '2026-07-01' },  // задавнене
+    { num: 'R-2', paid: 3000, at: '2026-08-08' },  // за день до межі
+    { num: 'R-3', paid: 2000, at: '2026-08-09' },  // рівно межа
+    { num: 'R-4', paid: 1500, at: '2026-09-01' }
+  ];
+  const plan = planHistory(m as never, past, 'me@reyter.men');
+  ok('до межі не рахується', plan?.member.points === 3500, String(plan?.member.points));
+  ok('день межі рахується', (plan?.move.note || '').includes('2'), plan?.move.note || '');
+  ok('годинник історією не запускається', plan?.member.cycleStart === null);
+  ok('рівень порахований', plan?.member.level === 1);
+
+  const old = planHistory(m as never, [{ num: 'R-0', paid: 9000, at: '2026-01-01' }], 'me');
+  ok('сама лише давня історія нічого не дає', old === null);
+}
 
 /* ---------- Нарахування за статусом замовлення ---------- */
 console.log('\nСТАТУС ЗАМОВЛЕННЯ');
