@@ -35,8 +35,8 @@ export default function FriendlyTab({
   onInstagram
 }: {
   user: User | null;
-  /** null — ще не вступив. */
-  member: MemberDoc | null;
+  /** undefined — ще читаємо базу; null — точно не учасник. */
+  member: MemberDoc | null | undefined;
   lang: Lang;
   busy: boolean;
   onJoin(): void;
@@ -55,6 +55,23 @@ export default function FriendlyTab({
         <Ladder lang={lang} level={0} />
         <p className="loy__foot">{t('fc.guest', lang)}</p>
         <Terms lang={lang} />
+      </div>
+    );
+  }
+
+  /* Ще не знаємо, хто перед нами. Запрошення вступити тут
+     показувати не можна: учасник побачив би пропозицію зробити
+     те, що вже зробив. Тому мовчазне місце під картку — воно
+     зникне за частку секунди. */
+  if (member === undefined) {
+    return (
+      <div className="loy">
+        <div className="loy-card loy-card--wait" aria-hidden="true">
+          <span className="loy-card__lvl">&nbsp;</span>
+          <span className="loy-card__off">&nbsp;</span>
+          <span className="loy-card__pts">&nbsp;</span>
+        </div>
+        <Ladder lang={lang} level={0} />
       </div>
     );
   }

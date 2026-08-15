@@ -1,0 +1,406 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import PublishControl from './PublishControl';
+import SettingsDialog from './SettingsDialog';
+import MemberRow from './MemberRow';
+import { useAdminUser } from './AdminGate';
+import { useAsk } from './AskProvider';
+import { useToast } from '../Toasts';
+import { db } from '@/lib/firebase';
+import { watchDraft, EMPTY_DRAFT, type Draft } from '@/lib/admin/store';
+import { watchMembers, watchOrders, type Doc } from '@/lib/admin/live';
+import { DEFAULT_RULES, LEVELS, type DiscountRules } from '@/lib/loyalty';
+import {
+  findMembers,
+  loadRules,
+  planHistoryDone,
+  planManual,
+  saveRules,
+  statsOf,
+  writeMove,
+  type HistorySource,
+  type MemberDoc
+} from '@/lib/admin/loyalty-db';
+
+/* ============================================================
+   Програма лояльності
+   ------------------------------------------------------------
+   Три речі на одному екрані, бо всі три про одне: скільки
+   магазин винен покупцям і кому саме.
+
+   УЧАСНИКИ — перелік із пошуком. Зверху ті, хто чекає на
+   зарахування історії: це єдина дія, якої програма справді
+   потребує від людини, і відкладати її нема сенсу.
+
+   ПРАВКИ роблять із обовʼязковою причиною. Через півроку на
+   питання «звідки в нього ці дві тисячі» має бути чим
+   відповісти, і памʼять тут не помічник.
+
+   НАЛАШТУВАННЯ лежать у settings/public — там же, звідки їх
+   бере сайт і воркер при виставленні рахунку. Одне джерело на
+   трьох, інакше кошик показував би одну знижку, а банк просив
+   іншу суму.
+   ============================================================ */
+
+type Tab = 'members' | 'rules';
+
+export default function LoyaltyAdmin() {
+  const user = useAdminUser();
+  const ask = useAsk();
+  const toast = useToast();
+
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const [members, setMembers] = useState<MemberDoc[]>([]);
+  const [orders, setOrders] = useState<HistorySource[]>([]);
+  const [rules, setRules] = useState<DiscountRules>(DEFAULT_RULES);
+  const [tab, setTab] = useState<Tab>('members');
+  const [find, setFind] = useState('');
+  const [busy, setBusy] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const need = () => {
+    const d = db();
+    if (!d) toast('Немає звʼязку з базою');
+    return d;
+  };
+
+  useEffect(() => {
+    const offDraft = watchDraft(setDraft);
+    const offMembers = watchMembers((list) => setMembers(list as unknown as MemberDoc[]));
+    /* Замовлення потрібні лише для зарахування історії, зате всі:
+       рахувати минуле за половиною списку означало б недоплатити
+       балами саме найдавнішим покупцям. */
+    const offOrders = watchOrders((list: Doc[]) => setOrders(list as unknown as HistorySource[]));
+    const d = db();
+    if (d) void loadRules(d).then(setRules);
+    return () => {
+      offDraft();
+      offMembers();
+      offOrders();
+    };
+  }, []);
+
+  const stats = useMemo(
+    () => statsOf(members, orders as { loyaltyOff?: number }[]),
+    [members, orders]
+  );
+
+  /* Черга на зарахування — завжди зверху. Решта за балами:
+     хто витратив більше, того менеджер шукає частіше. */
+  const view = useMemo(() => {
+    const found = findMembers(members, find);
+    return [...found].sort((a, b) => {
+      if (!!a.historyPending !== !!b.historyPending) return a.historyPending ? -1 : 1;
+      return b.points - a.points;
+    });
+  }, [members, find]);
+
+  async function creditHistory(m: MemberDoc) {
+    const d = need();
+    if (!d) return;
+    setBusy(m.who);
+    try {
+      const plan = planHistoryDone(m, orders, user.email ?? '');
+      await writeMove(d, plan);
+      toast(
+        plan.move.points
+          ? `Зараховано ${plan.move.points.toLocaleString('uk')} балів ✓`
+          : 'Минулих замовлень не знайшлось — прапорець знято',
+        'success'
+      );
+    } catch {
+      toast('Не вдалося зарахувати');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function creditAll() {
+    const queue = members.filter((m) => m.historyPending);
+    if (!queue.length) return;
+    const yes = await ask({
+      title: 'Зарахувати минулі замовлення?',
+      text:
+        `Учасників у черзі: ${queue.length}. Кожному зарахуються його виконані ` +
+        'замовлення з тією ж поштою. Дія записується в журнал і скасувати її можна лише правкою.',
+      okText: 'Зарахувати всім'
+    });
+    if (yes !== true) return;
+
+    const d = need();
+    if (!d) return;
+    setBusy('all');
+    let done = 0;
+    for (const m of queue) {
+      try {
+        await writeMove(d, planHistoryDone(m, orders, user.email ?? ''));
+        done += 1;
+      } catch {
+        /* один невдалий не має спиняти решту: наступного разу він
+           знову буде в черзі, бо прапорець лишиться */
+      }
+    }
+    setBusy('');
+    toast(`Опрацьовано ${done} із ${queue.length}`, done ? 'success' : 'plain');
+  }
+
+  async function adjust(m: MemberDoc) {
+    const raw = await ask({
+      title: 'Правка балів',
+      text: `${m.who} · зараз ${m.points.toLocaleString('uk')} балів. Скільки додати? Відʼємне число — зняти.`,
+      input: '',
+      label: 'Скільки балів',
+      placeholder: 'напр.: 500 або -200',
+      okText: 'Далі'
+    });
+    const points = Math.round(Number(String(raw ?? '').replace(',', '.')) || 0);
+    if (!points) return;
+
+    /* Причина обовʼязкова. Правка без пояснення через півроку
+       нічим не відрізняється від помилки. */
+    const note = await ask({
+      title: 'Причина правки',
+      text: `${points > 0 ? 'Додаємо' : 'Знімаємо'} ${Math.abs(points).toLocaleString('uk')} балів. Напишіть, за що — це побачить наступний менеджер.`,
+      input: '',
+      label: 'Причина',
+      placeholder: 'напр.: компенсація за втрачену посилку',
+      okText: 'Записати'
+    });
+    if (typeof note !== 'string' || !note.trim()) return;
+
+    const d = need();
+    if (!d) return;
+    setBusy(m.who);
+    try {
+      const plan = planManual(m, points, note.trim(), user.email ?? '');
+      if (plan) await writeMove(d, plan);
+      toast('Записано ✓', 'success');
+    } catch {
+      toast('Не вдалося записати');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function keepRules(next: DiscountRules) {
+    const d = need();
+    if (!d) return;
+    setRules(next);
+    try {
+      await saveRules(d, next);
+      toast('Налаштування збережено ✓', 'success');
+    } catch {
+      toast('Не вдалося зберегти');
+    }
+  }
+
+  return (
+    <>
+      <PublishControl user={user} onSettings={() => setSettingsOpen(true)} />
+
+      <div className="a-page">
+        <div className="a-page__head a-page__head--row">
+          <div>
+            <h2>Програма лояльності</h2>
+            <p>
+              Бали нараховуються самі, коли замовлення стає «Виконано». Тут — учасники,
+              зарахування минулих замовлень і межі знижки.
+            </p>
+          </div>
+          {stats.pending ? (
+            <button
+              className="btn btn--primary"
+              type="button"
+              disabled={busy === 'all'}
+              onClick={() => void creditAll()}
+            >
+              {busy === 'all' ? 'Зараховуємо…' : `Зарахувати історію (${stats.pending})`}
+            </button>
+          ) : null}
+        </div>
+
+        <div className="a-orders a-orders--page">
+          <div className="ao-stats">
+            <div className="ao-stat">
+              <b>{stats.members}</b>
+              <span>учасників</span>
+            </div>
+            <div className="ao-stat">
+              <b>{stats.inClub}</b>
+              <span>
+                у Friendly Club
+                {stats.friendlyReady > stats.inClub ? (
+                  /* Різниця між «рівень дозволив» і «справді в клубі» —
+                     це рівно ті, кому лишилось вписати Instagram. */
+                  <i className="ao-stat__hint"> · {stats.friendlyReady - stats.inClub} без Instagram</i>
+                ) : null}
+              </span>
+            </div>
+            <div className="ao-stat">
+              <b>{stats.points.toLocaleString('uk')}</b>
+              <span>балів на руках</span>
+            </div>
+            <div className="ao-stat">
+              <b>{stats.given.toLocaleString('uk')} грн</b>
+              <span>віддано знижок</span>
+            </div>
+          </div>
+
+          <div className="ao-toolbar">
+            <div className="ao-chips">
+              <button
+                className={'ao-chip' + (tab === 'members' ? ' is-on' : '')}
+                type="button"
+                onClick={() => setTab('members')}
+              >
+                Учасники
+              </button>
+              <button
+                className={'ao-chip' + (tab === 'rules' ? ' is-on' : '')}
+                type="button"
+                onClick={() => setTab('rules')}
+              >
+                Межі знижки
+              </button>
+            </div>
+            {tab === 'members' ? (
+              <input
+                className="ao-search"
+                value={find}
+                placeholder="пошта, номер або Instagram"
+                autoComplete="off"
+                onChange={(e) => setFind(e.target.value)}
+              />
+            ) : null}
+          </div>
+
+          {/* Скільки на кожному рівні — окремим рядком, бо це
+              найкорисніша цифра для рішення «а чи не завелика
+              в нас верхня ставка». */}
+          {tab === 'members' ? (
+            <div className="loy-levels">
+              {LEVELS.map((l) => (
+                <span key={l.level} className={l.friendly ? 'is-club' : ''}>
+                  <b>{stats.byLevel[l.level - 1]}</b> рівень {l.level} · −{l.percent}%
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          {tab === 'members' ? (
+            !view.length ? (
+              <div className="a-empty">
+                {members.length
+                  ? 'За цим запитом нікого не знайшлось.'
+                  : 'Учасників поки немає. Вони зʼявляться, коли покупці вступлять у програму зі свого кабінету.'}
+              </div>
+            ) : (
+              <div className="ao-list">
+                {view.map((m) => (
+                  <MemberRow
+                    key={m.who}
+                    m={m}
+                    busy={busy === m.who}
+                    onHistory={() => void creditHistory(m)}
+                    onAdjust={() => void adjust(m)}
+                  />
+                ))}
+              </div>
+            )
+          ) : (
+            <Rules rules={rules} cats={draft.categories} onSave={keepRules} />
+          )}
+        </div>
+      </div>
+
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        user={user.email ?? ''}
+      />
+    </>
+  );
+}
+
+/* ============================================================
+   Межі знижки
+   ------------------------------------------------------------
+   Знижка рівня складається з промокодом, і без запобіжників
+   акційна субота дасть мінус півціни. Тут вони й стоять.
+   ============================================================ */
+
+function Rules({
+  rules,
+  cats,
+  onSave
+}: {
+  rules: DiscountRules;
+  cats: { id: string; title: string }[];
+  onSave(next: DiscountRules): void;
+}) {
+  const [cap, setCap] = useState(String(rules.cap));
+
+  useEffect(() => {
+    setCap(String(rules.cap));
+  }, [rules.cap]);
+
+  const flip = (id: string) => {
+    const has = rules.skipCats.includes(id);
+    onSave({
+      ...rules,
+      skipCats: has ? rules.skipCats.filter((x) => x !== id) : [...rules.skipCats, id]
+    });
+  };
+
+  return (
+    <div className="loy-rules">
+      <div className="field">
+        <label htmlFor="loyCap">Стеля сумарної знижки, %</label>
+        <input
+          id="loyCap"
+          type="number"
+          min={0}
+          max={100}
+          value={cap}
+          onChange={(e) => setCap(e.target.value)}
+          onBlur={() => onSave({ ...rules, cap: Math.max(0, Math.min(100, Number(cap) || 0)) })}
+        />
+        <p className="field__hint">
+          Більше за це промокод і знижка рівня разом не дадуть. Нуль — без межі. Коли стеля
+          спрацьовує, зменшується саме знижка рівня: промокод — обіцянка, названа числом, яку
+          покупець уже прочитав.
+        </p>
+      </div>
+
+      <label className="a-check">
+        <input
+          type="checkbox"
+          checked={rules.skipSale}
+          onChange={(e) => onSave({ ...rules, skipSale: e.target.checked })}
+        />
+        Знижка рівня не діє на товари з бейджем SALE
+      </label>
+
+      <div className="field">
+        <span className="field__label">Категорії, де знижка рівня не діє</span>
+        <div className="a-sizes">
+          {cats.map((c) => (
+            <label key={c.id}>
+              <input
+                type="checkbox"
+                checked={rules.skipCats.includes(c.id)}
+                onChange={() => flip(c.id)}
+              />{' '}
+              {c.title}
+            </label>
+          ))}
+        </div>
+        <p className="field__hint">
+          Ці межі читає не лише кошик, а й воркер, який виставляє рахунок у банку. Тому міняти їх
+          можна будь-коли: обидва рахують за одним джерелом і не розійдуться.
+        </p>
+      </div>
+    </div>
+  );
+}

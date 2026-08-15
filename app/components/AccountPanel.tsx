@@ -13,7 +13,14 @@ import PageTop from './PageTop';
 import { useToast } from './Toasts';
 import * as cart from '@/lib/cart';
 import * as fb from '@/lib/firebase';
-import { joinProgram, readMember, saveInstagram, type MemberDoc } from '@/lib/admin/loyalty-db';
+import {
+  cachedMember,
+  joinProgram,
+  readMember,
+  rememberMember,
+  saveInstagram,
+  type MemberDoc
+} from '@/lib/admin/loyalty-db';
 import { sortMyPromos } from '@/lib/account';
 import { promoLive, type Promo } from '@/lib/promo';
 import { uah, type Catalogue } from '@/lib/catalog';
@@ -91,8 +98,11 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [mode, setMode] = useState<OrdersMode>('local');
   const [promos, setPromos] = useState<Promo[] | null>(null);
-  /** null — ще не вступив або ще не прочитали. */
-  const [member, setMember] = useState<MemberDoc | null>(null);
+  /** undefined — ще не знаємо; null — точно не учасник. Різниця
+   *  важлива: доки не знаємо, показувати запрошення вступити не
+   *  можна — учасник побачив би пропозицію зробити те, що вже
+   *  зробив. */
+  const [member, setMember] = useState<MemberDoc | null | undefined>(undefined);
   const [fcBusy, setFcBusy] = useState(false);
 
   const localOrders = () =>
@@ -176,11 +186,25 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
       setMember(null);
       return;
     }
+    /* Спершу — те, що памʼятає браузер: картка стоїть на місці
+       вже в першому кадрі. Читаємо саме тут, а не під час
+       промальовування: сховище на сервері не існує, і звернення
+       до нього в тілі компонента дало б розбіжність розмітки. */
+    const known = cachedMember(user.email);
+    /* Ставимо лише те, що справді памʼятаємо. Порожній кеш —
+       це не «він не учасник», а «ми ще не знаємо»: підставити
+       сюди null означало б блимнути запрошенням вступити навіть
+       при першому заході. */
+    if (known) setMember(known);
+
     let alive = true;
     const d = fb.db();
     if (!d) return;
     void readMember(d, user.email, new Date()).then((m) => {
-      if (alive) setMember(m);
+      if (!alive) return;
+      setMember(m);
+      // база — джерело; кеш просто наздоганяє
+      rememberMember(m);
     });
     return () => {
       alive = false;
@@ -192,7 +216,9 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
     if (!d || !user?.email) return;
     setFcBusy(true);
     try {
-      setMember(await joinProgram(d, user.email, new Date()));
+      const made = await joinProgram(d, user.email, new Date());
+      setMember(made);
+      rememberMember(made);
       toast(t('fc.joined'), 'success');
     } catch {
       toast(t('fc.failed'));
@@ -208,7 +234,11 @@ export default function AccountPanel({ c }: { c: Catalogue }) {
       setFcBusy(true);
       try {
         const saved = await saveInstagram(d, user.email, login);
-        setMember((m) => (m ? { ...m, instagram: saved } : m));
+        setMember((m) => {
+          const next = m ? { ...m, instagram: saved } : m;
+          if (next) rememberMember(next);
+          return next;
+        });
         toast(t('fc.opened'), 'success');
       } catch {
         toast(t('fc.failed'));

@@ -2514,9 +2514,13 @@ label.a-promo-product i {
   }
 
   /* ---------- Розділи: нижня панель у зоні великого пальця ----------
-     Розділів рівно чотири, перемикають їх десятки разів на день.
+     Розділів пʼять, перемикають їх десятки разів на день.
      Горизонтальний скрол у шапці не підказував би, що праворуч
-     є ще щось, а бургер додавав би зайвий дотик. */
+     є ще щось, а бургер додавав би зайвий дотик.
+
+     Пʼятий розділ («Бали») додано 15.08.2026 — і з ним колонки
+     стали вужчі. Тому підпис трохи менший, а слова навмисно
+     короткі: на 360 пікселях кожна зайва літера відрізається. */
   .abar__nav {
     position: fixed;
     inset: auto 0 0 0;
@@ -2537,10 +2541,14 @@ label.a-promo-product i {
     display: grid;
     place-items: center;
     min-height: 48px;
-    padding: 0.3rem 0.2rem;
+    padding: 0.3rem 0.15rem;
     border-radius: 12px;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     white-space: nowrap;
+    /* довше слово стискається, а не вилазить за край колонки */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   /* Бейдж зривався на другий рядок і розпирав усі вкладки */
@@ -5997,4 +6005,103 @@ label.a-promo-product i {
   border-radius: 10px;
   background: rgba(217, 119, 6, 0.06);
   color: #8a5a00;
+}
+
+/* ============================================================
+   Програма лояльності
+   ------------------------------------------------------------
+   Рядок учасника читають з двох приводів: «хто це» і «скільки в
+   нього». Тому пошта й рівень стоять першими, числа вирівняні
+   по розряду, а дії — праворуч, де їх шукає рука.
+   ============================================================ */
+
+.loy-levels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.loy-levels span {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(6, 43, 92, 0.06);
+  font-size: 13px;
+}
+
+.loy-levels span.is-club {
+  background: rgba(1, 74, 173, 0.1);
+  color: #014AAD;
+}
+
+.loy-levels b { font-variant-numeric: tabular-nums; }
+
+.loy-row-a {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) 1fr 1fr 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(6, 43, 92, 0.08);
+}
+
+/* Черга на зарахування помітна одразу: це єдина дія, якої
+   програма справді потребує від людини. */
+.loy-row-a.is-wait {
+  border-color: rgba(217, 119, 6, 0.4);
+  background: rgba(217, 119, 6, 0.04);
+}
+
+.loy-row-a__who b { display: block; word-break: break-all; }
+.loy-row-a__who span,
+.loy-row-a__lvl span,
+.loy-row-a__pts span,
+.loy-row-a__till span {
+  display: block;
+  font-size: 12px;
+  color: #6e6a5e;
+}
+
+.loy-row-a__pts b,
+.loy-row-a__lvl b { font-variant-numeric: tabular-nums; }
+
+.loy-row-a__club {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(1, 74, 173, 0.12);
+  color: #014AAD;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.loy-row-a__till .is-quiet { color: #9a958a; }
+
+.loy-row-a__act {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.loy-rules { display: grid; gap: 18px; max-width: 640px; }
+
+@media (max-width: 900px) {
+  .loy-row-a {
+    grid-template-columns: 1fr 1fr;
+    row-gap: 10px;
+  }
+  .loy-row-a__who { grid-column: 1 / -1; }
+  .loy-row-a__act { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
+/* Уточнення в підписі до числа: «у клубі 12 · 3 без Instagram».
+   Друге число менш важливе за перше, але саме воно підказує, кому
+   написати. */
+.ao-stat__hint {
+  font-style: normal;
+  color: #9a958a;
 }

@@ -119,6 +119,21 @@ export function watchInventory(
   );
 }
 
+/** Учасники програми лояльності. Перелік дозволено лише адміну —
+ *  за ним видно пошти всіх покупців разом із сумами, які вони
+ *  витратили. */
+export function watchMembers(
+  onData: (members: Doc[]) => void,
+  onError?: (e: LiveError) => void
+): () => void {
+  const d = db();
+  if (!d) {
+    onData([]);
+    return () => {};
+  }
+  return watch(query(collection(d, 'loyalty')), onData, onError);
+}
+
 export function watchPromos(
   onData: (promos: Doc[]) => void,
   onError?: (e: LiveError) => void

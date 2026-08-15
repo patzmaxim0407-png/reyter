@@ -1437,3 +1437,12 @@
   color: var(--c-blue-ink, #062B5C);
   font-variant-numeric: tabular-nums;
 }
+
+/* Картка, поки база не відповіла. Не «скелет» із мерехтінням, а
+   просто тихе місце потрібного розміру: воно живе частку секунди,
+   і рух у ньому помітніший за саме очікування. */
+.loy-card--wait {
+  background: rgba(6, 43, 92, 0.06);
+  color: transparent;
+  min-height: 92px;
+}
