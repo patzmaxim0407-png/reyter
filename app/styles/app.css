@@ -1418,3 +1418,22 @@
 }
 
 .loy-term__body p:last-child { margin-bottom: 0; }
+
+/* Драбина рівнів усередині умов — стовпчиком. У підбір чотири
+   пороги з відсотками зливаються в одну стрічку, і знайти в ній
+   свій рівень не виходить. */
+.loy-term__list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.loy-term__list li {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(1, 74, 173, 0.05);
+  color: var(--c-blue-ink, #062B5C);
+  font-variant-numeric: tabular-nums;
+}

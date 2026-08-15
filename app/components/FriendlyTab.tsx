@@ -195,6 +195,16 @@ function Terms({ lang }: { lang: Lang }) {
             {term.body.map((line) => (
               <p key={line}>{line}</p>
             ))}
+            {term.list ? (
+              <ul className="loy-term__list">
+                {term.list.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            ) : null}
+            {(term.after || []).map((line) => (
+              <p key={line}>{line}</p>
+            ))}
           </div>
         </details>
       ))}

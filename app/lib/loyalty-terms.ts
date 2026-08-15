@@ -22,18 +22,25 @@ export interface Term {
   title: string;
   /** Абзаци. Порожній рядок не потрібен — розділяє сам список. */
   body: string[];
+  /** Перелік у стовпчик — там, де рядок у підбір читається гірше.
+   *  Драбина рівнів саме така: чотири пороги з відсотками в одну
+   *  стрічку зливаються, і знайти в ній свій рівень не виходить. */
+  list?: string[];
+  /** Що йде після переліку. */
+  after?: string[];
 }
 
 const uk = (n: number) => n.toLocaleString('uk');
 const en = (n: number) => n.toLocaleString('en');
 
-function ladder(lang: Lang): string {
+function ladder(lang: Lang): string[] {
   const f = lang === 'en' ? en : uk;
-  return LEVELS.map((l) =>
-    `${lang === 'en' ? 'Level' : 'Рівень'} ${l.level}: ${f(l.from)}${
-      l.to === null ? '+' : '–' + f(l.to)
-    } — ${l.percent}%`
-  ).join('; ');
+  return LEVELS.map(
+    (l) =>
+      `${lang === 'en' ? 'Level' : 'Рівень'} ${l.level}: ${f(l.from)}${
+        l.to === null ? '+' : '–' + f(l.to)
+      } — ${l.percent}%${l.friendly ? (lang === 'en' ? ' · Friendly Club' : ' · Friendly Club') : ''}`
+  );
 }
 
 function day(lang: Lang): string {
@@ -59,9 +66,9 @@ function ukrainian(): Term[] {
     },
     {
       title: 'Рівні та знижка',
-      body: [
-        'Чим більше балів — тим вищий рівень, а рівень дає постійну знижку на все.',
-        ladder('uk') + '.',
+      body: ['Чим більше балів — тим вищий рівень, а рівень дає постійну знижку на все.'],
+      list: ladder('uk'),
+      after: [
         'Рівень підвищується сам, щойно набралось потрібно балів. Перестрибнути через рівень можна: одне велике замовлення може підняти одразу на два.'
       ]
     },
@@ -129,9 +136,9 @@ function english(): Term[] {
     },
     {
       title: 'Levels and discount',
-      body: [
-        'More points mean a higher level, and a level gives a permanent discount on everything.',
-        ladder('en') + '.',
+      body: ['More points mean a higher level, and a level gives a permanent discount on everything.'],
+      list: ladder('en'),
+      after: [
         'The level rises on its own as soon as you have enough points. Skipping a level is possible: one large order can lift you two at once.'
       ]
     },
