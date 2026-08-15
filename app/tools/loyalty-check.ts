@@ -31,7 +31,13 @@ import {
   type Member
 } from '../lib/loyalty.ts';
 import { paidForGoods, planStatusChange, type AdminOrder } from '../lib/admin/orders.ts';
-import { planHistory } from '../lib/admin/loyalty-db.ts';
+import {
+  findMembers,
+  pastOrdersOf,
+  planHistory,
+  planHistoryDone,
+  statsOf
+} from '../lib/admin/loyalty-db.ts';
 import { readFileSync } from 'node:fs';
 
 let failed = 0;
@@ -314,6 +320,55 @@ console.log('\nСТАТУС ЗАМОВЛЕННЯ');
   m = refund(m, 1400);
   m = credit(m, 1400, '2026-08-20');
   ok('виконано → відкат → виконано дає рівно одне нарахування', m.points === 1400, String(m.points));
+}
+
+/* ---------- Екран в адмінці ---------- */
+console.log('\nАДМІНКА');
+{
+  const m = { ...NEW_MEMBER, who: 'petro@ukr.net', number: 'FC-1', instagram: '',
+              friendlyAt: '', joinedAt: '2026-08-20', historyPending: true } as never;
+  const orders = [
+    { email: 'petro@ukr.net', status: 'done', num: 'R-1', date: '2026-08-10T10:00:00Z', subtotal: 2000, discount: 200 },
+    { email: 'PETRO@ukr.net', status: 'done', num: 'R-2', date: '2026-08-12T10:00:00Z', subtotal: 1000, discount: 0 },
+    { email: 'petro@ukr.net', status: 'cancelled', num: 'R-3', date: '2026-08-13T10:00:00Z', subtotal: 5000, discount: 0 },
+    { email: 'petro@ukr.net', status: 'shipped', num: 'R-4', date: '2026-08-14T10:00:00Z', subtotal: 5000, discount: 0 },
+    { email: 'petro@ukr.net', status: 'done', num: 'R-5', date: '2026-08-01T10:00:00Z', subtotal: 9000, discount: 0 },
+    { email: 'inshyi@ukr.net', status: 'done', num: 'R-6', date: '2026-08-12T10:00:00Z', subtotal: 7000, discount: 0 }
+  ];
+  const past = pastOrdersOf('petro@ukr.net', orders);
+  ok('чужі замовлення не рахуються', past.every((o) => o.num !== 'R-6'));
+  ok('регістр пошти не розділяє людину надвоє', past.some((o) => o.num === 'R-2'));
+  ok('лише виконані', !past.some((o) => o.num === 'R-3' || o.num === 'R-4'));
+  ok('доставка не рахується, знижка віднімається', past[0].paid === 1800, String(past[0].paid));
+
+  const plan = planHistoryDone(m, orders, 'me@reyter.men');
+  ok('зараховано тільки те, що після межі', plan.member.points === 2800, String(plan.member.points));
+  ok('прапорець знято', plan.member.historyPending === false);
+
+  /* Учасник без жодного виконаного замовлення інакше лишався б у
+     черзі назавжди й щоразу муляв би менеджерові очі. */
+  const empty = planHistoryDone(m, [], 'me@reyter.men');
+  ok('порожня історія теж знімає прапорець', empty.member.historyPending === false);
+  ok('і лишає слід у журналі', (empty.move.note || '').length > 0, empty.move.note || '');
+  ok('балів при цьому не додає', empty.member.points === 0);
+}
+{
+  const mk = (points: number, insta: string, pending = false) => ({
+    ...NEW_MEMBER, points, level: levelOf(points), who: points + '@x.c', number: 'FC',
+    instagram: insta, friendlyAt: '', joinedAt: '', historyPending: pending
+  }) as never;
+  const list = [mk(100, ''), mk(7000, ''), mk(25000, 'petro'), mk(25000, ''), mk(50000, 'ivan', true)];
+  const st = statsOf(list, [{ loyaltyOff: 120 }, { loyaltyOff: 80 }, {}]);
+  ok('учасників порахвано', st.members === 5);
+  ok('за рівнями', st.byLevel.join('/') === '1/1/2/1', st.byLevel.join('/'));
+  ok('рівень дозволив клуб трьом', st.friendlyReady === 3, String(st.friendlyReady));
+  ok('але в клубі лише ті, хто вписав Instagram', st.inClub === 2, String(st.inClub));
+  ok('черга на історію видна', st.pending === 1);
+  ok('віддано знижок', st.given === 200, String(st.given));
+
+  ok('пошук за поштою', findMembers(list, '7000@').length === 1);
+  ok('пошук за Instagram із собачкою', findMembers(list, '@petro').length === 1);
+  ok('порожній запит нічого не ховає', findMembers(list, '  ').length === 5);
 }
 
 /* ---------- Кошик і воркер мусять збігтися ----------

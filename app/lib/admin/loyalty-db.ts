@@ -42,6 +42,7 @@ import {
 } from 'firebase/firestore';
 
 import {
+  DEFAULT_RULES,
   HISTORY_FROM,
   NEW_MEMBER,
   credit,
@@ -51,6 +52,7 @@ import {
   levelOf,
   memberNumber,
   refund,
+  type DiscountRules,
   type LevelNo,
   type Member
 } from '../loyalty';
@@ -298,6 +300,158 @@ export function planHistory(m: MemberDoc, past: PastOrder[], by: string): MovePl
       by
     }
   };
+}
+
+/* ============================================================
+   ЕКРАН ПРОГРАМИ В АДМІНЦІ
+   ============================================================ */
+
+/** Скільки сплачено за товари в одному замовленні: без доставки
+ *  й після знижок. Та сама формула, що й при нарахуванні на
+ *  «Виконано», — інакше зарахована історія розійшлася б із тим,
+ *  що людина отримала б, замовляючи вже в програмі. */
+export function paidGoods(o: { subtotal?: number; discount?: number }): number {
+  const goods = Math.max(0, Math.round(Number(o.subtotal) || 0));
+  const off = Math.max(0, Math.round(Number(o.discount) || 0));
+  return Math.max(0, goods - off);
+}
+
+export interface HistorySource {
+  email?: string;
+  status?: string;
+  num?: string;
+  date?: string;
+  subtotal?: number;
+  discount?: number;
+  customer?: { email?: string } | null;
+}
+
+/** Минулі замовлення учасника — ті, що справді дають бали.
+ *
+ *  Лише ВИКОНАНІ: скасоване чи відправлене замовлення балів не
+ *  давало б і сьогодні, тож зараховувати його заднім числом
+ *  було б подарунком, якого програма не обіцяла. */
+export function pastOrdersOf(who: string, all: HistorySource[]): PastOrder[] {
+  const key = keyOf(who);
+  return all
+    .filter((o) => keyOf(o.email || o.customer?.email || '') === key)
+    .filter((o) => String(o.status || '') === 'done')
+    .map((o) => ({
+      num: String(o.num || ''),
+      paid: paidGoods(o),
+      at: String(o.date || '').slice(0, 10)
+    }))
+    .filter((o) => o.paid > 0);
+}
+
+/** Порахувати історію й прибрати прапорець.
+ *
+ *  Прапорець знімається ЗАВЖДИ, навіть коли зараховувати нічого:
+ *  учасник без жодного виконаного замовлення інакше лишався б у
+ *  черзі назавжди й щоразу потрапляв би менеджерові на очі. */
+export function planHistoryDone(
+  m: MemberDoc,
+  all: HistorySource[],
+  by: string
+): MovePlan {
+  const past = pastOrdersOf(m.who, all);
+  const plan = planHistory(m, past, by);
+  if (plan) return { ...plan, member: { ...plan.member, historyPending: false } };
+  return {
+    member: { ...m, historyPending: false },
+    move: {
+      who: m.who,
+      kind: 'history',
+      points: 0,
+      after: m.points,
+      level: m.level,
+      note: 'минулих замовлень не знайшлось',
+      by
+    }
+  };
+}
+
+export interface Stats {
+  members: number;
+  /** Скільки на кожному рівні: [1, 2, 3, 4]. */
+  byLevel: [number, number, number, number];
+  /** Рівень дозволив клуб. */
+  friendlyReady: number;
+  /** І логін вписано — тобто справді в клубі. */
+  inClub: number;
+  pending: number;
+  points: number;
+  /** Скільки знижки віддано за рівнями — з самих замовлень. */
+  given: number;
+}
+
+export function statsOf(list: MemberDoc[], orders: { loyaltyOff?: number }[] = []): Stats {
+  const byLevel: [number, number, number, number] = [0, 0, 0, 0];
+  let friendlyReady = 0;
+  let club = 0;
+  let pending = 0;
+  let points = 0;
+
+  for (const m of list) {
+    const lvl = Math.max(1, Math.min(4, m.level)) as LevelNo;
+    byLevel[lvl - 1] += 1;
+    points += Math.max(0, m.points);
+    if (isFriendly(lvl)) friendlyReady += 1;
+    if (inClub(m)) club += 1;
+    if (m.historyPending) pending += 1;
+  }
+
+  return {
+    members: list.length,
+    byLevel,
+    friendlyReady,
+    inClub: club,
+    pending,
+    points,
+    given: orders.reduce((n, o) => n + Math.max(0, Math.round(Number(o.loyaltyOff) || 0)), 0)
+  };
+}
+
+/** Пошук по переліку: пошта, номер, Instagram. Без урахування
+ *  регістру й собачки — менеджер шукає так, як почув у Direct. */
+export function findMembers(list: MemberDoc[], query: string): MemberDoc[] {
+  const q = String(query || '').trim().toLowerCase().replace(/^@+/, '');
+  if (!q) return list;
+  return list.filter(
+    (m) =>
+      m.who.includes(q) ||
+      String(m.number || '').toLowerCase().includes(q) ||
+      String(m.instagram || '').toLowerCase().includes(q)
+  );
+}
+
+export async function loadMembers(db: Firestore): Promise<MemberDoc[]> {
+  const snap = await getDocs(collection(db, MEMBERS_COL));
+  const now = new Date();
+  return snap.docs.map((d) => fresh(d.data() as MemberDoc, now));
+}
+
+/** Налаштування знижки. Лежать у settings/public поруч із
+ *  адресою воркера — саме тому, що їх мусить читати не лише
+ *  адмінка, а й сайт, і сам воркер при виставленні рахунку. */
+export async function loadRules(db: Firestore): Promise<DiscountRules> {
+  const snap = await getDoc(doc(db, 'settings', 'public'));
+  const box = (snap.exists() ? snap.data() : {}) as { loyalty?: Partial<DiscountRules> };
+  return { ...DEFAULT_RULES, ...(box.loyalty || {}) };
+}
+
+export async function saveRules(db: Firestore, rules: DiscountRules): Promise<void> {
+  await setDoc(
+    doc(db, 'settings', 'public'),
+    {
+      loyalty: {
+        cap: Math.max(0, Math.min(100, Math.round(rules.cap) || 0)),
+        skipSale: !!rules.skipSale,
+        skipCats: (rules.skipCats || []).map(String).slice(0, 50)
+      }
+    },
+    { merge: true }
+  );
 }
 
 function iso(d: Date): string {
