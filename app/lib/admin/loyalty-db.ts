@@ -45,6 +45,8 @@ import {
 import {
   DEFAULT_RULES,
   HISTORY_FROM,
+  ladderRows,
+  makeLevels,
   NEW_MEMBER,
   credit,
   expire,
@@ -542,13 +544,20 @@ export async function loadRules(db: Firestore): Promise<DiscountRules> {
 }
 
 export async function saveRules(db: Firestore, rules: DiscountRules): Promise<void> {
+  /* Драбину зберігаємо вже переміряною: makeLevels відкидає
+     пороги, що не зростають, і відсотки поза межами. Записати
+     сюди зламану драбину означало б зламати ціни в кошику, у
+     правилах бази й у рахунку банку одночасно. */
+  const levels = ladderRows(makeLevels(rules.levels));
+
   await setDoc(
     doc(db, 'settings', 'public'),
     {
       loyalty: {
         cap: Math.max(0, Math.min(100, Math.round(rules.cap) || 0)),
         skipSale: !!rules.skipSale,
-        skipCats: (rules.skipCats || []).map(String).slice(0, 50)
+        skipCats: (rules.skipCats || []).map(String).slice(0, 50),
+        levels
       }
     },
     { merge: true }

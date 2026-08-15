@@ -714,17 +714,30 @@ function emailFromToken(idToken) {
   }
 }
 
-/* Драбина рівнів. Продубльована з app/lib/loyalty.ts і з правил
-   бази — воркер не може покликати наш код. При зміні ставок
-   правити треба всі три місця. */
+/* Драбина рівнів. Справжню задає магазин в адмінці, і лежить вона
+   в settings/public — там же, звідки її беруть сайт і правила
+   бази. Одне джерело на трьох: інакше кошик показував би одну
+   знижку, а банк просив іншу суму.
+
+   Ці числа — запасний варіант на випадок, коли запису немає або
+   він зіпсутий. Нуль тут був би гіршим за будь-яку драбину: він
+   тихо забрав би знижку в усіх учасників одразу. */
 const LOYALTY = [0, 0, 4, 8, 15];
 
-async function loyaltyPercent(idToken) {
+function percentFrom(rules, level) {
+  const rows = Array.isArray(rules && rules.levels) ? rules.levels : [];
+  if (rows.length === 4 && level >= 1 && level <= 4) {
+    const p = Number(rows[level - 1] && rows[level - 1].percent);
+    if (Number.isFinite(p) && p >= 0 && p <= 90) return Math.round(p);
+  }
+  return LOYALTY[level] || 0;
+}
+
+async function loyaltyLevel(idToken) {
   const mail = emailFromToken(idToken);
   if (!mail) return 0;
   const m = await fbGet('loyalty/' + encodeURIComponent(mail), idToken);
-  const level = Math.max(0, Math.min(4, Math.round(Number(m && m.level) || 0)));
-  return LOYALTY[level] || 0;
+  return Math.max(0, Math.min(4, Math.round(Number(m && m.level) || 0)));
 }
 
 /** Каталог, який ЗАРАЗ бачить покупець: запланована публікація
@@ -812,10 +825,11 @@ async function priceOrder(d, idToken) {
      рахують однаково. */
   let loyalty = 0;
   if (d.loyalty !== false && idToken) {
-    const percent = await loyaltyPercent(idToken);
+    const level = await loyaltyLevel(idToken);
+    const box = (await fbGet('settings/public')) || {};
+    const rules = (box.loyalty && typeof box.loyalty === 'object') ? box.loyalty : {};
+    const percent = percentFrom(rules, level);
     if (percent > 0) {
-      const box = (await fbGet('settings/public')) || {};
-      const rules = (box.loyalty && typeof box.loyalty === 'object') ? box.loyalty : {};
       const skipSale = rules.skipSale === true;
       const skipCats = Array.isArray(rules.skipCats) ? rules.skipCats.map(String) : [];
       const cap = Math.max(0, Math.round(Number(rules.cap) || 0));

@@ -10,7 +10,16 @@ import { useToast } from '../Toasts';
 import { db } from '@/lib/firebase';
 import { watchDraft, EMPTY_DRAFT, type Draft } from '@/lib/admin/store';
 import { watchMembers, watchOrders, type Doc } from '@/lib/admin/live';
-import { DEFAULT_RULES, LEVELS, deadlineOf, isFriendly, type DiscountRules } from '@/lib/loyalty';
+import {
+  DEFAULT_RULES,
+  LEVELS,
+  deadlineOf,
+  isFriendly,
+  ladderRows,
+  levelsOf,
+  type DiscountRules,
+  type LadderRow
+} from '@/lib/loyalty';
 import {
   findMembers,
   inClub,
@@ -446,8 +455,71 @@ function Rules({
     });
   };
 
+  const levels = levelsOf(rules);
+
+  const setRow = (i: number, patch: Partial<LadderRow>) => {
+    const rows = ladderRows(levels).map((r, k) => (k === i ? { ...r, ...patch } : r));
+    onSave({ ...rules, levels: rows });
+  };
+
   return (
     <div className="loy-rules">
+      {/* ---------- Драбина ---------- */}
+      <div className="field">
+        <span className="field__label">Рівні: скільки балів і скільки відсотків</span>
+        <div className="loy-ladder">
+          {levels.map((l, i) => (
+            <div className="loy-ladder__row" key={l.level}>
+              <span className="loy-ladder__no">Рівень {l.level}</span>
+              <label>
+                <span>від, балів</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={100}
+                  value={l.from}
+                  /* Перший рівень починається з нуля завжди: у
+                     програмі не буває людини, яка ще не в ній. */
+                  disabled={i === 0}
+                  onChange={(e) => setRow(i, { from: Math.max(0, Number(e.target.value) || 0) })}
+                />
+              </label>
+              <label>
+                <span>знижка, %</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={90}
+                  value={l.percent}
+                  onChange={(e) =>
+                    setRow(i, { percent: Math.max(0, Math.min(90, Number(e.target.value) || 0)) })
+                  }
+                />
+              </label>
+              <label className="a-check loy-ladder__club">
+                <input
+                  type="checkbox"
+                  checked={l.friendly}
+                  onChange={(e) => setRow(i, { friendly: e.target.checked })}
+                />{' '}
+                Friendly Club
+              </label>
+            </div>
+          ))}
+        </div>
+        <p className="field__hint">
+          Пороги мусять зростати: рівень, у який не можна ввійти, програма не прийме — лишиться
+          попередня драбина. Верхня межа кожного рівня рахується з наступного порога, тож дірок
+          між рівнями не буває.
+        </p>
+        <p className="field__hint">
+          <b>Змінюйте ставки, коли в магазині тихо.</b> Кошик, правила бази й банк читають ці
+          числа окремо. Покупець, який набрав кошик до зміни й оформлює після неї, отримає
+          відмову — його знижка вже не збігатиметься з новою драбиною. Уночі такого покупця
+          просто немає.
+        </p>
+      </div>
+
       <div className="field">
         <label htmlFor="loyCap">Стеля сумарної знижки, %</label>
         <input

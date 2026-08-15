@@ -12,6 +12,7 @@ import {
   DEFAULT_RULES,
   LEVELS,
   NEW_MEMBER,
+  makeLevels,
   credit,
   deadlineOf,
   discountFor,
@@ -371,6 +372,51 @@ console.log('\nАДМІНКА');
   ok('порожній запит нічого не ховає', findMembers(list, '  ').length === 5);
 }
 
+/* ---------- Драбину задає магазин ---------- */
+console.log('\nДРАБИНА З НАЛАШТУВАНЬ');
+{
+  const mine = [
+    { from: 0, percent: 0, friendly: false },
+    { from: 3000, percent: 5, friendly: false },
+    { from: 10000, percent: 10, friendly: true },
+    { from: 25000, percent: 20, friendly: true }
+  ];
+  const L = makeLevels(mine);
+  ok('пороги свої', L.map((l) => l.from).join('/') === '0/3000/10000/25000', L.map((l) => l.from).join('/'));
+  ok('верхні межі порахувались самі', L.map((l) => l.to).join('/') === '2999/9999/24999/', L.map((l) => l.to).join('/'));
+  ok('рівень за новими порогами', levelOf(3000, L) === 2 && levelOf(2999, L) === 1);
+  ok('відсоток за новою драбиною', percentOf(4, L) === 20, String(percentOf(4, L)));
+  ok('клуб там, де поставили', isFriendly(2, L) === false && isFriendly(3, L) === true);
+
+  const m = credit({ points: 0, level: 1, cycleStart: null }, 3000, '2026-08-15', L);
+  ok('нарахування знає нову драбину', m.level === 2, String(m.level));
+
+  /* Зламану драбину не беремо взагалі: рівень, у який не можна
+     ввійти, зупинив би підйом назавжди. */
+  const broken = makeLevels([
+    { from: 0, percent: 0, friendly: false },
+    { from: 9000, percent: 5, friendly: false },
+    { from: 5000, percent: 10, friendly: true },
+    { from: 25000, percent: 20, friendly: true }
+  ]);
+  ok('пороги, що не зростають, відкидаються', broken[1].from === 6000, String(broken[1].from));
+
+  const short = makeLevels([{ from: 0, percent: 0, friendly: false }] as never);
+  ok('неповна драбина відкидається', short.length === 4);
+  ok('порожня теж', makeLevels(null).length === 4);
+  ok('відсоток понад межу зрізається',
+     makeLevels([
+       { from: 0, percent: 0, friendly: false },
+       { from: 100, percent: 999, friendly: false },
+       { from: 200, percent: 8, friendly: true },
+       { from: 300, percent: 15, friendly: true }
+     ])[1].percent === 90);
+
+  /* Знижка бере драбину з тих самих налаштувань, що й стеля. */
+  const d = discountFor(4, [{ sum: 1000, category: 'x' }], 0, { ...DEFAULT_RULES, levels: mine });
+  ok('знижка рахується за драбиною магазину', d.loyalty === 200, String(d.loyalty));
+}
+
 /* ---------- Кошик і воркер мусять збігтися ----------
    Найдорожча розбіжність з усіх: покупець бачить у кошику одну
    суму, а банк просить іншу. Тому драбину у воркері звіряємо
@@ -381,8 +427,9 @@ console.log('\nВОРКЕР');
   const m = src.match(/const LOYALTY = \[([^\]]+)\]/);
   const inWorker = (m ? m[1] : '').split(',').map((x) => Number(x.trim()));
   const ours = [0, ...LEVELS.map((l) => l.percent)];
-  ok('ставки у воркері ті самі', JSON.stringify(inWorker) === JSON.stringify(ours),
+  ok('запасні ставки у воркері ті самі', JSON.stringify(inWorker) === JSON.stringify(ours),
      JSON.stringify(inWorker) + ' проти ' + JSON.stringify(ours));
+  ok('воркер бере драбину з налаштувань', /function percentFrom/.test(src) && /rules\.levels/.test(src));
   ok('воркер читає рівень токеном покупця', /Authorization: 'Bearer ' \+ idToken/.test(src));
   ok('пошта береться з токена, а не з полів запиту', /function emailFromToken/.test(src));
   ok('стеля зрізає саме лояльність', /ceiling - off/.test(src));

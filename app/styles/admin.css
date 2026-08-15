@@ -6123,3 +6123,30 @@ label.a-promo-product i {
   outline: none;
   border-color: var(--c-blue);
 }
+
+/* Драбина рівнів у налаштуваннях. Рядок на рівень: поріг,
+   відсоток і чи відчиняє клуб — усе, що задає магазин. */
+.loy-ladder { display: grid; gap: 8px; }
+
+.loy-ladder__row {
+  display: grid;
+  grid-template-columns: 90px 1fr 1fr auto;
+  align-items: end;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(6, 43, 92, 0.04);
+}
+
+.loy-ladder__no { font-weight: 700; font-size: 0.85rem; padding-bottom: 0.5rem; }
+
+.loy-ladder__row label { display: grid; gap: 4px; }
+.loy-ladder__row label span { font-size: 0.72rem; color: #6e6a5e; }
+.loy-ladder__row input[type='number'] { width: 100%; }
+.loy-ladder__club { align-self: center; padding-top: 0.9rem; }
+
+@media (max-width: 700px) {
+  .loy-ladder__row { grid-template-columns: 1fr 1fr; }
+  .loy-ladder__no { grid-column: 1 / -1; padding-bottom: 0; }
+  .loy-ladder__club { grid-column: 1 / -1; padding-top: 0; }
+}

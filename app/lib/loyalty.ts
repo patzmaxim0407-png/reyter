@@ -31,12 +31,61 @@ export interface Level {
   friendly: boolean;
 }
 
+/** Драбина за замовчуванням. Її можна змінити в адмінці — тоді
+ *  справжня лежить у settings/public і приходить сюди аргументом.
+ *
+ *  Числа в коді лишаються запасним варіантом, і це навмисно: якщо
+ *  запис у базі зіпсується чи не прочитається, програма має
+ *  працювати за розумною драбиною, а не за порожньою. Порожня
+ *  означала б нуль відсотків усім і перший рівень усім — тобто
+ *  тиху втрату знижок, яку помітять не одразу. */
 export const LEVELS: Level[] = [
   { level: 1, from: 0, to: 5999, percent: 0, friendly: false },
   { level: 2, from: 6000, to: 19999, percent: 4, friendly: false },
   { level: 3, from: 20000, to: 39999, percent: 8, friendly: true },
   { level: 4, from: 40000, to: null, percent: 15, friendly: true }
 ];
+
+/** Чотири пороги й чотири відсотки — усе, що задає адмінка.
+ *  Верхня межа кожного рівня рахується з наступного порога, тож
+ *  дірок і накладок між рівнями не буває за побудовою. */
+export interface LadderRow {
+  from: number;
+  percent: number;
+  friendly: boolean;
+}
+
+/** Зібрати повну драбину з того, що задав магазин. Що б туди не
+ *  потрапило, на виході завжди чотири рівні, пороги зростають, а
+ *  відсотки в межах здорового глузду: цією драбиною рахують
+ *  гроші, і «майже правильна» тут гірша за стандартну. */
+export function makeLevels(rows?: LadderRow[] | null): Level[] {
+  if (!Array.isArray(rows) || rows.length !== LEVELS.length) return LEVELS;
+
+  let last = -1;
+  const out: Level[] = [];
+  for (let i = 0; i < LEVELS.length; i++) {
+    const row = rows[i] || ({} as LadderRow);
+    const from = i === 0 ? 0 : Math.round(Number(row.from) || 0);
+    // пороги мусять зростати: рівень, у який не можна ввійти, — це поломка
+    if (from <= last && i > 0) return LEVELS;
+    last = from;
+    out.push({
+      level: (i + 1) as LevelNo,
+      from,
+      to: null,
+      percent: Math.max(0, Math.min(90, Math.round(Number(row.percent) || 0))),
+      friendly: row.friendly === true
+    });
+  }
+  // верхня межа — на бал менша за наступний поріг
+  for (let i = 0; i < out.length - 1; i++) out[i].to = out[i + 1].from - 1;
+  return out;
+}
+
+export function ladderRows(levels: Level[] = LEVELS): LadderRow[] {
+  return levels.map((l) => ({ from: l.from, percent: l.percent, friendly: l.friendly }));
+}
 
 export type LevelNo = 1 | 2 | 3 | 4;
 
@@ -56,34 +105,34 @@ export const YEAR = 1;
  *  правилом не може. */
 export const HISTORY_FROM = '2026-08-09';
 
-export function levelInfo(level: LevelNo): Level {
-  return LEVELS[level - 1];
+export function levelInfo(level: LevelNo, levels: Level[] = LEVELS): Level {
+  return levels[level - 1] ?? LEVELS[level - 1];
 }
 
 /** Рівень за кількістю балів. */
-export function levelOf(points: number): LevelNo {
+export function levelOf(points: number, levels: Level[] = LEVELS): LevelNo {
   const n = Math.max(0, Math.floor(points) || 0);
-  for (let i = LEVELS.length - 1; i >= 0; i--) if (n >= LEVELS[i].from) return LEVELS[i].level;
+  for (let i = levels.length - 1; i >= 0; i--) if (n >= levels[i].from) return levels[i].level;
   return 1;
 }
 
 /** Підлога рівня — те, до чого скидаються бали, коли рік минув. */
-export function floorOf(level: LevelNo): number {
-  return levelInfo(level).from;
+export function floorOf(level: LevelNo, levels: Level[] = LEVELS): number {
+  return levelInfo(level, levels).from;
 }
 
 /** Скільки балів відкриває наступний рівень; null — вище немає. */
-export function nextAt(level: LevelNo): number | null {
-  const next = LEVELS[level];
+export function nextAt(level: LevelNo, levels: Level[] = LEVELS): number | null {
+  const next = levels[level];
   return next ? next.from : null;
 }
 
-export function percentOf(level: LevelNo): number {
-  return levelInfo(level).percent;
+export function percentOf(level: LevelNo, levels: Level[] = LEVELS): number {
+  return levelInfo(level, levels).percent;
 }
 
-export function isFriendly(level: LevelNo): boolean {
-  return levelInfo(level).friendly;
+export function isFriendly(level: LevelNo, levels: Level[] = LEVELS): boolean {
+  return levelInfo(level, levels).friendly;
 }
 
 /* ============================================================
@@ -103,9 +152,9 @@ export const NEW_MEMBER: Member = { points: 0, level: 1, cycleStart: null };
 
 /** Останній день, коли ще можна набрати на наступний рівень.
  *  null — годинник не запущено або рівень верхній. */
-export function deadlineOf(m: Member): string | null {
+export function deadlineOf(m: Member, levels: Level[] = LEVELS): string | null {
   if (!m.cycleStart) return null;
-  if (nextAt(m.level) === null) return null;
+  if (nextAt(m.level, levels) === null) return null;
   const d = new Date(m.cycleStart);
   if (Number.isNaN(d.getTime())) return null;
   d.setFullYear(d.getFullYear() + YEAR);
@@ -113,8 +162,8 @@ export function deadlineOf(m: Member): string | null {
 }
 
 /** Скільки балів бракує до наступного рівня; 0 — рівень верхній. */
-export function needMore(m: Member): number {
-  const at = nextAt(m.level);
+export function needMore(m: Member, levels: Level[] = LEVELS): number {
+  const at = nextAt(m.level, levels);
   return at === null ? 0 : Math.max(0, at - m.points);
 }
 
@@ -132,9 +181,9 @@ export interface Progress {
   friendly: boolean;
 }
 
-export function progressOf(m: Member): Progress {
-  const info = levelInfo(m.level);
-  const at = nextAt(m.level);
+export function progressOf(m: Member, levels: Level[] = LEVELS): Progress {
+  const info = levelInfo(m.level, levels);
+  const at = nextAt(m.level, levels);
   const span = at === null ? 0 : at - info.from;
   return {
     level: m.level,
@@ -142,9 +191,9 @@ export function progressOf(m: Member): Progress {
     points: m.points,
     from: info.from,
     to: at === null ? null : at,
-    need: needMore(m),
+    need: needMore(m, levels),
     ratio: span <= 0 ? 1 : Math.min(1, Math.max(0, (m.points - info.from) / span)),
-    deadline: deadlineOf(m),
+    deadline: deadlineOf(m, levels),
     friendly: info.friendly
   };
 }
@@ -163,7 +212,7 @@ export function progressOf(m: Member): Progress {
  *  рівень годинник зупиняє: новий рік почне вже наступне
  *  замовлення — так вимагає умова «рік від першого замовлення
  *  ПОТОЧНОГО рівня». */
-export function credit(m: Member, paid: number, at: string): Member {
+export function credit(m: Member, paid: number, at: string, levels: Level[] = LEVELS): Member {
   const add = Math.max(0, Math.floor(Number(paid) || 0));
   if (!add) return m;
 
@@ -172,7 +221,7 @@ export function credit(m: Member, paid: number, at: string): Member {
   let cycleStart: string | null = m.cycleStart ?? at;
 
   for (;;) {
-    const up = nextAt(level);
+    const up = nextAt(level, levels);
     if (up === null || points < up) break;
     level = (level + 1) as LevelNo;
     cycleStart = null;
@@ -186,12 +235,12 @@ export function credit(m: Member, paid: number, at: string): Member {
  *  Без падіння рівня лишалася б відкрита діра: купити на сорок
  *  тисяч, отримати п'ятнадцять відсотків назавжди й повернути все.
  *  Тому рівень тут перераховується чесно, за балами, які лишились. */
-export function refund(m: Member, amount: number): Member {
+export function refund(m: Member, amount: number, levels: Level[] = LEVELS): Member {
   const off = Math.max(0, Math.floor(Number(amount) || 0));
   if (!off) return m;
 
   const points = Math.max(0, m.points - off);
-  const level = levelOf(points);
+  const level = levelOf(points, levels);
   return {
     points,
     level,
@@ -206,16 +255,16 @@ export function refund(m: Member, amount: number): Member {
  *  Годинник після скидання зупиняється — новий рік почне
  *  наступне замовлення. Доти втрачати нічого, і підганяти
  *  людину порожнім лічильником ні до чого. */
-export function expire(m: Member, now: string): Member {
-  const due = deadlineOf(m);
+export function expire(m: Member, now: string, levels: Level[] = LEVELS): Member {
+  const due = deadlineOf(m, levels);
   if (!due) return m;
   if (now < due) return m;
 
-  const at = nextAt(m.level);
+  const at = nextAt(m.level, levels);
   // дотягнув — сюди взагалі не мало дійти, але мовчки псувати стан не можна
   if (at !== null && m.points >= at) return m;
 
-  return { points: floorOf(m.level), level: m.level, cycleStart: null };
+  return { points: floorOf(m.level, levels), level: m.level, cycleStart: null };
 }
 
 /* ============================================================
@@ -232,9 +281,16 @@ export interface DiscountRules {
   skipSale: boolean;
   /** Категорії, у яких не діє. */
   skipCats: string[];
+  /** Драбина рівнів. Порожньо — діє стандартна з коду. */
+  levels?: LadderRow[];
 }
 
 export const DEFAULT_RULES: DiscountRules = { cap: 30, skipSale: false, skipCats: [] };
+
+/** Драбина з налаштувань магазину, зведена до придатного вигляду. */
+export function levelsOf(rules?: DiscountRules | null): Level[] {
+  return makeLevels(rules?.levels);
+}
 
 export interface DiscountLine {
   /** Скільки коштує рядок разом: ціна × кількість. */
@@ -270,7 +326,8 @@ export function discountFor(
   on = true
 ): DiscountResult {
   const goods = lines.reduce((n, l) => n + (Number(l.sum) || 0), 0);
-  const percent = on ? percentOf(level) : 0;
+  // драбина береться з тих самих налаштувань, що й стеля з винятками
+  const percent = on ? percentOf(level, levelsOf(rules)) : 0;
 
   const fits = (l: DiscountLine) =>
     !(rules.skipSale && l.sale) && !rules.skipCats.includes(String(l.category || ''));
