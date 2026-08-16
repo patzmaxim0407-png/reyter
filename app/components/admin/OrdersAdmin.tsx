@@ -8,6 +8,7 @@ import OrdersQueue from './OrdersQueue';
 import TtnCreate from './TtnCreate';
 import ManualOrder from './ManualOrder';
 import { ArchiveBar, BulkBar } from './OrderFilters';
+import ClientsAdmin from './ClientsAdmin';
 import Insights from './Insights';
 import OrderRow from './OrderRow';
 import { useAdminUser } from './AdminGate';
@@ -57,6 +58,11 @@ import {
 import { parcelWeight } from '@/lib/customs';
 import { payLabel, payStatus, payTone, type PaySum, type PayStatus } from '@/lib/pay';
 import type { OrderStatus, Stock } from '@/lib/types';
+
+/** Екрани всередині вкладки «Замовлення». Окремим типом — щоб
+ *  додати новий і забути про нього в одному з чотирьох місць
+ *  стало неможливо. */
+type View = 'queue' | 'archive' | 'insights' | 'clients';
 
 /* ============================================================
    Замовлення
@@ -154,7 +160,7 @@ export default function OrdersAdmin() {
   /* Який екран показувати. Памʼять на пристрої, не в базі: у двох
      менеджерів можуть бути різні звички, а перемикач має
      вимикатись будь-якої миті без викладки. */
-  const [view, setScreen] = useState<'queue' | 'archive' | 'insights'>('queue');
+  const [view, setScreen] = useState<View>('queue');
   /** Яке замовлення розкрите в архіві. */
   const [openId, setOpen] = useState('');
   /** Для якого замовлення зараз створюємо накладну. */
@@ -192,12 +198,16 @@ export default function OrdersAdmin() {
   useEffect(() => {
     try {
       const v = localStorage.getItem('reyter:orders-view');
-      if (v === 'archive' || v === 'queue' || v === 'insights') setScreen(v);
+      /* Білий список, а не просто приведення типу: у сховищі
+         може лежати що завгодно — зокрема назва екрана, якого
+         вже немає. Забути дописати сюди новий екран означає, що
+         вибір записується, але не читається. */
+      if (v === 'archive' || v === 'queue' || v === 'insights' || v === 'clients') setScreen(v);
     } catch {
       /* приватне вікно — лишається типове */
     }
   }, []);
-  const pickView = (v: 'queue' | 'archive' | 'insights') => {
+  const pickView = (v: View) => {
     setScreen(v);
     try {
       localStorage.setItem('reyter:orders-view', v);
@@ -1210,6 +1220,15 @@ export default function OrdersAdmin() {
             >
               Аналітика
             </button>
+            {/* Клієнти — останніми: сюди заходять не щодня, а
+                тоді, коли думають, кому написати. */}
+            <button
+              type="button"
+              className={'ao-tab' + (view === 'clients' ? ' is-on' : '')}
+              onClick={() => pickView('clients')}
+            >
+              Клієнти
+            </button>
 
             {/* Статуси з Нової Пошти. Вимикач тут, а не в
                 налаштуваннях: це рішення міняють не раз на рік, а
@@ -1246,6 +1265,13 @@ export default function OrdersAdmin() {
 
           {view === 'insights' ? (
             <Insights orders={orders as never} c={c} />
+          ) : view === 'clients' ? (
+            <ClientsAdmin
+              orders={orders as never}
+              c={c}
+              workerUrl={String(settings.workerUrl || '')}
+              workerKey={workerKey}
+            />
           ) : view === 'queue' ? (
             <OrdersQueue
               orders={orders as never}

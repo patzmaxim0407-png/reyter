@@ -6854,3 +6854,331 @@ label.a-promo-product i {
 .ao-way__terms { margin: 4px 0 0; font-size: 12px; color: var(--c-muted); }
 .ao-way__terms b { color: var(--c-blue-ink); font-weight: 600; }
 .ao-way__terms b.is-us { color: var(--c-green); }
+
+
+/* ============================================================
+   КЛІЄНТИ
+   ------------------------------------------------------------
+   Список людей, а не таблиця даних. Тому кружечок з ініціалами,
+   колір стану лівою смужкою і чотири колонки замість десяти:
+   сума каже, чи людина варта листа; мовчання — чи вже час;
+   сегмент — що саме писати.
+   ============================================================ */
+
+.cl { display: grid; gap: 16px; }
+.cl-screens { margin-bottom: 0; }
+
+.cl-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 2.2fr) 160px 150px 150px 22px;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cl-row__who { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.cl-row__id { display: block; min-width: 0; }
+.cl-row__id b { display: block; line-height: 1.25; word-break: break-word; }
+.cl-row__id span,
+.cl-row__money span,
+.cl-row__when span {
+  display: block;
+  font-size: 12px;
+  color: #6e6a5e;
+  word-break: break-all;
+}
+
+.cl-row__money b,
+.cl-row__when b { font-variant-numeric: tabular-nums; }
+.cl-row__seg { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* Людина мовчить довше за власну звичку — це і є мить, коли лист
+   ще працює. Далі він уже наздоганяє. */
+.cl-row__when b.is-late { color: #b45309; }
+
+.cl-tag {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(6, 43, 92, 0.07);
+  color: #062B5C;
+}
+
+.cl-tag.is-lvl { background: rgba(1, 74, 173, 0.1); color: #014AAD; }
+
+/* Кольори станів. Один набір на весь розділ: ті самі відтінки і
+   в мітці, і в кнопці добору, і в лівій смужці рядка — інакше
+   «засинає» в трьох місцях виглядало б трьома різними речами. */
+.cl-tag.cl-vip,   .cl-seg.cl-vip.is-on   { background: rgba(124, 58, 237, 0.13); color: #7c3aed; }
+.cl-tag.cl-repeat,.cl-seg.cl-repeat.is-on{ background: rgba(21, 128, 61, 0.13);  color: #15803d; }
+.cl-tag.cl-new,   .cl-seg.cl-new.is-on   { background: rgba(1, 74, 173, 0.12);   color: #014AAD; }
+.cl-tag.cl-once,  .cl-seg.cl-once.is-on  { background: rgba(217, 119, 6, 0.14);  color: #b45309; }
+.cl-tag.cl-sleep, .cl-seg.cl-sleep.is-on { background: rgba(190, 24, 93, 0.12);  color: #be185d; }
+.cl-tag.cl-lost,  .cl-seg.cl-lost.is-on  { background: rgba(23, 27, 38, 0.1);    color: #5b6270; }
+.cl-tag.cl-member,.cl-seg.cl-member.is-on{ background: rgba(13, 148, 136, 0.13); color: #0f766e; }
+
+.aq-item.cl-vip    { border-left: 3px solid #7c3aed; }
+.aq-item.cl-repeat { border-left: 3px solid #15803d; }
+.aq-item.cl-new    { border-left: 3px solid #014AAD; }
+.aq-item.cl-once   { border-left: 3px solid #d97706; }
+.aq-item.cl-sleep  { border-left: 3px solid #be185d; }
+.aq-item.cl-lost   { border-left: 3px solid #cfcabc; }
+.aq-item.cl-member { border-left: 3px solid #0f766e; }
+
+/* Добір за станом. Кнопка з числом усередині: скільки там людей
+   видно ще до натискання. */
+.cl-segs { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.cl-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid var(--a-line, #e3e6ec);
+  border-radius: 999px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.cl-seg i {
+  font-style: normal;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.cl-seg:hover { border-color: var(--c-blue); }
+.cl-seg.is-on { border-color: transparent; font-weight: 600; }
+.cl-seg.is-on:not([class*=' cl-']) { background: var(--c-blue); color: #fff; }
+
+.cl-hint { margin: 0; font-size: 13px; color: #6e6a5e; }
+
+/* ---------- Картка клієнта ---------- */
+
+.cl-card { display: grid; gap: 14px; padding: 4px 2px 10px; }
+
+/* Порада — першим рядком і найбільшим кеглем у картці: заради
+   неї сюди й заходять. */
+.cl-todo {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(1, 74, 173, 0.06);
+  font-size: 14px;
+  color: #062B5C;
+}
+
+.cl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.cl-box {
+  padding: 12px 14px;
+  border: 1px solid rgba(6, 43, 92, 0.08);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.cl-box--wide { grid-column: 1 / -1; }
+
+.cl-box h5 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9a958a;
+}
+
+.cl-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.cl-facts dt { color: #6e6a5e; }
+.cl-facts dd { margin: 0; color: #171b26; word-break: break-word; }
+.cl-facts dd.is-warn { color: #b45309; }
+
+.cl-copy {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: #014AAD;
+  cursor: pointer;
+  text-align: left;
+  word-break: break-all;
+}
+
+.cl-copy:hover { text-decoration: underline; }
+.cl-copy.is-copied { color: #15803d; }
+
+/* Розмірна карта. «3 із 7» поруч із розміром чесніше за самий
+   розмір: видно, це правило чи один випадок. */
+.cl-fits { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+
+.cl-fits li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.cl-fits b {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(1, 74, 173, 0.1);
+  color: #014AAD;
+  font-size: 12px;
+}
+
+.cl-fits i, .cl-top i { font-style: normal; font-size: 11px; color: #9a958a; }
+
+.cl-top { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.cl-top li { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: baseline; }
+.cl-top b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.cl-orders { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+
+.cl-orders li {
+  display: grid;
+  grid-template-columns: 120px 110px 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border-left: 3px solid transparent;
+}
+
+.cl-orders li:nth-child(odd) { background: rgba(6, 43, 92, 0.025); }
+.cl-orders li.st-done { border-left-color: #15803d; }
+.cl-orders li.st-cancelled { border-left-color: #b91c1c; opacity: 0.65; }
+.cl-orders li.st-new, .cl-orders li.st-confirmed { border-left-color: #d97706; }
+.cl-orders li.st-shipped { border-left-color: #014AAD; }
+
+.cl-orders__num { font-variant-numeric: tabular-nums; color: #6e6a5e; }
+.cl-orders__day { color: #6e6a5e; }
+.cl-orders__what { color: #171b26; word-break: break-word; }
+.cl-orders__sum { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.cl-acts { display: flex; gap: 8px; }
+
+@media (max-width: 900px) {
+  .cl-row { grid-template-columns: 1fr 1fr; row-gap: 10px; }
+  .cl-row__who { grid-column: 1 / -1; }
+  .cl-row .aq-row__chev { display: none; }
+  .cl-orders li { grid-template-columns: 1fr auto; }
+  .cl-orders__what { grid-column: 1 / -1; }
+}
+
+/* ============================================================
+   РОЗСИЛКИ
+   ------------------------------------------------------------
+   Три кроки згори вниз, і на кожному видно число людей. Це
+   єдина дія в адмінці, якої не можна відкотити, тож масштаб має
+   бути перед очима до натискання, а не після.
+   ============================================================ */
+
+.mk { display: grid; gap: 16px; max-width: 780px; }
+
+.mk-step {
+  padding: 16px 18px;
+  border: 1px solid rgba(6, 43, 92, 0.08);
+  border-radius: 12px;
+  background: #fff;
+  display: grid;
+  gap: 12px;
+}
+
+.mk-step h4 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: 15px;
+  color: #062B5C;
+}
+
+.mk-step h4 i {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--c-blue);
+  color: #fff;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mk-count { margin: 0; font-size: 14px; color: #171b26; }
+.mk-count b { font-variant-numeric: tabular-nums; }
+.mk-count.is-bad { color: #b91c1c; }
+
+.mk-note { margin: 0; font-size: 12px; line-height: 1.55; color: #9a958a; }
+.mk-ok { font-size: 13px; font-weight: 600; color: #15803d; }
+
+.mk-one {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.mk-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.mk-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.mk-form .ao-field--wide { grid-column: 1 / -1; }
+
+.mk-form textarea {
+  font: inherit;
+  padding: 9px 11px;
+  border: 1px solid var(--a-line, #e3e6ec);
+  border-radius: 10px;
+  resize: vertical;
+}
+
+.mk-form .ao-field em {
+  font-style: normal;
+  font-size: 11px;
+  color: #9a958a;
+}
+
+.mk-sent { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+
+.mk-sent li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-top: 1px solid rgba(6, 43, 92, 0.06);
+}
+
+.mk-sent span { font-size: 12px; color: #6e6a5e; }
+.mk-sent i { font-style: normal; font-size: 12px; color: #9a958a; }

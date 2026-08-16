@@ -1301,6 +1301,211 @@ async function signedByMono(env, body, sign) {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/* ============================================================
+   МАРКЕТИНГОВІ РОЗСИЛКИ
+   ------------------------------------------------------------
+   Це ІНША система Resend, ніж листи про замовлення, і плутати
+   їх не можна. Транзакційні листи обмежені сотнею на добу й
+   трьома тисячами на місяць. Розсилки не рахуються в цю межу
+   зовсім: там обмежена не кількість листів, а кількість людей у
+   базі — тисяча на безкоштовному тарифі. Тобто написати тим
+   самим девʼятистам покупцям можна хоч щодня, і транзакційні
+   листи від цього не постраждають.
+
+   ПОНЯТТЯ. Контакт — людина, одна на всю команду за поштою.
+   Сегмент — внутрішній ярлик «кому я хочу написати»; покупець
+   його не бачить. Розсилка прикріплюється до сегмента.
+
+   Audiences, про які пише половина інтернету, ЗАСТАРІЛІ — Resend
+   сам радить Segments, і POST /broadcasts вже приймає лише
+   segment_id.
+
+   ЛИСТ ЗБИРАЄ ВОРКЕР. З адмінки приходять тема, кілька абзаців і
+   (за бажанням) кнопка з промокодом — а не готовий HTML. Причин
+   дві. Перша: лист гарантовано лишається схожим на REYTER.
+   Друга, важливіша: посилання на відписку Resend САМ не додає —
+   API мовчки прийме розсилку без нього. Тут воно є завжди, і
+   надіслати лист без відписки через цей воркер неможливо.
+   ============================================================ */
+
+const RESEND_API = 'https://api.resend.com';
+/* Скільки контактів вміщає безкоштовний тариф. Тисяча перша
+   створиться нормально — впаде вже надсилання, і впаде цілком:
+   не «перші тисяча дійшли», а жоден. Тому межу тримаємо в себе. */
+const CONTACTS_MAX = 1000;
+
+async function resendCall(env, path, init) {
+  try {
+    const res = await fetch(RESEND_API + path, {
+      ...init,
+      headers: {
+        Authorization: 'Bearer ' + env.RESEND_KEY,
+        'Content-Type': 'application/json',
+        ...(init && init.headers)
+      }
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+  } catch (e) {
+    return { ok: false, status: 0, data: { message: 'немає звʼязку з Resend' } };
+  }
+}
+
+/* Абзац листа. Розмітку з адмінки не пускаємо: усе, що прийшло,
+   екранується, а переносами рядків керуємо самі. */
+function mailParagraphs(text) {
+  return String(text == null ? '' : text)
+    .slice(0, 4000)
+    .split(/\n{2,}/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .map(
+      (x) =>
+        '<p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:#171b26">' +
+        esc(x).replace(/\n/g, '<br>') +
+        '</p>'
+    )
+    .join('');
+}
+
+/** Лист розсилки. Той самий вигляд, що й решта листів магазину:
+ *  синя шапка з логотипом, білий аркуш, темний підвал. */
+function broadcastHTML(d) {
+  const en = d.lang === 'en';
+  const site = 'https://reyter.men/' + (en ? '?lang=en' : '');
+  /* Імʼя підставляє сам Resend, і саме в ТРИ фігурні дужки: з
+     двома змінна поїде в лист текстом. Запасне слово обовʼязкове —
+     у покупця з кабінету імені може не бути зовсім, і без нього
+     вийшло б «Вітаємо, !». */
+  const hello = en ? 'Hi {{{contact.first_name|there}}}' : 'Вітаємо, {{{contact.first_name|друже}}}';
+  const bye = en ? 'Unsubscribe' : 'Відписатися від розсилки';
+  const why = en
+    ? 'You are receiving this because you shopped at REYTER or joined our loyalty programme.'
+    : 'Ви отримали цей лист, бо купували в REYTER або вступили в програму лояльності.';
+
+  return (
+    '<div style="margin:0;padding:24px 12px;background:#fcf8f0;font-family:Helvetica,Arial,sans-serif">' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" ' +
+        'style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden">' +
+
+        '<tr><td style="background:' + BLUE + ';padding:30px 24px;text-align:center">' +
+          '<img src="' + LOGO + '" alt="REYTER" width="190" ' +
+            'style="display:block;margin:0 auto;max-width:190px;height:auto">' +
+        '</td></tr>' +
+
+        (d.image
+          ? '<tr><td><img src="' + esc(clip(d.image, 400)) + '" alt="" width="600" ' +
+              'style="display:block;width:100%;max-width:600px;height:auto"></td></tr>'
+          : '') +
+
+        '<tr><td style="padding:30px 26px 6px">' +
+          (d.title
+            ? '<h1 style="margin:0 0 14px;font-size:22px;line-height:1.3;color:' + INK + '">' +
+                esc(clip(d.title, 120)) + '</h1>'
+            : '') +
+          '<p style="margin:0 0 14px;font-size:15px;color:#171b26">' + hello + '!</p>' +
+          mailParagraphs(d.text) +
+        '</td></tr>' +
+
+        (d.code
+          ? '<tr><td style="padding:6px 26px 0;text-align:center">' +
+              '<div style="display:inline-block;border:2px dashed ' + BLUE + ';border-radius:14px;' +
+                'padding:14px 26px;background:rgba(1,74,173,.05)">' +
+                '<div style="font-size:24px;font-weight:800;letter-spacing:.14em;color:' + BLUE + '">' +
+                  esc(clip(d.code, 30)) + '</div>' +
+                (d.codeNote
+                  ? '<div style="font-size:13px;color:#6e6a5e;margin-top:6px">' +
+                      esc(clip(d.codeNote, 120)) + '</div>'
+                  : '') +
+              '</div></td></tr>'
+          : '') +
+
+        '<tr><td style="padding:22px 26px 8px;text-align:center">' +
+          '<a href="' + esc(clip(d.url, 300) || site) + '" ' +
+            'style="display:inline-block;background:' + BLUE + ';color:#ffffff;text-decoration:none;' +
+            'font-size:15px;font-weight:700;padding:13px 30px;border-radius:999px">' +
+            esc(clip(d.button, 60) || (en ? 'Go to shop' : 'Перейти до магазину')) + '</a>' +
+        '</td></tr>' +
+
+        '<tr><td style="padding:26px 24px;background:' + INK + ';text-align:center">' +
+          '<p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#ffffff">' +
+            (en ? 'Character is REYTER!' : 'Характер — це REYTER!') + '</p>' +
+          '<p style="margin:0 0 12px;font-size:12px">' +
+            '<a href="' + site + '" style="color:#ffffff;text-decoration:none">reyter.men</a>' +
+            ' &nbsp;·&nbsp; ' +
+            '<a href="https://www.instagram.com/reyter.ua/" style="color:#ffffff;text-decoration:none">Instagram</a>' +
+          '</p>' +
+          '<p style="margin:0;font-size:11px;color:rgba(255,255,255,.65);line-height:1.6">' + why + '<br>' +
+            '<a href="{{{RESEND_UNSUBSCRIBE_URL}}}" style="color:rgba(255,255,255,.85)">' + bye + '</a>' +
+          '</p>' +
+        '</td></tr>' +
+
+      '</table>' +
+    '</div>'
+  );
+}
+
+/** Імʼя на дві частини — Resend тримає їх окремо, а підставляє
+ *  в лист саме перше. */
+function splitName(full) {
+  const parts = String(full || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { first: '', last: '' };
+  /* «Абрамова Анна Володимирівна» — у нас пишуть прізвище першим.
+     Але вгадувати порядок не можна: звертання «Вітаємо,
+     Абрамова» гірше за жодного імені. Тому беремо ДРУГЕ слово,
+     коли слів три (класичне ПІБ), і перше в решті випадків. */
+  if (parts.length >= 3) return { first: parts[1], last: parts[0] };
+  return { first: parts[0], last: parts.slice(1).join(' ') };
+}
+
+/** Записати людей у сегмент.
+ *
+ *  По черзі, а не залпом: Resend обмежує частоту, і сотня
+ *  одночасних запитів обернулась би половиною записаних контактів
+ *  і жодного натяку про те, які саме загубились. */
+async function syncContacts(env, segmentId, people) {
+  let added = 0;
+  let failed = 0;
+  const errors = [];
+
+  for (const raw of people.slice(0, CONTACTS_MAX)) {
+    const email = String(raw && raw.email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) continue;
+    const who = splitName(raw && raw.name);
+
+    const body = {
+      email,
+      first_name: clip(who.first, 60),
+      last_name: clip(who.last, 60),
+      segments: [{ id: segmentId }]
+    };
+    let r = await resendCall(env, '/contacts', { method: 'POST', body: JSON.stringify(body) });
+
+    /* Контакт міг існувати ще з минулої розсилки. Тоді додаємо
+       його в сегмент окремо — і НЕ чіпаємо прапорець відписки:
+       людина, яка відписалась, має лишитись відписаною назавжди,
+       хоч би скільки разів ми зводили список. */
+    if (!r.ok) {
+      r = await resendCall(
+        env,
+        '/contacts/' + encodeURIComponent(email) + '/segments/' + encodeURIComponent(segmentId),
+        { method: 'POST' }
+      );
+    }
+
+    if (r.ok) added += 1;
+    else {
+      failed += 1;
+      if (errors.length < 5) {
+        errors.push(email + ' — ' + clip((r.data && (r.data.message || r.data.name)) || 'відмова', 80));
+      }
+    }
+  }
+
+  return { added, failed, errors };
+}
+
+
 export default {
   async fetch(request, env, ctx) {
     /* Сайт і адмінка живуть на різних доменах, тож дозволених
@@ -1518,6 +1723,133 @@ export default {
         : 'Ваш персональний промокод — REYTER';
       const res = await sendMail(env, to, subject, promoHTML(d));
       return reply(res, res.ok ? 200 : 502, cors);
+    }
+
+
+    /* --- Маркетингові розсилки ---
+       Тільки з адмінки: ключ Resend дає право писати всій базі
+       покупців, і відкривати цей шлях назовні не можна ні на
+       мить. */
+
+    if (type === 'mk-segments' || type === 'mk-sync' || type === 'mk-send' || type === 'mk-sent') {
+      if (env.ADMIN_KEY && d.key !== env.ADMIN_KEY) {
+        return reply({ ok: false, error: 'Невірний ключ адміністратора (ADMIN_KEY)' }, 403, cors);
+      }
+      if (!env.RESEND_KEY) {
+        return reply({
+          ok: false,
+          error: 'у воркері не задано RESEND_KEY (Settings → Variables and Secrets → Add → Secret → потім Deploy)'
+        }, 400, cors);
+      }
+
+      /* Які групи вже заведені в Resend. Безкоштовний тариф дає
+         три — тому створювати нову на кожну розсилку не можна, і
+         адмінка мусить бачити наявні. */
+      if (type === 'mk-segments') {
+        const r = await resendCall(env, '/segments', { method: 'GET' });
+        if (!r.ok) {
+          return reply({ ok: false, error: (r.data && r.data.message) || 'Resend не віддав групи' }, 200, cors);
+        }
+        const list = (r.data && (r.data.data || r.data.segments)) || [];
+        return reply({
+          ok: true,
+          segments: list.slice(0, 20).map((x) => ({ id: x.id, name: x.name || '' }))
+        }, 200, cors);
+      }
+
+      /* Зібрати групу: створити її за потреби й записати людей. */
+      if (type === 'mk-sync') {
+        const people = Array.isArray(d.people) ? d.people : [];
+        if (!people.length) return reply({ ok: false, error: 'Нема кого додавати' }, 400, cors);
+
+        let segmentId = clip(d.segmentId, 60);
+        if (!segmentId) {
+          const name = clip(d.name, 60) || 'REYTER';
+          const made = await resendCall(env, '/segments', {
+            method: 'POST',
+            body: JSON.stringify({ name })
+          });
+          if (!made.ok || !made.data.id) {
+            return reply({
+              ok: false,
+              error: (made.data && made.data.message) ||
+                'Не вдалося створити групу. На безкоштовному тарифі їх лише три — приберіть зайву в кабінеті Resend.'
+            }, 200, cors);
+          }
+          segmentId = made.data.id;
+        }
+
+        const done = await syncContacts(env, segmentId, people);
+        return reply({
+          ok: done.added > 0,
+          segmentId,
+          added: done.added,
+          failed: done.failed,
+          skipped: Math.max(0, people.length - CONTACTS_MAX),
+          error: done.errors.join('; ')
+        }, 200, cors);
+      }
+
+      /* Уже надіслані розсилки — щоб було видно, що і коли пішло. */
+      if (type === 'mk-sent') {
+        const r = await resendCall(env, '/broadcasts', { method: 'GET' });
+        if (!r.ok) {
+          return reply({ ok: false, error: (r.data && r.data.message) || 'Resend не віддав розсилки' }, 200, cors);
+        }
+        const list = (r.data && (r.data.data || r.data.broadcasts)) || [];
+        return reply({
+          ok: true,
+          sent: list.slice(0, 30).map((x) => ({
+            id: x.id,
+            name: x.name || '',
+            status: x.status || '',
+            at: x.sent_at || x.scheduled_at || x.created_at || ''
+          }))
+        }, 200, cors);
+      }
+
+      /* Надіслати. Лист збирає воркер — з адмінки приходить лише
+         те, що написала людина. */
+      const segmentId = clip(d.segmentId, 60);
+      const subject = clip(d.subject, 180).trim();
+      if (!segmentId) return reply({ ok: false, error: 'Не обрано групу отримувачів' }, 400, cors);
+      if (!subject) return reply({ ok: false, error: 'Порожня тема листа' }, 400, cors);
+      if (!String(d.text || '').trim()) return reply({ ok: false, error: 'Порожній текст листа' }, 400, cors);
+
+      const html = broadcastHTML(d);
+      /* Запобіжник, а не формальність: Resend приймає розсилку і
+         без посилання на відписку, мовчки. Лист без нього — це
+         скарга на спам, а за кількох скарг псується доставність
+         УСІХ листів магазину, зокрема й тих, що про замовлення. */
+      if (!html.includes('{{{RESEND_UNSUBSCRIBE_URL}}}')) {
+        return reply({ ok: false, error: 'У листі немає посилання на відписку — надсилати не можна' }, 400, cors);
+      }
+
+      const body = {
+        segment_id: segmentId,
+        from: env.MAIL_FROM || 'REYTER <onboarding@resend.dev>',
+        subject,
+        html,
+        name: clip(d.name, 60) || subject,
+        /* scheduled_at діє лише разом із send: true — інакше
+           розсилка тихо лишиться чернеткою і не піде ніколи. */
+        send: true,
+        ...(d.at ? { scheduled_at: clip(d.at, 40) } : {})
+      };
+      if (env.MAIL_BCC) body.reply_to = env.MAIL_BCC;
+
+      const made = await resendCall(env, '/broadcasts', { method: 'POST', body: JSON.stringify(body) });
+      if (!made.ok || !made.data.id) {
+        const why = (made.data && made.data.message) || '';
+        return reply({
+          ok: false,
+          error: /quota/i.test(why)
+            ? 'У базі більше за тисячу контактів — безкоштовний тариф не дає надіслати. Приберіть зайвих у кабінеті Resend або перейдіть на платний.'
+            : why || 'Resend не прийняв розсилку'
+        }, 200, cors);
+      }
+
+      return reply({ ok: true, id: made.data.id, at: d.at || '' }, 200, cors);
     }
 
     /* --- Оплата карткою: Monobank --- */
