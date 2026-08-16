@@ -765,8 +765,22 @@ async function catalogueNow(idToken) {
 /* Знижка за промокодом — ті самі правила, що й на сайті. Код тут
    не для зручності, а для безпеки: якщо повірити знижці з
    браузера, у ній можна написати будь-що. */
-function promoOff(promo, lines, email) {
+function promoOff(promo, lines, email, level) {
   if (!promo || promo.active === false) return 0;
+
+  /* Рівень програми лояльності. Той самий розбір, що й на сайті:
+     порожній перелік означає «усі рівні», інакше кожен код,
+     створений до появи цього поля, перестав би діяти мовчки.
+
+     Перевірка тут не дублює браузер, а замінює довіру до нього:
+     рахунок у банку виставляє воркер, і саме його число стає
+     грошима. Рівень він бере з бази токеном самого покупця —
+     підробити його з консолі неможливо. */
+  const levels = Array.isArray(promo.levels) ? promo.levels.map(Number).filter(Boolean) : [];
+  const lvl = Math.max(0, Math.round(Number(level) || 0));
+  if (lvl === 0 && promo.guests === false) return 0;
+  if (levels.length && lvl > 0 && !levels.includes(lvl)) return 0;
+
   const now = Date.now();
   if (promo.email && String(promo.email).toLowerCase() !== String(email || '').toLowerCase()) return 0;
   if (promo.startsAt && now < Date.parse(promo.startsAt + 'T00:00:00')) return 0;
@@ -832,7 +846,11 @@ async function priceOrder(d, idToken) {
   const code = String(d.promo || '').trim().toUpperCase();
   if (code) {
     const promo = await fbGet('promos/' + encodeURIComponent(code));
-    off = promoOff(promo, lines, d.to || d.email || '');
+    /* Рівень потрібен і промокоду: код може діяти не на всіх.
+       Читаємо його раз і передаємо далі — нижче він знадобиться
+       ще й для власної знижки за рівнем. */
+    const lvl = idToken ? await loyaltyLevel(idToken) : 0;
+    off = promoOff(promo, lines, d.to || d.email || '', lvl);
   }
 
   /* Доставку рахує перевізник на сайті, і підробити її в бік

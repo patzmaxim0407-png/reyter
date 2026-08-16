@@ -6602,3 +6602,19 @@ label.a-promo-product i {
    чи пізно коштувало б комусь випуску. */
 .calc__drop { margin-top: 10px; color: var(--c-red); }
 .calc__drop:hover { border-color: var(--c-red); background: var(--c-red-soft); }
+
+/* Рівні, на яких діє промокод. Не список галочок у стовпчик, а
+   ряд плиток: рішення тут приймають поглядом — «кому саме», — і
+   для цього треба бачити всі рівні одночасно. */
+.a-levels { display: flex; gap: 7px; flex-wrap: wrap; }
+.a-level {
+  display: flex; align-items: center; gap: 7px; cursor: pointer;
+  border: 1px solid var(--c-line); border-radius: 12px;
+  padding: 8px 12px; background: var(--c-paper);
+}
+.a-level:hover { border-color: rgba(1, 74, 173, .35); }
+.a-level.is-on { border-color: var(--c-blue); background: rgba(1, 74, 173, .05); }
+.a-level input { margin: 0; }
+.a-level span { display: grid; gap: 1px; font-size: 13px; color: var(--c-ink); }
+.a-level i { font-style: normal; font-size: 11px; color: var(--c-muted); }
+.a-level.is-on span { color: var(--c-blue-ink); font-weight: 600; }

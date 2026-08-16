@@ -603,6 +603,42 @@ service cloud.firestore {
       allow update: if isAdmin() || onlyUsedCountBumped();
     }
 
+    /* Скільки разів кодом скористалась одна людина.
+
+       Ключ документа — «код__пошта», і саме він робить обмеження
+       «один раз на покупця» можливим: загальний лічильник не
+       знає, хто його крутив.
+
+       Читає й пише лише власник цієї пошти. Чужий запис не
+       прочитати й не збільшити — а отже, не можна ані підглянути,
+       хто чим користувався, ані вичерпати комусь його право.
+
+       ЗАЛИШКОВИЙ РИЗИК той самий, що й у лічильника використань:
+       запис робить браузер, і той, хто його не зробить, збереже
+       собі право взяти код ще раз. Грошей це не друкує — лише
+       дає зайву знижку, — а надійне місце для такого лічильника
+       те саме: воркер, який і так бачить кожне замовлення. */
+    match /promo_uses/{key} {
+      function mineByKey() {
+        return signedIn() && verified()
+          && key.split('__').size() == 2
+          && key.split('__')[1] == userEmail().lower();
+      }
+      allow get: if isAdmin() || mineByKey();
+      allow list: if isAdmin();
+      allow create: if isAdmin() || (
+        mineByKey()
+        && request.resource.data.who == userEmail().lower()
+        && request.resource.data.count == 1
+      );
+      allow update: if isAdmin() || (
+        mineByKey()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count'])
+        && request.resource.data.count == resource.data.count + 1
+      );
+      allow delete: if isAdmin();
+    }
+
     // Налаштування.
     // settings/public — адреса Cloudflare Worker і пошта магазину.
     // Браузер покупця має це прочитати, щоб надіслати замовлення,

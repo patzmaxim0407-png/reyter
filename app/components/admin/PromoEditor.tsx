@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { LEVELS } from '@/lib/loyalty';
 import { fmt, uah } from '@/lib/catalog';
 import { promoMessage, type Promo, type PromoScope, type PromoType } from '@/lib/promo';
 import { pcCollect, pcPreview, promoForm, type PromoForm } from '@/lib/admin/promos';
@@ -212,7 +213,7 @@ export default function PromoEditor({
                 />
               </div>
               <div className="field">
-                <label htmlFor="pcLimit">Ліміт використань</label>
+                <label htmlFor="pcLimit">Ліміт використань — усього</label>
                 <input
                   id="pcLimit"
                   type="number"
@@ -222,6 +223,75 @@ export default function PromoEditor({
                   onChange={(e) => set('usageLimit', e.target.value)}
                 />
               </div>
+            </div>
+
+            <div className="field">
+              <label htmlFor="pcPerUser">Скільки разів може використати одна людина</label>
+              <input
+                id="pcPerUser"
+                type="number"
+                min="0"
+                placeholder="без обмеження"
+                value={f.perUser}
+                onChange={(e) => set('perUser', e.target.value)}
+              />
+              {/* Це не те саме, що ліміт вище. Загальний ліміт
+                  закриває код для всіх після N використань — і
+                  публічний код вигорає за годину. Цей лишає код
+                  живим, але кожному дає рівно стільки, скільки
+                  ви вирішили. */}
+              <span className="field__hint">
+                Код лишається живим для всіх — вичерпаним він стає лише для того, хто своє вже
+                взяв. Порожньо — без обмеження.
+              </span>
+            </div>
+
+            {/* ---------- Рівні програми ---------- */}
+            <div className="field">
+              <label>Кому діє за програмою лояльності</label>
+              <div className="a-levels">
+                {LEVELS.map((l) => {
+                  const on = !f.levels.length || f.levels.includes(l.level);
+                  return (
+                    <label className={'a-level' + (on ? ' is-on' : '')} key={l.level}>
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={(e) => {
+                          /* Порожній перелік означає «всі», тож
+                             перше зняття мусить розгорнути його в
+                             явний список — інакше галочка знялася
+                             б, а код діяв би далі на всіх. */
+                          const now = f.levels.length ? f.levels : LEVELS.map((x) => x.level);
+                          const next = e.target.checked
+                            ? [...now, l.level]
+                            : now.filter((x) => x !== l.level);
+                          set('levels', [...new Set(next)].sort() as never);
+                        }}
+                      />
+                      <span>
+                        {l.level} рівень
+                        <i>−{l.percent}%</i>
+                      </span>
+                    </label>
+                  );
+                })}
+                <label className={'a-level' + (f.guests ? ' is-on' : '')}>
+                  <input
+                    type="checkbox"
+                    checked={f.guests}
+                    onChange={(e) => set('guests', e.target.checked as never)}
+                  />
+                  <span>
+                    Не в програмі
+                    <i>гості</i>
+                  </span>
+                </label>
+              </div>
+              <span className="field__hint">
+                У четвертого рівня вже свої 15% — код зверху віддає чверть ціни тому, хто й так
+                купує. А «для нових» має сенс навпаки: перший рівень і гості.
+              </span>
             </div>
 
             <div className="a-grid-2">

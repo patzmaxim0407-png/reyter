@@ -186,7 +186,7 @@ export default function CheckoutForm() {
      не визнала б уже при відправці. */
   useEffect(() => {
     if (!promo) return;
-    const res = promoCheck(promo, cart.forPromo(c), null, user?.email ?? '');
+    const res = promoCheck(promo, cart.forPromo(c), null, user?.email ?? '', whoNow());
     if (res.ok) {
       setDiscount(res.discount ?? 0);
       setPartial(!!res.partial);
@@ -212,7 +212,12 @@ export default function CheckoutForm() {
     setPromoBusy(true);
     const who = user?.email ?? '';
     const found = (await fb.promoFetch(code)) as Promo | null;
-    const res = promoCheck(found, cart.forPromo(c), null, who);
+    /* Скільки разів ЦЯ людина вже брала цей код. Питаємо саме
+       тут, а не тримаємо в пам'яті: код вводять раз на кошик, а
+       зайвий запит на кожне відкриття сторінки — ні до чого. */
+    const used = found?.perUser ? await fb.promoMineUsed(code, who) : 0;
+    setMineUsed(used);
+    const res = promoCheck(found, cart.forPromo(c), null, who, whoNow(used));
     setPromoBusy(false);
 
     if (res.ok) {
@@ -258,6 +263,10 @@ export default function CheckoutForm() {
      вигідніше заплатити повну ціну й перейти на рівень, де
      знижка більша назавжди. */
   const [member, setMember] = useState<MemberDoc | null>(null);
+  /* Скільки разів цей покупець уже брав саме цей код. Потрібне
+     для кодів, обмежених «раз на людину»: загальний лічильник не
+     знає, хто його крутив. */
+  const [mineUsed, setMineUsed] = useState(0);
   const [loyaltyOn, setLoyaltyOn] = useState(true);
   const [rules, setRules] = useState<DiscountRules>(DEFAULT_RULES);
 
@@ -384,7 +393,7 @@ export default function CheckoutForm() {
         const fresh = (await fb.promoFetch(promo.code ?? '')) as Promo | null;
         // пошту передаємо й тут: без неї персональний код власника
         // не пройшов би останню перевірку, хоч щойно був прийнятий
-        const res = promoCheck(fresh, cart.forPromo(c), null, who);
+        const res = promoCheck(fresh, cart.forPromo(c), null, who, whoNow(mineUsed));
         if (!res.ok) {
           setPromo(null);
           setDiscount(0);
@@ -544,7 +553,7 @@ export default function CheckoutForm() {
       saved.unshift({ ...order, _id: id, trackKey: key } as never);
       cart.saveOrders(saved.slice(0, 50));
 
-      if (code) void fb.promoConsume(code);
+      if (code) void fb.promoConsume(code, order.customer.email || user?.email || '');
       void fb
         .loadNotifySettings()
         .then((s) => orderPlaced(s as { workerUrl?: string } | null, order, 'uk', t));
@@ -645,6 +654,11 @@ export default function CheckoutForm() {
       alive = false;
     };
   }, [lines.length]);
+
+  /* Хто перед нами з погляду програми: рівень і власні
+     використання коду. Гість дає нулі, і код для гостей йому
+     спрацює, а код «лише для учасників» — ні. */
+  const whoNow = (used = 0) => ({ level: member?.level ?? 0, used });
 
   const summary = useMemo(
     () =>

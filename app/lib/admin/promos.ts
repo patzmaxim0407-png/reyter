@@ -215,6 +215,12 @@ export interface PromoForm {
   endsAt: string;
   email: string;
   usageLimit: string;
+  /** Скільки разів код може використати ОДИН покупець. */
+  perUser: string;
+  /** Рівні програми, на яких код діє. Порожньо — на всіх. */
+  levels: number[];
+  /** Чи діє на тих, хто ще не в програмі. */
+  guests: boolean;
   active: boolean;
   note: string;
 }
@@ -237,6 +243,12 @@ export function promoForm(p: Promo | null): PromoForm {
     endsAt: v.endsAt || '',
     email: v.email || '',
     usageLimit: v.usageLimit ? String(v.usageLimit) : '',
+    perUser: v.perUser ? String(v.perUser) : '',
+    levels: (v.levels || []).slice(),
+    /* Код без цього поля діє на гостей: інакше кожен старий
+       промокод перестав би працювати мовчки, і причину шукали б
+       у чому завгодно, крім нового поля. */
+    guests: v.guests !== false,
     // код без поля active вважається увімкненим
     active: v.active !== false,
     note: v.note || ''
@@ -275,6 +287,12 @@ export function pcCollect(form: PromoForm, categories: Category[]): Promo {
     endsAt: form.endsAt || '',
     email: form.email.trim().toLowerCase(),
     usageLimit: Number(form.usageLimit) || 0,
+    perUser: Number(form.perUser) || 0,
+    /* Порожній перелік і «всі чотири» — те саме, і зберігати
+       треба саме порожній: інакше додавання пʼятого рівня в
+       майбутньому тихо виключило б його з усіх старих кодів. */
+    levels: form.levels.length === 4 ? [] : form.levels.slice().sort(),
+    guests: form.guests,
     active: form.active,
     note: form.note.trim()
   };

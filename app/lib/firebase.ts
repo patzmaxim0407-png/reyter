@@ -320,14 +320,47 @@ export async function promoMine(email: string) {
  *  замовлення. Правила дозволяють рівно +1 і жодних інших полів,
  *  тож обнулити код чи «розширити» ліміт так не вийде. Без цього
  *  ліміт не працював би взагалі. */
-export async function promoConsume(code: string): Promise<boolean> {
+export async function promoConsume(code: string, email = ''): Promise<boolean> {
   const d = db();
   if (!d || !code) return false;
   try {
     await updateDoc(doc(d, 'promos', code), { usedCount: increment(1) });
-    return true;
   } catch {
-    return false;
+    /* лічильник міг упертись у власну межу — не привід губити
+       запис про те, що ця людина кодом скористалась */
+  }
+
+  /* Скільки разів кодом скористалась САМЕ ця людина. Окремим
+     документом на пару «код + пошта»: інакше обмеження «один раз
+     на покупця» неможливе — загальний лічильник не знає, хто
+     саме його крутив. */
+  const who = String(email || '').trim().toLowerCase();
+  if (!who) return true;
+  try {
+    const { setDoc } = await import('firebase/firestore');
+    await setDoc(
+      doc(d, 'promo_uses', code + '__' + who),
+      { code, who, count: increment(1) },
+      { merge: true }
+    );
+  } catch {
+    /* не критично: код спрацював, замовлення створене */
+  }
+  return true;
+}
+
+/** Скільки разів цей покупець уже брав цей код.
+ *  Гість — нуль: у нього немає ані пошти, ані історії. */
+export async function promoMineUsed(code: string, email = ''): Promise<number> {
+  const d = db();
+  const who = String(email || '').trim().toLowerCase();
+  if (!d || !code || !who) return 0;
+  try {
+    const { getDoc } = await import('firebase/firestore');
+    const snap = await getDoc(doc(d, 'promo_uses', code + '__' + who));
+    return snap.exists() ? Math.max(0, Math.round(Number(snap.data().count) || 0)) : 0;
+  } catch {
+    return 0;
   }
 }
 

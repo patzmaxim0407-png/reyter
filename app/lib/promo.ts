@@ -54,6 +54,24 @@ export interface Promo {
   endsAt?: string;
   /** Скільки разів можна використати всього (0 — без ліміту). */
   usageLimit?: number;
+  /** Скільки разів код може використати ОДИН покупець.
+   *
+   *  0 — без обмеження. Потрібне для кодів, які роздають публічно
+   *  й без загального ліміту: «хай користуються всі, але кожен
+   *  один раз». Без цього поля єдиний спосіб обмежити людину —
+   *  обмежити всіх, і код вигорає за годину. */
+  perUser?: number;
+  /** Рівні програми лояльності, на яких код діє. Порожньо або
+   *  немає — діє на всіх.
+   *
+   *  Навіщо: у четвертого рівня вже пʼятнадцять відсотків своїх,
+   *  і давати йому ще десять зверху — це віддавати чверть ціни
+   *  тому, хто й так купує. А код «для нових» має сенс рівно
+   *  навпаки: на першому рівні й у гостей. */
+  levels?: number[];
+  /** Чи діє код на тих, хто ще не в програмі. За замовчуванням
+   *  так: більшість покупців у неї не вступала. */
+  guests?: boolean;
   /** Скільки разів уже використано. */
   usedCount?: number;
   /** Вимикач без видалення. */
@@ -91,6 +109,12 @@ export type PromoReason =
   | 'not_started'
   | 'expired'
   | 'exhausted'
+  /** Цей покупець своє вже використав, але для інших код живий. */
+  | 'used_up'
+  /** Код лише для учасників програми. */
+  | 'members_only'
+  /** Код не для цього рівня. */
+  | 'wrong_level'
   | 'min_total'
   | 'no_items';
 
@@ -113,6 +137,10 @@ export interface PromoResult {
   minTotal?: number;
   /** no_items: чому саме не підійшло. */
   scope?: PromoScope;
+  /** used_up: скільки разів код дозволено одній людині. */
+  perUser?: number;
+  /** wrong_level: на яких рівнях він діє. */
+  levels?: number[];
 }
 
 /* ---------- Переклади ----------
@@ -209,7 +237,15 @@ export function promoCheck(
   promo: Promo | null | undefined,
   items: PromoItem[],
   now?: Date | null,
-  userEmail?: string | null
+  userEmail?: string | null,
+  /** Хто перед нами з погляду програми лояльності. Потрібне для
+   *  кодів, обмежених рівнями, і для ліміту на одного покупця. */
+  who?: {
+    /** Рівень, 1–4. Нуль або відсутність — не учасник. */
+    level?: number;
+    /** Скільки разів ЦЯ людина вже використала цей код. */
+    used?: number;
+  } | null
 ): PromoResult {
   const subtotal = sumOf(items);
   const time = now || new Date();
@@ -242,6 +278,28 @@ export function promoCheck(
   const limit = Number(promo.usageLimit) || 0;
   if (limit > 0 && (Number(promo.usedCount) || 0) >= limit) {
     return { ok: false, reason: 'exhausted' };
+  }
+
+  /* Ліміт на одного покупця. Код лишається живим для всіх —
+     вичерпаним він стає лише для тієї людини, яка своє вже
+     взяла. Саме цього не вміє загальний ліміт: він або відкритий
+     усім без міри, або закривається після першого. */
+  const mine = Math.max(0, Math.round(Number(promo.perUser) || 0));
+  if (mine > 0 && Math.max(0, Math.round(Number(who?.used) || 0)) >= mine) {
+    return { ok: false, reason: 'used_up', perUser: mine };
+  }
+
+  /* Рівень програми лояльності. Порожній перелік означає «усі» —
+     інакше кожен старий код, створений до появи цього поля,
+     перестав би працювати мовчки. */
+  const levels = Array.isArray(promo.levels) ? promo.levels.map(Number).filter(Boolean) : [];
+  const level = Math.max(0, Math.round(Number(who?.level) || 0));
+
+  if (level === 0 && promo.guests === false) {
+    return { ok: false, reason: 'members_only' };
+  }
+  if (levels.length && level > 0 && !levels.includes(level)) {
+    return { ok: false, reason: 'wrong_level', levels };
   }
 
   const min = Number(promo.minTotal) || 0;
@@ -410,6 +468,13 @@ export function promoMessage(res: PromoResult, promo: Promo | null | undefined, 
     case 'expired':
       return t('promo.expired').replace('{date}', promoDate(res.date ?? '', lang));
     case 'exhausted':  return t('promo.exhausted');
+    /* Різниця з 'exhausted' не косметична: код живий, вичерпала
+       його саме ця людина. Сказати «код більше не діє» було б
+       неправдою, і покупець ще й переказав би її друзям. */
+    case 'used_up':
+      return t('promo.usedUp').replace('{n}', String(res.perUser ?? 1));
+    case 'members_only': return t('promo.membersOnly');
+    case 'wrong_level':  return t('promo.wrongLevel');
     case 'min_total':
       return t('promo.minTotal')
         .replace('{min}', money(res.minTotal ?? 0))
