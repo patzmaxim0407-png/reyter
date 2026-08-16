@@ -6175,6 +6175,12 @@ label.a-promo-product i {
    ============================================================ */
 
 .ins { display: grid; gap: 18px; }
+/* Той самий крок усередині: без нього блоки склеюються в один
+   стовпчик без зазорів. І окремо display:none для схованого —
+   інакше наш display:grid перебиває атрибут hidden, і закритий
+   екран лишається видним. */
+.ins__stats { display: grid; gap: 18px; }
+.ins__stats[hidden] { display: none; }
 
 .ins__head {
   display: flex; flex-wrap: wrap; align-items: center; gap: 12px;

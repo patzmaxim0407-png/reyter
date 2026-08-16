@@ -124,7 +124,10 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
 
       {screen === 'calc' ? <Pricing orders={orders} c={c} /> : null}
 
-      <div hidden={screen !== 'stats'}>
+      {/* Обгортка мусить сама бути сіткою: інакше проміжки між
+          картками зникають — вони належать батьківському .ins, а
+          для нього все це стало одним елементом. */}
+      <div className="ins__stats" hidden={screen !== 'stats'}>
       <header className="ins__head">
         <div className="ins__spans">
           {SPANS.map((s) => (
