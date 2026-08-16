@@ -308,8 +308,8 @@ function Line({ points }: { points: Point[] }) {
   if (!points.length) return <Empty />;
 
   const W = 1000;
-  const H = 260;
-  const pad = { l: 8, r: 8, t: 14, b: 26 };
+  const H = 190;
+  const pad = { l: 8, r: 8, t: 12, b: 16 };
   const top = Math.max(1, ...points.map((p) => p.revenue));
   const step = points.length > 1 ? (W - pad.l - pad.r) / (points.length - 1) : 0;
   const x = (i: number) => pad.l + i * step;
@@ -322,11 +322,24 @@ function Line({ points }: { points: Point[] }) {
     path((p) => p.revenue) +
     ` L ${x(points.length - 1).toFixed(1)} ${H - pad.b} L ${x(0).toFixed(1)} ${H - pad.b} Z`;
 
-  const shown = at >= 0 ? points[at] : points[points.length - 1];
+  /* Без наведення показуємо ПІДСУМОК періоду, а не останню
+     точку. Остання — це сьогодні, і майже завжди вона нульова:
+     під графіком із двома сплесками стояло «0 грн, 0 замовлень»,
+     і перше враження від екрана було «нічого не продано». */
+  const sum = points.reduce(
+    (a, p) => ({
+      at: '',
+      revenue: a.revenue + p.revenue,
+      margin: a.margin + Math.max(0, p.margin),
+      orders: a.orders + p.orders
+    }),
+    { at: '', revenue: 0, margin: 0, orders: 0 }
+  );
+  const shown = at >= 0 ? points[at] : sum;
 
   return (
     <div className="ins-chart">
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="Виручка за періодами">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Виручка за періодами">
         <defs>
           <linearGradient id="insFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={BLUE} stopOpacity="0.18" />
@@ -375,12 +388,14 @@ function Line({ points }: { points: Point[] }) {
       </svg>
 
       <div className="ins-chart__legend">
-        <b>{shown.at}</b>
+        <b>{at >= 0 ? dayText(shown.at) : 'За період'}</b>
         <span>
-          <i className="dot" style={{ background: BLUE }} /> {shown.revenue.toLocaleString('uk')} грн
+          <i className="dot" style={{ background: BLUE }} />
+          <b>{shown.revenue.toLocaleString('uk')}</b> грн
         </span>
         <span>
-          <i className="dot" style={{ background: GREEN }} /> маржа {Math.max(0, shown.margin).toLocaleString('uk')} грн
+          <i className="dot" style={{ background: GREEN }} />
+          маржа <b>{Math.max(0, shown.margin).toLocaleString('uk')}</b> грн
         </span>
         <span className="is-quiet">{shown.orders} замовл.</span>
       </div>
@@ -395,8 +410,8 @@ function Matrix({ bcg }: { bcg: Bcg }) {
   if (!bcg.points.length) return <Empty />;
 
   const W = 1000;
-  const H = 460;
-  const pad = { l: 54, r: 20, t: 18, b: 42 };
+  const H = 380;
+  const pad = { l: 46, r: 18, t: 16, b: 38 };
   const maxX = Math.max(1, ...bcg.points.map((p) => p.x)) * 1.08;
   const maxY = Math.max(1, ...bcg.points.map((p) => p.y)) * 1.12;
   const x = (v: number) => pad.l + (W - pad.l - pad.r) * (v / maxX);
@@ -409,9 +424,9 @@ function Matrix({ bcg }: { bcg: Bcg }) {
     <div className="ins-matrix">
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Матриця товарів">
         {/* Чверті — ледь помітним тлом: підказка, а не малюнок. */}
-        <rect x={mx} y={pad.t} width={W - pad.r - mx} height={my - pad.t} fill={GREEN} opacity=".05" />
-        <rect x={pad.l} y={pad.t} width={mx - pad.l} height={my - pad.t} fill={BLUE} opacity=".05" />
-        <rect x={mx} y={my} width={W - pad.r - mx} height={H - pad.b - my} fill="#B45309" opacity=".05" />
+        <rect x={mx} y={pad.t} width={W - pad.r - mx} height={my - pad.t} fill={GREEN} opacity=".07" />
+        <rect x={pad.l} y={pad.t} width={mx - pad.l} height={my - pad.t} fill={BLUE} opacity=".06" />
+        <rect x={mx} y={my} width={W - pad.r - mx} height={H - pad.b - my} fill="#B45309" opacity=".06" />
 
         <line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} stroke="rgba(23,27,38,.18)" />
         <line x1={pad.l} x2={pad.l} y1={pad.t} y2={H - pad.b} stroke="rgba(23,27,38,.18)" />
@@ -435,7 +450,7 @@ function Matrix({ bcg }: { bcg: Bcg }) {
             <circle
               cx={x(p.x)}
               cy={y(p.y)}
-              r={pick?.id === p.id ? 9 : 6}
+              r={pick?.id === p.id ? 10 : 7}
               fill={
                 p.quadrant === 'star' ? GREEN
                 : p.quadrant === 'cow' ? BLUE
@@ -566,6 +581,20 @@ function Slices({ list }: { list: Slice[] }) {
       ))}
     </div>
   );
+}
+
+/** «2026-08-16» під графіком читається повільніше, ніж «16 серп.»
+ *  Місяць у ряду теж називаємо словом. */
+function dayText(at: string): string {
+  const parts = at.split('-');
+  if (parts.length === 2) {
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+    return d.toLocaleDateString('uk-UA', { month: 'long', year: 'numeric' });
+  }
+  const d = new Date(at);
+  return Number.isNaN(d.getTime())
+    ? at
+    : d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' });
 }
 
 function Empty() {

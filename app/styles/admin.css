@@ -6196,10 +6196,13 @@ label.a-promo-product i {
 
 /* ---------- Числа ---------- */
 
-.ins__kpis {
-  display: grid; gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-}
+/* Шість чисел — і жодного сироти в другому ряду. auto-fit тут
+   не годиться: на широкому екрані він ставив пʼять і переносив
+   шосте саме, а рядок із однієї картки читається як помилка.
+   Тому явні межі: 6 → 3 → 2. */
+.ins__kpis { display: grid; gap: 12px; grid-template-columns: repeat(6, 1fr); }
+@media (max-width: 1400px) { .ins__kpis { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 760px) { .ins__kpis { grid-template-columns: repeat(2, 1fr); } }
 
 .ins-kpi {
   background: var(--c-paper); border: 1px solid var(--c-line);
@@ -6210,14 +6213,14 @@ label.a-promo-product i {
   text-transform: uppercase; color: var(--c-muted);
 }
 .ins-kpi__value {
-  font-size: 27px; line-height: 1.05; font-weight: 800; color: var(--c-blue-ink);
-  font-variant-numeric: tabular-nums;
+  font-size: clamp(20px, 1.6vw, 26px); line-height: 1.05; font-weight: 800;
+  color: var(--c-blue-ink); font-variant-numeric: tabular-nums;
 }
 .ins-kpi__value i { font-size: 14px; font-weight: 600; font-style: normal; color: var(--c-muted); }
-.ins-kpi.is-big .ins-kpi__value { font-size: 32px; }
+.ins-kpi.is-big .ins-kpi__value { font-size: clamp(22px, 1.9vw, 30px); }
 .ins-kpi.is-green .ins-kpi__value { color: var(--c-green); }
 .ins-kpi.is-warn .ins-kpi__value { color: var(--c-amber); }
-.ins-kpi__foot { font-size: 12px; color: var(--c-muted); }
+.ins-kpi__foot { font-size: 11.5px; color: var(--c-muted); line-height: 1.35; }
 .ins-kpi__foot em { font-style: normal; font-weight: 700; }
 .ins-kpi__foot .is-up { color: var(--c-green); }
 .ins-kpi__foot .is-down { color: var(--c-red); }
@@ -6227,7 +6230,7 @@ label.a-promo-product i {
 
 .ins__card {
   background: var(--c-paper); border: 1px solid var(--c-line);
-  border-radius: 18px; padding: 18px 20px 20px;
+  border-radius: 18px; padding: 16px 18px 18px;
 }
 .ins__card-head {
   display: flex; align-items: baseline; justify-content: space-between;
@@ -6243,11 +6246,16 @@ label.a-promo-product i {
 
 /* ---------- Лінія ---------- */
 
-.ins-chart svg { width: 100%; height: 250px; display: block; }
+/* Висоту задає сам малюнок, а не рядок стилю: розтягнутий по
+   висоті графік із двома сплесками читався як порожній аркуш із
+   лінією внизу. І без preserveAspectRatio="none" — воно робило
+   пунктир маржі різношерстим. */
+.ins-chart svg { width: 100%; height: auto; display: block; }
 .ins-chart__legend {
-  display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
-  font-size: 13px; color: var(--c-ink); padding-top: 8px;
+  display: flex; gap: 14px; flex-wrap: wrap; align-items: baseline;
+  font-size: 13px; color: var(--c-ink); padding-top: 10px;
 }
+.ins-chart__legend b { font-variant-numeric: tabular-nums; }
 .ins-chart__legend .dot {
   display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px;
 }
