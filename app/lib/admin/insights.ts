@@ -517,6 +517,36 @@ export function sliceBy(
     .sort((a, b) => b.value - a.value);
 }
 
+/** Середня знижка саме на цей товар: скільки з повної ціни
+ *  каталогу до магазину не дійшло. Потрібна порадам — знижка,
+ *  якої не помічають, з'їдає маржу тихіше за все інше. */
+export function discountByProduct(
+  orders: AdminOrder[],
+  c: Catalogue,
+  from: Date,
+  to: Date
+): Map<string, number> {
+  const byId = catalogueIndex(c);
+  const gross = new Map<string, number>();
+  const paid = new Map<string, number>();
+
+  for (const o of soldOrders(orders, from, to)) {
+    for (const l of linesOf(o, byId)) {
+      const price = Math.round(Number(byId.get(l.id)?.price) || 0);
+      if (!price) continue;
+      gross.set(l.id, (gross.get(l.id) || 0) + price * l.qty);
+      paid.set(l.id, (paid.get(l.id) || 0) + l.paid);
+    }
+  }
+
+  const out = new Map<string, number>();
+  for (const [id, full] of gross) {
+    if (full <= 0) continue;
+    out.set(id, Math.max(0, Math.min(0.9, 1 - (paid.get(id) || 0) / full)));
+  }
+  return out;
+}
+
 /** Звідки прийшов покупець.
  *
  *  Показуємо ПЕРШИЙ дотик, а не останній: питання, заради якого

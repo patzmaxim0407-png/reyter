@@ -6558,3 +6558,41 @@ label.a-promo-product i {
 .calc__back b { font-size: 14px; color: var(--c-blue-ink); }
 .calc__back b i { font-style: normal; font-weight: 600; color: var(--c-muted); }
 .calc__back span { font-size: 12px; color: var(--c-muted); }
+
+/* ---------- Поради ---------- */
+
+.ins-tips { display: grid; gap: 8px; margin-top: 12px; }
+.ins-tip {
+  display: grid; gap: 3px; padding: 10px 12px; border-radius: 12px;
+  background: var(--c-cream); border-left: 3px solid var(--c-line);
+}
+.ins-tip b { font-size: 13px; color: var(--c-blue-ink); }
+.ins-tip span { font-size: 12px; color: var(--c-muted); }
+.ins-tip em { font-style: normal; font-size: 12.5px; color: var(--c-ink); line-height: 1.5; }
+.ins-tip.is-u1 { border-left-color: var(--c-amber); background: var(--c-amber-soft); }
+.ins-tip.is-u2 { border-left-color: var(--c-red); background: var(--c-red-soft); }
+
+.ins-todo { display: grid; gap: 2px; }
+.ins-todo__row {
+  display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr) auto;
+  gap: 14px; align-items: baseline; padding: 11px 12px; border-radius: 12px;
+  border-left: 3px solid var(--c-line);
+}
+.ins-todo__row.is-u1 { border-left-color: var(--c-amber); background: var(--c-amber-soft); }
+.ins-todo__row.is-u2 { border-left-color: var(--c-red); background: var(--c-red-soft); }
+.ins-todo__who { display: grid; gap: 2px; min-width: 0; }
+.ins-todo__who b {
+  font-size: 13px; color: var(--c-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ins-todo__who i { font-style: normal; font-size: 12px; font-weight: 600; color: var(--c-blue-ink); }
+.ins-todo__what { display: grid; gap: 2px; min-width: 0; }
+.ins-todo__what span { font-size: 12px; color: var(--c-muted); }
+.ins-todo__what em { font-style: normal; font-size: 12.5px; color: var(--c-ink); line-height: 1.5; }
+.ins-todo__money {
+  font-size: 13px; font-weight: 700; color: var(--c-blue-ink);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+@media (max-width: 860px) {
+  .ins-todo__row { grid-template-columns: 1fr; gap: 6px; }
+}

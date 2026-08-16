@@ -8,6 +8,7 @@ import {
   byCategory,
   channelOf,
   cityOf,
+  discountByProduct,
   grainFor,
   growth,
   knownSource,
@@ -28,6 +29,8 @@ import {
   type Span
 } from '@/lib/admin/insights';
 import Pricing from './Pricing';
+import { tipsFor, type Context, type Tip } from '@/lib/admin/advice';
+import { availability, productSizes } from '@/lib/catalog';
 import type { AdminOrder } from '@/lib/admin/orders';
 import type { Catalogue } from '@/lib/catalog';
 
@@ -94,6 +97,10 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
         Math.max(0, Number(o.discount) || 0)
       ).filter((x) => x.id !== '—'),
       known: knownSource(orders, from, to),
+      /* Контекст для порад: усе, з чого вони роблять висновки —
+         залишок, розміри, знижка на сам товар, медіани категорії.
+         Без цього поради були б настроєм, а не аналітикою. */
+      advice: adviceFor(rows, bcgOf(rows), orders, c, from, to),
       sources: sliceBy(orders, from, to, (o) => String(o.source || 'Сайт')),
       pays: sliceBy(orders, from, to, (o) =>
         o.payInvoiceId ? 'Картка онлайн' : 'При отриманні'
@@ -178,7 +185,7 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
               : 'ціна · скільки штук продано — впишіть собівартість, і тут буде маржа'}
           </span>
         </header>
-        <Matrix bcg={view.bcg} />
+        <Matrix bcg={view.bcg} advice={view.advice} />
         <div className="ins__quads">
           {(Object.keys(QUADRANTS) as Quadrant[]).map((q) => (
             <div key={q} className={'ins__quad ins__quad--' + q}>
@@ -191,6 +198,9 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
           ))}
         </div>
       </section>
+
+      {/* ---------- Що робити ---------- */}
+      <Todo rows={view.rows} advice={view.advice} names={new Map(view.rows.map((r) => [r.id, r.name]))} />
 
       <div className="ins__two">
         <section className="ins__card">
@@ -408,7 +418,7 @@ function Line({ points }: { points: Point[] }) {
 
 /* ---------- Матриця ---------- */
 
-function Matrix({ bcg }: { bcg: Bcg }) {
+function Matrix({ bcg, advice }: { bcg: Bcg; advice: Map<string, Tip[]> }) {
   const [pick, setPick] = useState<BcgPoint | null>(null);
   if (!bcg.points.length) return <Empty />;
 
@@ -422,6 +432,32 @@ function Matrix({ bcg }: { bcg: Bcg }) {
 
   const mx = x(bcg.midX);
   const my = y(bcg.midY);
+
+  /* Підписи, які не налазять одне на одного.
+
+     Кілька товарів у одній точці — не рідкість: однакові маржа й
+     кількість трапляються постійно. Їхні назви складались у
+     нечитабельну кашу, де не прочитати жодної.
+
+     Тому підпис дістається тому, кому вистачило місця: йдемо від
+     найпомітніших — більше продано, вища маржа — і пропускаємо
+     тих, чия назва перекрила б уже намальовану. Решту видно
+     наведенням, і це чесніше за кашу. */
+  const labels = new Set<string>();
+  {
+    const placed: { x: number; y: number; w: number }[] = [];
+    for (const p of [...bcg.points].sort((a, b) => b.y - a.y || b.x - a.x)) {
+      const cx = x(p.x);
+      const cy = y(p.y);
+      const w = Math.min(p.name.length, 22) * 6.4;
+      const clash = placed.some(
+        (o) => Math.abs(o.y - cy) < 16 && Math.abs(o.x - cx) < (o.w + w) / 2 + 10
+      );
+      if (clash) continue;
+      placed.push({ x: cx, y: cy, w });
+      labels.add(p.id);
+    }
+  }
 
   return (
     <div className="ins-matrix">
@@ -465,7 +501,7 @@ function Matrix({ bcg }: { bcg: Bcg }) {
             {/* Підписуємо лише помітні: інакше двадцять назв
                 злипаються в сіру смугу, з якої не прочитати
                 жодної. */}
-            {p.quadrant === 'star' || p.y >= bcg.midY * 1.6 || p.x >= bcg.midX * 1.6 ? (
+            {labels.has(p.id) ? (
               <text x={x(p.x)} y={y(p.y) - 12} textAnchor="middle" fontSize="12" fill={INK}>
                 {p.name.length > 22 ? p.name.slice(0, 21) + '…' : p.name}
               </text>
@@ -492,6 +528,16 @@ function Matrix({ bcg }: { bcg: Bcg }) {
           </span>
         )}
       </div>
+
+      {/* Поради саме про той товар, на який дивляться. Порожньо —
+          коли з ним усе гаразд, і це теж відповідь. */}
+      {pick && advice.get(pick.id)?.length ? (
+        <div className="ins-tips">
+          {advice.get(pick.id)!.slice(0, 3).map((tip) => (
+            <TipCard key={tip.kind} tip={tip} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -598,6 +644,139 @@ function dayText(at: string): string {
   return Number.isNaN(d.getTime())
     ? at
     : d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' });
+}
+
+/* ============================================================
+   ПОРАДИ
+   ------------------------------------------------------------
+   Збираємо для кожного товару все, з чого можна зробити висновок:
+   скільки лежить на складі, яких розмірів немає, скільки з'їдає
+   знижка саме на ньому, як він виглядає проти сусідів по
+   категорії. Самі висновки — у lib/admin/advice.ts, і вони чисті:
+   те, що можна перевірити прогоном, не має жити в компоненті.
+   ============================================================ */
+function adviceFor(
+  rows: Row[],
+  bcg: Bcg,
+  orders: AdminOrder[],
+  c: Catalogue,
+  from: Date,
+  to: Date
+): Map<string, Tip[]> {
+  const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86_400_000));
+  const discounts = discountByProduct(orders, c, from, to);
+  const quadrants = new Map(bcg.points.map((p) => [p.id, p.quadrant]));
+
+  /* Знижка по магазину — база для порівняння. Товар зі знижкою
+     18% при середніх 7% і той самий товар при середніх 17% — дві
+     різні новини. */
+  const all = [...discounts.values()];
+  const shopDiscount = all.length ? all.reduce((n, x) => n + x, 0) / all.length : 0;
+
+  /* Медіани категорії рахуємо один раз на категорію, а не на
+     товар: інакше на тридцяти товарах це тридцять однакових
+     обходів. */
+  const cats = new Map<string, { margins: number[]; prices: number[] }>();
+  for (const r of rows) {
+    const box = cats.get(r.category) || { margins: [], prices: [] };
+    if (r.cost !== null && r.costed > 0) box.margins.push(r.margin / r.costed);
+    if (r.price > 0) box.prices.push(r.price);
+    cats.set(r.category, box);
+  }
+  const mid = (list: number[]) => {
+    if (!list.length) return 0;
+    const s = [...list].sort((a, b) => a - b);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+
+  const out = new Map<string, Tip[]>();
+  for (const r of rows) {
+    const p = (c.products || []).find((x) => x.id === r.id);
+    const av = p ? availability(c, p) : null;
+    const sizes = p ? productSizes(p) : [];
+    /* Розміри, яких немає — лише з тих, які товар узагалі має:
+       інакше в «немає» потрапили б XS і XXL, яких не шили. */
+    const gone = p && av && !p.volume ? sizes.filter((s2) => !av.sizes.includes(s2)) : [];
+    const box = cats.get(r.category) || { margins: [], prices: [] };
+
+    const ctx: Context = {
+      stock: av ? Math.max(0, av.total) : 0,
+      gone: av?.soldOut ? [] : gone,
+      sizes: sizes.length,
+      days,
+      catMargin: box.margins.length >= 2 ? mid(box.margins) : 0,
+      catPrice: box.prices.length >= 3 ? mid(box.prices) : 0,
+      discount: discounts.get(r.id) || 0,
+      shopDiscount,
+      sale: !!p?.sale,
+      quadrant: quadrants.get(r.id) || 'dog'
+    };
+    const tips = tipsFor(r, ctx);
+    if (tips.length) out.set(r.id, tips);
+  }
+  return out;
+}
+
+/** Перелік справ по всьому магазину.
+ *
+ *  Впорядкований ГРОШИМА, а не тривогою: зверху не найгучніше, а
+ *  найдорожче. Власник не читає двадцять пунктів — він читає
+ *  перші три, і саме вони мусять бути тими, що коштують найбільше.
+ *
+ *  По одній пораді на товар: якщо в речі три біди, найдорожча з
+ *  них однаково вирішується першою, а решта підтягнеться. */
+function Todo({
+  rows,
+  advice,
+  names
+}: {
+  rows: Row[];
+  advice: Map<string, Tip[]>;
+  names: Map<string, string>;
+}) {
+  const list = rows
+    .map((r) => ({ id: r.id, tip: advice.get(r.id)?.[0] }))
+    .filter((x): x is { id: string; tip: Tip } => !!x.tip && (x.tip.urgency > 0 || x.tip.money > 0))
+    .sort((a, b) => b.tip.urgency - a.tip.urgency || b.tip.money - a.tip.money)
+    .slice(0, 6);
+
+  if (!list.length) return null;
+
+  return (
+    <section className="ins__card">
+      <header className="ins__card-head">
+        <h3>Що робити</h3>
+        <span>спершу те, що коштує найбільше</span>
+      </header>
+      <div className="ins-todo">
+        {list.map(({ id, tip }) => (
+          <div className={'ins-todo__row is-u' + tip.urgency} key={id}>
+            <span className="ins-todo__who">
+              <b>{names.get(id) || id}</b>
+              <i>{tip.title}</i>
+            </span>
+            <span className="ins-todo__what">
+              <span>{tip.what}</span>
+              <em>{tip.todo}</em>
+            </span>
+            {tip.money > 0 ? <span className="ins-todo__money">{tip.money.toLocaleString('uk')} грн</span> : null}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Порада одним блоком. */
+function TipCard({ tip }: { tip: Tip }) {
+  return (
+    <div className={'ins-tip is-u' + tip.urgency}>
+      <b>{tip.title}</b>
+      <span>{tip.what}</span>
+      <em>{tip.todo}</em>
+    </div>
+  );
 }
 
 function Empty() {
