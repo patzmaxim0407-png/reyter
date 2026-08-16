@@ -554,6 +554,37 @@
   text-align: center;
 }
 
+/* Питання над малюнком. Це заголовок, а не підпис: людина дивиться
+   на схему саме тому, що не знає відповіді, — і питання має стояти
+   першим, до того як вона почне вгадувати. */
+.size-guide__ask {
+  margin: 0 0 0.7rem;
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 2.2vw, 1.15rem);
+  font-weight: 700;
+  color: var(--c-blue-ink);
+  text-align: center;
+}
+
+/* Прохання під малюнком.
+
+   Повернення через розмір — найдорожче з усіх: річ їде назад,
+   іноді ношена, і задоволених у цій історії немає. Тому воно
+   виділене, а не загублене дрібним сірим: одне речення тут
+   коштує дешевше за одну таку посилку. Але й не криком —
+   капслоку тут не місце, слова й так важкі. */
+.size-guide__please {
+  margin: 0.9rem 0 0;
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  border-left: 3px solid var(--c-blue);
+  background: rgba(1, 74, 173, 0.055);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--c-ink);
+  text-align: left;
+}
+
 @media (max-width: 760px) {
   .size-guide__grid {
     grid-template-columns: 1fr;

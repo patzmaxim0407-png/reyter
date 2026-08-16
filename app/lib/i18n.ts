@@ -98,6 +98,9 @@ const uk = {
   'size.col3': 'Стегна (см)',
   'size.caption': 'Натисніть на зображення, щоб збільшити',
   'size.alt': 'Як виміряти талію та стегна',
+  'size.how': 'Як правильно заміряти стегна?',
+  'size.please':
+    'Прохання: дуже відповідально підійдіть до цього питання, щоб усе комфортно сиділо.',
 
   'dlv.title': 'Оплата й доставка',
   'dlv.pay': 'Оплата',
@@ -534,6 +537,9 @@ const en: Record<UIKey, string> = {
   'size.col1': 'Size',
   'size.col2': 'Waist (cm)',
   'size.col3': 'Hips (cm)',
+  'size.how': 'How to measure your hips correctly',
+  'size.please':
+    'Please take this measurement carefully — it is what makes everything sit comfortably.',
   'size.caption': 'Click the image to enlarge',
   'size.alt': 'How to measure your waist and hips',
 

@@ -244,10 +244,49 @@ export function FriendlyClub({ lang }: { lang: Lang }) {
   </>;
 }
 
+/* Малюнок «як заміряти».
+ *
+ *  Для кожної мови свій: підписи на самому зображенні, і
+ *  англійському покупцеві українські стрілки не пояснюють нічого.
+ *
+ *  Прохання під малюнком написане великими не для настрою.
+ *  Повернення через розмір — найдорожче з усіх: річ їде назад,
+ *  іноді ношена, і жоден бік цим не задоволений. Одне речення тут
+ *  коштує дешевше за одну таку посилку.
+ *
+ *  Якщо мовного файла ще немає, показуємо спільний старий: краще
+ *  колишній малюнок, ніж порожня рамка на живому сайті. */
 export function SizeGuideImage({ lang }: { lang: Lang }) {
   const [open, setOpen] = useState(false);
-  const src = '/assets/images/size_2.webp';
-  return <><figure className="size-guide__visual"><button className="zoomable-button" type="button" onClick={() => setOpen(true)}><img src={src} alt={t('size.alt', lang)} className="zoomable" loading="lazy" /></button><figcaption>{t('size.caption', lang)}</figcaption></figure><Lightbox images={[src]} index={0} open={open} lang={lang} alt={t('size.alt', lang)} onIndex={() => {}} onClose={() => setOpen(false)} /></>;
+  const [src, setSrc] = useState(
+    lang === 'en' ? '/assets/images/size-hips-en.webp' : '/assets/images/size-hips-uk.webp'
+  );
+
+  return (
+    <figure className="size-guide__visual">
+      <figcaption className="size-guide__ask">{t('size.how', lang)}</figcaption>
+      <button className="zoomable-button" type="button" onClick={() => setOpen(true)}>
+        <img
+          src={src}
+          alt={t('size.alt', lang)}
+          className="zoomable"
+          loading="lazy"
+          onError={() => setSrc('/assets/images/size_2.webp')}
+        />
+      </button>
+      <figcaption className="size-guide__hint">{t('size.caption', lang)}</figcaption>
+      <p className="size-guide__please">{t('size.please', lang)}</p>
+      <Lightbox
+        images={[src]}
+        index={0}
+        open={open}
+        lang={lang}
+        alt={t('size.alt', lang)}
+        onIndex={() => {}}
+        onClose={() => setOpen(false)}
+      />
+    </figure>
+  );
 }
 
 export function HomeEffects({ categoryIds }: { categoryIds: string[] }) {
