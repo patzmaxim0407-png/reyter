@@ -47,7 +47,7 @@ const PARCEL = { weight: 0.5, length: 30, width: 20, height: 10 };
    (свічки, дифузори) і сорочки сюди не входять. Список навмисно
    в коді, а не в базі: він міняється разом із асортиментом, і
    мовчазна зміна тут коштувала б грошей. */
-const UNDERWEAR = [
+export const UNDERWEAR = [
   'boxers',
   'briefs',
   'slips',

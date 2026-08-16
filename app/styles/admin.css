@@ -6618,3 +6618,15 @@ label.a-promo-product i {
 .a-level span { display: grid; gap: 1px; font-size: 13px; color: var(--c-ink); }
 .a-level i { font-style: normal; font-size: 11px; color: var(--c-muted); }
 .a-level.is-on span { color: var(--c-blue-ink); font-weight: 600; }
+
+/* Безкоштовна доставка в підсумку замовлення. Зеленим, бо це не
+   нуль у рядку, а рішення магазину — і воно має бути помітним
+   тому, хто зараз виписуватиме накладну. */
+.ao-sumline.is-free span:last-child { color: var(--c-green); font-weight: 600; }
+
+/* Умови накладної під адресою: оголошена вартість і хто платить.
+   Дрібним, бо це довідка — але видно, бо саме ці два числа
+   згадують, коли з перевізником щось піде не так. */
+.ao-way__terms { margin: 4px 0 0; font-size: 12px; color: var(--c-muted); }
+.ao-way__terms b { color: var(--c-blue-ink); font-weight: 600; }
+.ao-way__terms b.is-us { color: var(--c-green); }

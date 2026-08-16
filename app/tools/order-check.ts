@@ -31,6 +31,7 @@ import {
   EMPTY_FORM,
   type AddressForm
 } from '../lib/address.ts';
+import { freeShipOf, payerOf } from '../lib/admin/orders.ts';
 import { t } from '../lib/i18n.ts';
 import type { CartLine } from '../lib/types.ts';
 
@@ -316,6 +317,38 @@ ok('сайт не пише полів поза правилами', !extraKeys.l
   const legacy = { id: 'Y', name: 'Y', price: 1, category: 'c' } as never;
   ok('товару без сітки лишається вся — це найперші записи',
      productSizes(legacy).join(',') === ALL_SIZES.join(','));
+}
+
+/* Безкоштовна доставка й хто платить перевізникові.
+
+   Для покупця це «доставка 0 грн», для магазину — рахунок від
+   перевізника. Саме тут і губилось: у замовленні shipping нуль,
+   тож накладна за звичкою виписувалась на отримувача, і людина
+   платила за те, що їй пообіцяли безкоштовно. */
+{
+  const mk = (items: object[], shipping = 0) =>
+    ({ _id: 'x', num: 'R', total: 0, shipping, items } as never);
+
+  const big = mk([{ id: 'A', category: 'briefs', price: 900, qty: 2 }]);
+  const small = mk([{ id: 'A', category: 'briefs', price: 550, qty: 1 }]);
+  const candles = mk([{ id: 'C', category: 'home-collection', price: 3000, qty: 1 }]);
+
+  ok('поріг рахується сумою білизни', freeShipOf(big).reached === true);
+  ok('і не дотягує там, де мало', freeShipOf(small).reached === false);
+  ok('видно, скільки не вистачило', freeShipOf(small).need === 950, String(freeShipOf(small).need));
+  /* Свічки на три тисячі безкоштовної доставки не дають: поріг
+     саме по білизні, і кошик із дифузора його не набирає. */
+  ok('інші категорії поріг не набирають', freeShipOf(candles).reached === false);
+
+  ok('оплачене замовлення понад поріг — платимо ми',
+     payerOf(big, true) === 'Sender');
+  /* Неоплачене — ще ні: обіцянка діє при повній передоплаті. */
+  ok('неоплачене — платить отримувач', payerOf(big, false) === 'Recipient');
+  ok('нижче порога — теж отримувач', payerOf(small, true) === 'Recipient');
+  /* А якщо доставку вже оплатили в замовленні, то платимо ми
+     незалежно від суми: ці гроші вже в нас. */
+  ok('оплачена доставка в сумі — платимо ми',
+     payerOf(mk([{ id: 'A', category: 'briefs', price: 300, qty: 1 }], 137), false) === 'Sender');
 }
 
 /* Промокод і програма лояльності.

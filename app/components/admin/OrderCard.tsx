@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { addressLine } from '@/lib/address';
 import { fmt, type Catalogue } from '@/lib/catalog';
-import { NEXT_STEP, STATUSES, confirmText, itemCat, orderDate, statusInfo } from '@/lib/admin/orders';
+import { NEXT_STEP, STATUSES, confirmText, freeShipOf, itemCat, orderDate, statusInfo } from '@/lib/admin/orders';
 import { label, parcelState, alarm, whenText, type Parcel } from '@/lib/admin/np';
 import { isPaid, payLabel, payTone, type PaySum, type PayStatus } from '@/lib/pay';
 import type { OrderItem } from '@/lib/types';
@@ -31,6 +31,10 @@ export interface AdminOrder {
   ttn?: string;
   /** Коли номер накладної пішов покупцеві листом. */
   ttnSentAt?: string;
+  /** Оголошена вартість у накладній. */
+  ttnCost?: number;
+  /** Хто платить перевізникові. */
+  ttnPayer?: 'Sender' | 'Recipient';
   /** Ідентифікатор накладної в кабінеті перевізника. */
   ttnRef?: string;
   /** Покупець забирає сам — накладної не буде й не треба. */
@@ -163,6 +167,7 @@ export default function OrderCard({
   const goods = (o.items ?? []).reduce((n, i) => n + (Number(i.price) || 0) * (Number(i.qty) || 0), 0);
   const disc = Number(o.discount) || 0;
   const ship = Number(o.shipping) || 0;
+  const free = freeShipOf(o as never);
 
   /* Той самий orderDate, що й у сортуванні списку: у найперших
      замовленнях часу в date немає, він лежить у created — і без
@@ -358,6 +363,17 @@ export default function OrderCard({
                 <span>{fmt(ship)} грн</span>
               </div>
             ) : null}
+            {/* Безкоштовна доставка — це не «нуль у рядку», а
+                рахунок від перевізника, який закриває магазин.
+                Саме тут воно й губилось: shipping нуль, накладна
+                за звичкою на отримувача, і людина платила за те,
+                що їй пообіцяли безкоштовно. */}
+            {!ship && free.reached ? (
+              <div className="ao-sumline is-free">
+                <span>Доставка</span>
+                <span>безкоштовна — платимо ми</span>
+              </div>
+            ) : null}
             {/* Рахунок має сходитись на екрані. Беремо суму з
                 доданків, а не збережене число: у замовленнях,
                 оформлених до 14.08.2026, доставка в total не
@@ -466,6 +482,25 @@ export default function OrderCard({
                   її кінець, і питають про нього ще до дат. */}
               {parcel.city || parcel.place ? (
                 <p className="ao-way__to">{[parcel.city, parcel.place].filter(Boolean).join(' · ')}</p>
+              ) : null}
+
+              {/* Що саме пішло в накладну. У кабінеті перевізника
+                  ці числа є, але поруч із замовленням їх не було —
+                  і «скільки ми оголосили?» через тиждень ставало
+                  питанням без відповіді. */}
+              {o.ttnCost || o.ttnPayer ? (
+                <p className="ao-way__terms">
+                  {o.ttnCost ? <>оголошена вартість <b>{fmt(o.ttnCost)} грн</b></> : null}
+                  {o.ttnCost && o.ttnPayer ? ' · ' : ''}
+                  {o.ttnPayer ? (
+                    <>
+                      доставку платить{' '}
+                      <b className={o.ttnPayer === 'Sender' ? 'is-us' : undefined}>
+                        {o.ttnPayer === 'Sender' ? 'магазин' : 'отримувач'}
+                      </b>
+                    </>
+                  ) : null}
+                </p>
               ) : null}
 
               <ol className="ao-way__steps">

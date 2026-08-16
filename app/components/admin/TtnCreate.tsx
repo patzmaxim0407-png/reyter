@@ -5,7 +5,7 @@ import Combobox from '../Combobox';
 import { useToast } from '../Toasts';
 import { npCities, npWarehouses } from '@/lib/address';
 import { createWaybill, type Cabinet } from '@/lib/admin/np';
-import { paidForGoods, type AdminOrder } from '@/lib/admin/orders';
+import { freeShipOf, paidForGoods, type AdminOrder } from '@/lib/admin/orders';
 
 /* ============================================================
    Накладна просто із замовлення
@@ -66,7 +66,7 @@ export default function TtnCreate({
   weight: number;
   description: string;
   onSaveSender(v: { city: string; cityRef: string; warehouse: string; warehouseRef: string }): void;
-  onDone(ttn: string, ref: string): void;
+  onDone(ttn: string, ref: string, declared: number, payer: 'Sender' | 'Recipient'): void;
   onClose(): void;
 }) {
   const toast = useToast();
@@ -97,8 +97,17 @@ export default function TtnCreate({
      Коли ж shipping нульовий, доставка в замовлення не входила:
      ціна лежала довідковим рядком, і платить її отримувач на
      місці, як і домовлялись. */
+  /* Доставку платимо ми у двох випадках, і другий довго губився:
+     покупець оплатив її разом із замовленням — або вона
+     безкоштовна за сумою. В обох гроші за пересилку вже або в
+     нас, або свідомо подаровані, і брати їх удруге у відділенні
+     не можна. */
   const paidShipping = Math.round(Number(order.shipping) || 0) > 0;
-  const [payer, setPayer] = useState<'Sender' | 'Recipient'>(paidShipping ? 'Sender' : 'Recipient');
+  const free = freeShipOf(order);
+  const freeOnUs = !paidShipping && free.reached;
+  const [payer, setPayer] = useState<'Sender' | 'Recipient'>(
+    paidShipping || freeOnUs ? 'Sender' : 'Recipient'
+  );
   const [backMoney, setCod] = useState('');
   const [sending, setSending] = useState(false);
   /* Відмову перевізника лишаємо у вікні, а не в тості: вона
@@ -171,7 +180,10 @@ export default function TtnCreate({
       return;
     }
     onSaveSender(since);
-    onDone(res.ttn, res.ref);
+    /* Оголошену вартість і платника лишаємо в замовленні: через
+       тиждень «скільки ми оголосили?» — питання без відповіді,
+       якщо його ніде не записати, а накладна вже в перевізника. */
+    onDone(res.ttn, res.ref, toNumber(declared) || 0, payer);
   }
 
   return (
@@ -291,9 +303,16 @@ export default function TtnCreate({
                 доставка вже в сумі замовлення — {Math.round(Number(order.shipping) || 0)} грн
               </span>
             ) : null}
-            {paidShipping && payer === 'Recipient' ? (
+            {freeOnUs && payer === 'Sender' ? (
+              <span className="field__hint">
+                безкоштовна доставка: білизни на {Math.round(free.sum)} грн — платимо ми
+              </span>
+            ) : null}
+            {(paidShipping || freeOnUs) && payer === 'Recipient' ? (
               <span className="field__hint is-warn">
-                покупець уже оплатив доставку разом із замовленням — у відділенні з нього візьмуть удруге
+                {paidShipping
+                  ? 'покупець уже оплатив доставку разом із замовленням — у відділенні з нього візьмуть удруге'
+                  : 'цьому замовленню обіцяна безкоштовна доставка — на отримувача її виписувати не можна'}
               </span>
             ) : null}
           </label>

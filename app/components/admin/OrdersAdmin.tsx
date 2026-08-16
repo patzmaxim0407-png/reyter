@@ -1384,7 +1384,7 @@ export default function OrdersAdmin() {
               npWarehouse: v.warehouse, npWarehouseRef: v.warehouseRef
             }, { merge: true });
           }}
-          onDone={async (ttn, ref) => {
+          onDone={async (ttn, ref, declared, payer) => {
             const o = ttnFor;
             setTtnFor(null);
             // лист надішлемо наприкінці самі — інакше їх буде два
@@ -1392,7 +1392,18 @@ export default function OrdersAdmin() {
             /* Ідентифікатор документа знадобиться, якщо накладну
                доведеться скасувати: видаляють саме за ним. */
             const d0 = db();
-            if (d0 && ref) void updateDoc(doc(d0, 'orders', o._id), { ttnRef: ref });
+            if (d0) {
+              void updateDoc(doc(d0, 'orders', o._id), {
+                ...(ref ? { ttnRef: ref } : {}),
+                /* Що саме пішло в накладну. Через тиждень
+                   «скільки ми оголосили?» і «хто платить?» —
+                   питання без відповіді, якщо їх ніде не
+                   записати: у кабінеті перевізника вони є, але
+                   поруч із замовленням їх немає. */
+                ttnCost: Math.max(0, Math.round(declared)),
+                ttnPayer: payer
+              });
+            }
 
             /* Далі — з ОНОВЛЕНОЮ копією замовлення. Зі старою
                перевірка не бачила щойно створеного номера й

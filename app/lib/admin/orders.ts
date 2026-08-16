@@ -42,7 +42,8 @@ import {
 } from 'firebase/firestore';
 
 import { addressLine, type Address } from '../address';
-import { ALL_SIZES, setParts, type Catalogue } from '../catalog';
+import { ALL_SIZES, FREE_DELIVERY_FROM, setParts, type Catalogue } from '../catalog';
+import { UNDERWEAR } from '../delivery';
 import { orderNumber, type Confirm, type Customer } from '../order';
 import {
   promoCheck,
@@ -388,6 +389,10 @@ export interface AdminOrder {
   ttnSentAt?: string;
   /** Ідентифікатор накладної в кабінеті — за ним її й скасовують. */
   ttnRef?: string;
+  /** Оголошена вартість, яку вписали в накладну. */
+  ttnCost?: number;
+  /** Хто платить перевізникові за цією накладною. */
+  ttnPayer?: 'Sender' | 'Recipient';
   /** Покупець забирає сам — накладної не буде й не треба. */
   pickup?: boolean;
   /** Рахунок Monobank. Стан оплати питають у банку, не в нас. */
@@ -822,6 +827,52 @@ export type PointsAction =
  *  хто забирає сам. */
 function isoDay(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+/* ============================================================
+   БЕЗКОШТОВНА ДОСТАВКА
+   ------------------------------------------------------------
+   Магазин везе безкоштовно, коли білизни набралось на порогову
+   суму й замовлення оплачене повністю. Для покупця це «доставка
+   0 грн», а для магазину — рахунок від перевізника, який хтось
+   має закрити. Саме тут і губилось: у замовленні shipping нуль,
+   тож накладна за звичкою виписувалась на отримувача, і людина
+   платила за те, що їй пообіцяли безкоштовно.
+
+   Рахуємо з категорій самих позицій замовлення — тими самими,
+   що й кошик на сайті. Інакше два підрахунки розійшлися б, і
+   покупець побачив би одне, а менеджер інше. */
+export interface FreeShip {
+  /** Набрано на безкоштовну доставку. */
+  reached: boolean;
+  /** Сума білизни в замовленні. */
+  sum: number;
+  /** Скільки не вистачило; 0 — вистачило. */
+  need: number;
+}
+
+export function freeShipOf(order: AdminOrder): FreeShip {
+  const sum = (order.items || []).reduce((n, i) => {
+    const cat = String(i.category || '');
+    if (!UNDERWEAR.includes(cat)) return n;
+    return n + (Number(i.price) || 0) * (Number(i.qty) || 0);
+  }, 0);
+  return {
+    reached: sum >= FREE_DELIVERY_FROM,
+    sum,
+    need: Math.max(0, FREE_DELIVERY_FROM - sum)
+  };
+}
+
+/** Хто має платити перевізникові.
+ *
+ *  Ми — у двох випадках: коли покупець оплатив доставку разом із
+ *  замовленням, і коли вона безкоштовна за сумою. Обидва
+ *  зводяться до одного: гроші за пересилку вже або в нас, або
+ *  свідомо подаровані, і брати їх ще раз у відділенні не можна. */
+export function payerOf(order: AdminOrder, paid: boolean): 'Sender' | 'Recipient' {
+  if (Math.round(Number(order.shipping) || 0) > 0) return 'Sender';
+  return paid && freeShipOf(order).reached ? 'Sender' : 'Recipient';
 }
 
 export function paidForGoods(order: AdminOrder): number {
