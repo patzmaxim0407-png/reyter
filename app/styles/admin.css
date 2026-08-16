@@ -6515,18 +6515,29 @@ label.a-promo-product i {
 .calc__items { margin-top: 16px; display: grid; gap: 7px; }
 .calc__items-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .calc__items-head > span { font-size: 12px; font-weight: 600; color: var(--c-muted); }
-.calc-item { display: grid; grid-template-columns: minmax(0, 1fr) 84px 92px auto; gap: 8px; align-items: center; }
+/* Позиція випуску: назва й собівартість зверху, розміри під
+   ними. Річ із сіткою пошита не «пʼятьма штуками», а стількись S
+   і стількись M — одне число тут було б запрошенням до помилки. */
+.calc-item {
+  display: grid; gap: 7px; padding: 9px 10px;
+  border: 1px solid var(--c-line); border-radius: 12px; background: var(--c-cream);
+}
+.calc-item__top { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
 .calc-item__name {
-  font-size: 13px; color: var(--c-ink);
+  font-size: 13px; font-weight: 600; color: var(--c-ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.calc-item input {
-  padding: 0.45rem 0.6rem; border: 1px solid var(--c-line); border-radius: 10px;
-  background: var(--c-paper); font: inherit; font-size: 13px; text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.calc-item b {
+.calc-item__top b {
   font-size: 13px; text-align: right; color: var(--c-blue-ink);
+  font-variant-numeric: tabular-nums; display: grid; gap: 1px;
+}
+.calc-item__top b i { font-style: normal; font-size: 11px; font-weight: 500; color: var(--c-muted); }
+.calc-item__sizes { display: flex; gap: 6px; flex-wrap: wrap; }
+.calc-item__sizes label { display: grid; gap: 2px; justify-items: center; }
+.calc-item__sizes span { font-size: 11px; font-weight: 600; color: var(--c-muted); }
+.calc-item input {
+  width: 58px; padding: 0.4rem 0.45rem; border: 1px solid var(--c-line); border-radius: 9px;
+  background: var(--c-paper); font: inherit; font-size: 13px; text-align: center;
   font-variant-numeric: tabular-nums;
 }
 .calc__pick {

@@ -29,7 +29,7 @@ import { db } from '@/lib/firebase';
 import { useToast } from '../Toasts';
 import { useAdminUser } from './AdminGate';
 import type { AdminOrder } from '@/lib/admin/orders';
-import type { Catalogue } from '@/lib/catalog';
+import { isSized, productSizes, type Catalogue } from '@/lib/catalog';
 
 /* ============================================================
    Калькулятор випуску
@@ -336,32 +336,79 @@ export default function Pricing({ orders, c }: { orders: AdminOrder[]; c: Catalo
 
             {items.map((it, n) => {
               const share = plan.shares.find((x) => x.productId === it.productId);
+              const p = (c.products || []).find((x) => x.id === it.productId);
+              /* Річ із сіткою пошита не «пʼятьма штуками», а
+                 стількись S, стількись M. Одне число тут —
+                 запрошення до помилки: у приході однаково
+                 доведеться розкладати по розмірах, і розкладуть
+                 уже по памʼяті. */
+              const sizes = p && isSized(p) ? productSizes(p) : null;
+
+              const put = (patch: ReleaseItem) =>
+                setItems((v) => v.map((x, i) => (i === n ? patch : x)));
+
               return (
                 <div className="calc-item" key={it.productId + n}>
-                  <span className="calc-item__name">{names.get(it.productId) || it.productId}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    inputMode="numeric"
-                    aria-label="Скільки одиниць"
-                    value={unitsOf(it) || ''}
-                    onChange={(e) =>
-                      setItems((v) =>
-                        v.map((x, i) =>
-                          i === n ? { productId: x.productId, qty: Math.max(0, Number(e.target.value) || 0) } : x
-                        )
-                      )
-                    }
-                  />
-                  <b>{share ? share.unit.toLocaleString('uk') + ' грн' : '—'}</b>
-                  <button
-                    type="button"
-                    className="calc-line__drop"
-                    aria-label="Прибрати товар"
-                    onClick={() => setItems((v) => v.filter((_, i) => i !== n))}
-                  >
-                    ✕
-                  </button>
+                  <div className="calc-item__top">
+                    <span className="calc-item__name">{names.get(it.productId) || it.productId}</span>
+                    <b>
+                      {share ? share.unit.toLocaleString('uk') + ' грн' : '—'}
+                      <i>{unitsOf(it) || 0} шт</i>
+                    </b>
+                    <button
+                      type="button"
+                      className="calc-line__drop"
+                      aria-label="Прибрати товар"
+                      onClick={() => setItems((v) => v.filter((_, i) => i !== n))}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {sizes ? (
+                    <div className="calc-item__sizes">
+                      {sizes.map((size) => (
+                        <label key={size}>
+                          <span>{size}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            inputMode="numeric"
+                            aria-label={'Скільки одиниць, розмір ' + size}
+                            value={(it.sizes || {})[size] || ''}
+                            onChange={(e) =>
+                              put({
+                                productId: it.productId,
+                                sizes: {
+                                  ...(it.sizes || {}),
+                                  [size]: Math.max(0, Number(e.target.value) || 0)
+                                }
+                              })
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="calc-item__sizes">
+                      <label>
+                        <span>шт</span>
+                        <input
+                          type="number"
+                          min="0"
+                          inputMode="numeric"
+                          aria-label="Скільки одиниць"
+                          value={it.qty || ''}
+                          onChange={(e) =>
+                            put({
+                              productId: it.productId,
+                              qty: Math.max(0, Number(e.target.value) || 0)
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+                  )}
                 </div>
               );
             })}

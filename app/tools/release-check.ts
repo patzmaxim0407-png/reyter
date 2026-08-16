@@ -95,6 +95,25 @@ console.log('\nПРЯМА ВИТРАТА ЗА ШТУКУ');
   ok('сусідній товар цього не платить', b.goods === 0, String(b.goods));
 }
 
+console.log('\nРОЗМІРНА СІТКА');
+{
+  /* Річ із сіткою: кількість береться сумою по розмірах, а
+     собівартість ділиться на неї ж. */
+  const r: Release = {
+    ...base,
+    items: [{ productId: 'A', sizes: { S: 4, M: 6, L: 2 } }],
+    lines: [{ id: 'x', title: 'усе', sum: 12000, perUnit: false }]
+  };
+  const p = planOf(r);
+  ok('одиниці — сума по розмірах', p.units === 12, String(p.units));
+  ok('собівартість ділиться на суму', p.shares[0].unit === 1000, String(p.shares[0].unit));
+
+  /* Порожній розмір не робить позицію нульовою, а нульовий не
+     потрапляє в прихід як «нуль штук». */
+  const holes = planOf({ ...r, items: [{ productId: 'A', sizes: { S: 3, M: 0 } }] });
+  ok('нульовий розмір не ламає підрахунок', holes.units === 3, String(holes.units));
+}
+
 console.log('\nПРИХОДИ');
 {
   const p = planOf(base);
