@@ -6596,3 +6596,9 @@ label.a-promo-product i {
 @media (max-width: 860px) {
   .ins-todo__row { grid-template-columns: 1fr; gap: 6px; }
 }
+
+/* Видалення випуску стоїть окремо від збереження й створення
+   приходів: це дія іншої природи, і сусідство з «Зберегти» рано
+   чи пізно коштувало б комусь випуску. */
+.calc__drop { margin-top: 10px; color: var(--c-red); }
+.calc__drop:hover { border-color: var(--c-red); background: var(--c-red-soft); }

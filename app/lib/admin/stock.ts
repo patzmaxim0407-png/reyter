@@ -790,6 +790,8 @@ export interface Restock {
    *  курс, інший постачальник. При оприбуткуванні вона стає
    *  поточною собівартістю товару. */
   cost?: number;
+  /** Випуск, з якого прихід створено. */
+  releaseId?: string;
   /** Кількості по розмірах або одним числом: що саме, залежить
    *  від товару на момент створення приходу. */
   items?: Record<string, number>;
@@ -899,6 +901,10 @@ export interface CostBatch {
   cost: number;
   /** Коли оприбуткована — щоб черга читалась очима. */
   at: string;
+  /** З якого випуску партія. Потрібне для одного: коли витрати
+   *  випуску уточнили, ціну можна виправити САМЕ в його партіях,
+   *  не чіпаючи чужих. */
+  from?: string;
 }
 
 export interface CostQueue {
@@ -910,11 +916,46 @@ export function emptyQueue(): CostQueue {
 }
 
 /** Додати партію в кінець черги. */
-export function pushBatch(q: CostQueue, qty: number, cost: number, at: string): CostQueue {
+export function pushBatch(
+  q: CostQueue,
+  qty: number,
+  cost: number,
+  at: string,
+  from = ''
+): CostQueue {
   const units = Math.max(0, Math.round(qty));
   const price = Math.max(0, Math.round(cost));
   if (!units || !price) return q;
-  return { batches: [...(q.batches || []), { qty: units, cost: price, at }] };
+  return { batches: [...(q.batches || []), { qty: units, cost: price, at, ...(from ? { from } : {}) }] };
+}
+
+/** Виправити ціну в НЕПРОДАНОМУ залишку партій одного випуску.
+ *
+ *  Витрати випуску уточнюють постійно: рахунок за фурнітуру
+ *  приходить через три дні, реклама через два тижні. Собівартість
+ *  від цього змінюється — і питання, що робити з тим, що вже
+ *  лежить на складі й що вже продано.
+ *
+ *  Відповідь: продане не чіпаємо. У замовленні ціна заморожена в
+ *  мить продажу — вона була правдою тоді, і переписати її означало
+ *  б переписати минулий місяць. А те, що ще не продано, цілком
+ *  можна перерахувати: ці одиниці ще нічого нікому не сказали.
+ *
+ *  Саме тому черга й памʼятає, з якого випуску партія. */
+export function restateQueue(q: CostQueue, from: string, cost: number): CostQueue {
+  const price = Math.max(0, Math.round(cost));
+  if (!from || !price) return q;
+  return {
+    batches: (q.batches || []).map((b) => (b.from === from ? { ...b, cost: price } : b))
+  };
+}
+
+/** Скільки одиниць випуску ще лежить у черзі — тобто скільки
+ *  торкнеться виправлення. */
+export function unsoldOf(q: CostQueue, from: string): number {
+  return (q.batches || [])
+    .filter((b) => b.from === from)
+    .reduce((n, b) => n + Math.max(0, b.qty), 0);
 }
 
 /** Продаж: беремо потрібне з голови черги.
@@ -1322,7 +1363,7 @@ export async function receiveRestock(
         ? Object.values(plan.sizes).reduce((n, v) => n + (Number(v) || 0), 0)
         : plan.qty;
       const was = await readQueue(w, r.productId, s);
-      const next = pushBatch(was, add, batchCost, todayISO(new Date()));
+      const next = pushBatch(was, add, batchCost, todayISO(new Date()), r.releaseId || '');
       batch.set(doc(w.db, COSTS_COL, r.productId), next, { merge: false });
     }
 

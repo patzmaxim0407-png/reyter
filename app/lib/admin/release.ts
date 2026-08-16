@@ -39,6 +39,7 @@ import {
   getDocs,
   orderBy,
   query,
+  where,
   serverTimestamp,
   setDoc,
   writeBatch,
@@ -49,7 +50,15 @@ import type { AdminOrder } from './orders';
 import type { Catalogue } from '../catalog';
 import { linesOf, soldOrders } from './insights';
 import { spendOf, type CostLine, type Spend } from './pricing';
-import { RESTOCKS_COL } from './stock';
+import {
+  COSTS_COL,
+  RESTOCKS_COL,
+  emptyQueue,
+  readQueue,
+  restateQueue,
+  unsoldOf,
+  type CostQueue
+} from './stock';
 
 export const RELEASES_COL = 'releases';
 
@@ -67,6 +76,11 @@ export interface ReleaseItem {
 export interface Release {
   _id: string;
   title: string;
+  /** Категорія, за якою калькулятор бере ціни й маржу магазину.
+   *  Зберігається разом із випуском: інакше при поверненні до
+   *  нього поради рахувались би по всьому каталогу, і три ціни
+   *  щоразу виходили б інші. */
+  category?: string;
   /** День випуску, YYYY-MM-DD. */
   at: string;
   lines: CostLine[];
@@ -301,6 +315,7 @@ export async function saveRelease(
   const body = {
     title: release.title.trim() || 'Випуск',
     at: release.at,
+    category: release.category || '',
     lines: release.lines.filter((l) => Number(l.sum) > 0 || l.title.trim()),
     items: release.items.filter((i) => unitsOf(i) > 0),
     split: release.split,
@@ -359,6 +374,9 @@ export async function makeRestocks(
         note: d.note,
         status: 'pending',
         cost: d.cost,
+        /* Звідки прихід. За цим полем ми потім знайдемо і його, і
+           його партію в черзі, коли витрати випуску уточнять. */
+        releaseId: release._id,
         ...(d.sizes ? { items: d.sizes } : { qty: d.qty }),
         created: serverTimestamp(),
         by
@@ -373,5 +391,99 @@ export async function makeRestocks(
     return { ok: true, made: drafts.length };
   } catch {
     return { ok: false, message: 'Не вдалося створити приходи' };
+  }
+}
+
+
+/* ============================================================
+   КОЛИ ВИТРАТИ УТОЧНИЛИ
+   ------------------------------------------------------------
+   Рахунок за фурнітуру приходить через три дні, реклама через
+   два тижні. Собівартість випуску від цього змінюється — а
+   приходи вже створені, партія вже, може, оприбуткована, і
+   частину товару вже продали.
+
+   ЩО МОЖНА, А ЧОГО НЕ МОЖНА.
+
+   Продане не чіпаємо ніколи. У замовленні собівартість заморожена
+   в мить продажу: вона була правдою тоді, і переписати її означало
+   б переписати вже закритий місяць. Звіт, який змінюється заднім
+   числом, — це не звіт.
+
+   Прихід, який ще очікується,правимо цілком: він нічого нікому
+   не сказав, у чергу не потрапив.
+
+   Оприбуткована партія правиться в НЕПРОДАНОМУ залишку: ті
+   одиниці ще лежать на складі, і саме вони підуть за новою ціною.
+
+   Тому виправлення завжди часткове — і функція каже, чого саме
+   вона торкнулась, щоб це не виглядало магією.
+   ============================================================ */
+
+export interface Restated {
+  /** Приходів, які ще очікувались і тепер мають нову ціну. */
+  pending: number;
+  /** Одиниць у чергах, чия ціна змінилась. */
+  unsold: number;
+  /** Товарів, яких це торкнулось. */
+  products: number;
+}
+
+export async function restateCosts(
+  db: Firestore,
+  release: Release,
+  plan: Plan
+): Promise<{ ok: true; done: Restated } | { ok: false; message: string }> {
+  if (!release._id) return { ok: false, message: 'Випуск ще не збережено' };
+
+  const done: Restated = { pending: 0, unsold: 0, products: 0 };
+
+  try {
+    /* Спершу читаємо все, потім пишемо: у Firestore пакет не
+       вміє читати після запису, та й помилка на середині лишила
+       б половину партій за старою ціною. */
+    const restocks = await getDocs(
+      query(collection(db, RESTOCKS_COL), where('releaseId', '==', release._id))
+    );
+
+    const queues = new Map<string, CostQueue>();
+    for (const s of plan.shares) {
+      queues.set(s.productId, await readQueue({ db }, s.productId));
+    }
+
+    const batch = writeBatch(db);
+
+    for (const share of plan.shares) {
+      if (!share.unit) continue;
+      let touched = false;
+
+      /* Приходи, які ще не оприбуткували. */
+      for (const d of restocks.docs) {
+        const r = d.data() as { productId?: string; status?: string; cost?: number };
+        if (String(r.productId || '') !== share.productId) continue;
+        if (r.status === 'received') continue;
+        if (Math.round(Number(r.cost) || 0) === share.unit) continue;
+        batch.update(d.ref, { cost: share.unit });
+        done.pending += 1;
+        touched = true;
+      }
+
+      /* І непроданий залишок у черзі. */
+      const queue = queues.get(share.productId) || emptyQueue();
+      const left = unsoldOf(queue, release._id);
+      if (left > 0) {
+        const next = restateQueue(queue, release._id, share.unit);
+        batch.set(doc(db, COSTS_COL, share.productId), next);
+        done.unsold += left;
+        touched = true;
+      }
+
+      if (touched) done.products += 1;
+    }
+
+    await batch.commit();
+    return { ok: true, done };
+  } catch {
+    return { ok: false, message: 'Не вдалося оновити партії' };
   }
 }

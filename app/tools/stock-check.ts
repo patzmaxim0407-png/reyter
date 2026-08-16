@@ -29,6 +29,8 @@ import {
   planRestock,
   planRestockEdit,
   emptyQueue,
+  restateQueue,
+  unsoldOf,
   giveBack,
   headCost,
   pushBatch,
@@ -415,6 +417,28 @@ const client = readFileSync(new URL('../lib/notify.ts', import.meta.url), 'utf8'
   );
   ok('нуль прибирає ціну з партії',
      wiped.ok === true && (wiped as { update: { cost: number } }).update.cost === 0);
+
+  /* Витрати випуску уточнюють постійно, і питання завжди одне:
+     що робити з тим, що вже продано. Відповідь — не чіпати:
+     переписати заморожену ціну означало б переписати вже
+     закритий місяць. А непроданий залишок правиться вільно. */
+  let batches = pushBatch(emptyQueue(), 10, 400, '2026-08-01', 'REL-1');
+  batches = pushBatch(batches, 5, 300, '2026-08-05');
+  ok('партія памʼятає свій випуск', batches.batches[0].from === 'REL-1');
+  ok('чужа партія його не має', batches.batches[1].from === undefined);
+
+  const eaten = takeUnits(batches, 4).queue;
+  ok('після продажу в черзі лишилось шість', unsoldOf(eaten, 'REL-1') === 6,
+     String(unsoldOf(eaten, 'REL-1')));
+
+  const fixed = restateQueue(eaten, 'REL-1', 460);
+  ok('непроданий залишок узяв нову ціну', fixed.batches[0].cost === 460);
+  ok('чужа партія лишилась недоторканою',
+     fixed.batches[fixed.batches.length - 1].cost === 300);
+  ok('і кількість не змінилась', fixed.batches[0].qty === 6, String(fixed.batches[0].qty));
+
+  ok('без випуску нічого не правиться',
+     restateQueue(batches, '', 999).batches[0].cost === 400);
 
   ok('прихід кладе партію в чергу, а не переписує картку',
      /COSTS_COL, r\.productId\), next/.test(

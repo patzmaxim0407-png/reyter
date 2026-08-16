@@ -14,10 +14,12 @@ import {
 } from '@/lib/admin/pricing';
 import { rangeOf } from '@/lib/admin/insights';
 import {
+  deleteRelease,
   loadReleases,
   makeRestocks,
   planOf,
   paybackOf,
+  restateCosts,
   saveRelease,
   totalUnits,
   unitsOf,
@@ -27,6 +29,7 @@ import {
 } from '@/lib/admin/release';
 import { db } from '@/lib/firebase';
 import { useToast } from '../Toasts';
+import { useAsk } from './AskProvider';
 import { useAdminUser } from './AdminGate';
 import type { AdminOrder } from '@/lib/admin/orders';
 import { isSized, productSizes, type Catalogue } from '@/lib/catalog';
@@ -64,6 +67,7 @@ const START: CostLine[] = [
 
 export default function Pricing({ orders, c }: { orders: AdminOrder[]; c: Catalogue }) {
   const toast = useToast();
+  const ask = useAsk();
   const user = useAdminUser();
 
   const [lines, setLines] = useState<CostLine[]>(START);
@@ -124,13 +128,14 @@ export default function Pricing({ orders, c }: { orders: AdminOrder[]; c: Catalo
     [c.products]
   );
 
-  const release: Release = { _id: id, title, at, lines, items, split: howSplit };
+  const release: Release = { _id: id, title, at, category, lines, items, split: howSplit };
 
   /** Відкрити збережений випуск. */
   function open(r: Release) {
     setId(r._id);
     setTitle(r.title || '');
     setAt(r.at || '');
+    setCategory(r.category || '');
     setLines(r.lines?.length ? r.lines : START);
     setItems(r.items || []);
     setHowSplit(r.split || 'units');
@@ -156,6 +161,61 @@ export default function Pricing({ orders, c }: { orders: AdminOrder[]; c: Catalo
     setId(res.id);
     setSaved(await loadReleases(d));
     toast('Випуск збережено ✓', 'success');
+  }
+
+  /** Оновити собівартість у створених приходах і в непроданому
+   *  залишку. Продане лишається як було — і про це прямо
+   *  написано в питанні, бо саме воно найчастіше й турбує. */
+  async function restate() {
+    const d = db();
+    if (!d || !id) return;
+    const yes = await ask({
+      title: 'Оновити партії за новою собівартістю?',
+      text:
+        `Нова собівартість піде в приходи цього випуску, які ще очікуються, і в той товар,` +
+        ' що лежить на складі непроданим.\n\n' +
+        'Уже продане не зміниться: у замовленні собівартість заморожена в мить продажу.' +
+        ' Звіт за минулий місяць лишиться таким, яким ви його бачили.',
+      okText: 'Оновити'
+    });
+    if (yes !== true) return;
+
+    setBusy(true);
+    const res = await restateCosts(d, { ...release, _id: id }, plan);
+    setBusy(false);
+    if (!res.ok) return toast(res.message);
+
+    const { pending, unsold, products } = res.done;
+    toast(
+      pending || unsold
+        ? `Оновлено: приходів ${pending}, непроданих одиниць ${unsold} у ${products} товарах ✓`
+        : 'Оновлювати не було чого — ціни й так збігаються',
+      pending || unsold ? 'success' : 'plain'
+    );
+  }
+
+  async function drop() {
+    const d = db();
+    if (!d || !id) return;
+    const yes = await ask({
+      title: 'Видалити випуск?',
+      text:
+        `«${title || at}» зникне з переліку.\n\n` +
+        'Приходи, які з нього створені, лишаться на складі — вони вже живуть своїм життям,' +
+        ' і видаляти їх звідси було б несподіванкою. Якщо вони не потрібні, приберіть їх' +
+        ' на складі окремо.',
+      okText: 'Видалити',
+      danger: true
+    });
+    if (yes !== true) return;
+
+    setBusy(true);
+    const okDone = await deleteRelease(d, id);
+    setBusy(false);
+    if (!okDone) return toast('Не вдалося видалити');
+    fresh();
+    setSaved(await loadReleases(d));
+    toast('Випуск видалено', 'plain');
   }
 
   async function toStock() {
@@ -446,6 +506,15 @@ export default function Pricing({ orders, c }: { orders: AdminOrder[]; c: Catalo
             <button className="btn btn--ghost btn--sm" type="button" disabled={busy} onClick={keep}>
               {id ? 'Зберегти зміни' : 'Зберегти випуск'}
             </button>
+            {/* Витрати уточнюють постійно — рахунок за фурнітуру
+                через три дні, реклама через два тижні. Тому
+                оновлення партій окремою дією, а не мовчки при
+                збереженні: воно міняє гроші на складі. */}
+            {id && done ? (
+              <button className="btn btn--ghost btn--sm" type="button" disabled={busy} onClick={restate}>
+                Оновити собівартість партій
+              </button>
+            ) : null}
             {/* Приходи створюються НЕ оприбуткованими: партія
                 стане в чергу тоді, коли товар справді приїде. */}
             <button
@@ -458,6 +527,12 @@ export default function Pricing({ orders, c }: { orders: AdminOrder[]; c: Catalo
               {done ? 'Приходи створені ✓' : 'Створити приходи'}
             </button>
           </div>
+          {id ? (
+            <button className="btn btn--ghost btn--sm calc__drop" type="button" disabled={busy} onClick={drop}>
+              Видалити випуск
+            </button>
+          ) : null}
+
           {plan.shares.length && !done ? (
             <p className="calc__hint">
               Створить {plan.shares.length} приход
