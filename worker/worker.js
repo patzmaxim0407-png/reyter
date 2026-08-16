@@ -1333,6 +1333,10 @@ const RESEND_API = 'https://api.resend.com';
    створиться нормально — впаде вже надсилання, і впаде цілком:
    не «перші тисяча дійшли», а жоден. Тому межу тримаємо в себе. */
 const CONTACTS_MAX = 1000;
+/* Одна група на всі розсилки: безкоштовний тариф дає три, тож
+   заводити нову під кожен лист не можна. Перед кожним
+   надсиланням вона зводиться рівно до поточного добору. */
+const SEGMENT_NAME = 'REYTER · розсилка';
 
 async function resendCall(env, path, init) {
   try {
@@ -1456,6 +1460,54 @@ function splitName(full) {
      коли слів три (класичне ПІБ), і перше в решті випадків. */
   if (parts.length >= 3) return { first: parts[1], last: parts[0] };
   return { first: parts[0], last: parts.slice(1).join(' ') };
+}
+
+/** Хто зараз у сегменті. Потрібно, щоб прибрати звідти тих,
+ *  кому цього разу не пишемо. */
+async function segmentPeople(env, segmentId) {
+  const out = [];
+  let after = '';
+  /* Сторінками, поки є що читати. Стеля в десять кіл — щоб
+     зіпсута відповідь не закрутила воркер назавжди. */
+  for (let i = 0; i < 10; i++) {
+    const r = await resendCall(
+      env,
+      '/segments/' + encodeURIComponent(segmentId) + '/contacts?limit=100' +
+        (after ? '&after=' + encodeURIComponent(after) : ''),
+      { method: 'GET' }
+    );
+    if (!r.ok) break;
+    const rows = (r.data && r.data.data) || [];
+    rows.forEach((x) => out.push(String(x.email || '').toLowerCase()));
+    if (!r.data.has_more || !rows.length) break;
+    after = rows[rows.length - 1].id;
+  }
+  return out;
+}
+
+/** Звести сегмент рівно до тих, кому пишемо цього разу.
+ *
+ *  Без цього розсилка «найціннішим» пішла б усім, кому писали
+ *  минулого разу: контакти лишаються в сегменті назавжди. А
+ *  безкоштовний тариф дає лише три сегменти, тож завести окремий
+ *  на кожну розсилку не вийде — доводиться прибирати зайвих.
+ *
+ *  Прибираємо лише з СЕГМЕНТА, а не з бази: контакт зі своїм
+ *  станом відписки лишається цілим. */
+async function alignSegment(env, segmentId, wanted) {
+  const keep = new Set(wanted.map((x) => String(x.email || '').toLowerCase()));
+  const now = await segmentPeople(env, segmentId);
+  let removed = 0;
+  for (const mail of now) {
+    if (keep.has(mail)) continue;
+    const r = await resendCall(
+      env,
+      '/contacts/' + encodeURIComponent(mail) + '/segments/' + encodeURIComponent(segmentId),
+      { method: 'DELETE' }
+    );
+    if (r.ok) removed += 1;
+  }
+  return removed;
 }
 
 /** Записати людей у сегмент.
@@ -1808,13 +1860,65 @@ export default {
         }, 200, cors);
       }
 
-      /* Надіслати. Лист збирає воркер — з адмінки приходить лише
-         те, що написала людина. */
-      const segmentId = clip(d.segmentId, 60);
+      /* Надіслати. Один запит робить УСЕ: заводить групу, зводить
+         її рівно до тих, кому пишемо, і відправляє лист.
+
+         Спершу це були три кроки в адмінці — «зібрати групу»,
+         обрати її зі списку, потім надіслати. Кроки існували не
+         для людини, а тому, що так влаштований Resend: спершу
+         сегмент, потім контакти, потім розсилка. Показувати чуже
+         внутрішнє влаштування як роботу для власника — помилка.
+         Тепер він каже кому й що, а решта не його клопіт. */
       const subject = clip(d.subject, 180).trim();
-      if (!segmentId) return reply({ ok: false, error: 'Не обрано групу отримувачів' }, 400, cors);
+      const people = Array.isArray(d.people) ? d.people : [];
+      if (!people.length) return reply({ ok: false, error: 'Нема кому писати' }, 400, cors);
+      if (people.length > CONTACTS_MAX) {
+        return reply({
+          ok: false,
+          error: 'Отримувачів ' + people.length + ', а безкоштовний тариф вміщає ' + CONTACTS_MAX +
+            '. Resend відмовив би всій розсилці, а не зайвим.'
+        }, 400, cors);
+      }
       if (!subject) return reply({ ok: false, error: 'Порожня тема листа' }, 400, cors);
       if (!String(d.text || '').trim()) return reply({ ok: false, error: 'Порожній текст листа' }, 400, cors);
+
+      /* Група одна на всі розсилки, і щоразу вона зводиться до
+         поточного добору. Заводити нову на кожен лист не можна:
+         безкоштовний тариф дає лише три. */
+      let segmentId = clip(d.segmentId, 60);
+      if (!segmentId) {
+        const have = await resendCall(env, '/segments', { method: 'GET' });
+        const rows = (have.ok && have.data && (have.data.data || have.data.segments)) || [];
+        const mine = rows.find((x) => String(x.name || '') === SEGMENT_NAME);
+        if (mine) segmentId = mine.id;
+      }
+      if (!segmentId) {
+        const made = await resendCall(env, '/segments', {
+          method: 'POST',
+          body: JSON.stringify({ name: SEGMENT_NAME })
+        });
+        if (!made.ok || !made.data.id) {
+          return reply({
+            ok: false,
+            error: (made.data && made.data.message) ||
+              'Не вдалося створити групу. На безкоштовному тарифі їх лише три — приберіть зайву в кабінеті Resend.'
+          }, 200, cors);
+        }
+        segmentId = made.data.id;
+      }
+
+      /* Спершу прибрати зайвих, потім додати потрібних. Саме в
+         такому порядку: інакше в проміжку між двома діями
+         сегмент містив би і тих, і тих, а розсилка, надіслана
+         паралельно, пішла б не тим. */
+      await alignSegment(env, segmentId, people);
+      const put = await syncContacts(env, segmentId, people);
+      if (!put.added) {
+        return reply({
+          ok: false,
+          error: put.errors.join('; ') || 'Не вдалося записати жодного отримувача'
+        }, 200, cors);
+      }
 
       const html = broadcastHTML(d);
       /* Запобіжник, а не формальність: Resend приймає розсилку і
@@ -1849,7 +1953,14 @@ export default {
         }, 200, cors);
       }
 
-      return reply({ ok: true, id: made.data.id, at: d.at || '' }, 200, cors);
+      return reply({
+        ok: true,
+        id: made.data.id,
+        segmentId,
+        added: put.added,
+        failed: put.failed,
+        at: d.at || ''
+      }, 200, cors);
     }
 
     /* --- Оплата карткою: Monobank --- */

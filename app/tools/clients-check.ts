@@ -24,6 +24,7 @@ import {
   type Client
 } from '../lib/admin/clients.ts';
 import type { MemberDoc } from '../lib/admin/loyalty-db.ts';
+import { reportOf, watchedDays } from '../lib/admin/mailing.ts';
 
 let failed = 0;
 function ok(what: string, pass: boolean, got = '') {
@@ -292,6 +293,54 @@ console.log('\nПІДСУМКИ');
   ok('частка тих, хто повертається', Math.round(st.loyal * 100) === 50, String(Math.round(st.loyal * 100)));
   ok('скільки приносить покупець', st.ltv === Math.round(1650 / 2), String(st.ltv));
   ok('кому можна написати', st.reachable === 3, String(st.reachable));
+}
+
+console.log('\nЗВІТ ПО РОЗСИЛЦІ');
+{
+  const run = {
+    _id: 'r1', id: 'r1', subject: 'Нова колекція', audience: 'усі',
+    at: ago(7), to: ['a@x.ua', 'b@x.ua', 'c@x.ua', 'd@x.ua'], by: ''
+  };
+
+  const orders = [
+    /* Двоє з чотирьох замовили після листа. */
+    order('a@x.ua', ago(5), [{ id: 'A', qty: 1, price: 550 }]),
+    order('a@x.ua', ago(3), [{ id: 'A', qty: 1, price: 550 }]),
+    order('b@x.ua', ago(2), [{ id: 'B', qty: 1, price: 690 }]),
+    /* Той самий покупець ДО листа — з цим і порівнюємо. */
+    order('a@x.ua', ago(12), [{ id: 'A', qty: 1, price: 550 }]),
+    /* Чужа людина: у переліку отримувачів її немає, і зараховувати
+       її покупку розсилці немає жодних підстав. */
+    order('stranger@x.ua', ago(4), [{ id: 'A', qty: 9, price: 550 }]),
+    /* Скасоване грошей не принесло. */
+    order('c@x.ua', ago(4), [{ id: 'A', qty: 1, price: 550 }], { status: 'cancelled' })
+  ];
+
+  const rep = reportOf(run as never, orders, NOW);
+  ok('замовили саме отримувачі', rep.buyers === 2, String(rep.buyers));
+  ok('замовлень порахвано', rep.orders === 3, String(rep.orders));
+  ok('виручка лише з отримувачів', rep.revenue === 550 + 550 + 690, String(rep.revenue));
+  ok('конверсія від тих, кому писали', Math.round(rep.rate * 100) === 50, String(Math.round(rep.rate * 100)));
+  ok('скасоване в конверсію не йде', rep.buyers === 2 && !String(rep.revenue).includes('2340'));
+  /* Порівняння з тим, що було до листа: без нього конверсія вміє
+     переконати в чому завгодно. */
+  ok('видно, скільки було до листа', rep.wasRevenue === 550, String(rep.wasRevenue));
+  /* 1790 проти 550 — це втричі з чвертю більше, тобто +225%. */
+  ok('приріст рахується від нього', rep.lift !== null && Math.round(rep.lift * 100) === 225,
+     rep.lift === null ? 'немає' : String(Math.round(rep.lift * 100)));
+
+  /* Вікно не заглядає в майбутнє: у розсилки, надісланої вчора,
+     має бути один день спостережень, а не чотирнадцять. Інакше
+     свіжий лист завжди виглядав би провальним. */
+  const fresh = { ...run, at: ago(1) };
+  ok('свіжа розсилка ще збирається', watchedDays(fresh as never, NOW) === 1,
+     String(watchedDays(fresh as never, NOW)));
+  ok('стара розсилка вже повна', watchedDays(run as never, NOW) === 7,
+     String(watchedDays(run as never, NOW)));
+
+  /* Нікому не писали — і ділити нема на що. */
+  const empty = reportOf({ ...run, to: [] } as never, orders, NOW);
+  ok('порожня розсилка не ділить на нуль', empty.rate === 0 && empty.lift === null);
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));

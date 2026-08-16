@@ -3,22 +3,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '../Toasts';
 import { useAsk } from './AskProvider';
-import { SEGMENTS, type Client, type Segment } from '@/lib/admin/clients';
+import { LOYALS, SEGMENTS, byLoyal, type Client, type Loyal, type Segment } from '@/lib/admin/clients';
+import { inClub } from '@/lib/admin/loyalty-db';
 import {
   CONTACTS_MAX,
   EMPTY_LETTER,
-  SEGMENTS_MAX,
+  WINDOW,
   contactsOf,
-  loadSegments,
-  loadSent,
+  dropRun,
+  loadRuns,
+  manyLetters,
   overLimit,
   reachable,
+  reportOf,
+  saveRun,
   sendBroadcast,
-  syncPeople,
+  watchedDays,
   type Letter,
-  type MailSegment,
-  type SentMail
+  type MailRun
 } from '@/lib/admin/mailing';
+import { db } from '@/lib/firebase';
+import type { AdminOrder } from '@/lib/admin/orders';
 
 /* ============================================================
    Розсилки
@@ -39,12 +44,16 @@ const ALL = 'all';
 
 export default function Broadcast({
   clients,
+  orders,
   picked,
   onPicked,
   workerUrl,
   workerKey
 }: {
   clients: Client[];
+  /** Замовлення — щоб порахувати, що розсилка дала. Поштовий
+   *  сервіс на це не відповість: покупки живуть у нас. */
+  orders: AdminOrder[];
   /** Людина, з чиєї картки натиснули «написати». */
   picked: Client | null;
   onPicked(): void;
@@ -56,32 +65,30 @@ export default function Broadcast({
   const cab = useMemo(() => ({ workerUrl, adminKey: workerKey }), [workerUrl, workerKey]);
 
   const [who, setWho] = useState<Segment | typeof ALL>(ALL);
+  const [loyal, setLoyal] = useState<Loyal>('any');
   const [letter, setLetter] = useState<Letter>(EMPTY_LETTER);
-  const [segments, setSegments] = useState<MailSegment[]>([]);
-  const [segment, setSegment] = useState('');
-  const [sent, setSent] = useState<SentMail[]>([]);
-  const [busy, setBusy] = useState('');
-  const [ready, setReady] = useState(0);
+  const [runs, setRuns] = useState<MailRun[]>([]);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    void loadSegments(cab).then((r) => {
-      if (r.ok) setSegments(r.segments || []);
-      else setError(r.error || '');
-    });
-    void loadSent(cab).then((r) => {
-      if (r.ok) setSent(r.sent || []);
-    });
-  }, [cab]);
+    const d = db();
+    if (d) void loadRuns(d).then(setRuns);
+  }, []);
 
   /* Людина прийшла з картки конкретного клієнта — лист буде їй
      одній. Групу в такому разі не питаємо. */
   const one = picked;
 
+  /* Два незалежні зрізи: стан клієнта і програма лояльності.
+     «Постійні» і «третій рівень» — різні питання про ту саму
+     людину, і зводити їх в один перелік означало б показувати
+     сімнадцять кнопок замість восьми. */
   const chosen = useMemo(() => {
     if (one) return [one];
-    return who === ALL ? clients : clients.filter((x) => x.segment === who);
-  }, [clients, who, one]);
+    const byState = who === ALL ? clients : clients.filter((x) => x.segment === who);
+    return byLoyal(byState, loyal, (m) => inClub(m));
+  }, [clients, who, loyal, one]);
 
   const people = useMemo(() => reachable(chosen), [chosen]);
   const tooMany = overLimit(people.length);
@@ -90,38 +97,13 @@ export default function Broadcast({
      зробити. */
   const noMail = chosen.length - people.length;
 
-  async function collect() {
+  async function send(now: boolean) {
     if (!people.length) {
       toast('Нема кому писати: у цих людей немає пошти');
       return;
     }
     if (tooMany) {
       toast(`Безкоштовний тариф вміщає ${CONTACTS_MAX} контактів, а тут ${people.length}`);
-      return;
-    }
-    setBusy('sync');
-    try {
-      const name = one ? 'REYTER · окремі листи' : 'REYTER · ' + labelOf(who);
-      const r = await syncPeople(cab, name, segment, contactsOf(people));
-      if (!r.ok) {
-        toast(r.error || 'Не вдалося зібрати групу');
-        return;
-      }
-      if (r.segmentId) setSegment(r.segmentId);
-      setReady(r.added || 0);
-      toast(
-        `У групі ${r.added} ${r.failed ? `· не вдалося ${r.failed}` : ''}`.trim(),
-        'success'
-      );
-      void loadSegments(cab).then((s) => s.ok && setSegments(s.segments || []));
-    } finally {
-      setBusy('');
-    }
-  }
-
-  async function send(now: boolean) {
-    if (!segment) {
-      toast('Спершу зберіть групу отримувачів');
       return;
     }
     if (!letter.subject.trim() || !letter.text.trim()) {
@@ -131,34 +113,74 @@ export default function Broadcast({
     const yes = await ask({
       title: now ? 'Надіслати зараз?' : 'Поставити в чергу?',
       text:
-        `Лист «${letter.subject}» піде ${ready || people.length} людям.\n\n` +
+        `Лист «${letter.subject}» піде ${manyLetters(people.length)}.\n\n` +
         'Скасувати надіслане неможливо. Перевірте тему й текст ще раз.',
       okText: now ? 'Надіслати' : 'Запланувати'
     });
     if (yes !== true) return;
 
-    setBusy('send');
+    setBusy(true);
     try {
-      /* «in 15 min» — природна мова, яку Resend розуміє сам.
+      /* Один запит робить усе: заводить групу, зводить її рівно
+         до цього добору й відправляє. Раніше тут було три кроки
+         руками — вони існували не для людини, а тому, що так
+         влаштований Resend.
+
+         «in 15 min» — природна мова, яку Resend розуміє сам.
          Чверть години це не запізнення, а можливість передумати:
          єдина дія в адмінці, якої не відкотити. */
-      const r = await sendBroadcast(cab, segment, letter, now ? '' : 'in 15 min');
+      const r = await sendBroadcast(cab, contactsOf(people), letter, now ? '' : 'in 15 min');
       if (!r.ok) {
         toast(r.error || 'Resend не прийняв розсилку');
         return;
       }
       toast(now ? 'Розсилка пішла ✓' : 'Розсилка піде за 15 хвилин ✓', 'success');
+
+      /* Запамʼятовуємо, кому саме пішов лист. Без цього переліку
+         конверсію не порахувати ніяк: замовлення не знає, що
+         йому передувала розсилка. */
+      const d = db();
+      if (d) {
+        const run: Omit<MailRun, '_id'> = {
+          id: String(r.id || ''),
+          subject: letter.subject,
+          audience: one ? one.email : labelOf(who) + (loyal === 'any' ? '' : ' · ' + labelOfLoyal(loyal)),
+          at: new Date(Date.now() + (now ? 0 : 15 * 60_000)).toISOString(),
+          to: people.map((x) => x.email),
+          by: ''
+        };
+        await saveRun(d, run).catch(() => {});
+        void loadRuns(d).then(setRuns);
+      }
+
       setLetter(EMPTY_LETTER);
       onPicked();
-      void loadSent(cab).then((s) => s.ok && setSent(s.sent || []));
     } finally {
-      setBusy('');
+      setBusy(false);
     }
   }
 
   function labelOf(id: Segment | typeof ALL): string {
     if (id === ALL) return 'усі клієнти';
     return SEGMENTS.find((s) => s.id === id)?.title || String(id);
+  }
+
+  function labelOfLoyal(id: Loyal): string {
+    return LOYALS.find((l) => l.id === id)?.title || String(id);
+  }
+
+  async function forget(run: MailRun) {
+    const yes = await ask({
+      title: 'Прибрати звіт?',
+      text: `Звіт про «${run.subject}» зникне. Сам лист уже надіслано — його це не скасує.`,
+      okText: 'Прибрати',
+      danger: true
+    });
+    if (yes !== true) return;
+    const d = db();
+    if (!d) return;
+    await dropRun(d, run._id).catch(() => {});
+    void loadRuns(d).then(setRuns);
   }
 
   const set = (p: Partial<Letter>) => setLetter((v) => ({ ...v, ...p }));
@@ -202,46 +224,32 @@ export default function Broadcast({
           </div>
         )}
 
+        {/* Другий зріз — програма лояльності. Незалежний від
+            першого: «постійні» і «третій рівень» це різні
+            питання про ту саму людину. */}
+        {one ? null : (
+          <div className="cl-segs mk-loyal">
+            {LOYALS.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                title={l.hint}
+                className={'cl-seg' + (loyal === l.id ? ' is-on' : '')}
+                onClick={() => setLoyal(l.id)}
+              >
+                {l.title}
+              </button>
+            ))}
+          </div>
+        )}
+
         <p className={'mk-count' + (tooMany ? ' is-bad' : '')}>
-          Піде <b>{people.length}</b> листів
+          Піде <b>{manyLetters(people.length)}</b>
           {noMail ? ` · ${noMail} без пошти — їм написати нічим` : ''}
           {tooMany
             ? ` · це більше за ${CONTACTS_MAX}, які вміщає безкоштовний тариф: Resend відмовить усій розсилці, а не зайвим`
             : ''}
         </p>
-
-        <div className="mk-acts">
-          <button
-            className="btn btn--ghost btn--sm"
-            type="button"
-            disabled={busy === 'sync' || !people.length || tooMany}
-            onClick={() => void collect()}
-          >
-            {busy === 'sync' ? 'Збираємо…' : 'Зібрати групу'}
-          </button>
-          {segments.length ? (
-            <select
-              className="ao-select"
-              value={segment}
-              aria-label="Готова група"
-              onChange={(e) => setSegment(e.target.value)}
-            >
-              <option value="">нова група</option>
-              {segments.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          ) : null}
-          {ready ? <span className="mk-ok">у групі {ready}</span> : null}
-        </div>
-        {segments.length >= SEGMENTS_MAX ? (
-          <p className="mk-note">
-            Груп уже {segments.length} — більше безкоштовний тариф не дає. Обирайте наявну зі
-            списку або приберіть зайву в кабінеті Resend.
-          </p>
-        ) : null}
       </section>
 
       {/* ---------- 2. Що ---------- */}
@@ -345,15 +353,15 @@ export default function Broadcast({
           <button
             className="btn btn--primary"
             type="button"
-            disabled={busy === 'send' || !segment}
+            disabled={busy || !people.length || tooMany}
             onClick={() => void send(true)}
           >
-            {busy === 'send' ? 'Надсилаємо…' : 'Надіслати зараз'}
+            {busy ? 'Надсилаємо…' : 'Надіслати ' + manyLetters(people.length)}
           </button>
           <button
             className="btn btn--ghost"
             type="button"
-            disabled={busy === 'send' || !segment}
+            disabled={busy || !people.length || tooMany}
             onClick={() => void send(false)}
           >
             Через 15 хвилин
@@ -365,21 +373,84 @@ export default function Broadcast({
         </p>
       </section>
 
-      {/* ---------- Що вже пішло ---------- */}
-      {sent.length ? (
+      {/* ---------- Звіт ----------
+          Resend знає, скільком лист дійшов. Але власник питає не
+          про це, а «а купили?» — і на це не відповість жоден
+          поштовий сервіс, бо покупки живуть у нас. */}
+      {runs.length ? (
         <section className="mk-step">
-          <h4>Уже надіслано</h4>
-          <ul className="mk-sent">
-            {sent.map((s) => (
-              <li key={s.id}>
-                <b>{s.name || 'без назви'}</b>
-                <span>{s.status}</span>
-                <i>{s.at ? new Date(s.at).toLocaleString('uk') : ''}</i>
-              </li>
-            ))}
+          <h4>Що дали розсилки</h4>
+          <p className="mk-note">
+            Замовлення отримувачів за {WINDOW} днів після листа. Це не доказ, що купили саме через
+            нього — тому поруч стоїть те, з чим порівнювати: скільки ті самі люди купували за
+            такий самий час до розсилки.
+          </p>
+          <ul className="mk-runs">
+            {runs.map((run) => {
+              const rep = reportOf(run, orders);
+              const days = watchedDays(run);
+              return (
+                <li key={run._id}>
+                  <div className="mk-run__head">
+                    <b>{run.subject || 'без теми'}</b>
+                    <span>
+                      {run.audience} · {manyLetters(rep.sent)} ·{' '}
+                      {new Date(run.at).toLocaleDateString('uk', {
+                        day: 'numeric',
+                        month: 'long'
+                      })}
+                    </span>
+                    <button
+                      className="btn btn--ghost btn--sm ao-danger"
+                      type="button"
+                      onClick={() => void forget(run)}
+                    >
+                      Прибрати
+                    </button>
+                  </div>
+
+                  <div className="mk-run__nums">
+                    <span>
+                      <b>{Math.round(rep.rate * 100)}%</b>
+                      <i>замовили — {rep.buyers} із {rep.sent}</i>
+                    </span>
+                    <span>
+                      <b>{rep.revenue.toLocaleString('uk')} грн</b>
+                      <i>виручка з {rep.orders} замовлень</i>
+                    </span>
+                    <span>
+                      <b>{rep.avg.toLocaleString('uk')} грн</b>
+                      <i>середній чек</i>
+                    </span>
+                    {/* Головне число: наскільки більше, ніж ті самі
+                        люди купували без листа. Без нього конверсія
+                        вміє переконати в чому завгодно. */}
+                    <span className={rep.lift !== null && rep.lift > 0 ? 'is-up' : ''}>
+                      <b>
+                        {rep.lift === null
+                          ? '—'
+                          : (rep.lift > 0 ? '+' : '') + Math.round(rep.lift * 100) + '%'}
+                      </b>
+                      <i>
+                        {rep.lift === null
+                          ? 'до листа не купував ніхто'
+                          : `до листа було ${rep.wasRevenue.toLocaleString('uk')} грн`}
+                      </i>
+                    </span>
+                  </div>
+
+                  {days < WINDOW ? (
+                    <p className="mk-note">
+                      Минуло {days} із {WINDOW} днів — звіт ще збирається, числа зростатимуть.
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : null}
+
     </div>
   );
 }

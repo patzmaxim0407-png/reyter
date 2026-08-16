@@ -7169,16 +7169,45 @@ label.a-promo-product i {
   color: #9a958a;
 }
 
-.mk-sent { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+/* Другий ряд доборів — за програмою лояльності. Трохи
+   приглушений: це уточнення до стану, а не рівноправний вибір. */
+.mk-loyal { padding-top: 2px; }
+.mk-loyal .cl-seg { font-size: 12.5px; padding: 6px 11px; }
 
-.mk-sent li {
+/* ---------- Звіт по розсилці ---------- */
+
+.mk-runs { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+
+.mk-runs li {
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 10px;
-  align-items: baseline;
-  padding: 5px 0;
-  border-top: 1px solid rgba(6, 43, 92, 0.06);
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid rgba(6, 43, 92, 0.08);
+  border-radius: 10px;
+  background: #fff;
 }
 
-.mk-sent span { font-size: 12px; color: #6e6a5e; }
-.mk-sent i { font-style: normal; font-size: 12px; color: #9a958a; }
+.mk-run__head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 6px 12px;
+}
+
+.mk-run__head b { font-size: 14px; color: #062B5C; }
+.mk-run__head span { grid-column: 1 / -1; font-size: 12px; color: #9a958a; }
+.mk-run__head .btn { grid-row: 1; grid-column: 2; }
+
+.mk-run__nums {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.mk-run__nums span { display: grid; gap: 1px; }
+.mk-run__nums b { font-size: 18px; font-variant-numeric: tabular-nums; color: #062B5C; }
+.mk-run__nums i { font-style: normal; font-size: 11px; line-height: 1.4; color: #6e6a5e; }
+
+/* Приріст проти того, що ті самі люди купували без листа. Зелений
+   лише коли він додатний: нуль зеленим був би самообманом. */
+.mk-run__nums span.is-up b { color: #15803d; }

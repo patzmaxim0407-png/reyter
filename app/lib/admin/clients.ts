@@ -498,3 +498,35 @@ export function statsOfClients(list: Client[]): ClientStats {
     reachable
   };
 }
+
+
+/* ============================================================
+   ДОБІР ЗА ПРОГРАМОЮ ЛОЯЛЬНОСТІ
+   ------------------------------------------------------------
+   Другий, незалежний від стану, зріз. «Постійні» і «третій
+   рівень» — різні питання про ту саму людину, і зводити їх в
+   один перелік означало б показувати сімнадцять кнопок замість
+   восьми.
+   ============================================================ */
+
+export type Loyal = 'any' | 'in' | 'out' | 'club' | '1' | '2' | '3' | '4';
+
+export const LOYALS: { id: Loyal; title: string; hint: string }[] = [
+  { id: 'any', title: 'Байдуже', hint: 'і учасники, і ні' },
+  { id: 'in', title: 'У програмі', hint: 'усі учасники, будь-якого рівня' },
+  { id: 'club', title: 'Friendly Club', hint: 'ті, кому відкрито закриті випуски' },
+  { id: '1', title: '1 рівень', hint: 'учасники першого рівня' },
+  { id: '2', title: '2 рівень', hint: 'учасники другого рівня' },
+  { id: '3', title: '3 рівень', hint: 'учасники третього рівня' },
+  { id: '4', title: '4 рівень', hint: 'учасники четвертого рівня' },
+  { id: 'out', title: 'Не в програмі', hint: 'купували, але не вступили' }
+];
+
+export function byLoyal(list: Client[], how: Loyal, inClub: (m: MemberDoc) => boolean): Client[] {
+  if (how === 'any') return list;
+  if (how === 'out') return list.filter((x) => !x.member);
+  if (how === 'in') return list.filter((x) => !!x.member);
+  if (how === 'club') return list.filter((x) => !!x.member && inClub(x.member));
+  const lvl = Number(how);
+  return list.filter((x) => !!x.member && Number(x.member.level) === lvl);
+}

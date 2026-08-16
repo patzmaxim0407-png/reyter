@@ -106,6 +106,7 @@ export default function ClientsAdmin({
       {screen === 'mail' ? (
         <Broadcast
           clients={all}
+          orders={orders}
           picked={pick}
           onPicked={() => setPick(null)}
           workerUrl={workerUrl}
