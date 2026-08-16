@@ -315,17 +315,35 @@ export function logMoves(w: StockWriter, mutation: StockMutation, moves: MoveEnt
    Перерахунок нічого не додає й не забирає з полиці: він лише
    ДОПИСУЄ В ЖУРНАЛ те, що вже сталося. Після нього сума рухів
    дорівнює залишку, і наступна розбіжність буде видна одразу. */
-/** Записати перерахунок. Залишків НЕ чіпає навмисно: на полиці
- *  вже стоїть правильне число, і чіпати його означало б зіпсувати
- *  саме те, заради чого рахували. Пишемо лише журнал. */
+/** Записати перерахунок.
+ *
+ *  changeStock = false — залишку не чіпаємо: на полиці вже стоїть
+ *  правильне число, і міняти його означало б зіпсувати саме те,
+ *  заради чого рахували. Так працює кнопка у звірці.
+ *
+ *  changeStock = true — навпаки: полиця має стати такою, як
+ *  порахували руками. Тоді пишемо і залишок, і журнал ОДНІЄЮ
+ *  операцією: розійтись вони не мають права навіть на мить. */
 export async function writeStocktake(
   w: StockWriter,
-  moves: MoveEntry[]
+  moves: MoveEntry[],
+  changeStock = false
 ): Promise<StockResult> {
   if (!moves.length) return { ok: true };
   try {
     const batch = writeBatch(w.db);
     logMoves(w, batch, moves);
+
+    if (changeStock) {
+      const groups: StockGroups = {};
+      moves.forEach((m) => {
+        const g = (groups[m.productId] ||= { qty: 0, sizes: {} });
+        if (m.size) g.sizes[m.size] = (g.sizes[m.size] || 0) + m.delta;
+        else g.qty += m.delta;
+      });
+      writeStock(w, batch, groups);
+    }
+
     await batch.commit();
     return { ok: true };
   } catch {

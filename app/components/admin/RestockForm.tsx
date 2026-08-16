@@ -33,7 +33,13 @@ export interface SizeCell {
 }
 
 export interface RestockSubmit {
-  mode: 'in' | 'off';
+  /** in — прихід, off — списання, fix — перерахунок.
+   *
+   *  У перших двох qty це НАСКІЛЬКИ змінити, у третьому —
+   *  СКІЛЬКИ Є насправді. Різницю рахує адмінка: віднімати в
+   *  голові після перерахунку полиці — найкоротший шлях до нової
+   *  розбіжності. */
+  mode: 'in' | 'off' | 'fix';
   productId: string;
   /** Кількості за розмірами; ключ '' — товар без сітки. */
   qty: Record<string, number>;
@@ -72,7 +78,7 @@ export default function RestockForm({
   onSubmit(v: RestockSubmit): Promise<boolean>;
   busy?: boolean;
 }) {
-  const [mode, setMode] = useState<'in' | 'off'>('in');
+  const [mode, setMode] = useState<'in' | 'off' | 'fix'>('in');
   const [pid, setPid] = useState('');
   const [search, setSearch] = useState('');
   const [qty, setQty] = useState<Record<string, number>>({});
@@ -85,6 +91,7 @@ export default function RestockForm({
   const [cost, setCost] = useState('');
 
   const off = mode === 'off';
+  const fix = mode === 'fix';
   const selected = products.find((p) => p.id === pid) ?? null;
   const cells = useMemo(() => (selected ? sizesOf(selected) : []), [selected, sizesOf]);
 
@@ -104,7 +111,7 @@ export default function RestockForm({
   /* Перемикання напрямку — це вже інша операція: кількості й
      нотатка від попередньої до неї не належать. Товар лишаємо:
      часто саме його щойно й дивились. */
-  function switchMode(next: 'in' | 'off') {
+  function switchMode(next: 'in' | 'off' | 'fix') {
     if (next === mode) return;
     setMode(next);
     setQty({});
@@ -116,7 +123,7 @@ export default function RestockForm({
 
   return (
     <form
-      className={'ao-restock-form' + (off ? ' is-writeoff' : '')}
+      className={'ao-restock-form' + (off ? ' is-writeoff' : '') + (fix ? ' is-fix' : '')}
       onSubmit={async (e) => {
         e.preventDefault();
         if (!selected || busy) return;
@@ -154,13 +161,25 @@ export default function RestockForm({
           >
             ↑ Списання
           </button>
+          {/* Третій режим, якого не було зовсім. Через це залишки
+              після перерахунку правили просто в базі, повз
+              адмінку, — і журнал про це не дізнавався. */}
+          <button
+            type="button"
+            className={'ao-chip' + (fix ? ' is-active' : '')}
+            onClick={() => switchMode('fix')}
+          >
+            ✓ Перерахунок
+          </button>
         </div>
       </div>
 
       <p className="ao-note">
-        {off
-          ? 'Товар зникає зі складу одразу. Причина потрапляє в журнал руху — потім видно, скільки втрачено на браку, а скільки просто загубилось.'
-          : 'Прихід стає в чергу очікування. Коли товар фізично приїде — натисніть «Оприбуткувати», і залишки зростуть.'}
+        {fix
+          ? 'Впишіть, скільки лежить НАСПРАВДІ — не різницю, а саме число з полиці. Різницю адмінка порахує сама й запише в журнал як коригування.'
+          : off
+            ? 'Товар зникає зі складу одразу. Причина потрапляє в журнал руху — потім видно, скільки втрачено на браку, а скільки просто загубилось.'
+            : 'Прихід стає в чергу очікування. Коли товар фізично приїде — натисніть «Оприбуткувати», і залишки зростуть.'}
       </p>
 
       <div className="ao-restock-form__row">
@@ -234,7 +253,7 @@ export default function RestockForm({
           }}
         />
 
-        {off ? (
+        {fix ? null : off ? (
           <select
             title="Причина списання"
             aria-label="Причина списання"
@@ -274,14 +293,20 @@ export default function RestockForm({
               <input
                 type="number"
                 min="0"
-                aria-label={(off ? 'Списати' : 'Прихід') + ', ' + (c.size || 'штук')}
+                aria-label={
+                  (fix ? 'Насправді є' : off ? 'Списати' : 'Прихід') + ', ' + (c.size || 'штук')
+                }
                 /* Обмеження лише там, де розмір справді рахують.
                    Поштучний товар лишаємо без max, як у старій
                    панелі: інакше при нульовому залишку в поле не
                    ввести нічого, і питання «списати більше, ніж
                    є?» ніколи б не пролунало. */
                 max={off && c.size && c.have !== null ? Math.max(0, c.have) : undefined}
-                value={qty[c.size] ?? 0}
+                /* У перерахунку поле починається з ТЕПЕРІШНЬОГО
+                   залишку, а не з нуля: виправляють зазвичай один
+                   розмір, і обнуляти решту руками означало б
+                   зробити помилку рівно там, де її й виправляють. */
+                value={qty[c.size] ?? (fix ? Math.max(0, c.have ?? 0) : 0)}
                 onChange={(e) =>
                   setQty((v) => ({ ...v, [c.size]: Math.max(0, Number(e.target.value) || 0) }))
                 }
@@ -293,7 +318,7 @@ export default function RestockForm({
 
       {/* Собівартість — лише для приходу: списання нічого не
           купує, і питати там ціну закупівлі ні до чого. */}
-      {!off ? (
+      {!off && !fix ? (
         <label className="ao-restock-form__cost">
           <span>Собівартість, грн</span>
           <input
@@ -329,7 +354,7 @@ export default function RestockForm({
         type="submit"
         disabled={busy || !selected}
       >
-        {off ? 'Списати зі складу' : 'Додати прихід'}
+        {fix ? 'Записати перерахунок' : off ? 'Списати зі складу' : 'Додати прихід'}
       </button>
     </form>
   );

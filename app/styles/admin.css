@@ -7332,3 +7332,17 @@ label.a-promo-product i {
   .au-list li { grid-template-columns: 1fr auto; }
   .au-fix { grid-column: 1 / -1; grid-row: auto; justify-self: start; }
 }
+
+
+/* Перерахунок — третій режим форми складу. Колір спокійний,
+   зелений: це не втрата й не надходження, а приведення запису до
+   того, що й так лежить на полиці. */
+.ao-restock-form.is-fix {
+  border-color: rgba(21, 128, 61, 0.35);
+  background: rgba(21, 128, 61, 0.03);
+}
+
+.ao-restock-form.is-fix .btn--primary {
+  background: var(--c-green);
+  border-color: var(--c-green);
+}

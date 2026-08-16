@@ -464,6 +464,24 @@ ok('запис без часу оприбуткування не губитьс�
      planStocktake([{ productId: 'X', productName: 'X', size: null, diff: -2 }]).length === 1);
   ok('нема чого виправляти — нема й записів',
      planStocktake([{ productId: 'X', productName: 'X', size: null, diff: 0 }]).length === 0);
+
+  /* Форма питає, СКІЛЬКИ Є, а не наскільки змінити. Різницю
+     рахує адмінка — віднімати в голові одразу після перерахунку
+     полиці означало б зробити нову помилку рівно там, де щойно
+     виправили стару. */
+  const have = { S: 4, M: 4, L: 2 };
+  const counted = { S: 4, M: 0, L: 3 };
+  const asked = (Object.keys(have) as (keyof typeof have)[]).map((size) => ({
+    productId: 'EO-001',
+    productName: 'Сорочка',
+    size,
+    diff: counted[size] - have[size]
+  }));
+  const fix = planStocktake(asked);
+  ok('незмінений розмір у журнал не потрапляє', fix.length === 2, String(fix.length));
+  ok('різниця рахується від того, що є',
+     fix.map((m) => m.size + ':' + m.delta).join(' ') === 'M:-4 L:1',
+     fix.map((m) => m.size + ':' + m.delta).join(' '));
 }
 
 /* ---------- Дати для людини ---------- */

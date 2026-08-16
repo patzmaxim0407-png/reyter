@@ -16,6 +16,7 @@ import { sendBackInStock } from '@/lib/notify';
 import { EMPTY_DRAFT, watchDraft, type Draft } from '@/lib/admin/store';
 import { MOVES_LIMIT, loadMoves, loadRestocks, watchInventory, type Doc } from '@/lib/admin/live';
 import StockAudit from './StockAudit';
+import { planStocktake, writeStocktake, type StocktakeLine } from '@/lib/admin/stock';
 import {
   MOVE_REASONS,
   WRITEOFF_REASONS,
@@ -176,6 +177,40 @@ export default function StockAdmin() {
     if (!w) return false;
     setBusy(true);
     try {
+      /* Перерахунок. У полі стоїть, скільки Є, а не наскільки
+         змінити: віднімати в голові після перерахунку полиці —
+         найкоротший шлях до нової розбіжності. Різницю рахуємо
+         тут, і пишемо її і в залишок, і в журнал однією
+         операцією. */
+      if (v.mode === 'fix') {
+        const p = draft.products.find((x) => x.id === v.productId);
+        if (!p) return false;
+        const lines: StocktakeLine[] = sizesOf(p).map((c) => ({
+          productId: p.id,
+          productName: p.name,
+          size: c.size || null,
+          /* Поле, якого не чіпали, означає «стільки й лишилось» —
+             так само, як його показує форма. */
+          diff: (v.qty[c.size] ?? Math.max(0, c.have ?? 0)) - Math.max(0, c.have ?? 0)
+        }));
+        const moves = planStocktake(lines, v.note.trim() || 'Перерахунок');
+        if (!moves.length) {
+          toast('Числа ті самі — виправляти нічого');
+          return false;
+        }
+        const res = await writeStocktake(w, moves, true);
+        if (!res.ok) {
+          toast(res.message);
+          return false;
+        }
+        const total = moves.reduce((n, m) => n + m.delta, 0);
+        toast(
+          'Залишок виправлено ' + (total > 0 ? '+' : '') + total + ' ✓',
+          'success'
+        );
+        return true;
+      }
+
       if (v.mode === 'in') {
         const res = await createRestock(
           w,
