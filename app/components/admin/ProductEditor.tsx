@@ -78,11 +78,31 @@ export default function ProductEditor({
   const [bad, setBad] = useState<{ field: CheckField; message: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  /* Заповнюємо форму при кожному відкритті: та сама модалка
-     обслуговує і новий товар, і будь-який наявний */
+  /* Заповнюємо форму при кожному ВІДКРИТТІ — і лише при ньому.
+     Це не дрібниця в списку залежностей, а те, через що набране
+     зникало.
+
+     Каталог приходить живою підпискою, і кожен її кадр створює
+     НОВІ обʼєкти: інший product, інший масив categories. Доки
+     вони стояли в залежностях, будь-яка зміна каталогу — свій
+     же запис, оприбуткований прихід, який переписує собівартість,
+     робота другого адміністратора — переписувала форму заново,
+     затираючи все, чого ще не зберегли.
+
+     Найчастіше під це потрапляла саме собівартість: її вписують
+     останньою, і вона встигала прожити найменше. Виглядало це
+     так, наче поле взагалі не приймає числа.
+
+     Тому стежимо за артикулом, а не за обʼєктом: відкрили іншу
+     картку — форма заповнилась, оновився каталог — ні. */
+  const productRef = useRef(product);
+  productRef.current = product;
+  const catsRef = useRef(categories);
+  catsRef.current = categories;
+
   useEffect(() => {
     if (!open) return;
-    const src = product ?? blank(categories);
+    const src = productRef.current ?? blank(catsRef.current);
     setP(src);
     setIsSetOn(!!src.set?.length);
     setSetRows(src.set ?? []);
@@ -92,7 +112,7 @@ export default function ProductEditor({
     setCare((src.care ?? []).join('\n'));
     setLowStock((src.lowStock ?? []).join(', '));
     setBad(null);
-  }, [open, product, categories]);
+  }, [open, product?.id]);
 
   const set = <K extends keyof Product>(k: K, v: Product[K]) => setP((x) => ({ ...x, [k]: v }));
 

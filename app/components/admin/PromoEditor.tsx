@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { LEVELS } from '@/lib/loyalty';
 import { fmt, uah } from '@/lib/catalog';
 import { promoMessage, type Promo, type PromoScope, type PromoType } from '@/lib/promo';
@@ -37,9 +37,17 @@ export default function PromoEditor({
   const [f, setF] = useState<PromoForm>(() => promoForm(null));
   const [search, setSearch] = useState('');
 
+  /* Код, а не обʼєкт: промокоди теж приходять підпискою, і
+     кожен її кадр створює нові обʼєкти. Зі старою залежністю
+     зміна будь-якого іншого коду переписувала відкриту форму й
+     затирала набране. */
+  const promoRef = useRef(promo);
+  promoRef.current = promo;
+
   useEffect(() => {
-    if (open) setF(promoForm(promo));
-  }, [open, promo]);
+    if (open) setF(promoForm(promoRef.current));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, promo?.code]);
 
   const set = <K extends keyof PromoForm>(k: K, v: PromoForm[K]) => setF((x) => ({ ...x, [k]: v }));
 

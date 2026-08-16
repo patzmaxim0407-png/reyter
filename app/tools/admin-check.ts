@@ -688,5 +688,29 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
   ok('емодзі в заголовках смуг не малюються', !text.includes('band.icon'));
 }
 
+/* ---------- Відкрита форма не має скидатись сама ---------- */
+
+/* Каталог, замовлення й промокоди приходять живою підпискою, і
+   кожен її кадр створює НОВІ обʼєкти. Доки вони стояли в
+   залежностях ефекту, будь-яка чужа зміна переписувала відкриту
+   форму заново й затирала все набране.
+
+   Найчастіше під це потрапляла собівартість: її вписують
+   останньою, і вона встигала прожити найменше — виглядало це так,
+   наче поле взагалі не приймає числа.
+
+   Тому ефект має стежити за ІДЕНТИФІКАТОРОМ, а не за обʼєктом. */
+{
+  const editor = readFileSync(new URL('../components/admin/ProductEditor.tsx', import.meta.url), 'utf8');
+  ok('картка товару стежить за артикулом', editor.includes('[open, product?.id]'));
+  ok('а не за обʼєктом товару', !editor.includes('[open, product, categories]'));
+
+  const manual = readFileSync(new URL('../components/admin/ManualOrder.tsx', import.meta.url), 'utf8');
+  ok('ручне замовлення стежить за номером', manual.includes('[open, order?._id]'));
+
+  const promo = readFileSync(new URL('../components/admin/PromoEditor.tsx', import.meta.url), 'utf8');
+  ok('редактор промокоду стежить за кодом', promo.includes('[open, promo?.code]'));
+}
+
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
 process.exit(failed ? 1 : 0);
