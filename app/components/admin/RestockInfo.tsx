@@ -46,6 +46,9 @@ export default function RestockInfo({ r, now = new Date() }: { r: Restock; now?:
             {n}
           </i>
         ))}
+        {/* Ціна партії — тут же, поруч із кількостями: коли
+            приходів кілька, саме за нею їх і розрізняють. */}
+        {r.cost ? <u>{r.cost} грн/шт</u> : null}
         {r.note ? <u>{r.note}</u> : null}
       </span>
 

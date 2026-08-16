@@ -1098,6 +1098,9 @@ export async function createRestock(
 export interface RestockEditInput {
   expected: string;
   note: string;
+  /** Собівартість одиниці в цій партії. Порожньо або 0 — прибрати
+   *  її з приходу зовсім: партія без ціни в чергу не стає. */
+  cost?: number;
   /** Не null — прихід редагують по розмірах. Порожній обʼєкт теж
    *  означає розміри: гілку обирає форма, а не заповненість. */
   sizes?: Record<string, number> | null;
@@ -1107,6 +1110,8 @@ export interface RestockEditInput {
 export interface RestockUpdate {
   expected: string;
   note: string;
+  /** 0 — поле прибрати з документа. */
+  cost: number;
   /** null — поле треба ПРИБРАТИ з документа: прихід переїхав
    *  із розмірів на штуки або навпаки, і залишок старого поля
    *  оприбуткувався б удруге. */
@@ -1121,18 +1126,19 @@ export type RestockEditPlan =
 export function planRestockEdit(input: RestockEditInput, now: Date): RestockEditPlan {
   const expected = input.expected || todayISO(now);
   const note = input.note.trim();
+  const cost = Math.max(0, Math.round(Number(input.cost) || 0));
 
   if (input.sizes) {
     const items = positives(input.sizes);
     if (!Object.keys(items).length) {
       return { ok: false, message: 'Вкажіть кількість хоча б для одного розміру' };
     }
-    return { ok: true, update: { expected, note, items, qty: null } };
+    return { ok: true, update: { expected, note, cost, items, qty: null } };
   }
 
   const v = count(input.qty);
   if (!v) return { ok: false, message: 'Вкажіть кількість' };
-  return { ok: true, update: { expected, note, items: null, qty: v } };
+  return { ok: true, update: { expected, note, cost, items: null, qty: v } };
 }
 
 /** Оприбутковується саме та кількість, яку тут збережуть, — тому
@@ -1153,7 +1159,11 @@ export async function saveRestockEdit(
       expected: u.expected,
       note: u.note,
       items: u.items === null ? deleteField() : u.items,
-      qty: u.qty === null ? deleteField() : u.qty
+      qty: u.qty === null ? deleteField() : u.qty,
+      /* Ціну партії правлять частіше за все інше: домовились на
+         одну, приїхало за іншою. Нуль означає «прибрати» — без
+         ціни партія просто не стає в чергу собівартості. */
+      cost: u.cost > 0 ? u.cost : deleteField()
     });
     return { ok: true, restocks: await refreshEta(w, restocks, r.productId) };
   } catch {

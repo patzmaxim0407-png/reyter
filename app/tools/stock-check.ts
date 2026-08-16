@@ -27,6 +27,7 @@ import {
   movesPage,
   planReceive,
   planRestock,
+  planRestockEdit,
   emptyQueue,
   giveBack,
   headCost,
@@ -397,6 +398,23 @@ const client = readFileSync(new URL('../lib/notify.ts', import.meta.url), 'utf8'
   ok('гроші на складі рахуються',
      queueValue(q) === 3 * 300 + 10 * 330, String(queueValue(q)));
   ok('наступна одиниця — з голови черги', headCost(q) === 300);
+
+  /* Ціну партії правлять частіше за все інше: домовились на одну,
+     приїхало за іншою. Доки прихід не оприбуткований, правити її
+     безпечно — у чергу вона ще не стала. */
+  const edit = planRestockEdit(
+    { expected: '2026-08-20', note: '', cost: 355, sizes: { S: 5 } },
+    new Date('2026-08-16T10:00:00')
+  );
+  ok('редагування приходу міняє собівартість',
+     edit.ok === true && (edit as { update: { cost: number } }).update.cost === 355);
+
+  const wiped = planRestockEdit(
+    { expected: '2026-08-20', note: '', cost: 0, sizes: { S: 5 } },
+    new Date('2026-08-16T10:00:00')
+  );
+  ok('нуль прибирає ціну з партії',
+     wiped.ok === true && (wiped as { update: { cost: number } }).update.cost === 0);
 
   ok('прихід кладе партію в чергу, а не переписує картку',
      /COSTS_COL, r\.productId\), next/.test(

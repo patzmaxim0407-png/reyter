@@ -40,12 +40,14 @@ export default function RestockEdit({
   const [note, setNote] = useState(r.note || '');
   const [qty, setQty] = useState<Record<string, number>>({});
   const [one, setOne] = useState(Number(r.qty) || 0);
+  const [cost, setCost] = useState(r.cost ? String(r.cost) : '');
 
   useEffect(() => {
     setQty({ ...(r.items ?? {}) });
     setOne(Number(r.qty) || 0);
     setExpected(r.expected || todayISO(new Date()));
     setNote(r.note || '');
+    setCost(r.cost ? String(r.cost) : '');
   }, [r]);
 
   return (
@@ -58,7 +60,13 @@ export default function RestockEdit({
       data-id={r._id}
       onSubmit={(e) => {
         e.preventDefault();
-        onSave({ expected, note, sizes: sized ? qty : null, qty: sized ? undefined : one });
+        onSave({
+          expected,
+          note,
+          cost: Number(cost) || 0,
+          sizes: sized ? qty : null,
+          qty: sized ? undefined : one
+        });
       }}
     >
       <div className="ao-restock__info">
@@ -105,6 +113,19 @@ export default function RestockEdit({
           aria-label="Очікувана дата приходу"
           value={expected}
           onChange={(e) => setExpected(e.target.value)}
+        />
+        {/* Ціну партії правлять частіше за все інше: домовились
+            на одну, приїхало за іншою. Доки прихід не
+            оприбуткований, вона нічого не змінює — тож правити її
+            тут безпечно. */}
+        <input
+          type="number"
+          min="0"
+          aria-label="Собівартість одиниці, грн"
+          title="Собівартість одиниці в цій партії"
+          placeholder="Собівартість, грн"
+          value={cost}
+          onChange={(e) => setCost(e.target.value)}
         />
         <input
           aria-label="Нотатка"
