@@ -6,6 +6,7 @@ import { useToast } from '../Toasts';
 import { npCities, npWarehouses } from '@/lib/address';
 import { createWaybill, type Cabinet } from '@/lib/admin/np';
 import { freeShipOf, paidForGoods, type AdminOrder } from '@/lib/admin/orders';
+import type { Catalogue } from '@/lib/catalog';
 
 /* ============================================================
    Накладна просто із замовлення
@@ -50,6 +51,7 @@ function fullName(v: string): boolean {
 
 export default function TtnCreate({
   order,
+  catalogue,
   cabinet,
   sender,
   weight,
@@ -59,6 +61,10 @@ export default function TtnCreate({
   onClose
 }: {
   order: AdminOrder;
+  /** Каталог: за ним визначається категорія товару, а отже й
+   *  право на безкоштовну доставку. У самому замовленні лежить
+   *  назва категорії, а не її код. */
+  catalogue: Catalogue;
   cabinet: Cabinet | null;
   /** Звідки відправляємо — з налаштувань магазину. */
   sender: { city: string; cityRef: string; warehouse: string; warehouseRef: string };
@@ -103,7 +109,7 @@ export default function TtnCreate({
      нас, або свідомо подаровані, і брати їх удруге у відділенні
      не можна. */
   const paidShipping = Math.round(Number(order.shipping) || 0) > 0;
-  const free = freeShipOf(order);
+  const free = freeShipOf(order, catalogue);
   const freeOnUs = !paidShipping && free.reached;
   const [payer, setPayer] = useState<'Sender' | 'Recipient'>(
     paidShipping || freeOnUs ? 'Sender' : 'Recipient'

@@ -167,7 +167,7 @@ export default function OrderCard({
   const goods = (o.items ?? []).reduce((n, i) => n + (Number(i.price) || 0) * (Number(i.qty) || 0), 0);
   const disc = Number(o.discount) || 0;
   const ship = Number(o.shipping) || 0;
-  const free = freeShipOf(o as never);
+  const free = freeShipOf(o as never, catalog as never);
 
   /* Той самий orderDate, що й у сортуванні списку: у найперших
      замовленнях часу в date немає, він лежить у created — і без
@@ -519,7 +519,10 @@ export default function OrderCard({
               ) : null}
               <a
                 className="ao-way__link"
-                href={'https://novaposhta.ua/tracking/?cargo_number=' + encodeURIComponent(String(o.ttn || ''))}
+                /* Номер просто в адресі, а не запитом: саме таке
+                   посилання відкриває перевізник сьогодні, і саме
+                   його бачить покупець у своєму листі. */
+                href={'https://novaposhta.ua/tracking/' + encodeURIComponent(String(o.ttn || ''))}
                 target="_blank"
                 rel="noreferrer"
               >

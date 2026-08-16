@@ -1353,6 +1353,7 @@ export default function OrdersAdmin() {
       {ttnFor ? (
         <TtnCreate
           order={ttnFor}
+          catalogue={c}
           cabinet={{ workerUrl: settings.workerUrl, adminKey: workerKey }}
           sender={{
             city: settings.npCity || '',

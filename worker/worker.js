@@ -278,7 +278,10 @@ function ttnHTML(d) {
 
   const siteUrl = 'https://reyter.men/' + (en ? '?lang=en' : '');
   const ttn = clip(String(d.ttn || ''), 40);
-  const carrierUrl = 'https://novaposhta.ua/tracking/?cargo_number=' + encodeURIComponent(ttn);
+  /* Номер просто в адресі, а не запитом: саме таку сторінку
+     відкриває перевізник сьогодні. Стара форма з cargo_number
+     веде на пошук, у якому людині доводиться шукати ще раз. */
+  const carrierUrl = 'https://novaposhta.ua/tracking/' + encodeURIComponent(ttn);
   const ourUrl = 'https://reyter.men/' + (en ? 'en/' : '') + 'track';
 
   return (

@@ -329,6 +329,25 @@ ok('сайт не пише полів поза правилами', !extraKeys.l
   const mk = (items: object[], shipping = 0) =>
     ({ _id: 'x', num: 'R', total: 0, shipping, items } as never);
 
+  /* У замовленні лежить НАЗВА категорії — «Бріфи», а не «briefs»:
+     саме її бачив покупець у листі. Тому поріг рахується не за
+     тим, що записано в позиції, а за каталогом: шукаємо товар за
+     артикулом і беремо його справжню категорію. Без цього поріг
+     не спрацьовував ніколи. */
+  const cat = {
+    products: [{ id: 'A', name: 'A', price: 900, category: 'briefs' }],
+    categories: [{ id: 'briefs', title: 'Бріфи' }, { id: 'home-collection', title: 'Home Collection' }]
+  } as never;
+
+  const titled = mk([{ id: 'A', category: 'Бріфи', price: 900, qty: 2 }]);
+  ok('категорія береться з каталогу за артикулом', freeShipOf(titled, cat).reached === true);
+  /* Товар могли прибрати з каталогу — тоді перекладаємо назву
+     назад у код за переліком категорій. */
+  const gone = mk([{ id: 'ZZZ', category: 'Бріфи', price: 900, qty: 2 }]);
+  ok('зниклий товар упізнається за назвою категорії', freeShipOf(gone, cat).reached === true);
+  ok('чужа назва порога не набирає',
+     freeShipOf(mk([{ id: 'ZZZ', category: 'Home Collection', price: 9000, qty: 1 }]), cat).reached === false);
+
   const big = mk([{ id: 'A', category: 'briefs', price: 900, qty: 2 }]);
   const small = mk([{ id: 'A', category: 'briefs', price: 550, qty: 1 }]);
   const candles = mk([{ id: 'C', category: 'home-collection', price: 3000, qty: 1 }]);

@@ -851,12 +851,30 @@ export interface FreeShip {
   need: number;
 }
 
-export function freeShipOf(order: AdminOrder): FreeShip {
+export function freeShipOf(order: AdminOrder, c?: Catalogue | null): FreeShip {
+  /* КОД КАТЕГОРІЇ, А НЕ НАЗВА.
+
+     У замовленні лежить те, що покупець бачив у листі, — «Бріфи»,
+     а не «briefs». Я спершу звіряв із кодами, і поріг не
+     спрацьовував ніколи: жодна назва з ними не збігається.
+
+     Тому шукаємо товар у каталозі за артикулом і беремо його
+     справжню категорію. Товару могло вже не бути — тоді
+     перекладаємо назву назад у код за переліком категорій. */
+  const byId = new Map((c?.products || []).map((p) => [String(p.id), p]));
+  const byTitle = new Map(
+    (c?.categories || []).map((x) => [String(x.title || '').toLowerCase(), String(x.id)])
+  );
+
   const sum = (order.items || []).reduce((n, i) => {
-    const cat = String(i.category || '');
+    const p = byId.get(String(i.id || ''));
+    const cat = p
+      ? String(p.category || '')
+      : byTitle.get(String(i.category || '').toLowerCase()) || String(i.category || '');
     if (!UNDERWEAR.includes(cat)) return n;
     return n + (Number(i.price) || 0) * (Number(i.qty) || 0);
   }, 0);
+
   return {
     reached: sum >= FREE_DELIVERY_FROM,
     sum,
@@ -870,9 +888,9 @@ export function freeShipOf(order: AdminOrder): FreeShip {
  *  замовленням, і коли вона безкоштовна за сумою. Обидва
  *  зводяться до одного: гроші за пересилку вже або в нас, або
  *  свідомо подаровані, і брати їх ще раз у відділенні не можна. */
-export function payerOf(order: AdminOrder, paid: boolean): 'Sender' | 'Recipient' {
+export function payerOf(order: AdminOrder, paid: boolean, c?: Catalogue | null): 'Sender' | 'Recipient' {
   if (Math.round(Number(order.shipping) || 0) > 0) return 'Sender';
-  return paid && freeShipOf(order).reached ? 'Sender' : 'Recipient';
+  return paid && freeShipOf(order, c).reached ? 'Sender' : 'Recipient';
 }
 
 export function paidForGoods(order: AdminOrder): number {
