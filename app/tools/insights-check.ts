@@ -22,7 +22,9 @@ import {
   rangeOf,
   rowsOf,
   seriesOf,
-  sliceBy
+  sliceBy,
+  spentOn,
+  marginPercent
 } from '../lib/admin/insights.ts';
 import type { AdminOrder } from '../lib/admin/orders.ts';
 import type { Catalogue } from '../lib/catalog.ts';
@@ -153,6 +155,22 @@ console.log('\nТОВАРИ');
   const cats = byCategory(rows, new Map([['briefs', 'Бріфи'], ['tanks', 'Майки']]));
   ok('категорії названо словами', cats[0].name === 'Бріфи', cats[0].name);
   ok('категорії підсумовано', cats.reduce((s, r) => s + r.revenue, 0) === 4000);
+
+  /* Витрати на товар: 3200 виручки з відомою собівартістю мінус
+     1700 маржі = 1500 закупівлі. */
+  const briefs = cats.find((r) => r.id === 'briefs')!;
+  ok('витрати на товар рахуються з відомої собівартості',
+     spentOn(briefs) === 1500, String(spentOn(briefs)));
+  ok('маржинальність — від тієї ж виручки',
+     marginPercent(briefs) === Math.round((1700 / 3200) * 100), String(marginPercent(briefs)));
+
+  /* Категорія, у якій собівартості немає зовсім, не має вдавати
+     стовідсоткову маржу: без ціни закупівлі товар виглядав би
+     безкоштовним. */
+  const tanks = cats.find((r) => r.id === 'tanks')!;
+  ok('без собівартості витрат не вигадуємо', spentOn(tanks) === 0);
+  ok('і маржинальності теж немає', marginPercent(tanks) === null);
+  ok('видно, що покрито не все', tanks.costed < tanks.revenue);
 }
 
 /* ---------- Матриця ---------- */

@@ -89,6 +89,10 @@ export interface Row extends Money {
   /** Ціна й собівартість — щоб було видно, звідки маржа. */
   price: number;
   cost: number | null;
+  /** Виручка, за якою собівартість ВІДОМА. Маржа рахується лише
+   *  з неї, тож без цього числа не можна ні показати витрати, ні
+   *  сказати, наскільки маржі вірити. */
+  costed: number;
   /** Частка у виручці, 0–1. */
   share: number;
 }
@@ -367,13 +371,17 @@ export function rowsOf(orders: AdminOrder[], c: Catalogue, from: Date, to: Date)
             orders: 0,
             price: Math.round(Number(p?.price) || 0),
             cost: l.cost,
+            costed: 0,
             share: 0,
             seen: new Set<string>()
           })
           .get(l.id)!;
       row.revenue += l.paid;
       row.qty += l.qty;
-      if (l.cost !== null) row.margin += l.paid - l.cost * l.qty;
+      if (l.cost !== null) {
+        row.margin += l.paid - l.cost * l.qty;
+        row.costed += l.paid;
+      }
       row.seen.add(o._id);
     }
   }
@@ -402,11 +410,13 @@ export function byCategory(rows: Row[], titles: Map<string, string>): Row[] {
           orders: 0,
           price: 0,
           cost: null,
+          costed: 0,
           share: 0
         })
         .get(id)!;
     at.revenue += r.revenue;
     at.margin += r.margin;
+    at.costed += r.costed;
     at.qty += r.qty;
     at.orders += r.orders;
   }
@@ -420,6 +430,25 @@ export function byCategory(rows: Row[], titles: Map<string, string>): Row[] {
 /* ============================================================
    BCG
    ============================================================ */
+
+/** Скільки коштували продані товари — тобто витрати на закупівлю.
+ *
+ *  Рахуємо ЛИШЕ з тієї виручки, за якою собівартість відома:
+ *  інакше товар без ціни закупівлі виглядав би безкоштовним, і
+ *  категорія з ним — найприбутковішою в магазині.
+ *
+ *  Це витрати на ТОВАР, а не всі витрати магазину: реклама,
+ *  пакування, комісія банку сюди не входять — їх ніхто не веде за
+ *  категоріями, та й прив'язати їх до категорії чесно не вийде. */
+export function spentOn(r: Row): number {
+  return Math.max(0, r.costed - r.margin);
+}
+
+/** Маржинальність — у відсотках від тієї виручки, яку ми справді
+ *  вміємо порахувати. */
+export function marginPercent(r: Row): number | null {
+  return r.costed > 0 ? Math.round((r.margin / r.costed) * 100) : null;
+}
 
 export function bcgOf(rows: Row[]): Bcg {
   /* Вісь грошей — маржа на одиницю там, де собівартість відома

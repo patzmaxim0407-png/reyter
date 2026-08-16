@@ -12,11 +12,13 @@ import {
   growth,
   knownSource,
   kpiOf,
+  marginPercent,
   previous,
   rangeOf,
   rowsOf,
   seriesOf,
   sliceBy,
+  spentOn,
   type Bcg,
   type BcgPoint,
   type Point,
@@ -174,8 +176,9 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
         <section className="ins__card">
           <header className="ins__card-head">
             <h3>Категорії</h3>
+            <span>виручка · витрати на товар · маржа</span>
           </header>
-          <Bars rows={view.cats} />
+          <Cats rows={view.cats} />
         </section>
       </div>
 
@@ -474,20 +477,50 @@ function Table({ rows }: { rows: Row[] }) {
   );
 }
 
-function Bars({ rows }: { rows: Row[] }) {
+/** Категорії з витратами.
+ *
+ *  Смуга показує не саму лише виручку, а її склад: скільки з неї
+ *  пішло на закупівлю товару й скільки лишилось магазину. Так
+ *  видно те, чого не видно в переліку виручки — категорія може
+ *  бути першою за грошима й останньою за тим, що вона приносить.
+ *
+ *  Витрати тут — лише на ТОВАР. Реклама, пакування, комісія
+ *  банку сюди не входять: за категоріями їх ніхто не веде, і
+ *  чесно розкласти їх нема як. */
+function Cats({ rows }: { rows: Row[] }) {
   if (!rows.length) return <Empty />;
   const top = Math.max(1, ...rows.map((r) => r.revenue));
+
   return (
-    <div className="ins-bars">
-      {rows.map((r) => (
-        <div className="ins-bar" key={r.id}>
-          <span className="ins-bar__name">{r.name}</span>
-          <span className="ins-bar__track">
-            <i style={{ width: Math.max(2, Math.round((r.revenue / top) * 100)) + '%' }} />
-          </span>
-          <span className="ins-bar__val">{r.revenue.toLocaleString('uk')}</span>
-        </div>
-      ))}
+    <div className="ins-cats">
+      {rows.map((r) => {
+        const spent = spentOn(r);
+        const percent = marginPercent(r);
+        const width = Math.max(2, Math.round((r.revenue / top) * 100));
+        const costPart = r.revenue > 0 ? Math.round((spent / r.revenue) * 100) : 0;
+        return (
+          <div className="ins-cat" key={r.id}>
+            <span className="ins-cat__name">
+              {r.name}
+              {r.costed < r.revenue ? (
+                <i title="Не всім товарам категорії вписана собівартість">·</i>
+              ) : null}
+            </span>
+            <span className="ins-cat__track" style={{ width: width + '%' }}>
+              <i className="ins-cat__cost" style={{ width: costPart + '%' }} />
+            </span>
+            <span className="ins-cat__nums">
+              <b>{r.revenue.toLocaleString('uk')}</b>
+              {spent ? <em>−{spent.toLocaleString('uk')}</em> : null}
+              {percent === null ? (
+                <i className="is-quiet">без собівартості</i>
+              ) : (
+                <i>{r.margin.toLocaleString('uk')} · {percent}%</i>
+              )}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
