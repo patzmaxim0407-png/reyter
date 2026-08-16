@@ -315,37 +315,102 @@ export function logMoves(w: StockWriter, mutation: StockMutation, moves: MoveEnt
    Перерахунок нічого не додає й не забирає з полиці: він лише
    ДОПИСУЄ В ЖУРНАЛ те, що вже сталося. Після нього сума рухів
    дорівнює залишку, і наступна розбіжність буде видна одразу. */
-/** Записати перерахунок.
+/** Скільки товару каже журнал — по розмірах і разом.
  *
- *  changeStock = false — залишку не чіпаємо: на полиці вже стоїть
- *  правильне число, і міняти його означало б зіпсувати саме те,
- *  заради чого рахували. Так працює кнопка у звірці.
- *
- *  changeStock = true — навпаки: полиця має стати такою, як
- *  порахували руками. Тоді пишемо і залишок, і журнал ОДНІЄЮ
- *  операцією: розійтись вони не мають права навіть на мить. */
-export async function writeStocktake(
+ *  Читаємо рівністю за артикулом: без orderBy складеного
+ *  покажчика не треба, а рухів на один товар завжди небагато. */
+export async function loggedOf(
   w: StockWriter,
-  moves: MoveEntry[],
-  changeStock = false
-): Promise<StockResult> {
-  if (!moves.length) return { ok: true };
-  try {
-    const batch = writeBatch(w.db);
-    logMoves(w, batch, moves);
+  productId: string
+): Promise<{ total: number; sizes: Record<string, number> }> {
+  const snap = await getDocs(
+    query(collection(w.db, MOVES_COL), where('productId', '==', productId))
+  );
+  const sizes: Record<string, number> = {};
+  let total = 0;
+  snap.forEach((d) => {
+    const m = d.data() as Move;
+    const delta = Number(m.delta) || 0;
+    total += delta;
+    const key = String(m.size || '');
+    sizes[key] = (sizes[key] || 0) + delta;
+  });
+  return { total, sizes };
+}
 
-    if (changeStock) {
-      const groups: StockGroups = {};
-      moves.forEach((m) => {
-        const g = (groups[m.productId] ||= { qty: 0, sizes: {} });
-        if (m.size) g.sizes[m.size] = (g.sizes[m.size] || 0) + m.delta;
-        else g.qty += m.delta;
-      });
-      writeStock(w, batch, groups);
+/** ПЕРЕРАХУНОК: полиця стає такою, як порахували, і журнал теж.
+ *
+ *  Тут ховалась помилка, через яку звірка не закривалась. Я писав
+ *  ОДНЕ й те саме число і в залишок, і в журнал: додали дві
+ *  штуки — плюс два там і плюс два там. Обидва зросли на однакову
+ *  величину, а стара розбіжність між ними лишилась недоторканою.
+ *  Скільки не рахуй — вона нікуди не подінеться.
+ *
+ *  Правильно інакше, і це різні числа:
+ *    у залишок  — наскільки полиця відрізняється від порахованого;
+ *    у журнал   — наскільки ЖУРНАЛ відрізняється від порахованого.
+ *
+ *  Саме друге й закриває історичну діру: перерахунок — це не «я
+ *  щось додав», а «ось скільки є насправді, і відтепер запис це
+ *  пояснює». */
+export async function trueUp(
+  w: StockWriter,
+  s: StockState,
+  productId: string,
+  counted: Record<string, number>,
+  note = 'Перерахунок'
+): Promise<StockResult & { changed?: number }> {
+  const p = productById(s, productId);
+  if (!p) return { ok: false, message: 'Товар не знайдено' };
+
+  try {
+    const log = await loggedOf(w, productId);
+    const sized = isSized(p, s);
+
+    const keys = sized
+      ? [...new Set([...Object.keys(counted), ...Object.keys(invOf(s, productId).sizes || {})])]
+          .filter(Boolean)
+      : [''];
+
+    const moves: MoveEntry[] = [];
+    const group: StockDelta = { qty: 0, sizes: {} };
+
+    for (const key of keys) {
+      const want = Math.max(0, Math.round(Number(counted[key]) || 0));
+      const shelf = sized ? sizeQty(s, productId, key) : unitQty(s, productId);
+      const inLog = Math.round(log.sizes[key] || 0);
+
+      /* Залишок — до порахованого. */
+      const toShelf = want - shelf;
+      if (toShelf) {
+        if (sized) group.sizes[key] = (group.sizes[key] || 0) + toShelf;
+        else group.qty += toShelf;
+      }
+
+      /* Журнал — теж до порахованого, але від СВОГО числа. */
+      const toLog = want - inLog;
+      if (toLog) {
+        moves.push({
+          productId,
+          productName: p.name,
+          size: sized ? key : null,
+          delta: toLog,
+          reason: 'manual',
+          ref: note
+        });
+      }
     }
 
+    if (!moves.length && !group.qty && !Object.keys(group.sizes).length) {
+      return { ok: true, changed: 0 };
+    }
+
+    const batch = writeBatch(w.db);
+    if (moves.length) logMoves(w, batch, moves);
+    writeStock(w, batch, { [productId]: group });
     await batch.commit();
-    return { ok: true };
+
+    return { ok: true, changed: moves.reduce((n, m) => n + m.delta, 0) };
   } catch {
     return { ok: false, message: 'Немає прав' };
   }

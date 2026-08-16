@@ -3,13 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ORDERS_LIMIT, loadAllMoves, watchOrders } from '@/lib/admin/live';
 import { checkOrders, reconcile, type AuditResult, type OrderCheck, type SoldOrder } from '@/lib/admin/audit';
-import {
-  planStocktake,
-  writeStocktake,
-  type Move,
-  type StockState,
-  type StocktakeLine
-} from '@/lib/admin/stock';
+import { trueUp, type Move, type StockState } from '@/lib/admin/stock';
 import { useToast } from '../Toasts';
 import { useAsk } from './AskProvider';
 import { useAdminUser } from './AdminGate';
@@ -91,31 +85,29 @@ export default function StockAudit({ s }: { s: StockState }) {
      а не загубиться за цією. */
   async function settle(r: Check) {
     const yes = await ask({
-      title: 'Записати перерахунок?',
+      title: 'Полиця правильна?',
       text:
         `«${r.name}»: за журналом ${r.logged}, на полиці ${r.shelf}.\n\n` +
-        'Залишок НЕ зміниться — на полиці лишиться те саме число. ' +
-        'У журнал ляже коригування на різницю, щоб він нарешті пояснював, ' +
-        'звідки взявся цей залишок.\n\n' +
-        'Робіть це лише тоді, коли полиця перерахована й число на ній правильне.',
-      okText: 'Записати'
+        'Якщо число на полиці правильне — журнал підтягнеться до нього, ' +
+        'і розбіжність зникне. Сам залишок не зміниться.\n\n' +
+        'Робіть це лише після того, як полицю перерахували руками.',
+      okText: 'Так, полиця правильна'
     });
     if (yes !== true) return;
 
     const d = db();
     if (!d) return;
 
-    /* По розмірах, коли вони є: одне число на весь товар сховало б,
-       де саме розійшлось, а саме це й треба знати наступного разу. */
-    const lines: StocktakeLine[] = r.bySize.length
-      ? r.bySize
-          .filter((x) => x.diff)
-          .map((x) => ({ productId: r.id, productName: r.name, size: x.size, diff: x.diff }))
-      : [{ productId: r.id, productName: r.name, size: null, diff: r.diff }];
+    /* Полиця правильна — отже «пораховане» дорівнює тому, що на
+       ній стоїть. Далі те саме, що й у формі складу: залишок не
+       зрушиться (він уже такий), а журнал підтягнеться до нього. */
+    const counted: Record<string, number> = {};
+    if (r.bySize.length) r.bySize.forEach((x) => (counted[x.size] = x.shelf));
+    else counted[''] = r.shelf;
 
     setFixing(r.id);
     try {
-      const done = await writeStocktake({ db: d, by: user.email ?? '' }, planStocktake(lines));
+      const done = await trueUp({ db: d, by: user.email ?? '' }, s, r.id, counted);
       if (!done.ok) {
         toast(done.message);
         return;
@@ -241,16 +233,16 @@ export default function StockAudit({ s }: { s: StockState }) {
                     disabled={fixing === r.id}
                     onClick={() => void settle(r)}
                   >
-                    {fixing === r.id ? '…' : 'Записати перерахунок'}
+                    {fixing === r.id ? '…' : 'Полиця правильна'}
                   </button>
                 </li>
               ))}
             </ul>
             <p className="mk-note">
-              «Записати перерахунок» залишку не змінює — на полиці лишається те саме число. Він
-              лише дописує в журнал коригування на різницю, щоб той нарешті пояснював, звідки
-              взявся цей залишок. Робіть це після того, як полицю перерахували руками: інакше
-              помилка просто перестане бути видною.
+              «Полиця правильна» підтягує журнал до залишку — сам залишок не змінюється.
+              Натискайте після того, як перерахували руками й число на полиці збіглося. Якщо ж
+              на полиці інше число — виправте його на вкладці «Прихід» у режимі «Перерахунок»,
+              і розбіжність теж зникне.
             </p>
           </>
         ) : (

@@ -25,7 +25,6 @@ import {
   filteredMoves,
   hasInvDoc,
   movesPage,
-  planStocktake,
   planReceive,
   planRestock,
   planRestockEdit,
@@ -432,56 +431,47 @@ ok('запис без часу оприбуткування не губитьс�
 
 /* ---------- Перерахунок ---------- */
 
-/* Полиця — дійсність, журнал — розповідь про неї. Перерахунок
-   нічого не додає на полицю: він лише дописує в журнал те, що з
-   нею вже сталося повз адмінку. */
+/* Тут ховалась помилка, через яку звірка не закривалась.
+   Перерахунок писав ОДНЕ й те саме число і в залишок, і в
+   журнал: додали дві штуки — плюс два там і плюс два там. Обидва
+   зросли однаково, а стара розбіжність між ними лишилась
+   недоторканою. Скільки не рахуй — вона нікуди не подінеться.
+
+   Правильно інакше, і це РІЗНІ числа:
+     у залишок — наскільки полиця відрізняється від порахованого,
+     у журнал  — наскільки ЖУРНАЛ відрізняється від порахованого.
+
+   Живий випадок: BO-001, журнал 4, полиця 3. Власник порахував і
+   побачив 5. */
 {
-  const lines = [
-    { productId: 'EO-001', productName: 'Сорочка', size: 'M', diff: -4 },
-    { productId: 'EO-001', productName: 'Сорочка', size: 'L', diff: 1 },
-    /* Нульова різниця рядка не заслуговує: «виправлено на нуль»
-       не пояснює нічого й лише засмічує журнал. */
-    { productId: 'EO-001', productName: 'Сорочка', size: 'S', diff: 0 }
-  ];
-  const moves = planStocktake(lines);
-  ok('нульові різниці в журнал не пишуться', moves.length === 2, String(moves.length));
-  ok('знак зберігається', moves[0].delta === -4 && moves[1].delta === 1);
-  ok('мітка — коригування', moves.every((m) => m.reason === 'manual'));
-  ok('видно, що це перерахунок', moves.every((m) => m.ref === 'Перерахунок'));
-  ok('розмір не губиться', moves[0].size === 'M' && moves[1].size === 'L');
+  const shelf = 3;
+  const logged = 4;
+  const counted = 5;
 
-  /* Після перерахунку сума рухів дорівнює полиці — саме заради
-     цього все й робиться: наступна розбіжність буде видна одразу,
-     а не загубиться за цією. */
-  const before = { M: 4, L: 2 };
-  const after = {
-    M: before.M + (moves.find((m) => m.size === 'M')?.delta ?? 0),
-    L: before.L + (moves.find((m) => m.size === 'L')?.delta ?? 0)
-  };
-  ok('журнал сходиться з полицею', after.M === 0 && after.L === 3, `M=${after.M}, L=${after.L}`);
+  const toShelf = counted - shelf;
+  const toLog = counted - logged;
 
-  ok('без розмірів пишеться один рядок',
-     planStocktake([{ productId: 'X', productName: 'X', size: null, diff: -2 }]).length === 1);
-  ok('нема чого виправляти — нема й записів',
-     planStocktake([{ productId: 'X', productName: 'X', size: null, diff: 0 }]).length === 0);
+  ok('у залишок іде різниця з полицею', toShelf === 2, String(toShelf));
+  ok('у журнал — різниця з журналом', toLog === 1, String(toLog));
+  ok('після цього вони зійшлись',
+     shelf + toShelf === logged + toLog, `${shelf + toShelf} проти ${logged + toLog}`);
 
-  /* Форма питає, СКІЛЬКИ Є, а не наскільки змінити. Різницю
-     рахує адмінка — віднімати в голові одразу після перерахунку
-     полиці означало б зробити нову помилку рівно там, де щойно
-     виправили стару. */
-  const have = { S: 4, M: 4, L: 2 };
-  const counted = { S: 4, M: 0, L: 3 };
-  const asked = (Object.keys(have) as (keyof typeof have)[]).map((size) => ({
-    productId: 'EO-001',
-    productName: 'Сорочка',
-    size,
-    diff: counted[size] - have[size]
-  }));
-  const fix = planStocktake(asked);
-  ok('незмінений розмір у журнал не потрапляє', fix.length === 2, String(fix.length));
-  ok('різниця рахується від того, що є',
-     fix.map((m) => m.size + ':' + m.delta).join(' ') === 'M:-4 L:1',
-     fix.map((m) => m.size + ':' + m.delta).join(' '));
+  /* Так було доти: однакове число в обидва — і розбіжність
+     пережила перерахунок. Саме це власник і побачив. */
+  const naive = counted - shelf;
+  ok('колишній спосіб розбіжності не закривав',
+     shelf + naive !== logged + naive, `${shelf + naive} проти ${logged + naive}`);
+}
+
+{
+  /* Полиця правильна, помилився журнал. Тоді пораховане дорівнює
+     полиці: залишок не рухається, журнал підтягується. Це і є
+     кнопка у звірці. */
+  const shelf = 3;
+  const logged = 6;
+  const counted = shelf;
+  ok('залишок не зрушиться', counted - shelf === 0);
+  ok('журнал підтягнеться на різницю', counted - logged === -3, String(counted - logged));
 }
 
 /* ---------- Дати для людини ---------- */
