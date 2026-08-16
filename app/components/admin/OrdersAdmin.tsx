@@ -9,6 +9,7 @@ import TtnCreate from './TtnCreate';
 import ManualOrder from './ManualOrder';
 import { ArchiveBar, BulkBar } from './OrderFilters';
 import ClientsAdmin from './ClientsAdmin';
+import { useStickyHeight } from './useSticky';
 import Insights from './Insights';
 import OrderRow from './OrderRow';
 import { useAdminUser } from './AdminGate';
@@ -91,6 +92,10 @@ export default function OrdersAdmin() {
   /* undefined — форма закрита; null — нове замовлення;
      обʼєкт — редагуємо наявне. */
   const [manual, setManual] = useState<AdminOrder | null | undefined>(undefined);
+
+  /* Висота пояса вкладок — щоб під ним міг прилипнути другий, зі
+     своїми доборами. */
+  const tabsBox = useStickyHeight<HTMLDivElement>('--tabs-h');
 
   useEffect(
     () =>
@@ -1194,7 +1199,7 @@ export default function OrdersAdmin() {
             Два екрани одного вікна: у черзі — те, що треба
             зробити сьогодні; в архіві — усе, що вже сталося,
             разом із фільтрами, статистикою, CSV і друком. */}
-        <div className="a-sticky">
+        <div className="a-sticky" ref={tabsBox}>
           <div className="ao-tabs">
             <button
               type="button"

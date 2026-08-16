@@ -16,6 +16,7 @@ import { sendBackInStock } from '@/lib/notify';
 import { EMPTY_DRAFT, watchDraft, type Draft } from '@/lib/admin/store';
 import { MOVES_LIMIT, loadMoves, loadRestocks, watchInventory, type Doc } from '@/lib/admin/live';
 import StockAudit from './StockAudit';
+import { useStickyHeight } from './useSticky';
 import { trueUp } from '@/lib/admin/stock';
 import {
   MOVE_REASONS,
@@ -78,6 +79,8 @@ export default function StockAdmin() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all');
   const [movesPageNo, setMovesPageNo] = useState(1);
+  /* Висота пояса вкладок — під ним стає пояс доборів. */
+  const tabsBox = useStickyHeight<HTMLDivElement>('--tabs-h');
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -371,7 +374,7 @@ export default function StockAdmin() {
             </div>
           </div>
 
-          <div className="ao-toolbar a-sticky">
+          <div className="ao-toolbar a-sticky" ref={tabsBox}>
             <span className="ao-live">● live</span>
             <div className="ao-chips">
               {(
@@ -407,7 +410,10 @@ export default function StockAdmin() {
 
           {tab === 'stock' ? (
             <>
-              <div className="ao-filterbar">
+              {/* Добір і пошук лишаються на екрані, поки гортаєш
+              залишки: саме ними й користуються, дивлячись на
+              список. Другим поверхом під поясом вкладок. */}
+          <div className="ao-filterbar a-sticky2">
                 <div className="ao-chips">
                   {(
                     [
@@ -604,7 +610,10 @@ export default function StockAdmin() {
 
           {tab === 'moves' ? (
             <>
-              <div className="ao-filterbar">
+              {/* Добір і пошук лишаються на екрані, поки гортаєш
+              залишки: саме ними й користуються, дивлячись на
+              список. Другим поверхом під поясом вкладок. */}
+          <div className="ao-filterbar a-sticky2">
                 <div className="ao-chips">
                   {[['all', 'Усі'] as [string, string]].concat(
                     Object.entries(MOVE_REASONS)
