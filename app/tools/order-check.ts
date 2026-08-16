@@ -345,6 +345,13 @@ ok('сайт не пише полів поза правилами', !extraKeys.l
      назад у код за переліком категорій. */
   const gone = mk([{ id: 'ZZZ', category: 'Бріфи', price: 900, qty: 2 }]);
   ok('зниклий товар упізнається за назвою категорії', freeShipOf(gone, cat).reached === true);
+  /* Не набрали порога — доставку платить отримувач у відділенні,
+     і картка мусить сказати, скількох гривень забракло: менеджер
+     ще на звʼязку з покупцем. */
+  const short = freeShipOf(mk([{ id: 'A', category: 'Бріфи', price: 620, qty: 2 }]), cat);
+  ok('нижче порога — не безкоштовно', short.reached === false);
+  ok('видно, скільки бракує до безкоштовної', short.need === 260 && short.sum === 1240);
+
   ok('чужа назва порога не набирає',
      freeShipOf(mk([{ id: 'ZZZ', category: 'Home Collection', price: 9000, qty: 1 }]), cat).reached === false);
 

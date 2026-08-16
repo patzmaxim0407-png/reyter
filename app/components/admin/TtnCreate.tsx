@@ -314,6 +314,16 @@ export default function TtnCreate({
                 безкоштовна доставка: білизни на {Math.round(free.sum)} грн — платимо ми
               </span>
             ) : null}
+            {/* Порога не набрали — платить отримувач, і так і має
+                бути. Але мовчання тут читалося як недогляд, тож
+                кажемо це вголос і додаємо, скількох гривень
+                забракло: менеджер ще на звʼязку з покупцем. */}
+            {!paidShipping && !freeOnUs && payer === 'Recipient' ? (
+              <span className="field__hint">
+                доставку платить отримувач у відділенні
+                {free.need > 0 ? ` · до безкоштовної бракує ${Math.round(free.need)} грн` : ''}
+              </span>
+            ) : null}
             {(paidShipping || freeOnUs) && payer === 'Recipient' ? (
               <span className="field__hint is-warn">
                 {paidShipping
