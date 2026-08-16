@@ -6353,3 +6353,122 @@ label.a-promo-product i {
 .ao-restock-form__cost { display: grid; gap: 4px; }
 .ao-restock-form__cost > span { font-size: 12px; font-weight: 600; color: var(--c-muted); }
 .ao-restock-form__cost > i { font-style: normal; font-size: 11px; color: #9a958a; line-height: 1.4; }
+
+/* ============================================================
+   КАЛЬКУЛЯТОР ВИПУСКУ
+   ------------------------------------------------------------
+   Два стовпці: ліворуч рахують гроші, праворуч дивляться, що з
+   них вийшло. На телефоні один під одним — витрати спершу, бо
+   без них права половина не має сенсу.
+   ============================================================ */
+
+.ins__screens { display: flex; gap: 6px; }
+.ins__screen {
+  border: 0; background: none; padding: 6px 2px; margin-right: 14px;
+  font-size: 15px; font-weight: 700; color: #9a958a; cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.ins__screen.is-on { color: var(--c-blue-ink); border-bottom-color: var(--c-blue); }
+
+.calc__two { display: grid; gap: 18px; grid-template-columns: 1fr 1fr; align-items: start; }
+@media (max-width: 1000px) { .calc__two { grid-template-columns: 1fr; } }
+
+.calc__lines { display: grid; gap: 7px; }
+.calc-line { display: grid; grid-template-columns: minmax(0, 1fr) 108px auto auto; gap: 7px; align-items: center; }
+.calc-line input {
+  padding: 0.5rem 0.7rem; border: 1px solid var(--c-line); border-radius: 10px;
+  background: var(--c-paper); font: inherit; font-size: 13px; min-width: 0;
+}
+.calc-line__sum { text-align: right; font-variant-numeric: tabular-nums; }
+.calc-line__mode {
+  border: 1px solid var(--c-line); background: var(--c-cream); border-radius: 999px;
+  padding: 5px 11px; font-size: 11px; font-weight: 600; color: var(--c-muted); cursor: pointer;
+  white-space: nowrap;
+}
+.calc-line__mode:hover { border-color: rgba(1, 74, 173, .35); color: var(--c-blue-ink); }
+.calc-line__drop {
+  border: 0; background: none; color: #b8b2a6; cursor: pointer; font-size: 14px; padding: 4px 6px;
+}
+.calc-line__drop:hover { color: var(--c-red); }
+/* Реклама й таке інше: у товар не входить, і це видно одразу. */
+.calc-line.is-apart .calc-line__title { border-style: dashed; color: var(--c-amber); }
+
+.calc__add { justify-self: start; margin-top: 4px; }
+
+.calc__units { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.calc__units label { display: grid; gap: 4px; }
+.calc__units span { font-size: 12px; font-weight: 600; color: var(--c-muted); }
+.calc__units input, .calc__units select {
+  padding: 0.5rem 0.7rem; border: 1px solid var(--c-line); border-radius: 10px;
+  background: var(--c-paper); font: inherit; font-size: 13px;
+}
+
+.calc__cost {
+  margin-top: 14px; padding: 14px 16px; border-radius: 14px; background: var(--c-cream);
+  display: grid; gap: 2px;
+}
+.calc__cost > span { font-size: 12px; font-weight: 600; color: var(--c-muted); }
+.calc__cost > b { font-size: 26px; font-weight: 800; color: var(--c-blue-ink); }
+.calc__cost > i { font-style: normal; font-size: 12px; color: var(--c-muted); }
+
+/* ---------- Ціни ---------- */
+
+.calc__prices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.calc-price {
+  border: 1px solid var(--c-line); border-radius: 14px; padding: 12px 10px;
+  background: var(--c-paper); display: grid; gap: 2px; cursor: pointer; text-align: left;
+}
+.calc-price:hover { border-color: rgba(1, 74, 173, .4); }
+.calc-price.is-on { border-color: var(--c-blue); box-shadow: inset 0 0 0 1px var(--c-blue); }
+.calc-price > span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--c-muted); }
+.calc-price > b { font-size: 22px; font-weight: 800; color: var(--c-blue-ink); font-variant-numeric: tabular-nums; }
+.calc-price > i { font-style: normal; font-size: 11px; color: var(--c-muted); line-height: 1.35; }
+.calc-price.is-main > b { color: var(--c-green); }
+
+.calc__own { display: grid; grid-template-columns: auto 130px; gap: 10px; align-items: center; margin-top: 12px; }
+.calc__own span { font-size: 12px; font-weight: 600; color: var(--c-muted); }
+.calc__own input {
+  padding: 0.5rem 0.7rem; border: 1px solid var(--c-line); border-radius: 10px;
+  background: var(--c-paper); font: inherit; text-align: right; font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Розклад ---------- */
+
+.calc__split { margin-top: 14px; display: grid; gap: 1px; }
+.calc-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 13px; }
+.calc-row > span { color: var(--c-muted); }
+.calc-row > b { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--c-ink); }
+.calc-row > b i { font-style: normal; font-weight: 600; color: var(--c-muted); font-size: 12px; }
+.calc-row.is-line { border-top: 1px solid var(--c-line); margin-top: 4px; padding-top: 9px; }
+.calc-row.is-strong > span { color: var(--c-ink); font-weight: 600; }
+.calc-row.is-strong > b { font-size: 16px; font-weight: 800; }
+.calc-row .is-good { color: var(--c-green); }
+.calc-row .is-bad { color: var(--c-red); }
+
+.calc__note { margin: 12px 0 0; font-size: 12px; color: var(--c-amber); line-height: 1.5; }
+
+/* ---------- Коли відіб'ється ---------- */
+
+.calc__break {
+  margin-top: 14px; padding: 13px 15px; border-radius: 14px;
+  background: var(--c-green-soft); display: grid; gap: 3px;
+}
+.calc__break.is-warn { background: var(--c-amber-soft); }
+.calc__break.is-bad { background: var(--c-red-soft); }
+.calc__break b { font-size: 15px; color: var(--c-blue-ink); }
+.calc__break b i { font-style: normal; font-weight: 600; color: var(--c-muted); }
+.calc__break span { font-size: 12px; color: var(--c-muted); }
+.calc__break em { font-style: normal; font-size: 12px; color: var(--c-red); line-height: 1.5; margin-top: 3px; }
+
+.calc__reverse {
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--c-line);
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+}
+.calc__reverse label { display: grid; grid-template-columns: auto 110px; gap: 8px; align-items: center; }
+.calc__reverse span { font-size: 12px; font-weight: 600; color: var(--c-muted); }
+.calc__reverse input {
+  padding: 0.45rem 0.7rem; border: 1px solid var(--c-line); border-radius: 10px;
+  background: var(--c-paper); font: inherit; text-align: right; font-variant-numeric: tabular-nums;
+}
+.calc__reverse b { font-size: 15px; color: var(--c-green); font-weight: 800; }
+.calc__reverse .is-quiet { color: #9a958a; font-weight: 400; }

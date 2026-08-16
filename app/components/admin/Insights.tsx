@@ -27,6 +27,7 @@ import {
   type Slice,
   type Span
 } from '@/lib/admin/insights';
+import Pricing from './Pricing';
 import type { AdminOrder } from '@/lib/admin/orders';
 import type { Catalogue } from '@/lib/catalog';
 
@@ -62,6 +63,10 @@ const GREEN = '#15803D';
 const MUTED = '#6E6A5E';
 
 export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catalogue }) {
+  /* Два екрани під однією вкладкою: показники — це «що вже
+     сталося», калькулятор — «що робити далі». Розділяти їх на
+     дві вкладки не варто: думають про них одночасно. */
+  const [screen, setScreen] = useState<'stats' | 'calc'>('stats');
   const [span, setSpan] = useState<Span>('30');
   const now = useMemo(() => new Date(), []);
 
@@ -100,6 +105,26 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
 
   return (
     <div className="ins">
+      <div className="ins__screens">
+        <button
+          type="button"
+          className={'ins__screen' + (screen === 'stats' ? ' is-on' : '')}
+          onClick={() => setScreen('stats')}
+        >
+          Показники
+        </button>
+        <button
+          type="button"
+          className={'ins__screen' + (screen === 'calc' ? ' is-on' : '')}
+          onClick={() => setScreen('calc')}
+        >
+          Калькулятор випуску
+        </button>
+      </div>
+
+      {screen === 'calc' ? <Pricing orders={orders} c={c} /> : null}
+
+      <div hidden={screen !== 'stats'}>
       <header className="ins__head">
         <div className="ins__spans">
           {SPANS.map((s) => (
@@ -222,6 +247,7 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
           <Slices list={view.pays} />
           <Slices list={view.sources} />
         </section>
+      </div>
       </div>
     </div>
   );
