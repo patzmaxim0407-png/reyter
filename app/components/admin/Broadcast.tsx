@@ -8,22 +8,16 @@ import { inClub } from '@/lib/admin/loyalty-db';
 import {
   CONTACTS_MAX,
   EMPTY_LETTER,
-  WINDOW,
   contactsOf,
-  dropRun,
-  loadRuns,
   manyLetters,
   overLimit,
   reachable,
-  reportOf,
   saveRun,
   sendBroadcast,
-  watchedDays,
   type Letter,
   type MailRun
 } from '@/lib/admin/mailing';
 import { db } from '@/lib/firebase';
-import type { AdminOrder } from '@/lib/admin/orders';
 
 /* ============================================================
    Розсилки
@@ -44,19 +38,18 @@ const ALL = 'all';
 
 export default function Broadcast({
   clients,
-  orders,
   picked,
   onPicked,
+  onSent,
   workerUrl,
   workerKey
 }: {
   clients: Client[];
-  /** Замовлення — щоб порахувати, що розсилка дала. Поштовий
-   *  сервіс на це не відповість: покупки живуть у нас. */
-  orders: AdminOrder[];
   /** Людина, з чиєї картки натиснули «написати». */
   picked: Client | null;
   onPicked(): void;
+  /** Розсилка пішла — звіт має про це дізнатись. */
+  onSent(): void;
   workerUrl: string;
   workerKey: string;
 }) {
@@ -67,14 +60,8 @@ export default function Broadcast({
   const [who, setWho] = useState<Segment | typeof ALL>(ALL);
   const [loyal, setLoyal] = useState<Loyal>('any');
   const [letter, setLetter] = useState<Letter>(EMPTY_LETTER);
-  const [runs, setRuns] = useState<MailRun[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    const d = db();
-    if (d) void loadRuns(d).then(setRuns);
-  }, []);
 
   /* Людина прийшла з картки конкретного клієнта — лист буде їй
      одній. Групу в такому разі не питаємо. */
@@ -134,7 +121,11 @@ export default function Broadcast({
         toast(r.error || 'Resend не прийняв розсилку');
         return;
       }
-      toast(now ? 'Розсилка пішла ✓' : 'Розсилка піде за 15 хвилин ✓', 'success');
+      toast(
+        (now ? 'Розсилка пішла ✓' : 'Розсилка піде за 15 хвилин ✓') +
+          (r.failed ? ` · ${r.failed} адрес Resend не прийняв` : ''),
+        'success'
+      );
 
       /* Запамʼятовуємо, кому саме пішов лист. Без цього переліку
          конверсію не порахувати ніяк: замовлення не знає, що
@@ -150,7 +141,7 @@ export default function Broadcast({
           by: ''
         };
         await saveRun(d, run).catch(() => {});
-        void loadRuns(d).then(setRuns);
+        onSent();
       }
 
       setLetter(EMPTY_LETTER);
@@ -167,20 +158,6 @@ export default function Broadcast({
 
   function labelOfLoyal(id: Loyal): string {
     return LOYALS.find((l) => l.id === id)?.title || String(id);
-  }
-
-  async function forget(run: MailRun) {
-    const yes = await ask({
-      title: 'Прибрати звіт?',
-      text: `Звіт про «${run.subject}» зникне. Сам лист уже надіслано — його це не скасує.`,
-      okText: 'Прибрати',
-      danger: true
-    });
-    if (yes !== true) return;
-    const d = db();
-    if (!d) return;
-    await dropRun(d, run._id).catch(() => {});
-    void loadRuns(d).then(setRuns);
   }
 
   const set = (p: Partial<Letter>) => setLetter((v) => ({ ...v, ...p }));
@@ -369,87 +346,10 @@ export default function Broadcast({
         </div>
         <p className="mk-note">
           Розсилки не витрачають добову межу в 100 листів — вона лише для листів про замовлення.
-          Тут обмежений розмір бази: {CONTACTS_MAX} контактів.
+          Тут обмежений розмір бази: {CONTACTS_MAX} контактів. Групу в Resend воркер бере сам і
+          щоразу зводить її рівно до обраних — заводити чи чистити щось руками не треба.
         </p>
       </section>
-
-      {/* ---------- Звіт ----------
-          Resend знає, скільком лист дійшов. Але власник питає не
-          про це, а «а купили?» — і на це не відповість жоден
-          поштовий сервіс, бо покупки живуть у нас. */}
-      {runs.length ? (
-        <section className="mk-step">
-          <h4>Що дали розсилки</h4>
-          <p className="mk-note">
-            Замовлення отримувачів за {WINDOW} днів після листа. Це не доказ, що купили саме через
-            нього — тому поруч стоїть те, з чим порівнювати: скільки ті самі люди купували за
-            такий самий час до розсилки.
-          </p>
-          <ul className="mk-runs">
-            {runs.map((run) => {
-              const rep = reportOf(run, orders);
-              const days = watchedDays(run);
-              return (
-                <li key={run._id}>
-                  <div className="mk-run__head">
-                    <b>{run.subject || 'без теми'}</b>
-                    <span>
-                      {run.audience} · {manyLetters(rep.sent)} ·{' '}
-                      {new Date(run.at).toLocaleDateString('uk', {
-                        day: 'numeric',
-                        month: 'long'
-                      })}
-                    </span>
-                    <button
-                      className="btn btn--ghost btn--sm ao-danger"
-                      type="button"
-                      onClick={() => void forget(run)}
-                    >
-                      Прибрати
-                    </button>
-                  </div>
-
-                  <div className="mk-run__nums">
-                    <span>
-                      <b>{Math.round(rep.rate * 100)}%</b>
-                      <i>замовили — {rep.buyers} із {rep.sent}</i>
-                    </span>
-                    <span>
-                      <b>{rep.revenue.toLocaleString('uk')} грн</b>
-                      <i>виручка з {rep.orders} замовлень</i>
-                    </span>
-                    <span>
-                      <b>{rep.avg.toLocaleString('uk')} грн</b>
-                      <i>середній чек</i>
-                    </span>
-                    {/* Головне число: наскільки більше, ніж ті самі
-                        люди купували без листа. Без нього конверсія
-                        вміє переконати в чому завгодно. */}
-                    <span className={rep.lift !== null && rep.lift > 0 ? 'is-up' : ''}>
-                      <b>
-                        {rep.lift === null
-                          ? '—'
-                          : (rep.lift > 0 ? '+' : '') + Math.round(rep.lift * 100) + '%'}
-                      </b>
-                      <i>
-                        {rep.lift === null
-                          ? 'до листа не купував ніхто'
-                          : `до листа було ${rep.wasRevenue.toLocaleString('uk')} грн`}
-                      </i>
-                    </span>
-                  </div>
-
-                  {days < WINDOW ? (
-                    <p className="mk-note">
-                      Минуло {days} із {WINDOW} днів — звіт ще збирається, числа зростатимуть.
-                    </p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
 
     </div>
   );

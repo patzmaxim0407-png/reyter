@@ -34,8 +34,10 @@ import type { Client } from './clients';
 
 /** Скільки контактів вміщає безкоштовний тариф Resend. */
 export const CONTACTS_MAX = 1000;
-/** І скільки груп. Тому групу не створюють на кожну розсилку, а
- *  перевикористовують. */
+/** І скільки груп. Через це воркер не заводить нову на кожну
+ *  розсилку, а бере наявну й зводить її рівно до потрібних людей:
+ *  у новому обліковому записі Resend усі три вже можуть бути
+ *  зайняті — там від початку лежить «General». */
 export const SEGMENTS_MAX = 3;
 
 export interface Cabinet {
@@ -43,17 +45,6 @@ export interface Cabinet {
   adminKey: string;
 }
 
-export interface MailSegment {
-  id: string;
-  name: string;
-}
-
-export interface SentMail {
-  id: string;
-  name: string;
-  status: string;
-  at: string;
-}
 
 /** Лист так, як його пише людина в адмінці. Готового HTML звідси
  *  не буває навмисно: його збирає воркер, і саме тому в кожному
@@ -101,30 +92,6 @@ async function ask<T>(cab: Cabinet, body: Record<string, unknown>): Promise<T & 
   }
 }
 
-export function loadSegments(cab: Cabinet) {
-  return ask<{ segments?: MailSegment[] }>(cab, { type: 'mk-segments' });
-}
-
-export function loadSent(cab: Cabinet) {
-  return ask<{ sent?: SentMail[] }>(cab, { type: 'mk-sent' });
-}
-
-/** Записати людей у групу. segmentId порожній — група
- *  створюється, і воркер поверне її id. */
-export function syncPeople(
-  cab: Cabinet,
-  name: string,
-  segmentId: string,
-  people: { email: string; name: string }[]
-) {
-  return ask<{ segmentId?: string; added?: number; failed?: number; skipped?: number }>(cab, {
-    type: 'mk-sync',
-    name,
-    segmentId,
-    people
-  });
-}
-
 /** Надіслати. ОДИН запит робить усе: заводить групу в Resend,
  *  зводить її рівно до цих людей і відправляє лист.
  *
@@ -140,7 +107,7 @@ export function sendBroadcast(
   letter: Letter,
   at = ''
 ) {
-  return ask<{ id?: string; added?: number; failed?: number }>(cab, {
+  return ask<{ id?: string; added?: number; failed?: number; segmentName?: string }>(cab, {
     type: 'mk-send',
     people,
     at,

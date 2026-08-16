@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import ClientRow from './ClientRow';
 import Broadcast from './Broadcast';
+import MailReport from './MailReport';
 import { watchMembers } from '@/lib/admin/live';
 import { PAGE_SIZE, type AdminOrder } from '@/lib/admin/orders';
 import { ORDERS_LIMIT } from '@/lib/admin/live';
@@ -33,7 +34,7 @@ import {
    кому писати саме тут, дивлячись на список.
    ============================================================ */
 
-type Screen = 'people' | 'mail';
+type Screen = 'people' | 'mail' | 'report';
 
 const ALL = 'all';
 
@@ -57,6 +58,8 @@ export default function ClientsAdmin({
   /* Кого підставити в розсилку, коли натиснули «написати» з
      картки конкретної людини. */
   const [pick, setPick] = useState<Client | null>(null);
+  /* Лічильник надісланих: міняється — звіт перечитує базу. */
+  const [sent, setSent] = useState(0);
 
   useEffect(() => watchMembers((list) => setMembers(list as unknown as MemberDoc[])), []);
 
@@ -101,14 +104,28 @@ export default function ClientsAdmin({
         >
           Розсилки
         </button>
+        {/* Окремо від форми листа: писати новий лист і розбиратись,
+            чи спрацював попередній, — різні заняття. */}
+        <button
+          type="button"
+          className={'ao-chip' + (screen === 'report' ? ' is-on' : '')}
+          onClick={() => setScreen('report')}
+        >
+          Результати
+        </button>
       </div>
 
-      {screen === 'mail' ? (
+      {screen === 'report' ? (
+        <MailReport orders={orders} reload={sent} />
+      ) : screen === 'mail' ? (
         <Broadcast
           clients={all}
-          orders={orders}
           picked={pick}
           onPicked={() => setPick(null)}
+          onSent={() => {
+            setSent((n) => n + 1);
+            setScreen('report');
+          }}
           workerUrl={workerUrl}
           workerKey={workerKey}
         />

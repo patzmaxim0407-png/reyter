@@ -1883,14 +1883,32 @@ export default {
       if (!String(d.text || '').trim()) return reply({ ok: false, error: 'Порожній текст листа' }, 400, cors);
 
       /* Група одна на всі розсилки, і щоразу вона зводиться до
-         поточного добору. Заводити нову на кожен лист не можна:
-         безкоштовний тариф дає лише три. */
+         поточного добору.
+
+         Груп на безкоштовному тарифі рівно три, і вони можуть
+         бути ЗАЙНЯТІ ще до нас: у новому обліковому записі вже
+         лежить «General». Тому спершу шукаємо свою, потім
+         General, потім будь-яку — і лише коли не знайшли жодної,
+         пробуємо створити.
+
+         Брати чужу не страшно: сегмент — це внутрішній ярлик,
+         покупець його не бачить, а перед кожним надсиланням ми
+         однаково зводимо його рівно до потрібних людей. Куди
+         гірше було б відмовити в розсилці через те, що в чужому
+         сервісі скінчились ярлики. */
       let segmentId = clip(d.segmentId, 60);
+      let segmentName = '';
       if (!segmentId) {
         const have = await resendCall(env, '/segments', { method: 'GET' });
         const rows = (have.ok && have.data && (have.data.data || have.data.segments)) || [];
-        const mine = rows.find((x) => String(x.name || '') === SEGMENT_NAME);
-        if (mine) segmentId = mine.id;
+        const pick =
+          rows.find((x) => String(x.name || '') === SEGMENT_NAME) ||
+          rows.find((x) => String(x.name || '').toLowerCase() === 'general') ||
+          rows[0];
+        if (pick) {
+          segmentId = pick.id;
+          segmentName = String(pick.name || '');
+        }
       }
       if (!segmentId) {
         const made = await resendCall(env, '/segments', {
@@ -1901,10 +1919,11 @@ export default {
           return reply({
             ok: false,
             error: (made.data && made.data.message) ||
-              'Не вдалося створити групу. На безкоштовному тарифі їх лише три — приберіть зайву в кабінеті Resend.'
+              'У Resend немає жодної групи, і створити нову не вдалося. Заведіть одну в кабінеті — Segments → New.'
           }, 200, cors);
         }
         segmentId = made.data.id;
+        segmentName = SEGMENT_NAME;
       }
 
       /* Спершу прибрати зайвих, потім додати потрібних. Саме в
@@ -1957,6 +1976,7 @@ export default {
         ok: true,
         id: made.data.id,
         segmentId,
+        segmentName,
         added: put.added,
         failed: put.failed,
         at: d.at || ''
