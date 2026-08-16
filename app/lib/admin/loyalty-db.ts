@@ -722,7 +722,10 @@ export interface Stats {
   given: number;
 }
 
-export function statsOf(list: MemberDoc[], orders: { loyaltyOff?: number }[] = []): Stats {
+export function statsOf(
+  list: MemberDoc[],
+  orders: { loyaltyOff?: number; status?: string }[] = []
+): Stats {
   const byLevel: [number, number, number, number] = [0, 0, 0, 0];
   let noInsta = 0;
   let club = 0;
@@ -745,7 +748,21 @@ export function statsOf(list: MemberDoc[], orders: { loyaltyOff?: number }[] = [
     inClub: club,
     pending,
     points,
-    given: orders.reduce((n, o) => n + Math.max(0, Math.round(Number(o.loyaltyOff) || 0)), 0)
+    /* Тільки виконані замовлення.
+
+       Доти сюди йшли всі документи поспіль: скасоване замовлення
+       й те, за яке так і не заплатили, додавали свою знижку
+       нарівні з виконаним. «Віддано знижок» показувало більше,
+       ніж магазин віддав насправді, — а це число дивляться саме
+       тоді, коли вирішують, чи не зависока верхня ставка.
+
+       Та сама межа, за якою рахує зарахування історії: віддано
+       те, що доїхало до покупця. */
+    given: orders.reduce(
+      (n, o) =>
+        o.status === 'done' ? n + Math.max(0, Math.round(Number(o.loyaltyOff) || 0)) : n,
+      0
+    )
   };
 }
 

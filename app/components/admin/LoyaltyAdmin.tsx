@@ -148,7 +148,7 @@ export default function LoyaltyAdmin() {
   }, [members, user, toast]);
 
   const stats = useMemo(
-    () => statsOf(members, orders as { loyaltyOff?: number }[]),
+    () => statsOf(members, orders as { loyaltyOff?: number; status?: string }[]),
     [members, orders]
   );
 
@@ -400,7 +400,7 @@ export default function LoyaltyAdmin() {
             </div>
           </div>
 
-          <div className="ao-toolbar">
+          <div className="ao-toolbar a-sticky">
             <div className="ao-chips">
               <button
                 className={'ao-chip' + (tab === 'members' ? ' is-on' : '')}

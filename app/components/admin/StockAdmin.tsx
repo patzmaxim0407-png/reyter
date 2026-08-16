@@ -339,7 +339,7 @@ export default function StockAdmin() {
             </div>
           </div>
 
-          <div className="ao-toolbar">
+          <div className="ao-toolbar a-sticky">
             <span className="ao-live">● live</span>
             <div className="ao-chips">
               {(

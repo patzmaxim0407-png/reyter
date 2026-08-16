@@ -84,8 +84,30 @@ export default function AdminBar({
   // розділ змінили — меню має закритись само
   useEffect(() => setOpen(false), [path]);
 
+  /* Скільки місця займає шапка — щоб під нею могли прилипати
+     керування сторінки.
+
+     Міряємо, а не вписуємо числом: на телефоні шапка переносить
+     кнопки на другий рядок і стає вищою, а вгадане число
+     перетворилось би на щілину або на смугу, що заїжджає під
+     шапку. Кладемо в змінну на :root — далі нею користується вся
+     адмінка. */
+  const bar = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const box = bar.current;
+    if (!box || typeof ResizeObserver === 'undefined') return;
+    const seen = new ResizeObserver(() => {
+      document.documentElement.style.setProperty(
+        '--abar-h',
+        Math.round(box.getBoundingClientRect().height) + 'px'
+      );
+    });
+    seen.observe(box);
+    return () => seen.disconnect();
+  }, []);
+
   return (
-    <header className="abar">
+    <header className="abar" ref={bar}>
       <div className="abar__brand">
         <img src="https://reyter.men/assets/images/logo_4.webp" alt="" />
         <span>

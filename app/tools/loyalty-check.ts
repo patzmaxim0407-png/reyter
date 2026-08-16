@@ -438,7 +438,11 @@ console.log('\nАДМІНКА');
     instagram: insta, friendlyAt: '', joinedAt: '', historyPending: pending
   }) as never;
   const list = [mk(100, ''), mk(7000, ''), mk(25000, 'petro'), mk(25000, ''), mk(50000, 'ivan', true)];
-  const st = statsOf(list, [{ loyaltyOff: 120 }, { loyaltyOff: 80 }, {}]);
+  const st = statsOf(list, [
+    { loyaltyOff: 120, status: 'done' },
+    { loyaltyOff: 80, status: 'done' },
+    {}
+  ]);
   ok('учасників порахвано', st.members === 5);
   ok('за рівнями', st.byLevel.join('/') === '1/1/2/1', st.byLevel.join('/'));
   /* У клубі всі, кому дозволив рівень: логін на доступ не
@@ -448,6 +452,19 @@ console.log('\nАДМІНКА');
   ok('і видно, скільки з них без Instagram', st.noInsta === 1, String(st.noInsta));
   ok('черга на історію видна', st.pending === 1);
   ok('віддано знижок', st.given === 200, String(st.given));
+
+  /* Віддано — те, що доїхало до покупця. Скасоване замовлення й
+     те, за яке не заплатили, знижки не віддали: рахувати їх
+     означало б завищити число, яке дивляться саме тоді, коли
+     вирішують, чи не зависока верхня ставка. */
+  const mixed = statsOf(list, [
+    { loyaltyOff: 500, status: 'done' },
+    { loyaltyOff: 400, status: 'cancelled' },
+    { loyaltyOff: 300, status: 'new' },
+    { loyaltyOff: 200, status: 'confirmed' },
+    { loyaltyOff: 100 }
+  ]);
+  ok('скасоване замовлення знижки не віддало', mixed.given === 500, String(mixed.given));
 
   ok('пошук за поштою', findMembers(list, '7000@').length === 1);
   ok('пошук за Instagram із собачкою', findMembers(list, '@petro').length === 1);

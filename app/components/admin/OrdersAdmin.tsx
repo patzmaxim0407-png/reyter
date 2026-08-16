@@ -307,10 +307,30 @@ export default function OrdersAdmin() {
     return [...new Set(all.filter(Boolean))];
   }, []);
 
-  const payKey = orders
-    .flatMap((o) => invoicesOf(o))
-    .slice(0, 120)
-    .join('|');
+  /* Про які рахунки взагалі питати банк.
+
+     Доти сюди йшли всі замовлення, що приїхали з бази, — сто
+     двадцять рахунків, і кожен опитувався окремим запитом через
+     воркер. Насправді відповідь потрібна лише двом групам:
+
+     — показаним на екрані: під ними малюється значок оплати;
+     — усім новим: за ними вмикається автопідтвердження, і воно
+       має спрацювати навіть тоді, коли замовлення лишилось на
+       третій сторінці й на очі не потрапляє.
+
+     Решта архіву не змінить свого стану від того, що ми його
+     перепитаємо. */
+  const payKey = (() => {
+    const need = new Set<string>();
+    /* Нові — першими. Межа знизу відсікає хвіст, і якщо менеджер
+       догорнув список до п'ятисот, саме нові замовлення мають
+       лишитись у вибірці: за ними стоїть дія, а не значок. */
+    for (const o of orders) {
+      if (o.status === 'new') invoicesOf(o).forEach((id) => need.add(id));
+    }
+    for (const o of visible) invoicesOf(o).forEach((id) => need.add(id));
+    return [...need].slice(0, 120).join('|');
+  })();
 
   const askPays = useCallback(
     async (only?: string[]) => {
@@ -330,6 +350,21 @@ export default function OrdersAdmin() {
   const askRef = useRef(askPays);
   askRef.current = askPays;
 
+  /* Свіжа мапа станів для обходу.
+
+     Через ref, і це не дрібниця: ефект нижче живе весь час, а
+     всередині нього tick бачив pays таким, яким той був на
+     момент запуску ефекту, — тобто порожнім. Через це «ще не
+     оплачені» щоразу дорівнювали ВСЬОМУ списку, і швидкий обхід
+     раз на двадцять секунд ганяв у банк геть усі рахунки. Якщо
+     обхід не встигав за двадцять секунд, наступний починався
+     поверх нього. */
+  const paysRef = useRef(pays);
+  paysRef.current = pays;
+  /* І запобіжник від накладання: доки один обхід іде, другий не
+     починається. */
+  const sweeping = useRef(false);
+
   useEffect(() => {
     if (!payKey) return;
 
@@ -341,16 +376,27 @@ export default function OrdersAdmin() {
        Доти стояло п'ять хвилин на всіх, і виглядало це так, наче
        статус не оновлюється взагалі. */
     const tick = async (all: boolean) => {
-      if (!alive || document.hidden) return;
+      if (!alive || document.hidden || sweeping.current) return;
       const list = payKey.split('|').filter(Boolean);
       const waiting = list.filter((id) => {
-        const state = pays.get(id)?.state;
+        const state = paysRef.current.get(id)?.state;
         return !state || state === 'created' || state === 'processing';
       });
-      await askRef.current(all ? list : waiting);
+      const ask = all ? list : waiting;
+      if (!ask.length) return;
+      sweeping.current = true;
+      try {
+        await askRef.current(ask);
+      } finally {
+        sweeping.current = false;
+      }
     };
 
-    void tick(true);
+    /* Перший обхід — не «усі», а «невідомі»: waiting уже містить
+       ті, про які ми нічого не знаємо. Інакше кожне натискання
+       «Показати ще» перепитувало б і ті рахунки, стан яких у нас
+       уже є. */
+    void tick(false);
     const fast = setInterval(() => void tick(false), 20 * 1000);
     const slow = setInterval(() => void tick(true), 5 * 60 * 1000);
     const wake = () => void tick(true);
@@ -1129,12 +1175,16 @@ export default function OrdersAdmin() {
           </button>
         </div>
 
-        <div className="a-orders a-orders--page">
-          {/* Видно, що список живий: замовлення приходять самі,
-              і сторінку не треба перезавантажувати */}
-          {/* Два екрани одного вікна: у черзі — те, що треба
-              зробити сьогодні; в архіві — усе, що вже сталося,
-              разом із фільтрами, статистикою, CSV і друком. */}
+        {/* Пояс керування стоїть НАД .a-orders, а не всередині, і
+            це не косметика: .a-orders — грид, а грид-елементу
+            липнути нікуди, бо його вмістилищем є власна комірка
+            заввишки з нього самого. Тут же вмістилище — уся
+            сторінка, і пояс має куди їхати.
+
+            Два екрани одного вікна: у черзі — те, що треба
+            зробити сьогодні; в архіві — усе, що вже сталося,
+            разом із фільтрами, статистикою, CSV і друком. */}
+        <div className="a-sticky">
           <div className="ao-tabs">
             <button
               type="button"
@@ -1174,6 +1224,21 @@ export default function OrdersAdmin() {
             </label>
           </div>
 
+          {/* Пошук і фільтри — у тому ж поясі, що й вкладки.
+              Порізно вони прилипали б двома смугами й з'їдали пів
+              екрана; разом це один рядок керування, який завжди
+              під рукою. */}
+          {view === 'archive' ? (
+            <ArchiveBar
+              f={f}
+              set={(p) => setF((v) => ({ ...v, ...p }))}
+              scope={scope}
+              today={todayISO(new Date())}
+            />
+          ) : null}
+        </div>
+
+        <div className="a-orders a-orders--page">
           {/* Помилка читання бази має бути видна на ОБОХ екранах:
               інакше черга бадьоро малює «Усе зроблено» саме тоді,
               коли замовлення є, а їх не видно. */}
@@ -1225,13 +1290,6 @@ export default function OrdersAdmin() {
               Одиниць товару: <b>{stats.units}</b>
             </span>
           </div>
-
-          <ArchiveBar
-            f={f}
-            set={(p) => setF((v) => ({ ...v, ...p }))}
-            scope={scope}
-            today={todayISO(new Date())}
-          />
 
           <BulkBar
             visible={visible.length}
