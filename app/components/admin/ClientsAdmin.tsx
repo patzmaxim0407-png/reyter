@@ -120,6 +120,7 @@ export default function ClientsAdmin({
       ) : screen === 'mail' ? (
         <Broadcast
           clients={all}
+          c={c}
           picked={pick}
           onPicked={() => setPick(null)}
           onSent={() => {

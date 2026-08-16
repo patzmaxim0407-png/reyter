@@ -1359,7 +1359,13 @@ label.a-sizes__chip,
   color: var(--c-blue);
 }
 
-.ao-chip.is-active {
+/* Обране — синім. Два імені в одного стану: половина коду пише
+   is-active, половина is-on. Правило було лише на перше, і на
+   сторінках лояльності, складу й клієнтів активна вкладка не
+   підсвічувалась узагалі — натиснув, а на вигляд нічого не
+   змінилось. */
+.ao-chip.is-active,
+.ao-chip.is-on {
   background: var(--c-blue);
   border-color: var(--c-blue);
   color: #fff;
@@ -7211,3 +7217,44 @@ label.a-promo-product i {
 /* Приріст проти того, що ті самі люди купували без листа. Зелений
    лише коли він додатний: нуль зеленим був би самообманом. */
 .mk-run__nums span.is-up b { color: #15803d; }
+
+
+/* ---------- Картинка в листі ----------
+   Вставляти пряме посилання руками — не робота для власника:
+   майже завжди потрібне фото товару, про який і лист. Тому вибір
+   із каталогу першим, файл другим, а поле з адресою лишається
+   запасним варіантом і показується, лише поки картинки немає. */
+
+.mk-pic { display: grid; gap: 8px; }
+.mk-pic > span { font-size: 12px; color: #6e6a5e; }
+
+.mk-pic__ways {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.mk-pic__ways .acombo { flex: 1; min-width: 220px; }
+
+.mk-pic__file { cursor: pointer; white-space: nowrap; }
+
+.mk-pic__got {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid rgba(6, 43, 92, 0.08);
+  border-radius: 10px;
+  background: #fff;
+}
+
+/* Показуємо саме те, що побачить покупець згори листа — щоб
+   помилковий файл було видно одразу, а не в надісланому листі. */
+.mk-pic__got img {
+  width: 120px;
+  height: 76px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #f3ecdd;
+}

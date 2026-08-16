@@ -18,6 +18,11 @@ import {
   type MailRun
 } from '@/lib/admin/mailing';
 import { db } from '@/lib/firebase';
+import { getStorage } from 'firebase/storage';
+import Combobox from '../Combobox';
+import { useAdminUser } from './AdminGate';
+import { uploadPhotos } from '@/lib/admin/photos';
+import { catTitle, type Catalogue } from '@/lib/catalog';
 
 /* ============================================================
    Розсилки
@@ -38,6 +43,7 @@ const ALL = 'all';
 
 export default function Broadcast({
   clients,
+  c,
   picked,
   onPicked,
   onSent,
@@ -45,6 +51,8 @@ export default function Broadcast({
   workerKey
 }: {
   clients: Client[];
+  /** Каталог — щоб узяти фото товару, а не шукати посилання. */
+  c: Catalogue;
   /** Людина, з чиєї картки натиснули «написати». */
   picked: Client | null;
   onPicked(): void;
@@ -55,13 +63,37 @@ export default function Broadcast({
 }) {
   const toast = useToast();
   const ask = useAsk();
+  const user = useAdminUser();
   const cab = useMemo(() => ({ workerUrl, adminKey: workerKey }), [workerUrl, workerKey]);
 
   const [who, setWho] = useState<Segment | typeof ALL>(ALL);
   const [loyal, setLoyal] = useState<Loyal>('any');
   const [letter, setLetter] = useState<Letter>(EMPTY_LETTER);
   const [busy, setBusy] = useState(false);
+  const [busyPic, setBusyPic] = useState(false);
+  /* Назва товару, чиє фото взяли, — щоб поле не було порожнім
+     після вибору. */
+  const [pick, setPick] = useState('');
   const [error, setError] = useState('');
+
+  /* Своє зображення. Лягає в те саме сховище, що й фото товарів,
+     і тим самим шляхом: стискається у WebP, зменшується до
+     розумного боку. Лист із фотографією на десять мегабайтів не
+     відкриє ніхто. */
+  async function putPicture(file: File) {
+    setBusyPic(true);
+    try {
+      const res = await uploadPhotos({ storage: getStorage(), user }, [file], 'mailing');
+      if (!res.ok || !res.urls[0]) {
+        toast(res.error || 'Не вдалося вивантажити зображення');
+        return;
+      }
+      set({ image: res.urls[0] });
+      setPick('');
+    } finally {
+      setBusyPic(false);
+    }
+  }
 
   /* Людина прийшла з картки конкретного клієнта — лист буде їй
      одній. Групу в такому разі не питаємо. */
@@ -301,17 +333,117 @@ export default function Broadcast({
               onChange={(e) => set({ codeNote: e.target.value })}
             />
           </label>
-          <label className="ao-field ao-field--wide">
-            <span>
-              Картинка згори <em>пряме посилання на зображення</em>
-            </span>
-            <input
-              value={letter.image}
-              maxLength={400}
-              placeholder="https://reyter.men/assets/images/…"
-              onChange={(e) => set({ image: e.target.value })}
-            />
-          </label>
+          {/* Картинка. Доти сюди треба було вставити пряме
+              посилання — тобто піти в сховище, знайти файл,
+              скопіювати адресу. Це робота, якої не має бути:
+              майже завжди потрібне фото товару, про який і лист.
+
+              Тому два простих шляхи: обрати товар (беремо його
+              перше фото й заразом ставимо посилання на нього ж у
+              кнопку) або перетягнути файл. Поле з адресою
+              лишилось — але вже як запасний варіант. */}
+          <div className="ao-field ao-field--wide mk-pic">
+            <span>Картинка згори</span>
+            <div className="mk-pic__ways">
+              <Combobox
+                id="mk-pic"
+                label=""
+                className="acombo a-nopick"
+                value={pick}
+                placeholder="обрати фото товару — назва або артикул"
+                empty="Нічого не знайдено"
+                minChars={0}
+                openOnFocus
+                search={async (q) => {
+                  const needle = q.trim().toLowerCase();
+                  return (c.products || [])
+                    .filter(
+                      (x) =>
+                        !needle ||
+                        (x.name + ' ' + x.id + ' ' + catTitle(c, x.category))
+                          .toLowerCase()
+                          .includes(needle)
+                    )
+                    .filter((x) => !!x.images?.[0])
+                    .map((x) => ({
+                      ref: x.id,
+                      text: x.name,
+                      value: x.name,
+                      cls: 'a-pick',
+                      node: (
+                        <>
+                          <img
+                            className="a-pick__img"
+                            src={x.images?.[0] ?? ''}
+                            alt=""
+                            width={34}
+                            height={44}
+                            loading="lazy"
+                            decoding="async"
+                          />
+                          <span className="a-pick__body">
+                            <b>{x.name}</b>
+                            <i>
+                              {x.id} · {catTitle(c, x.category)}
+                            </i>
+                          </span>
+                        </>
+                      )
+                    }));
+                }}
+                onPick={(item) => {
+                  const p = (c.products || []).find((x) => x.id === item.ref);
+                  if (!p) return;
+                  setPick(p.name);
+                  /* Заразом ставимо кнопці посилання на цей самий
+                     товар: лист про річ, у якому кнопка веде на
+                     головну, — половина втраченого сенсу. */
+                  set({
+                    image: p.images?.[0] ?? '',
+                    url: letter.url || 'https://reyter.men/p/' + p.id
+                  });
+                }}
+                onType={setPick}
+              />
+
+              <label className="btn btn--ghost btn--sm mk-pic__file">
+                {busyPic ? 'Вивантажуємо…' : '↑ Свій файл'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (f) void putPicture(f);
+                  }}
+                />
+              </label>
+            </div>
+
+            {letter.image ? (
+              <div className="mk-pic__got">
+                <img src={letter.image} alt="" />
+                <button
+                  className="btn btn--ghost btn--sm ao-danger"
+                  type="button"
+                  onClick={() => {
+                    set({ image: '' });
+                    setPick('');
+                  }}
+                >
+                  Прибрати
+                </button>
+              </div>
+            ) : (
+              <input
+                value={letter.image}
+                maxLength={400}
+                placeholder="або вставте пряме посилання на зображення"
+                onChange={(e) => set({ image: e.target.value })}
+              />
+            )}
+          </div>
         </div>
 
         <p className="mk-note">
