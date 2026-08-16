@@ -15,6 +15,7 @@ import { db, loadNotifySettings } from '@/lib/firebase';
 import { sendBackInStock } from '@/lib/notify';
 import { EMPTY_DRAFT, watchDraft, type Draft } from '@/lib/admin/store';
 import { MOVES_LIMIT, loadMoves, loadRestocks, watchInventory, type Doc } from '@/lib/admin/live';
+import StockAudit from './StockAudit';
 import {
   MOVE_REASONS,
   WRITEOFF_REASONS,
@@ -60,7 +61,7 @@ import { fmt } from '@/lib/catalog';
    «Рух» лишається повна історія, а не мовчазні виправлення.
    ============================================================ */
 
-type Tab = 'stock' | 'restock' | 'moves';
+type Tab = 'stock' | 'restock' | 'moves' | 'audit';
 
 export default function StockAdmin() {
   const user = useAdminUser();
@@ -346,7 +347,11 @@ export default function StockAdmin() {
                 [
                   ['stock', 'Залишки'],
                   ['restock', 'Прихід'],
-                  ['moves', 'Рух']
+                  ['moves', 'Рух'],
+                  /* Звірка окремо: вона читає ВЕСЬ журнал, і
+                     робити це на кожне відкриття складу немає
+                     жодних підстав. */
+                  ['audit', 'Звірка']
                 ] as [Tab, string][]
               ).map(([id, title]) => (
                 <button
@@ -560,6 +565,10 @@ export default function StockAdmin() {
                 </>
               ) : null}
             </>
+          ) : null}
+
+          {tab === 'audit' ? (
+            <StockAudit s={s} />
           ) : null}
 
           {tab === 'moves' ? (

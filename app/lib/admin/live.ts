@@ -19,6 +19,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  startAfter,
   where
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -218,3 +219,36 @@ export async function loadRestocks(): Promise<Doc[] | null> {
 
 /** Журнал руху — найновіше згори. */
 export const loadMoves = () => readOnce(MOVES_COL, 'ts', 'desc', MOVES_LIMIT);
+
+/** Журнал ЦІЛКОМ, від першого запису — для звірки.
+ *
+ *  Окремо від loadMoves і навмисно без межі в MOVES_LIMIT:
+ *  звірка на обрізаному журналі показала б розбіжність у КОЖНОГО
+ *  товару й перетворилась би на шум, у якому справжня втрата
+ *  просто загубилась би.
+ *
+ *  Сторінками по тисячі: одним запитом Firestore великий журнал
+ *  не віддасть, а стеля в п'ятдесят кіл — щоб зіпсута відповідь
+ *  не закрутила читання назавжди. Дійшли до стелі — кажемо про
+ *  це вголос, бо неповна звірка гірша за жодну. */
+export async function loadAllMoves(): Promise<{ moves: Doc[]; whole: boolean } | null> {
+  const d = db();
+  if (!d) return { moves: [], whole: true };
+  const out: Doc[] = [];
+  let after: unknown = null;
+  try {
+    for (let i = 0; i < 50; i++) {
+      const q = after
+        ? query(collection(d, MOVES_COL), orderBy('ts', 'asc'), startAfter(after), fsLimit(1000))
+        : query(collection(d, MOVES_COL), orderBy('ts', 'asc'), fsLimit(1000));
+      const snap = await getDocs(q);
+      if (snap.empty) return { moves: out, whole: true };
+      snap.docs.forEach((x) => out.push({ _id: x.id, ...(x.data() as object) } as Doc));
+      if (snap.docs.length < 1000) return { moves: out, whole: true };
+      after = snap.docs[snap.docs.length - 1];
+    }
+    return { moves: out, whole: false };
+  } catch {
+    return null;
+  }
+}

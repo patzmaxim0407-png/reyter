@@ -96,12 +96,92 @@ ok('товар без сітки рахується поштучно', totalQty(
 /* ---------- Комплект ---------- */
 
 const setRow = setStockRow(s, products[3]);
+/* Комплект розміру M вимагає M кожного складника — отже,
+   рахуємо ПО РОЗМІРАХ і додаємо.
+
+   BR-001: S5 M2 L0, TP-001: S1 M4 L3.
+   Зібрати можна: S — один, M — два, L — жодного. Разом ТРИ.
+
+   Доти тут стояло сім — «найдефіцитніший складник за всіма
+   своїми розмірами». Число красиве й неправильне: воно не
+   питає, чи збігаються розміри. На живому складі це виглядало
+   так — комплект black показував «8 шт», а зібрати можна було
+   рівно один, бо плавки лишились тільки в S. */
 ok(
-  'комплект обмежує найдефіцитніший складник',
-  setRow.total === 7,
-  `total=${setRow.total} (BR-001: 7, TP-001: 8)`
+  'комплект рахується по розмірах, а не за сумами складників',
+  setRow.total === 3,
+  `total=${setRow.total} (S:1 + M:2 + L:0)`
+);
+ok(
+  'підсумок сходиться з розмірами в рядку',
+  setRow.total === setRow.sizes.reduce((n, c) => n + (c.qty ?? 0), 0),
+  `${setRow.total} проти ${setRow.sizes.map((c) => c.qty).join('+')}`
 );
 ok('у комплекту немає власного документа', !hasInvDoc(s, 'CM-001'));
+
+/* Живий випадок зі складу REYTER, 16.08.2026.
+   Комплект black = майка black (S1 M6 L3) + Dark wave (S8 M0 L0).
+   Полиця показувала «8 шт» і «можна зібрати» — а зібрати можна
+   був рівно ОДИН, у S. Саме на це число дивляться, вирішуючи,
+   чи час дошивати. */
+{
+  const real: StockState = {
+    products: [
+      prod({ id: 'MBL-001', sizes: ['S', 'M', 'L'] }),
+      prod({ id: 'DW-001', sizes: ['S', 'M', 'L'] }),
+      prod({ id: 'CBLE-001', sizes: [], set: ['MBL-001', 'DW-001'] })
+    ],
+    inv: {
+      'MBL-001': { sizes: { S: 1, M: 6, L: 3 } },
+      'DW-001': { sizes: { S: 8, M: 0, L: 0 } }
+    }
+  };
+  const row = setStockRow(real, real.products[2]);
+  ok('комплект black — один, а не вісім', row.total === 1, `total=${row.total}`);
+  ok('і стан каже, що закінчується', row.state.cls === 'is-low', row.state.label);
+}
+
+/* Складник без сітки — свічка, коробка — розміру не має й
+   ділиться між усіма розмірами. Він не додається до кожного, а
+   ставить стелю на весь комплект: саме заради цього випадку
+   стара формула й була такою, але поширювала виняток на всіх. */
+{
+  const mixed: StockState = {
+    products: [
+      prod({ id: 'T-001', sizes: ['S', 'M', 'L'] }),
+      prod({ id: 'CANDLE', sizes: [], volume: true }),
+      prod({ id: 'BOX-001', sizes: [], set: ['T-001', 'CANDLE'] })
+    ],
+    inv: {
+      'T-001': { sizes: { S: 4, M: 4, L: 4 } },
+      CANDLE: { qty: 5 }
+    }
+  };
+  const row = setStockRow(mixed, mixed.products[2]);
+  ok('безрозмірний складник ставить стелю', row.total === 5, `total=${row.total}`);
+
+  /* Свічок вистачає — тоді межу ставить сітка. */
+  const many: StockState = { ...mixed, inv: { ...mixed.inv, CANDLE: { qty: 50 } } };
+  ok('коли свічок досить — рахує сітка', setStockRow(many, many.products[2]).total === 12,
+     String(setStockRow(many, many.products[2]).total));
+}
+
+/* Хоч один складник без обліку — сказати нічого не можна.
+   Доти стан рахувався за тими, що ведуться, тобто вигадувався з
+   половини даних. */
+{
+  const half: StockState = {
+    products: [
+      prod({ id: 'A-001', sizes: ['S', 'M'] }),
+      prod({ id: 'B-001', sizes: ['S', 'M'] }),
+      prod({ id: 'SET-001', sizes: [], set: ['A-001', 'B-001'] })
+    ],
+    inv: { 'A-001': { sizes: { S: 9, M: 9 } } }
+  };
+  const row = setStockRow(half, half.products[2]);
+  ok('без обліку складника числа немає', row.total === null, String(row.total));
+  ok('і стан чесно мовчить', row.state.cls === '', row.state.label);
+}
 ok(
   'розмір комплекту — мінімум зі складників',
   setRow.sizes.find((x) => x.size === 'M')?.qty === 2,

@@ -653,12 +653,18 @@ export function productRowState(s: StockState, p: Product): RowState {
     if (!parts.length || parts.length !== (p.set || []).length) {
       return { cls: 'is-out', label: 'складник відсутній' };
     }
-    const tracked = parts.filter((x) => hasInvDoc(s, x.id));
-    if (!tracked.length) return { cls: '', label: 'не ведеться' };
+    /* Хоч один складник без обліку — і сказати нічого не можна.
+       Доти стан рахувався за тими, що ведуться, тобто вигадувався
+       з половини даних. */
+    const can = setsBuildable(s, p);
+    if (can === null) return { cls: '', label: 'не ведеться' };
 
-    const least = tracked.reduce((min, x) => Math.min(min, totalQty(s, x)), Infinity);
-    if (least <= 0) return { cls: 'is-out', label: 'не зібрати' };
-    if (least <= LOW_STOCK_AT) return { cls: 'is-low', label: 'закінчується' };
+    /* Скільки комплектів можна зібрати НАСПРАВДІ, а не скільки
+       штук найдефіцитнішого складника лежить на полиці. Це різні
+       числа, щойно розміри розійшлись: майок десять, плавок
+       вісім, а комплект збирається один. */
+    if (can <= 0) return { cls: 'is-out', label: 'не зібрати' };
+    if (can <= LOW_STOCK_AT) return { cls: 'is-low', label: 'закінчується' };
     return { cls: 'is-ok', label: 'можна зібрати' };
   }
 
@@ -751,18 +757,60 @@ export interface SetStockRow {
  *  своїми розмірами — саме воно, а не сума по розмірах: складник
  *  без сітки (свічка) інакше порахувався б у кожному розмірі
  *  окремо. */
+/** Скільки комплектів можна зібрати НАСПРАВДІ.
+ *
+ *  Доти це було «найдефіцитніший складник за всіма своїми
+ *  розмірами» — і воно брехало. Комплект black (майка black +
+ *  Dark wave) показував «8 шт», хоча зібрати можна був рівно
+ *  ОДИН: майки лишились у S, M і L, а Dark wave — тільки в S.
+ *  Розміри в рядку стояли правильні (1 + 0 + 0), а підсумок
+ *  поруч казав вісім, і саме на нього дивляться, вирішуючи, чи
+ *  час дошивати.
+ *
+ *  Комплект розміру M вимагає M кожного складника з сіткою —
+ *  отже, рахувати треба ПО РОЗМІРАХ і додавати.
+ *
+ *  Складник без сітки (свічка, коробка) розміру не має й
+ *  ділиться між усіма: він не додається до кожного розміру, а
+ *  ставить стелю на весь комплект. Саме заради цього випадку
+ *  колишня формула й була такою — але вона поширювала виняток на
+ *  усіх. */
+export function setsBuildable(s: StockState, p: Product): number | null {
+  const parts = setPartsOf(s, p);
+  if (!parts.length) return 0;
+  if (!parts.every((x) => hasInvDoc(s, x.id))) return null;
+
+  const sized = parts.filter((x) => isSized(x, s));
+  const flat = parts.filter((x) => !isSized(x, s));
+  const ceiling = flat.length
+    ? flat.reduce((min, x) => Math.min(min, totalQty(s, x)), Infinity)
+    : Infinity;
+
+  if (!sized.length) return ceiling === Infinity ? 0 : ceiling;
+
+  const bySize = ALL_SIZES.reduce((n, sz) => {
+    const have = sized.reduce((min, x) => Math.min(min, sizeQty(s, x.id, sz)), Infinity);
+    return n + Math.max(0, have === Infinity ? 0 : have);
+  }, 0);
+
+  return Math.min(bySize, ceiling);
+}
+
 export function setStockRow(s: StockState, p: Product): SetStockRow {
   const parts = setPartsOf(s, p);
   const tracked = parts.length > 0 && parts.every((x) => hasInvDoc(s, x.id));
   const sized = parts.some((x) => isSized(x, s));
 
-  const total = tracked
-    ? parts.reduce((min, x) => Math.min(min, totalQty(s, x)), Infinity)
-    : null;
+  const total = tracked ? setsBuildable(s, p) : null;
 
   const sizes: SetStockCell[] = sized
     ? ALL_SIZES.filter((sz) =>
-        parts.every((x) => !isSized(x) || stockSizes(s, x).some((it) => it.size === sz))
+        /* isSized(x, s), а не isSized(x): картка складника може
+           не мати сітки, а в залишках уже лежать числа за
+           розмірами. Без стану ця перевірка вважала такий
+           складник безрозмірним — і рядок мовчки розходився з
+           тим, що рахує setSizeQty. */
+        parts.every((x) => !isSized(x, s) || stockSizes(s, x).some((it) => it.size === sz))
       ).map((sz) => ({ size: sz, qty: setSizeQty(s, p, sz) }))
     : [];
 
