@@ -7346,3 +7346,24 @@ label.a-promo-product i {
   background: var(--c-green);
   border-color: var(--c-green);
 }
+
+
+/* Собівартість у картці товару — показ, а не поле. Правиться
+   вона приходом і калькулятором випуску: там вона й змінюється
+   насправді, а число тут лише вершина черги партій. */
+.a-cost {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 2px 0 0;
+}
+
+.a-cost b {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-blue-ink);
+}
+
+.a-cost b.is-quiet { font-size: 15px; font-weight: 600; color: #9a958a; }
+.a-cost span { font-size: 12px; color: var(--c-muted); }
