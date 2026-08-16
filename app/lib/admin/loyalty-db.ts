@@ -860,6 +860,14 @@ export async function ordersOfEmail(db: Firestore, email: string): Promise<Order
          Гринвічем, — а вони вже наш дев'яте серпня. Та сама межа,
          за якою рахує orderDay. */
       where('created', '>=', Timestamp.fromDate(new Date(HISTORY_FROM + 'T00:00:00+03:00'))),
+      /* Найновіші згори — і це не косметика. Без orderBy Firestore
+         сортує за полем нерівності ЗА ЗРОСТАННЯМ, тобто вибірка
+         брала найдавнішу пʼятисотку. Щойно замовлень від
+         HISTORY_FROM стало б понад пʼятсот, свіжі покупки не
+         потрапляли б у вікно ніколи, а sure назавжди лишався б
+         хибним — і людина з нестандартним регістром пошти не
+         отримала б історії вже ніколи. */
+      orderBy('created', 'desc'),
       limit(SCAN)
     )
   );

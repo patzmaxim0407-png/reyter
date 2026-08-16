@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { PAGE_SIZE } from '@/lib/admin/orders';
 import PublishControl from './PublishControl';
 import SettingsDialog from './SettingsDialog';
 import PromoCard from './PromoCard';
@@ -49,6 +50,10 @@ export default function PromosAdmin() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editing, setEditing] = useState<{ promo: Promo | null } | null>(null);
   const [error, setError] = useState('');
+  /* Порціями, як усюди в адмінці. Персональних кодів з часом
+     набираються сотні: кожному учасникові свій — і малювати їх
+     усі при кожній зміні стану ні до чого. */
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
   useEffect(
     () =>
@@ -71,8 +76,12 @@ export default function PromosAdmin() {
     [promos, orders]
   );
 
+  /* Лічильники — за ВСІМА кодами, а не за показаною порцією:
+     «діючих 12» має означати дванадцять діючих у магазині, а не
+     дванадцять на цьому екрані. */
   const live = view.filter((x) => x.state.cls === 'is-on').length;
   const uses = view.reduce((s, x) => s + x.used, 0);
+  const shown = view.slice(0, limit);
 
   function need() {
     const d = db();
@@ -151,7 +160,7 @@ export default function PromosAdmin() {
               Промокодів ще немає. Натисніть «+ Новий промокод», щоб створити першу знижку.
             </div>
           ) : (
-            view.map(({ p, state, used }) => (
+            shown.map(({ p, state, used }) => (
               <PromoCard
                 key={p.code}
                 p={p as never}
@@ -222,6 +231,18 @@ export default function PromosAdmin() {
               />
             ))
           )}
+          {view.length > shown.length ? (
+            <button
+              className="btn btn--ghost ao-more"
+              type="button"
+              onClick={() => setLimit((n) => n + PAGE_SIZE)}
+            >
+              Показати ще {Math.min(PAGE_SIZE, view.length - shown.length)} із{' '}
+              {view.length - shown.length}
+            </button>
+          ) : view.length > PAGE_SIZE ? (
+            <p className="ao-note ao-count">Показано всі {view.length}</p>
+          ) : null}
           </div>
         </div>
       </div>

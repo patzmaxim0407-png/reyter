@@ -839,15 +839,28 @@ export function pendingRestocks(list: Restock[]): Restock[] {
   return list.filter((r) => r.status !== 'received');
 }
 
-/** Останні оприбутковані. Список іде за зростанням очікуваної
- *  дати, тож свіжі — в кінці; беремо їх і перевертаємо. Брати
- *  перші означало б показувати найдавніші прийоми, а щойно
- *  оприбуткований у блок не потрапляв би взагалі. */
+/** Останні оприбутковані — за часом ОПРИБУТКУВАННЯ, а не за
+ *  очікуваною датою.
+ *
+ *  Доти бралися останні за порядком списку, тобто за очікуваною
+ *  датою: партія, обіцяна на грудень і заведена на склад учора,
+ *  опинялась попереду тієї, яку завели сьогодні. «Останні
+ *  оприбутковані» означає «які щойно потрапили на склад», і
+ *  сортувати їх треба саме за цим. Для давніх записів, у яких
+ *  часу оприбуткування ще немає, лишається очікувана дата — це
+ *  краще, ніж викинути їх зі списку. */
 export function lastReceived(list: Restock[], max = 10): Restock[] {
+  const at = (r: Restock): number => {
+    const ts = r.receivedAt;
+    const d = ts && typeof ts.toDate === 'function' ? ts.toDate() : null;
+    if (d) return d.getTime();
+    const day = Date.parse(String(r.expected || '') + 'T00:00:00');
+    return Number.isFinite(day) ? day : 0;
+  };
   return list
     .filter((r) => r.status === 'received')
-    .slice(-max)
-    .reverse();
+    .sort((a, b) => at(b) - at(a))
+    .slice(0, max);
 }
 
 export function restockOverdue(r: Restock, now: Date): boolean {

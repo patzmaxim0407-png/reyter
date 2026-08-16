@@ -14,7 +14,7 @@ import { useToast } from '../Toasts';
 import { db, loadNotifySettings } from '@/lib/firebase';
 import { sendBackInStock } from '@/lib/notify';
 import { EMPTY_DRAFT, watchDraft, type Draft } from '@/lib/admin/store';
-import { loadMoves, loadRestocks, watchInventory, type Doc } from '@/lib/admin/live';
+import { MOVES_LIMIT, loadMoves, loadRestocks, watchInventory, type Doc } from '@/lib/admin/live';
 import {
   MOVE_REASONS,
   WRITEOFF_REASONS,
@@ -659,11 +659,27 @@ export default function StockAdmin() {
                       </button>
                     </nav>
                   ) : null}
+
+                  {/* Пагінатор чесно малює свої сторінки — але лише
+                      по тому, що завантажено. Дійшовши до останньої,
+                      людина вважає, що побачила всю історію складу,
+                      хоча за нею відрізано все, старше за останні
+                      MOVES_LIMIT записів. І підсумки вгорі — теж за
+                      цим вікном, а не за весь час. */}
+                  {moves.length >= MOVES_LIMIT ? (
+                    <p className="ao-note ao-count">
+                      Показано останні {MOVES_LIMIT} записів руху — старіші не завантажені, і
+                      пошук їх не знайде
+                    </p>
+                  ) : null}
                 </>
               ) : (
                 <div className="a-empty">
-                  Журнал руху порожній. Тут фіксується кожна зміна залишків: прихід, продаж,
-                  повернення, списання.
+                  {moves.length >= MOVES_LIMIT
+                    ? `Серед останніх ${MOVES_LIMIT} записів руху нічого не знайдено — старіші не завантажені.`
+                    : moves.length
+                      ? 'За цим фільтром нічого не знайдено.'
+                      : 'Журнал руху порожній. Тут фіксується кожна зміна залишків: прихід, продаж, повернення, списання.'}
                 </div>
               )}
             </>

@@ -184,7 +184,11 @@ export default function RestockForm({
                   p.id.toLowerCase().includes(needle) ||
                   categoryTitle(p.category).toLowerCase().includes(needle)
               )
-              .slice(0, 40)
+              /* Свого зрізу тут більше немає: список ріже сам
+                 Combobox і сам каже, скільки лишилось за межею.
+                 Доти сорок товарів обривались мовчки — і при
+                 порожньому запиті це були просто перші сорок
+                 каталогу. */
               .map((p) => {
                 const left = totalOf(p);
                 return {

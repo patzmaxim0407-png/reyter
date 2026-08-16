@@ -31,7 +31,8 @@ import {
 import Pricing from './Pricing';
 import { tipsFor, type Context, type Tip } from '@/lib/admin/advice';
 import { availability, productSizes } from '@/lib/catalog';
-import type { AdminOrder } from '@/lib/admin/orders';
+import { orderDate, type AdminOrder } from '@/lib/admin/orders';
+import { ORDERS_LIMIT } from '@/lib/admin/live';
 import type { Catalogue } from '@/lib/catalog';
 
 /* ============================================================
@@ -73,6 +74,27 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
   const [span, setSpan] = useState<Span>('30');
   const now = useMemo(() => new Date(), []);
 
+  /* Чи вистачає даних на обраний період.
+
+     У показники приїжджають ті самі ORDERS_LIMIT найновіших
+     замовлень, що й у список. Поки їх менше за межу — видно все.
+     Щойно впремось у межу, «Рік» і «Весь час» почнуть тихо
+     занижувати виручку: графік читають як істину, і жодного
+     натяку, що півроку просто немає, у ньому не було.
+
+     Порівнюємо початок періоду з найдавнішим завантаженим
+     замовленням: попередження зʼявляється лише тоді, коли період
+     справді сягає за межу даних, а не на кожному екрані. */
+  const oldest = useMemo(() => {
+    if (orders.length < ORDERS_LIMIT) return null;
+    let min = Infinity;
+    for (const o of orders) {
+      const at = orderDate(o).getTime();
+      if (at > 0 && at < min) min = at;
+    }
+    return Number.isFinite(min) ? new Date(min) : null;
+  }, [orders]);
+
   const view = useMemo(() => {
     const { from, to } = rangeOf(span, now);
     const kpi = kpiOf(orders, c, from, to);
@@ -81,9 +103,17 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
     const rows = rowsOf(orders, c, from, to);
     const titles = new Map((c.categories || []).map((x) => [x.id, x.title]));
 
+    /* Період сягає далі, ніж сягають дані? Лише тоді є про що
+       попереджати: на «30 днів» межа в 500 замовлень не заважає
+       нічим. */
+    const short = oldest && oldest.getTime() > from.getTime()
+      ? oldest.toLocaleDateString('uk', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '';
+
     return {
       kpi,
       was,
+      cut: short,
       rows,
       cats: byCategory(rows, titles),
       bcg: bcgOf(rows),
@@ -106,7 +136,7 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
         o.payInvoiceId ? 'Картка онлайн' : 'При отриманні'
       )
     };
-  }, [orders, c, span, now]);
+  }, [orders, c, span, now, oldest]);
 
   const { kpi, was } = view;
 
@@ -156,6 +186,12 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
             ? 'собівартість відома для всього проданого'
             : `маржа порахована для ${Math.round(kpi.covered * 100)}% виручки — решті товарів не вписана собівартість`}
         </span>
+        {view.cut ? (
+          <span className="ins__cover is-warn">
+            за неповними даними: завантажено {ORDERS_LIMIT} найновіших замовлень, найдавніше —{' '}
+            {view.cut}. Усе, що було раніше, у ці числа не входить
+          </span>
+        ) : null}
       </header>
 
       <div className="ins__kpis">

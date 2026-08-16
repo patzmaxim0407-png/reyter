@@ -17,7 +17,7 @@ import { copyText } from '@/lib/copy';
 import { db } from '@/lib/firebase';
 import { sendTtn } from '@/lib/notify';
 import { EMPTY_DRAFT, watchDraft, type Draft } from '@/lib/admin/store';
-import { watchOrders } from '@/lib/admin/live';
+import { ORDERS_LIMIT, watchOrders } from '@/lib/admin/live';
 import {
   DEFAULT_FILTERS,
   PAGE_SIZE,
@@ -114,6 +114,13 @@ export default function OrdersAdmin() {
     [orders, f]
   );
   const visible = list.slice(0, limit);
+  /* Новий добір — знову з першої порції. Інакше, догорнувши до
+     сотні й набравши потім пошук, менеджер отримував сотню
+     знайденого замість двадцяти пʼяти, а звузивши до трьох —
+     лишався з написом «показати ще» від попереднього добору. */
+  useEffect(() => {
+    setLimit(PAGE_SIZE);
+  }, [f.search, f.status, f.period, f.from, f.to]);
   /* Статистика — за ПЕРІОДОМ, не за пошуком: інакше виручка
      й середній чек перераховувались би на кожен символ у полі,
      і зрозуміти, скільки заробили за місяць, було б неможливо. */
@@ -1327,9 +1334,11 @@ export default function OrdersAdmin() {
             /* Порожньо через фільтр і порожньо взагалі — різні речі,
                і підказка має бути різна */
             <div className="a-empty">
-              {orders.length
-                ? 'За цими фільтрами нічого не знайдено. Спробуйте розширити період або скинути пошук.'
-                : 'Замовлень поки немає. Щойно покупець оформить кошик — воно зʼявиться тут.'}
+              {!orders.length
+                ? 'Замовлень поки немає. Щойно покупець оформить кошик — воно зʼявиться тут.'
+                : orders.length >= ORDERS_LIMIT
+                  ? `Нічого не знайдено серед ${ORDERS_LIMIT} найновіших замовлень — саме стільки завантажується. Якщо шукаєте давнє, спробуйте точний номер, телефон або пошту.`
+                  : 'За цими фільтрами нічого не знайдено. Спробуйте розширити період або скинути пошук.'}
             </div>
           )}
           </div>
@@ -1344,7 +1353,17 @@ export default function OrdersAdmin() {
               {list.length - visible.length}
             </button>
           ) : list.length ? (
-            <p className="ao-note ao-count">Показано всі {list.length}</p>
+            /* «Показано всі» — обіцянка, яку ми не завжди можемо
+               дотримати: з бази приїжджають лише ORDERS_LIMIT
+               найновіших замовлень. Коли їх рівно стільки, за
+               ними майже напевно є ще, і мовчати про це не можна —
+               людина шукає старе замовлення й вирішує, що його не
+               існує. */
+            <p className="ao-note ao-count">
+              {orders.length >= ORDERS_LIMIT
+                ? `Показано ${list.length} із ${ORDERS_LIMIT} найновіших — старіші замовлення не завантажені`
+                : `Показано всі ${list.length}`}
+            </p>
           ) : null}
           </>
           )}

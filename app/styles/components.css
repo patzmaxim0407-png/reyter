@@ -1997,6 +1997,15 @@
   color: var(--c-muted);
 }
 
+/* Хвіст «показано перші 100 із 340». Стоїть під списком і
+   відділений рискою: це не пункт, який можна вибрати, а межа
+   того, що видно. */
+.acombo__more {
+  border-top: 1px solid var(--c-line);
+  text-align: center;
+  font-size: 0.8rem;
+}
+
 /* Країни, де штат обовʼязковий */
 .field.is-required > label::after {
   content: ' *';

@@ -326,6 +326,29 @@ ok('«останні оприбутковані» — справді остан�
 
 ok('довгий список обрізається згори', lastReceived(feed, 1).map((r) => r._id).join('') === 'c');
 
+/* Порядок — за часом ОПРИБУТКУВАННЯ, а не за очікуваною датою.
+   Партія, обіцяна на грудень і заведена на склад учора, не має
+   стояти попереду тієї, яку завели сьогодні: «останні
+   оприбутковані» означає «які щойно потрапили на склад». */
+const gotAt = (iso: string) => ({ toDate: () => new Date(iso) }) as never;
+const byReceipt: Restock[] = [
+  { _id: 'пізня обіцянка', productId: 'X', expected: '2026-12-31', status: 'received', receivedAt: gotAt('2026-08-14T10:00:00Z') },
+  { _id: 'щойно завели', productId: 'X', expected: '2026-08-02', status: 'received', receivedAt: gotAt('2026-08-16T10:00:00Z') }
+];
+ok('останні оприбутковані — за часом оприбуткування',
+   lastReceived(byReceipt)[0]._id === 'щойно завели',
+   lastReceived(byReceipt)[0]._id);
+
+/* Давні записи часу оприбуткування не мають — вони не повинні
+   зникати зі списку, лише ставати в хвіст за очікуваною датою. */
+const mixed: Restock[] = [
+  { _id: 'без позначки', productId: 'X', expected: '2026-08-10', status: 'received' },
+  { _id: 'з позначкою', productId: 'X', expected: '2026-08-01', status: 'received', receivedAt: gotAt('2026-08-16T10:00:00Z') }
+];
+ok('запис без часу оприбуткування не губиться',
+   lastReceived(mixed).length === 2 && lastReceived(mixed)[0]._id === 'з позначкою',
+   lastReceived(mixed).map((r) => r._id).join(' | '));
+
 /* ---------- Дати для людини ---------- */
 
 const NOW = new Date('2026-08-10T12:00:00');

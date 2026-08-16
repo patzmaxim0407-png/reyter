@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLang } from './LangProvider';
 
+/** Скільки пунктів показуємо щонайбільше. Довший список ніхто не
+ *  гортає — його уточнюють запитом; головне сказати, що він є. */
+const CAP = 100;
+
 /* ============================================================
    Поле з підказками (місто, відділення)
    ------------------------------------------------------------
@@ -59,7 +63,7 @@ export default function Combobox(props: {
   onPick(item: ComboItem): void;
   onType(value: string): void;
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const {
     id,
     label,
@@ -81,6 +85,9 @@ export default function Combobox(props: {
 
   const [items, setItems] = useState<ComboItem[]>([]);
   const [note, setNote] = useState('');
+  /* Скільки знайшлось насправді, коли показано не все. Нуль —
+     показано все. */
+  const [more, setMore] = useState(0);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [busy, setBusy] = useState(false);
@@ -162,11 +169,19 @@ export default function Combobox(props: {
       }
       if (res === null) {
         setItems([]);
+        setMore(0);
         setNote(t(needFirst || empty));
         return;
       }
-      const list = res.slice(0, 100);
+      /* Список ріжеться на сотні — і доти про це не казав ніхто.
+         Мовчазний зріз гірший за будь-яку пагінацію: людина бачить
+         рівно стільки, скільки їй показали, і вважає, що це все.
+         Найдорожче це коштує там, де шукають відділення: набрав
+         місто, потрібного відділення в переліку немає — висновок
+         «його не існує», хоча воно сто перше за ліком. */
+      const list = res.slice(0, CAP);
       setItems(list);
+      setMore(res.length > CAP ? res.length : 0);
       setNote(list.length ? '' : t(empty));
     }, 260);
   }
@@ -272,6 +287,13 @@ export default function Combobox(props: {
                 )}
               </li>
             ))}
+          {!busy && more ? (
+            <li className="acombo__msg acombo__more">
+              {lang === 'en'
+                ? `showing first ${CAP} of ${more} — refine your search`
+                : `показано перші ${CAP} із ${more} — уточніть запит`}
+            </li>
+          ) : null}
         </ul>
       </div>
       {hint ? <p className="field__hint">{hint}</p> : null}

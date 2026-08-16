@@ -18,7 +18,8 @@ import {
   limit as fsLimit,
   onSnapshot,
   orderBy,
-  query
+  query,
+  where
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -33,7 +34,11 @@ export const PROMOS_COL = 'promos';
 export const ORDERS_LIMIT = 500;
 /** Журнал руху: 400 записів це приблизно квартал роботи. */
 export const MOVES_LIMIT = 400;
+/** Черга приходів: скільки незакритих тримаємо. Їх завжди
+ *  одиниці — сотня тут із величезним запасом. */
 export const RESTOCKS_LIMIT = 100;
+/** І скільки останніх оприбуткованих показуємо поруч. */
+export const RECEIVED_LIMIT = 40;
 
 export type Doc = Record<string, unknown> & { _id: string };
 
@@ -165,8 +170,51 @@ async function readOnce(
   }
 }
 
-/** Приходи — за очікуваною датою: спершу ті, на які чекають. */
-export const loadRestocks = () => readOnce(RESTOCKS_COL, 'expected', 'asc', RESTOCKS_LIMIT);
+/** Приходи.
+ *
+ *  Раніше це був один запит: orderBy('expected','asc') limit(100).
+ *  Тобто СТО НАЙДАВНІШИХ — а оприбутковані приходи з колекції не
+ *  видаляються, лише міняють статус. Щойно їх набралося б понад
+ *  сто, нові приходи у вибірку не потрапляли б узагалі: блок
+ *  «Очікуються» показав би «немає», лічильник збрехав би, а
+ *  кнопка «Оприбуткувати» просто зникла б. Мовчки.
+ *
+ *  Тому запити тепер два й кожен по своє.
+ *
+ *  Черга — рівністю за статусом, без orderBy: рівність не
+ *  потребує складеного покажчика, а таких документів завжди
+ *  одиниці, тож упорядкувати їх дешевше в себе. Складений
+ *  покажчик тут був би гіршим рішенням: його треба заводити
+ *  руками в консолі, і до того дня запит просто не працював би.
+ *
+ *  Оприбутковані — за часом оприбуткування, найсвіжіші згори.
+ *  Саме за ним, а не за очікуваною датою: «останні оприбутковані»
+ *  означає «які щойно завели на склад», а не «які найпізніше
+ *  обіцяли». */
+export async function loadRestocks(): Promise<Doc[] | null> {
+  const d = db();
+  if (!d) return [];
+  try {
+    const [queue, done] = await Promise.all([
+      getDocs(query(collection(d, RESTOCKS_COL), where('status', '==', 'pending'), fsLimit(RESTOCKS_LIMIT))),
+      getDocs(query(collection(d, RESTOCKS_COL), orderBy('receivedAt', 'desc'), fsLimit(RECEIVED_LIMIT)))
+    ]);
+
+    const rows = new Map<string, Doc>();
+    for (const x of [...queue.docs, ...done.docs]) {
+      rows.set(x.id, { _id: x.id, ...(x.data() as object) } as Doc);
+    }
+
+    /* Порядок той самий, що й був: за очікуваною датою, спершу
+       найближчі. На нього спирається і черга, і «останні
+       оприбутковані». */
+    return [...rows.values()].sort((a, b) =>
+      String(a.expected || '').localeCompare(String(b.expected || ''))
+    );
+  } catch {
+    return null;
+  }
+}
 
 /** Журнал руху — найновіше згори. */
 export const loadMoves = () => readOnce(MOVES_COL, 'ts', 'desc', MOVES_LIMIT);
