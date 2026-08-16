@@ -7,7 +7,14 @@
 
    node --experimental-strip-types --import ./tools/ts-resolve-register.mjs tools/advice-check.ts
 */
-import { coverOf, paceOf, tipsFor, unitMargin, type Context } from '../lib/admin/advice.ts';
+import {
+  coverOf,
+  marginShare,
+  paceOf,
+  tipsFor,
+  unitMargin,
+  type Context
+} from '../lib/admin/advice.ts';
 import type { Row } from '../lib/admin/insights.ts';
 
 let failed = 0;
@@ -25,7 +32,8 @@ const row = (patch: Partial<Row> = {}): Row => ({
 
 const ctx = (patch: Partial<Context> = {}): Context => ({
   stock: 20, gone: [], sizes: 4, days: 30,
-  catMargin: 0.4, catPrice: 600, discount: 0.05, shopDiscount: 0.05,
+  catMargin: 0.4, catPrice: 600, catQty: 10,
+  discount: 0.05, shopDiscount: 0.05,
   sale: false, quadrant: 'star',
   ...patch
 });
@@ -55,26 +63,81 @@ console.log('\nГРОШІ ТЕЧУТЬ ЗАРАЗ');
 {
   const tips = tipsFor(row(), ctx({ gone: ['S', 'M'] }));
   const sizes = tips.find((t) => t.kind === 'sizes')!;
-  ok('розібрані розміри названо поіменно', sizes.title.includes('S, M'));
-  ok('половина сітки — це вже терміново', sizes.urgency === 2);
+  ok('розібрані ходові розміри названо поіменно', sizes.title.includes('S, M'));
+  ok('два ходових — це вже терміново', sizes.urgency === 2);
+
+  /* Крайні розміри — не те саме. «Немає XS» у речі з одним
+     продажем витісняло з екрана справжні проблеми. */
+  ok('крайні розміри порадою не стають',
+     !tipsFor(row(), ctx({ gone: ['XS', 'XXL'] })).some((t) => t.kind === 'sizes'));
+  ok('і на поодиноких продажах теж мовчимо',
+     !tipsFor(row({ qty: 1 }), ctx({ gone: ['S', 'M'] })).some((t) => t.kind === 'sizes'));
 }
 
-console.log('\nСКІЛЬКИ ЗАРОБЛЯЄ');
+console.log('\nВАЖЕЛІ: ЦІНА Й СОБІВАРТІСТЬ');
 {
-  /* Маржа 20% проти 40% у категорії. Порада мусить назвати ціну,
-     яка це виправляє, а не просто констатувати. */
+  /* Маржа 20% проти 40% у категорії. Порада мусить назвати ОБИДВА
+     важелі: ціну вгору й закупівлю вниз. Один із них у конкретній
+     ситуації завжди неможливий, і власник знає, який саме. */
   const low = row({ margin: 1200, cost: 480, costed: 6000 });
-  const tips = tipsFor(low, ctx({ catMargin: 0.4 }));
-  const m = tips.find((t) => t.kind === 'margin')!;
+  const m = tipsFor(low, ctx({ catMargin: 0.4 })).find((t) => t.kind === 'cost')!;
   ok('низька маржа помічена', !!m);
   ok('названо ціну, яка вирівняє', /800/.test(m.todo), m.todo);
-  ok('і скільки це дасть', m.money === (800 - 600) * 10, String(m.money));
+  ok('названо й собівартість, яка вирівняє', /360/.test(m.todo));
+  ok('на кону — більший із двох важелів', m.money === (800 - 600) * 10, String(m.money));
+  ok('маржинальність рахується від покритої виручки',
+     Math.round((marginShare(low) || 0) * 100) === 20);
 }
 {
-  /* Маржа на рівні категорії — мовчимо. Порада «усе гаразд» це
-     шум, за яким перестають читати решту. */
   const tips = tipsFor(row(), ctx({ catMargin: 0.4 }));
-  ok('нормальна маржа поради не породжує', !tips.some((t) => t.kind === 'margin'));
+  ok('нормальна маржа поради не породжує', !tips.some((t) => t.kind === 'cost'));
+}
+
+console.log('\nПІДНЯТИ ЦІНУ');
+{
+  /* Дешевший за категорію, попит вищий за середній, знижок
+     немає, запас є — саме той випадок, коли ціна лишає гроші на
+     столі. */
+  const cheap = row({ price: 450, qty: 12 });
+  const up = tipsFor(cheap, ctx({ catPrice: 600, catQty: 10 })).find((t) => t.kind === 'priceUp')!;
+  ok('дешевий і ходовий — піднімати', !!up);
+  ok('названо, до скільки', /600/.test(up.todo), up.todo);
+  ok('і скільки це дасть', up.money === (600 - 450) * 12, String(up.money));
+
+  /* А ось на слабкому попиті така порада коштувала б продажів. */
+  ok('на слабкому попиті ціну не піднімаємо',
+     !tipsFor(row({ price: 450, qty: 4 }), ctx({ catPrice: 600, catQty: 10 }))
+       .some((t) => t.kind === 'priceUp'));
+  ok('і при знижках теж',
+     !tipsFor(cheap, ctx({ catPrice: 600, catQty: 10, discount: 0.2 }))
+       .some((t) => t.kind === 'priceUp'));
+}
+
+console.log('\nЗНИЗИТИ ЦІНУ');
+{
+  const dear = row({ qty: 0, revenue: 0, margin: 0, costed: 0, price: 900 });
+  const down = tipsFor(dear, ctx({ catPrice: 600, stock: 15 })).find((t) => t.kind === 'priceDown')!;
+  ok('дорогий і нерухомий — пробувати нижче', !!down);
+  ok('названо ціну для спроби', /600/.test(down.todo), down.todo);
+  ok('і сказано, що це не збиток', /маржі з одиниці/.test(down.todo));
+  ok('на кону — заморожені гроші', down.money === 15 * 360, String(down.money));
+  ok('і другої поради про простій уже не буде',
+     !tipsFor(dear, ctx({ catPrice: 600, stock: 15 })).some((t) => t.kind === 'idle'));
+}
+
+console.log('\nРЕКЛАМА');
+{
+  /* Реклама радиться не «щоб продавалось», а там, де одиниця
+     приносить достатньо, щоб оплатити залучення — і порада
+     називає МЕЖУ бюджету. */
+  const quiet = row({ qty: 2, revenue: 1200, margin: 480, costed: 1200 });
+  const ads = tipsFor(quiet, ctx({ stock: 30, catQty: 10, quadrant: 'question' }))
+    .find((t) => t.kind === 'ads')!;
+  ok('там, де маржа висока, а продажів мало — реклама', !!ads);
+  ok('названо межу за один продаж', /120/.test(ads.todo), ads.todo);
+  ok('і бюджет на залишок', /2 400|2400/.test(ads.todo.replace(/\u00a0/g, ' ')), ads.todo);
+  ok('порожній склад реклами не потребує',
+     !tipsFor(quiet, ctx({ stock: 2 })).some((t) => t.kind === 'ads'));
 }
 {
   const tips = tipsFor(row(), ctx({ discount: 0.25, shopDiscount: 0.05 }));
@@ -96,6 +159,15 @@ console.log('\nЛЕЖИТЬ');
      !tipsFor(row({ qty: 0 }), ctx({ stock: 0 })).some((t) => t.kind === 'idle'));
 }
 
+console.log('\nПРОГНОЗ');
+{
+  const f = tipsFor(row(), ctx({ stock: 20 })).find((t) => t.kind === 'forecast')!;
+  ok('прогноз — це арифметика темпу, не пророцтво', !!f && /10 шт на місяць/.test(f.what), f?.what);
+  ok('сказано, коли готувати наступну партію', /партію/.test(f.todo) || /темп стабільний/i.test(f.todo));
+  ok('на поодиноких продажах прогнозу немає',
+     !tipsFor(row({ qty: 1 }), ctx()).some((t) => t.kind === 'forecast'));
+}
+
 console.log('\nПОРЯДОК');
 {
   /* Разом: і порожній склад, і низька маржа, і знижка. Зверху
@@ -105,6 +177,8 @@ console.log('\nПОРЯДОК');
     row({ margin: 1200, cost: 480 }),
     ctx({ stock: 0, discount: 0.3, shopDiscount: 0.05, catMargin: 0.4 })
   );
+  ok('важелі різні, а не один шість разів',
+     new Set(tips.map((t) => t.kind)).size === tips.length, tips.map((t) => t.kind).join(','));
   ok('поради впорядковані терміновістю, далі грошима',
      tips[0].urgency >= tips[1].urgency);
   ok('кожна порада знає свою ціну', tips.every((t) => typeof t.money === 'number'));
@@ -116,7 +190,7 @@ console.log('\nМОВЧАННЯ');
      сусідів. Єдине, що доречно, — нагадування не дати йому
      закінчитись, і воно без терміновості. */
   const tips = tipsFor(row(), ctx());
-  ok('здоровий товар не сипле порадами', tips.every((t) => t.urgency === 0), String(tips.length));
+  ok('здоровий товар не сипле тривогами', tips.every((t) => t.urgency === 0), String(tips.length));
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));

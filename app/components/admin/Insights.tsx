@@ -676,11 +676,12 @@ function adviceFor(
   /* Медіани категорії рахуємо один раз на категорію, а не на
      товар: інакше на тридцяти товарах це тридцять однакових
      обходів. */
-  const cats = new Map<string, { margins: number[]; prices: number[] }>();
+  const cats = new Map<string, { margins: number[]; prices: number[]; qty: number[] }>();
   for (const r of rows) {
-    const box = cats.get(r.category) || { margins: [], prices: [] };
+    const box = cats.get(r.category) || { margins: [], prices: [], qty: [] };
     if (r.cost !== null && r.costed > 0) box.margins.push(r.margin / r.costed);
     if (r.price > 0) box.prices.push(r.price);
+    box.qty.push(r.qty);
     cats.set(r.category, box);
   }
   const mid = (list: number[]) => {
@@ -698,7 +699,7 @@ function adviceFor(
     /* Розміри, яких немає — лише з тих, які товар узагалі має:
        інакше в «немає» потрапили б XS і XXL, яких не шили. */
     const gone = p && av && !p.volume ? sizes.filter((s2) => !av.sizes.includes(s2)) : [];
-    const box = cats.get(r.category) || { margins: [], prices: [] };
+    const box = cats.get(r.category) || { margins: [], prices: [], qty: [] };
 
     const ctx: Context = {
       stock: av ? Math.max(0, av.total) : 0,
@@ -707,6 +708,9 @@ function adviceFor(
       days,
       catMargin: box.margins.length >= 2 ? mid(box.margins) : 0,
       catPrice: box.prices.length >= 3 ? mid(box.prices) : 0,
+      /* Скільки продає середній товар категорії. Без цього
+         «мало» й «багато» — це відчуття, а не число. */
+      catQty: box.qty.length >= 3 ? Math.max(1, Math.round(mid(box.qty))) : 0,
       discount: discounts.get(r.id) || 0,
       shopDiscount,
       sale: !!p?.sale,
@@ -735,11 +739,35 @@ function Todo({
   advice: Map<string, Tip[]>;
   names: Map<string, string>;
 }) {
-  const list = rows
-    .map((r) => ({ id: r.id, tip: advice.get(r.id)?.[0] }))
-    .filter((x): x is { id: string; tip: Tip } => !!x.tip && (x.tip.urgency > 0 || x.tip.money > 0))
-    .sort((a, b) => b.tip.urgency - a.tip.urgency || b.tip.money - a.tip.money)
-    .slice(0, 6);
+  /* Перелік мусить бути РІЗНИЙ.
+
+     Спершу я брав у кожного товару найпершу пораду — і екран
+     заповнювався шістьма однаковими «дошити розміри». Це не шість
+     проблем, а одне правило, що спрацювало шість разів: читати
+     такий перелік марно, бо він не каже, що робити ЗАРАЗ.
+
+     Тому: по дві поради одного роду щонайбільше, і в кожного
+     товару беремо ту, яка ще не набридла. Так у шести рядках
+     опиняються шість різних важелів — ціна, собівартість, показ,
+     наявність. */
+  const all = rows
+    .flatMap((r) => (advice.get(r.id) || []).map((tip) => ({ id: r.id, tip })))
+    .filter((x) => x.tip.urgency > 0 || x.tip.money > 0)
+    .sort((a, b) => b.tip.urgency - a.tip.urgency || b.tip.money - a.tip.money);
+
+  const list: { id: string; tip: Tip }[] = [];
+  const perKind = new Map<string, number>();
+  const seen = new Set<string>();
+
+  for (const x of all) {
+    if (list.length >= 6) break;
+    if (seen.has(x.id)) continue;
+    const used = perKind.get(x.tip.kind) || 0;
+    if (used >= 2) continue;
+    perKind.set(x.tip.kind, used + 1);
+    seen.add(x.id);
+    list.push(x);
+  }
 
   if (!list.length) return null;
 
