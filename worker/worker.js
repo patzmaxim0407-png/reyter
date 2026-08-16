@@ -1783,7 +1783,10 @@ export default {
        покупців, і відкривати цей шлях назовні не можна ні на
        мить. */
 
-    if (type === 'mk-segments' || type === 'mk-sync' || type === 'mk-send' || type === 'mk-sent') {
+    if (
+      type === 'mk-segments' || type === 'mk-sync' || type === 'mk-send' ||
+      type === 'mk-sent' || type === 'mk-preview'
+    ) {
       if (env.ADMIN_KEY && d.key !== env.ADMIN_KEY) {
         return reply({ ok: false, error: 'Невірний ключ адміністратора (ADMIN_KEY)' }, 403, cors);
       }
@@ -1792,6 +1795,24 @@ export default {
           ok: false,
           error: 'у воркері не задано RESEND_KEY (Settings → Variables and Secrets → Add → Secret → потім Deploy)'
         }, 400, cors);
+      }
+
+      /* Зразок листа — той самий, що піде покупцеві.
+         Збирає його ЦЕЙ ЖЕ код: другого шаблону в адмінці немає
+         навмисно. Два шаблони розійшлись би тихо, і зразок почав
+         би показувати не те, що надходить людям, — а помітили б
+         це вже з надісланого листа.
+
+         Підстановки Resend замінюємо на приклад: покупець бачить
+         своє імʼя, а не {{{contact.first_name}}}. Посилання на
+         відписку лишається на місці, але веде в нікуди — це ж
+         лише зразок. */
+      if (type === 'mk-preview') {
+        const html = broadcastHTML(d)
+          .replace(/\{\{\{contact\.first_name\|([^}]*)\}\}\}/g, (m, fallback) =>
+            esc(clip(d.sample, 60) || fallback))
+          .replace(/\{\{\{RESEND_UNSUBSCRIBE_URL\}\}\}/g, '#');
+        return reply({ ok: true, html }, 200, cors);
       }
 
       /* Які групи вже заведені в Resend. Безкоштовний тариф дає

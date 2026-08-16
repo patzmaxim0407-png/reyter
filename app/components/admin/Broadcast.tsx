@@ -10,6 +10,7 @@ import {
   EMPTY_LETTER,
   contactsOf,
   manyLetters,
+  previewLetter,
   overLimit,
   reachable,
   saveRun,
@@ -71,6 +72,9 @@ export default function Broadcast({
   const [letter, setLetter] = useState<Letter>(EMPTY_LETTER);
   const [busy, setBusy] = useState(false);
   const [busyPic, setBusyPic] = useState(false);
+  /* Готовий HTML листа — рівно той, що піде покупцеві. */
+  const [preview, setPreview] = useState('');
+  const [previewErr, setPreviewErr] = useState('');
   /* Назва товару, чиє фото взяли, — щоб поле не було порожнім
      після вибору. */
   const [pick, setPick] = useState('');
@@ -98,6 +102,32 @@ export default function Broadcast({
   /* Людина прийшла з картки конкретного клієнта — лист буде їй
      одній. Групу в такому разі не питаємо. */
   const one = picked;
+
+  /* Зразок збирає воркер — той самий код, що й надсилає. Другого
+     шаблону в адмінці немає навмисно: два розійшлись би тихо, і
+     зразок почав би показувати не те, що надходить людям.
+
+     З паузою: людина набирає текст, і смикати воркер на кожну
+     літеру ні до чого. Півсекунди тиші — і зразок оновився. */
+  useEffect(() => {
+    if (!letter.subject.trim() && !letter.text.trim()) {
+      setPreview('');
+      setPreviewErr('');
+      return;
+    }
+    const id = setTimeout(() => {
+      void previewLetter(cab, letter, one?.name || 'Богдан').then((r) => {
+        if (r.ok && r.html) {
+          setPreview(r.html);
+          setPreviewErr('');
+        } else {
+          setPreview('');
+          setPreviewErr(r.error || 'Не вдалося зібрати зразок');
+        }
+      });
+    }, 500);
+    return () => clearTimeout(id);
+  }, [cab, letter, one]);
 
   /* Два незалежні зрізи: стан клієнта і програма лояльності.
      «Постійні» і «третій рівень» — різні питання про ту саму
@@ -451,6 +481,36 @@ export default function Broadcast({
           його не буде надіслано — це не примха, а те, від чого залежить, чи дійдуть узагалі всі
           інші листи магазину.
         </p>
+      </section>
+
+      {/* ---------- Як це побачить покупець ----------
+          Не «схоже на лист», а САМЕ той лист: розмітку зібрав той
+          самий воркер, що його й надішле. */}
+      <section className="mk-step">
+        <h4>Як це побачить покупець</h4>
+        {preview ? (
+          <>
+            <iframe
+              className="mk-eye"
+              title="Зразок листа"
+              /* sandbox без allow-scripts: усередині лише розмітка
+                 листа, і виконувати там нічого не треба. */
+              sandbox=""
+              srcDoc={preview}
+            />
+            <p className="mk-note">
+              Імʼя підставлено для прикладу — кожен отримає своє. Посилання на відписку в зразку
+              нікуди не веде; у справжньому листі Resend дає кожному власне.
+            </p>
+          </>
+        ) : previewErr ? (
+          <p className="ao-note ao-error">{previewErr}</p>
+        ) : (
+          <p className="mk-note">
+            Впишіть тему й текст — і тут зʼявиться лист рівно в тому вигляді, у якому він
+            прийде людині.
+          </p>
+        )}
       </section>
 
       {/* ---------- 3. Надіслати ---------- */}
