@@ -934,3 +934,50 @@ export async function saveRules(db: Firestore, rules: DiscountRules): Promise<vo
 function iso(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
+
+/* ============================================================
+   ДРІБНИЦІ ДЛЯ СПИСКУ УЧАСНИКІВ
+   ------------------------------------------------------------
+   Живуть тут, а не в компоненті, з однієї причини: їх можна
+   перевірити тестом. Дата, зіпсута на місяць, у списку людей
+   помітна не одразу.
+   ============================================================ */
+
+const MONTHS = [
+  'січ.', 'лют.', 'бер.', 'квіт.', 'трав.', 'черв.',
+  'лип.', 'серп.', 'вер.', 'жовт.', 'лист.', 'груд.'
+];
+
+/** «2026-08-15» → «15 серп. 2026». Голий ISO у списку людей
+ *  читається як службовий запис, а не як дата вступу. */
+export function niceDay(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (!m) return String(iso || '');
+  const month = MONTHS[Number(m[2]) - 1];
+  return month ? `${Number(m[3])} ${month} ${m[1]}` : String(iso);
+}
+
+/** Дві літери для кружечка: у списку на сотні рядків око
+ *  чіпляється за форму швидше, ніж за текст. */
+export function initials(mail: string): string {
+  const name = String(mail || '').split('@')[0] || '';
+  if (!name) return '?';
+  const parts = name.split(/[._-]+/).filter(Boolean);
+  const two = parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2);
+  return two.toUpperCase();
+}
+
+/** Скільки днів лишилось до згоряння. Потрібне не число, а
+ *  тривога: рядок має пожовтіти сам, поки ще можна написати.
+ *
+ *  Рахуємо КАЛЕНДАРНИМИ днями за київським днем, а не різницею в
+ *  мілісекундах. Інакше термін, що спливає сьогодні ввечері,
+ *  показував би «лишився 1 день» — а лишилось кілька годин, і це
+ *  рівно та помилка, через яку людині не встигають написати. */
+export function daysLeft(iso: string | null, now: Date = new Date()): number | null {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return null;
+  const till = Date.parse(iso + 'T00:00:00Z');
+  const today = Date.parse(orderDay(now.toISOString()) + 'T00:00:00Z');
+  if (!Number.isFinite(till) || !Number.isFinite(today)) return null;
+  return Math.round((till - today) / 86_400_000);
+}

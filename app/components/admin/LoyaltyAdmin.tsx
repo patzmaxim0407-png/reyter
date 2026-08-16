@@ -10,6 +10,7 @@ import { useToast } from '../Toasts';
 import { db } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { watchDraft, EMPTY_DRAFT, type Draft } from '@/lib/admin/store';
+import { PAGE_SIZE } from '@/lib/admin/orders';
 import { watchMembers, watchOrders, type Doc } from '@/lib/admin/live';
 import {
   DEFAULT_RULES,
@@ -80,6 +81,10 @@ export default function LoyaltyAdmin() {
   const [sort, setSort] = useState<Sort>('points');
   const [busy, setBusy] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /* Показуємо порціями — як у списку замовлень. Учасників із
+     часом стають сотні, і малювати їх усі означало б чекати
+     секунду на кожне натискання в пошуку. */
+  const [limit, setLimit] = useState(PAGE_SIZE);
   /* Один прохід на одне відкриття екрана. Без цього кожна нова
      порція даних із бази запускала б зарахування наново. */
   const swept = useRef(false);
@@ -175,6 +180,15 @@ export default function LoyaltyAdmin() {
       return b.points - a.points;
     });
   }, [members, find, only, sort]);
+
+  /* Новий добір — знову з першої порції: інакше, звузивши пошук
+     до трьох людей, ми лишались би на «показано 100», а
+     розширивши — бачили б хвіст попереднього добору. */
+  useEffect(() => {
+    setLimit(PAGE_SIZE);
+  }, [find, only, sort]);
+
+  const shown = view.slice(0, limit);
 
   /** Зарахувати історію руками. Тим самим натисканням і
    *  ПЕРЕрахувати: якщо причину нуля виправили — дописали суму
@@ -338,8 +352,9 @@ export default function LoyaltyAdmin() {
           <div>
             <h2>Програма лояльності</h2>
             <p>
-              Бали нараховуються самі, коли замовлення стає «Виконано». Тут — учасники,
-              зарахування минулих замовлень і межі знижки.
+              Бали нараховуються самі, коли замовлення стає «Виконано», а минулі
+              замовлення нових учасників зараховуються без вас. Тут — самі учасники
+              й межі знижки.
             </p>
           </div>
           {stats.pending ? (
@@ -464,7 +479,7 @@ export default function LoyaltyAdmin() {
               </div>
             ) : (
               <div className="ao-list">
-                {view.map((m) => (
+                {shown.map((m) => (
                   <MemberRow
                     key={m.who}
                     m={m}
@@ -474,6 +489,18 @@ export default function LoyaltyAdmin() {
                     onClub={() => void toggleClub(m)}
                   />
                 ))}
+                {view.length > shown.length ? (
+                  <button
+                    className="btn btn--ghost ao-more"
+                    type="button"
+                    onClick={() => setLimit((n) => n + PAGE_SIZE)}
+                  >
+                    Показати ще {Math.min(PAGE_SIZE, view.length - shown.length)} із{' '}
+                    {view.length - shown.length}
+                  </button>
+                ) : (
+                  <p className="ao-note ao-count">Показано всіх {view.length}</p>
+                )}
               </div>
             )
           ) : (
