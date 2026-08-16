@@ -539,12 +539,26 @@
   color: var(--c-blue);
 }
 
-.size-guide__visual img {
-  border-radius: var(--radius);
+/* Схема, питання й прохання — один блок, а не три речі поруч.
+   Порізно вони читались як випадково складені: заголовок ніби
+   від сусіднього розділу, прохання ніби примітка внизу сторінки.
+   Разом це одна картка, і рамка тримає їх укупі. */
+.size-guide__visual {
+  background: var(--c-paper);
   border: 1px solid var(--c-line);
+  border-radius: var(--radius);
   box-shadow: var(--shadow-card);
+  padding: clamp(1rem, 2.5vw, 1.4rem);
+  margin: 0;
+}
+
+.size-guide__visual img {
+  border-radius: calc(var(--radius) - 6px);
   cursor: zoom-in;
   background: #fff;
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .size-guide__visual figcaption {
@@ -558,7 +572,7 @@
    на схему саме тому, що не знає відповіді, — і питання має стояти
    першим, до того як вона почне вгадувати. */
 .size-guide__ask {
-  margin: 0 0 0.7rem;
+  margin: 0 0 0.8rem;
   font-family: var(--font-display);
   font-size: clamp(1rem, 2.2vw, 1.15rem);
   font-weight: 700;
@@ -575,11 +589,11 @@
    капслоку тут не місце, слова й так важкі. */
 .size-guide__please {
   margin: 0.9rem 0 0;
-  padding: 0.8rem 1rem;
+  padding: 0.75rem 0.9rem;
   border-radius: 12px;
   border-left: 3px solid var(--c-blue);
   background: rgba(1, 74, 173, 0.055);
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   line-height: 1.55;
   color: var(--c-ink);
   text-align: left;
