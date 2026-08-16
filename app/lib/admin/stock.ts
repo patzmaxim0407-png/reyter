@@ -300,6 +300,62 @@ export function logMoves(w: StockWriter, mutation: StockMutation, moves: MoveEnt
   moves.forEach((m) => logMove(w, mutation, m));
 }
 
+/* ============================================================
+   ПЕРЕРАХУНОК
+   ------------------------------------------------------------
+   Полиця — це дійсність, журнал — розповідь про неї. Коли вони
+   розійшлись, дійсність права: товар або загубився, або його
+   колись поправили руками повз адмінку.
+
+   Досі виправити це було НІЧИМ. Мітка «Коригування» в коді була,
+   а створити її не міг ніхто — тож числа правили просто в базі, і
+   журнал про це не дізнавався. Розбіжність лишалась назавжди й
+   заважала помітити наступну, справжню.
+
+   Перерахунок нічого не додає й не забирає з полиці: він лише
+   ДОПИСУЄ В ЖУРНАЛ те, що вже сталося. Після нього сума рухів
+   дорівнює залишку, і наступна розбіжність буде видна одразу. */
+/** Записати перерахунок. Залишків НЕ чіпає навмисно: на полиці
+ *  вже стоїть правильне число, і чіпати його означало б зіпсувати
+ *  саме те, заради чого рахували. Пишемо лише журнал. */
+export async function writeStocktake(
+  w: StockWriter,
+  moves: MoveEntry[]
+): Promise<StockResult> {
+  if (!moves.length) return { ok: true };
+  try {
+    const batch = writeBatch(w.db);
+    logMoves(w, batch, moves);
+    await batch.commit();
+    return { ok: true };
+  } catch {
+    return { ok: false, message: 'Немає прав' };
+  }
+}
+
+export interface StocktakeLine {
+  productId: string;
+  productName: string;
+  size: string | null;
+  /** Наскільки полиця більша за журнал; зі знаком. */
+  diff: number;
+}
+
+/** Записи в журнал для перерахунку. Нульові різниці не пишемо:
+ *  рядок «виправлено на нуль» не пояснює нічого. */
+export function planStocktake(lines: StocktakeLine[], note = 'Перерахунок'): MoveEntry[] {
+  return lines
+    .filter((x) => Math.round(x.diff) !== 0)
+    .map((x) => ({
+      productId: x.productId,
+      productName: x.productName,
+      size: x.size,
+      delta: Math.round(x.diff),
+      reason: 'manual' as MoveReason,
+      ref: note
+    }));
+}
+
 /* ---------- Читання журналу ---------- */
 
 export const MOVES_PER_PAGE = 25;

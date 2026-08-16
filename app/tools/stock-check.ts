@@ -25,6 +25,7 @@ import {
   filteredMoves,
   hasInvDoc,
   movesPage,
+  planStocktake,
   planReceive,
   planRestock,
   planRestockEdit,
@@ -428,6 +429,42 @@ const mixed: Restock[] = [
 ok('запис без часу оприбуткування не губиться',
    lastReceived(mixed).length === 2 && lastReceived(mixed)[0]._id === 'з позначкою',
    lastReceived(mixed).map((r) => r._id).join(' | '));
+
+/* ---------- Перерахунок ---------- */
+
+/* Полиця — дійсність, журнал — розповідь про неї. Перерахунок
+   нічого не додає на полицю: він лише дописує в журнал те, що з
+   нею вже сталося повз адмінку. */
+{
+  const lines = [
+    { productId: 'EO-001', productName: 'Сорочка', size: 'M', diff: -4 },
+    { productId: 'EO-001', productName: 'Сорочка', size: 'L', diff: 1 },
+    /* Нульова різниця рядка не заслуговує: «виправлено на нуль»
+       не пояснює нічого й лише засмічує журнал. */
+    { productId: 'EO-001', productName: 'Сорочка', size: 'S', diff: 0 }
+  ];
+  const moves = planStocktake(lines);
+  ok('нульові різниці в журнал не пишуться', moves.length === 2, String(moves.length));
+  ok('знак зберігається', moves[0].delta === -4 && moves[1].delta === 1);
+  ok('мітка — коригування', moves.every((m) => m.reason === 'manual'));
+  ok('видно, що це перерахунок', moves.every((m) => m.ref === 'Перерахунок'));
+  ok('розмір не губиться', moves[0].size === 'M' && moves[1].size === 'L');
+
+  /* Після перерахунку сума рухів дорівнює полиці — саме заради
+     цього все й робиться: наступна розбіжність буде видна одразу,
+     а не загубиться за цією. */
+  const before = { M: 4, L: 2 };
+  const after = {
+    M: before.M + (moves.find((m) => m.size === 'M')?.delta ?? 0),
+    L: before.L + (moves.find((m) => m.size === 'L')?.delta ?? 0)
+  };
+  ok('журнал сходиться з полицею', after.M === 0 && after.L === 3, `M=${after.M}, L=${after.L}`);
+
+  ok('без розмірів пишеться один рядок',
+     planStocktake([{ productId: 'X', productName: 'X', size: null, diff: -2 }]).length === 1);
+  ok('нема чого виправляти — нема й записів',
+     planStocktake([{ productId: 'X', productName: 'X', size: null, diff: 0 }]).length === 0);
+}
 
 /* ---------- Дати для людини ---------- */
 

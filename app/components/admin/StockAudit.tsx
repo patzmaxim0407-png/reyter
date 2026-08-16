@@ -3,7 +3,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { ORDERS_LIMIT, loadAllMoves, watchOrders } from '@/lib/admin/live';
 import { checkOrders, reconcile, type AuditResult, type OrderCheck, type SoldOrder } from '@/lib/admin/audit';
-import type { Move, StockState } from '@/lib/admin/stock';
+import {
+  planStocktake,
+  writeStocktake,
+  type Move,
+  type StockState,
+  type StocktakeLine
+} from '@/lib/admin/stock';
+import { useToast } from '../Toasts';
+import { useAsk } from './AskProvider';
+import { useAdminUser } from './AdminGate';
+import { db } from '@/lib/firebase';
+import type { Check } from '@/lib/admin/audit';
 
 /* ============================================================
    Звірка складу
@@ -21,6 +32,10 @@ import type { Move, StockState } from '@/lib/admin/stock';
    ============================================================ */
 
 export default function StockAudit({ s }: { s: StockState }) {
+  const toast = useToast();
+  const ask = useAsk();
+  const user = useAdminUser();
+  const [fixing, setFixing] = useState('');
   /* Замовлення читаємо тут-таки: сторінка складу їх не тримає, а
      заводити третю підписку в батька заради однієї вкладки
      означало б платити за неї на кожному відкритті складу. */
@@ -68,6 +83,57 @@ export default function StockAudit({ s }: { s: StockState }) {
   useEffect(() => {
     if (done) setBad(checkOrders(orders, lastMoves.current));
   }, [orders, done]);
+
+  /* Записати перерахунок.
+     Полиця вже правильна — ми лише дописуємо в журнал те, що з
+     нею колись сталося повз адмінку. Після цього сума рухів
+     дорівнює залишку, і НАСТУПНА розбіжність буде видна одразу,
+     а не загубиться за цією. */
+  async function settle(r: Check) {
+    const yes = await ask({
+      title: 'Записати перерахунок?',
+      text:
+        `«${r.name}»: за журналом ${r.logged}, на полиці ${r.shelf}.\n\n` +
+        'Залишок НЕ зміниться — на полиці лишиться те саме число. ' +
+        'У журнал ляже коригування на різницю, щоб він нарешті пояснював, ' +
+        'звідки взявся цей залишок.\n\n' +
+        'Робіть це лише тоді, коли полиця перерахована й число на ній правильне.',
+      okText: 'Записати'
+    });
+    if (yes !== true) return;
+
+    const d = db();
+    if (!d) return;
+
+    /* По розмірах, коли вони є: одне число на весь товар сховало б,
+       де саме розійшлось, а саме це й треба знати наступного разу. */
+    const lines: StocktakeLine[] = r.bySize.length
+      ? r.bySize
+          .filter((x) => x.diff)
+          .map((x) => ({ productId: r.id, productName: r.name, size: x.size, diff: x.diff }))
+      : [{ productId: r.id, productName: r.name, size: null, diff: r.diff }];
+
+    setFixing(r.id);
+    try {
+      const done = await writeStocktake({ db: d, by: user.email ?? '' }, planStocktake(lines));
+      if (!done.ok) {
+        toast(done.message);
+        return;
+      }
+      toast('Перерахунок записано ✓', 'success');
+      /* Перечитуємо журнал: рядок має зникнути зі звірки одразу,
+         інакше незрозуміло, спрацювало чи ні. */
+      const got = await loadAllMoves();
+      if (got) {
+        const moves = got.moves as unknown as Move[];
+        lastMoves.current = moves;
+        setSeen(moves.length);
+        setRes(reconcile(s, moves, got.whole));
+      }
+    } finally {
+      setFixing('');
+    }
+  }
 
   if (busy && !done) {
     return <p className="ao-note">Читаємо весь журнал руху…</p>;
@@ -169,9 +235,23 @@ export default function StockAudit({ s }: { s: StockState }) {
                     {r.diff > 0 ? '+' : ''}
                     {r.diff}
                   </i>
+                  <button
+                    className="btn btn--ghost btn--sm au-fix"
+                    type="button"
+                    disabled={fixing === r.id}
+                    onClick={() => void settle(r)}
+                  >
+                    {fixing === r.id ? '…' : 'Записати перерахунок'}
+                  </button>
                 </li>
               ))}
             </ul>
+            <p className="mk-note">
+              «Записати перерахунок» залишку не змінює — на полиці лишається те саме число. Він
+              лише дописує в журнал коригування на різницю, щоб той нарешті пояснював, звідки
+              взявся цей залишок. Робіть це після того, як полицю перерахували руками: інакше
+              помилка просто перестане бути видною.
+            </p>
           </>
         ) : (
           <p className="mk-note">
