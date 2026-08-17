@@ -155,14 +155,17 @@ export function removeAdminAsk(email: string): string {
 
 /** Те, що адмін справді редагує. Обидва поля лягають і в
  *  settings/notify, і в settings/public. */
-/** Один запис в історії порога. */
+/** Один запис в історії порога: «з цієї миті діє стільки».
+ *
+ *  Саме так, а не «змінили з N на M». Попереднє значення — це
+ *  просто наступний запис у списку, і зберігати його вдруге
+ *  означало б завести два джерела для одного факту: досить раз
+ *  дописати запис заднім числом, і вони розійдуться. */
 export interface FreeFromEntry {
-  /** ISO-час зміни. */
+  /** ISO-час, з якого діє це число. */
   at: string;
-  /** Яким став поріг, грн. 0 — прибрали, діє число з коду. */
+  /** Поріг, грн. 0 — типове число з коду. */
   value: number;
-  /** Яким був до того — щоб історію можна було читати рядком. */
-  was: number;
   by: string;
 }
 
@@ -187,7 +190,43 @@ export function pushFreeLog(
   const from = Math.max(0, Math.round(was) || 0);
   const to = Math.max(0, Math.round(now) || 0);
   if (from === to) return null;
-  return [{ at, value: to, was: from, by }, ...(log || [])].slice(0, FREE_LOG_MAX);
+  return sortFreeLog([{ at, value: to, by }, ...(log || [])]);
+}
+
+/** Найновіше згори — хоч би в якому порядку записи додали.
+ *
+ *  Дописаний заднім числом запис має стати на своє місце в
+ *  історії, а не зверху: інакше список читався б як «спершу
+ *  1599, потім 1500», і зрозуміти, що коли діяло, було б
+ *  неможливо. */
+export function sortFreeLog(log: FreeFromEntry[]): FreeFromEntry[] {
+  return [...log]
+    .sort((a, b) => Date.parse(b.at || '') - Date.parse(a.at || ''))
+    .slice(0, FREE_LOG_MAX);
+}
+
+/** Дописати запис руками — щоб унести те, що діяло до появи
+ *  журналу. Історія без початку відповідає лише на половину
+ *  питання «чому в цьому замовленні інше число». */
+export async function addFreeLog(
+  db: Firestore,
+  log: FreeFromEntry[],
+  entry: FreeFromEntry
+): Promise<FreeFromEntry[]> {
+  const next = sortFreeLog([entry, ...log]);
+  await setDoc(doc(db, SETTINGS_COL, 'notify'), { freeFromLog: next }, { merge: true });
+  return next;
+}
+
+/** Прибрати запис — на випадок помилки в даті чи сумі. */
+export async function dropFreeLog(
+  db: Firestore,
+  log: FreeFromEntry[],
+  at: string
+): Promise<FreeFromEntry[]> {
+  const next = log.filter((x) => x.at !== at);
+  await setDoc(doc(db, SETTINGS_COL, 'notify'), { freeFromLog: next }, { merge: true });
+  return next;
 }
 
 export interface SettingsForm {

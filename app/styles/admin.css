@@ -7440,3 +7440,17 @@ label.a-promo-product i {
 .st-log b { font-variant-numeric: tabular-nums; color: var(--c-blue-ink); }
 .st-log span { color: var(--c-muted); }
 .st-log i { font-style: normal; color: #9a958a; white-space: nowrap; }
+
+.st-hist { display: grid; gap: 6px; margin-top: 10px; }
+
+/* Дописати минуле: дата, сума, кнопка. Одним рядком — це дія на
+   раз, і місця під неї виділяти не варто. */
+.st-hist__add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.st-hist__add input[type='date'] { flex: 0 0 auto; }
+.st-hist__add input[type='number'] { width: 110px; }

@@ -21,6 +21,8 @@ import {
   openSettings,
   removeAdmin,
   removeAdminAsk,
+  addFreeLog,
+  dropFreeLog,
   saveSettings,
   settingsForTest,
   settingsFromForm,
@@ -67,6 +69,10 @@ export default function SettingsDialog({
   /* Історія змін порога — щоб було чим відповісти на питання
      «чому в цьому замовленні інше число». */
   const [freeLog, setFreeLog] = useState<FreeFromEntry[]>([]);
+  /* Поля для дописування минулого: журнал почав писатися лише
+     тоді, коли зʼявився, а поріг діяв і до того. */
+  const [logDay, setLogDay] = useState('');
+  const [logSum, setLogSum] = useState('');
   const [testTo, setTestTo] = useState('');
   const [status, setStatus] = useState<StatusLine | null>(null);
   const [chats, setChats] = useState<{ text: string; value: string; list: DetectedChat[] } | null>(null);
@@ -213,27 +219,112 @@ export default function SettingsDialog({
 
                 {/* Історія змін. Потрібна не для звітності, а щоб
                     відповісти на питання «чому в цьому замовленні
-                    інше число» — і побачити, що воно правильне. */}
-                {freeLog.length ? (
-                  <ul className="st-log">
-                    {freeLog.map((x, i) => (
-                      <li key={i}>
-                        <b>{x.value > 0 ? x.value.toLocaleString('uk') + ' грн' : 'типове (1500)'}</b>
-                        <span>
-                          було {x.was > 0 ? x.was.toLocaleString('uk') + ' грн' : 'типове'}
-                          {x.by ? ' · ' + x.by.split('@')[0] : ''}
-                        </span>
-                        <i>
-                          {new Date(x.at).toLocaleDateString('uk', {
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric'
-                          })}
-                        </i>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
+                    інше число» — і побачити, що воно правильне.
+
+                    Запис читається як «з цієї миті діє стільки».
+                    Попереднє значення не зберігаємо: це просто
+                    наступний рядок нижче, і другий запис того
+                    самого факту розійшовся б із першим, щойно
+                    хтось допише минуле заднім числом. */}
+                <div className="st-hist">
+                  <span className="field__label">Як мінявся поріг</span>
+
+                  {freeLog.length ? (
+                    <ul className="st-log">
+                      {freeLog.map((x, i) => {
+                        const prev = freeLog[i + 1];
+                        return (
+                          <li key={x.at}>
+                            <b>
+                              {x.value > 0 ? x.value.toLocaleString('uk') + ' грн' : 'типове 1500'}
+                            </b>
+                            <span>
+                              з{' '}
+                              {new Date(x.at).toLocaleDateString('uk', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric'
+                              })}
+                              {prev
+                                ? ' · до того ' +
+                                  (prev.value > 0 ? prev.value.toLocaleString('uk') + ' грн' : 'типове')
+                                : ''}
+                              {x.by ? ' · ' + x.by.split('@')[0] : ''}
+                            </span>
+                            <button
+                              type="button"
+                              className="a-linklike"
+                              title="Прибрати запис"
+                              onClick={() =>
+                                void (async () => {
+                                  const d = db();
+                                  if (!d) return;
+                                  setFreeLog(await dropFreeLog(d, freeLog, x.at));
+                                })()
+                              }
+                            >
+                              ✕
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="field__hint">
+                      Журнал порожній: він почав писатися лише зараз. Дописати те, що діяло
+                      раніше, можна нижче — без цього історія відповідає лише на половину
+                      питання «чому в цьому замовленні інше число».
+                    </p>
+                  )}
+
+                  <div className="st-hist__add">
+                    <input
+                      type="date"
+                      aria-label="З якого дня діяло"
+                      value={logDay}
+                      max={new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => setLogDay(e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      aria-label="Поріг, грн"
+                      placeholder="1500"
+                      value={logSum}
+                      onChange={(e) => setLogSum(e.target.value)}
+                    />
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      type="button"
+                      disabled={!logDay}
+                      onClick={() =>
+                        void (async () => {
+                          const d = db();
+                          if (!d) return;
+                          /* Полудень, а не північ: дата без часу
+                             в іншому поясі зʼїжджає на добу назад,
+                             і запис ставав би на день раніше, ніж
+                             його внесли. */
+                          const at = new Date(logDay + 'T12:00:00').toISOString();
+                          setFreeLog(
+                            await addFreeLog(d, freeLog, {
+                              at,
+                              value: Math.max(0, Math.round(Number(logSum) || 0)),
+                              by: user
+                            })
+                          );
+                          setLogSum('');
+                        })()
+                      }
+                    >
+                      Дописати
+                    </button>
+                  </div>
+                  <p className="field__hint">
+                    «З якого дня діяв цей поріг». Запис стане на своє місце за датою, а не
+                    зверху. Порожня сума означає типові 1500 грн.
+                  </p>
+                </div>
               </div>
 
               <div className="field">
