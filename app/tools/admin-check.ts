@@ -806,6 +806,32 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
      «бракує 260» — тобто від 1500. */
   const orders = readFileSync(new URL('../components/admin/OrdersAdmin.tsx', import.meta.url), 'utf8');
   ok('картка замовлення знає поріг магазину', orders.includes('freeFrom: Math.round(Number(settings.freeFrom)'));
+
+  /* Поріг заморожується в мить оформлення — усередині customer, а
+     не окремим полем: правила бази перелічують дозволені поля
+     замовлення й публікуються руками, тож нове поле верхнього
+     рівня спинило б живий сайт МОВЧКИ. */
+  const co = readFileSync(new URL('../components/CheckoutForm.tsx', import.meta.url), 'utf8');
+  ok('поріг заморожується в замовленні', co.includes('freeFrom: freeFromOf(c)'));
+  const rules = readFileSync(new URL('../../firebase/firestore.rules', import.meta.url), 'utf8');
+  ok('і не став новим полем верхнього рівня', !/'freeFrom'/.test(rules));
+}
+
+/* ---------- Історія порога ---------- */
+
+/* Журнал потрібен не для звітності, а щоб було чим відповісти на
+   питання «чому в цьому замовленні інше число». */
+{
+  const st = readFileSync(new URL('../lib/admin/settings.ts', import.meta.url), 'utf8');
+  ok('зміни порога записуються', st.includes('function pushFreeLog'));
+  /* Збереження налаштувань буває щодня, а зміна порога — раз на
+     рік. Писати в журнал кожне натискання «Зберегти» означало б
+     засипати його однаковими рядками. */
+  ok('однакове значення в журнал не пишеться', st.includes('if (from === to) return null'));
+  /* Історія лежить у службовому документі: покупцеві список
+     того, як магазин рухав поріг, віддавати ні до чого. */
+  ok('у публічну копію історія не йде',
+     /batch\.set\(doc\(db, SETTINGS_COL, 'public'\), data, \{ merge: true \}\)/.test(st));
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));

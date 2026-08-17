@@ -29,6 +29,7 @@ import {
   wipeLegacyTg,
   type AdminEntry,
   type DetectedChat,
+  type FreeFromEntry,
   type LegacyTg,
   type SettingsFormValues
 } from '@/lib/admin/settings';
@@ -63,6 +64,9 @@ export default function SettingsDialog({
   const [admins, setAdmins] = useState<AdminEntry[]>([]);
   const [newAdmin, setNewAdmin] = useState('');
   const [adminKey, setAdminKey] = useState('');
+  /* Історія змін порога — щоб було чим відповісти на питання
+     «чому в цьому замовленні інше число». */
+  const [freeLog, setFreeLog] = useState<FreeFromEntry[]>([]);
   const [testTo, setTestTo] = useState('');
   const [status, setStatus] = useState<StatusLine | null>(null);
   const [chats, setChats] = useState<{ text: string; value: string; list: DetectedChat[] } | null>(null);
@@ -89,6 +93,7 @@ export default function SettingsDialog({
     void openSettings(d).then((screen) => {
       setValues(screen.values);
       setLegacy(screen.legacy);
+      setFreeLog(screen.freeLog);
       setDone(true);
       /* Свій ключ важить більше за спільний: менеджер міг вписати
          власний. Але коли свого немає — беремо спільний, інакше
@@ -201,8 +206,34 @@ export default function SettingsDialog({
                 <p className="field__hint">
                   Рахується сумою білизни, без свічок і дрібниць. Це число одразу підставляється
                   в кошик, у картку товару й у накладну — окремо їх правити не треба. Порожньо —
-                  лишається 1500 грн.
+                  лишається 1500 грн.{' '}
+                  <b>Уже оформлені замовлення не змінюються</b>: у кожному поріг зафіксований на
+                  мить оформлення, і звіт за минулий місяць від сьогоднішньої правки не поїде.
                 </p>
+
+                {/* Історія змін. Потрібна не для звітності, а щоб
+                    відповісти на питання «чому в цьому замовленні
+                    інше число» — і побачити, що воно правильне. */}
+                {freeLog.length ? (
+                  <ul className="st-log">
+                    {freeLog.map((x, i) => (
+                      <li key={i}>
+                        <b>{x.value > 0 ? x.value.toLocaleString('uk') + ' грн' : 'типове (1500)'}</b>
+                        <span>
+                          було {x.was > 0 ? x.was.toLocaleString('uk') + ' грн' : 'типове'}
+                          {x.by ? ' · ' + x.by.split('@')[0] : ''}
+                        </span>
+                        <i>
+                          {new Date(x.at).toLocaleDateString('uk', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric'
+                          })}
+                        </i>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
 
               <div className="field">
@@ -548,7 +579,7 @@ export default function SettingsDialog({
                 void run(async () => {
                   const d = db();
                   if (!d) return { kind: 'err' as const, text: 'Немає звʼязку з базою' };
-                  const res = await saveSettings(d, form);
+                  const res = await saveSettings(d, form, user);
                   if (res.kind === 'ok') {
                     // наступне читання має побачити нову адресу воркера
                     forgetNotifySettings();

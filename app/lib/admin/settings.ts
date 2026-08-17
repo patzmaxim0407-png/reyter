@@ -155,6 +155,41 @@ export function removeAdminAsk(email: string): string {
 
 /** Те, що адмін справді редагує. Обидва поля лягають і в
  *  settings/notify, і в settings/public. */
+/** Один запис в історії порога. */
+export interface FreeFromEntry {
+  /** ISO-час зміни. */
+  at: string;
+  /** Яким став поріг, грн. 0 — прибрали, діє число з коду. */
+  value: number;
+  /** Яким був до того — щоб історію можна було читати рядком. */
+  was: number;
+  by: string;
+}
+
+/** Скільки записів тримаємо. Історія тут для того, щоб зрозуміти
+ *  «чому в цьому замовленні інше число», а не для звітності за
+ *  всі роки: два десятки змін порога — це вже дуже багато. */
+export const FREE_LOG_MAX = 20;
+
+/** Дописати зміну, якщо вона справді сталася.
+ *
+ *  Збереження налаштувань відбувається щоразу, коли адмін
+ *  натиснув «Зберегти», — навіть не чіпаючи порога. Писати в
+ *  історію кожне таке натискання означало б засипати її
+ *  однаковими рядками, серед яких справжню зміну не знайти. */
+export function pushFreeLog(
+  log: FreeFromEntry[] | undefined,
+  was: number,
+  now: number,
+  by: string,
+  at: string
+): FreeFromEntry[] | null {
+  const from = Math.max(0, Math.round(was) || 0);
+  const to = Math.max(0, Math.round(now) || 0);
+  if (from === to) return null;
+  return [{ at, value: to, was: from, by }, ...(log || [])].slice(0, FREE_LOG_MAX);
+}
+
 export interface SettingsForm {
   workerUrl: string;
   fsEmail: string;
@@ -184,6 +219,17 @@ export interface NotifyDoc {
   tgChatId?: string;
   /** Поріг безкоштовної доставки, грн. */
   freeFrom?: number;
+  /** Історія його змін — найновіше згори.
+   *
+   *  Лежить у службовому документі, а не окремою колекцією: нова
+   *  колекція означала б нове правило бази, а правила
+   *  публікуються руками. Тут же і читання, і запис уже
+   *  дозволені лише адміністраторам.
+   *
+   *  У публічну копію історія не потрапляє: покупцеві вона ні до
+   *  чого, а список того, як магазин рухав поріг, — не те, що
+   *  віддають браузеру. */
+  freeFromLog?: FreeFromEntry[];
   /** Ключ службових запитів до воркера (ADMIN_KEY).
    *
    *  Лежить тут, а не лише в браузері, з простої причини: інакше
@@ -264,6 +310,8 @@ export interface SettingsScreen {
   legacy: LegacyTg | null;
   /** Спільний ключ службових запитів до воркера. */
   adminKey: string;
+  /** Історія змін порога безкоштовної доставки, найновіше згори. */
+  freeLog: FreeFromEntry[];
 }
 
 export function settingsScreen(s: NotifyDoc | null): SettingsScreen {
@@ -275,7 +323,8 @@ export function settingsScreen(s: NotifyDoc | null): SettingsScreen {
       freeFrom: src.freeFrom ? String(src.freeFrom) : ''
     },
     legacy: legacyTgFrom(src),
-    adminKey: String(src.adminKey || '').trim()
+    adminKey: String(src.adminKey || '').trim(),
+    freeLog: Array.isArray(src.freeFromLog) ? src.freeFromLog : []
   };
 }
 
@@ -315,10 +364,32 @@ export async function openSettings(db: Firestore): Promise<SettingsScreen> {
 /** Обидва документи однією пачкою: розійтись їм не можна.
  *  Публічний читає покупець, службовий — адмінка, а поля в них
  *  ті самі. */
-export async function saveSettings(db: Firestore, data: SettingsForm): Promise<StatusLine> {
+export async function saveSettings(
+  db: Firestore,
+  data: SettingsForm,
+  by = ''
+): Promise<StatusLine> {
   try {
+    /* Що було до збереження — щоб дописати в історію саме зміну,
+       а не факт натискання кнопки. */
+    const before = (await loadAdminSettings(db)) || {};
+    const log = pushFreeLog(
+      before.freeFromLog,
+      Number(before.freeFrom) || 0,
+      data.freeFrom,
+      by,
+      new Date().toISOString()
+    );
+
     const batch = writeBatch(db);
-    batch.set(doc(db, SETTINGS_COL, 'notify'), data, { merge: true });
+    batch.set(
+      doc(db, SETTINGS_COL, 'notify'),
+      log ? { ...data, freeFromLog: log } : data,
+      { merge: true }
+    );
+    /* У публічну копію історія не йде: покупцеві вона ні до чого,
+       а список того, як магазин рухав поріг, — не те, що віддають
+       браузеру. */
     batch.set(doc(db, SETTINGS_COL, 'public'), data, { merge: true });
     await batch.commit();
     return { kind: 'ok', text: 'Налаштування збережено ✓' };

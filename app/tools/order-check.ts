@@ -352,6 +352,35 @@ ok('сайт не пише полів поза правилами', !extraKeys.l
   ok('нижче порога — не безкоштовно', short.reached === false);
   ok('видно, скільки бракує до безкоштовної', short.need === 260 && short.sum === 1240);
 
+  /* Поріг ЗАМОРОЖЕНИЙ у мить оформлення. Магазин змінить його
+     завтра — замовлення від цього не змінюється: покупець
+     оформив його за правилом, яке бачив того дня.
+
+     Те саме правило, що й із собівартістю: нова партія міняє
+     майбутнє, а не минуле. */
+  const shop = { ...(cat as object), freeFrom: 3000 } as never;
+  /* Замовлення на 1600 грн білизни. Магазин уже підняв поріг до
+     3000 — але в мить оформлення діяло 1500. */
+  const froze = (from: number) =>
+    ({
+      _id: 'f', num: 'R', total: 1600, shipping: 0,
+      items: [{ id: 'A', category: 'Бріфи', price: 800, qty: 2 }],
+      customer: { freeFrom: from }
+    }) as never;
+
+  ok('замовлення памʼятає свій поріг', freeShipOf(froze(1500), shop).reached === true);
+  ok('і скільки бракувало — теж за ним', freeShipOf(froze(1500), shop).need === 0);
+
+  /* А те, що оформили вже після зміни, живе за новим. */
+  ok('нове замовлення — за новим порогом', freeShipOf(froze(3000), shop).reached === false);
+  ok('і бракує рахується від нього', freeShipOf(froze(3000), shop).need === 1400,
+     String(freeShipOf(froze(3000), shop).need));
+
+  /* Замовлення, оформлені до появи поля, беруть теперішній поріг:
+     іншого в них просто немає. */
+  const before = mk([{ id: 'A', category: 'Бріфи', price: 800, qty: 2 }]);
+  ok('старе замовлення бере теперішній поріг', freeShipOf(before, shop).reached === false);
+
   ok('чужа назва порога не набирає',
      freeShipOf(mk([{ id: 'ZZZ', category: 'Home Collection', price: 9000, qty: 1 }]), cat).reached === false);
 
