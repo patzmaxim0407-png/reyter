@@ -42,7 +42,7 @@ import {
 } from 'firebase/firestore';
 
 import { addressLine, type Address } from '../address';
-import { ALL_SIZES, freeFromOf, setParts, type Catalogue } from '../catalog';
+import { ALL_SIZES, freeFromAt, freeFromOf, setParts, type Catalogue } from '../catalog';
 import { UNDERWEAR } from '../delivery';
 import { orderNumber, type Confirm, type Customer } from '../order';
 import {
@@ -887,7 +887,12 @@ export function freeShipOf(order: AdminOrder, c?: Catalogue | null): FreeShip {
      Замовлення, оформлені до появи цього поля, беруть теперішній
      поріг: іншого в них просто немає. */
   const frozen = Math.round(Number((order.customer as { freeFrom?: number } | undefined)?.freeFrom) || 0);
-  const from = frozen > 0 ? frozen : freeFromOf(c);
+  /* Немає замороженого — шукаємо в історії той поріг, що діяв у
+     день оформлення. Саме заради цього історію й ведуть:
+     замовлення від чотирнадцятого числа не могло знати про
+     сімнадцяте, і підставити йому сьогоднішнє число означало б
+     збрехати рівно там, де людина шукає правду. */
+  const from = frozen > 0 ? frozen : freeFromAt(c?.freeLog, orderDate(order), freeFromOf(c));
 
   return {
     reached: sum >= from,

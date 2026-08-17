@@ -133,7 +133,12 @@ export default function OrdersAdmin() {
       products: draft.products,
       stock: inv,
       categories: draft.categories,
-      freeFrom: Math.round(Number(settings.freeFrom) || 0) || undefined
+      freeFrom: Math.round(Number(settings.freeFrom) || 0) || undefined,
+      /* Історія порога — щоб замовлення, оформлені до появи
+         заморожування, показували правило свого дня, а не
+         сьогоднішнє. */
+      freeLog: (settings as unknown as { freeFromLog?: { at: string; value: number }[] })
+        .freeFromLog
     }),
     [draft, inv, settings]
   );

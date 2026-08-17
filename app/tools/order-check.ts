@@ -376,10 +376,57 @@ ok('сайт не пише полів поза правилами', !extraKeys.l
   ok('і бракує рахується від нього', freeShipOf(froze(3000), shop).need === 1400,
      String(freeShipOf(froze(3000), shop).need));
 
-  /* Замовлення, оформлені до появи поля, беруть теперішній поріг:
-     іншого в них просто немає. */
+  /* Замовлення, оформлені до появи заморожування, свого числа не
+     мають. Але історія знає, що тоді діяло, — і саме заради цього
+     її й ведуть. Підставити такому замовленню СЬОГОДНІШНІЙ поріг
+     означало б збрехати рівно там, де людина шукає правду. */
+  const withLog = {
+    ...(cat as object),
+    freeFrom: 3000,
+    freeLog: [
+      { at: '2026-08-17T12:00:00.000Z', value: 3000 },
+      { at: '2026-08-01T12:00:00.000Z', value: 1500 }
+    ]
+  } as never;
+
+  const old14 = {
+    _id: 'o', num: 'R', total: 1600, shipping: 0, date: '2026-08-14T10:00:00.000Z',
+    items: [{ id: 'A', category: 'Бріфи', price: 800, qty: 2 }],
+    customer: {}
+  } as never;
+  ok('замовлення бере поріг свого дня з історії', freeShipOf(old14, withLog).reached === true);
+  ok('і бракує рахується від нього', freeShipOf(old14, withLog).need === 0);
+
+  /* Те, що оформили після зміни, живе за новим — теж із історії. */
+  const new18 = {
+    _id: 'n', num: 'R', total: 1600, shipping: 0, date: '2026-08-18T10:00:00.000Z',
+    items: [{ id: 'A', category: 'Бріфи', price: 800, qty: 2 }],
+    customer: {}
+  } as never;
+  ok('пізніше замовлення — за новим порогом', freeShipOf(new18, withLog).reached === false);
+
+  /* Заморожене число сильніше за історію: воно і є тим, що
+     покупець бачив на сайті тієї хвилини. */
+  const argued = {
+    _id: 'f', num: 'R', total: 1600, shipping: 0, date: '2026-08-14T10:00:00.000Z',
+    items: [{ id: 'A', category: 'Бріфи', price: 800, qty: 2 }],
+    customer: { freeFrom: 9000 }
+  } as never;
+  ok('заморожене сильніше за історію', freeShipOf(argued, withLog).reached === false);
+
+  /* Замовлення давніше за весь журнал: історія про той час не
+     каже нічого, тож беремо типове число, а не теперішнє. */
+  const ancient = {
+    _id: 'a', num: 'R', total: 1600, shipping: 0, date: '2026-07-01T10:00:00.000Z',
+    items: [{ id: 'A', category: 'Бріфи', price: 800, qty: 2 }],
+    customer: {}
+  } as never;
+  ok('давніше за журнал — типове число', freeShipOf(ancient, withLog).reached === true);
+
+  /* Історії немає зовсім — беремо теперішній: іншого джерела
+     просто не існує. */
   const before = mk([{ id: 'A', category: 'Бріфи', price: 800, qty: 2 }]);
-  ok('старе замовлення бере теперішній поріг', freeShipOf(before, shop).reached === false);
+  ok('без історії — теперішній поріг', freeShipOf(before, shop).reached === false);
 
   ok('чужа назва порога не набирає',
      freeShipOf(mk([{ id: 'ZZZ', category: 'Home Collection', price: 9000, qty: 1 }]), cat).reached === false);
