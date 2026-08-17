@@ -20,7 +20,7 @@
 
 import { freeLeft, freeReached, quote, underwearSum } from '../lib/delivery.ts';
 import type { CartLine } from '../lib/types.ts';
-import type { Catalogue } from '../lib/catalog.ts';
+import { freeFromOf, type Catalogue } from '../lib/catalog.ts';
 
 let failed = 0;
 const ok = (cond: boolean, title: string, mode?: string) => {
@@ -67,6 +67,23 @@ const sumMixed = underwearSum(mixed.c, mixed.lines);
 ok(sumMixed === 800, 'домашній одяг у поріг не зараховується', String(sumMixed));
 ok(!freeReached(sumMixed), 'і поріг не спрацьовує при дорогому кошику');
 ok(freeLeft(sumMixed) === 700, 'скільки лишилось добрати', String(freeLeft(sumMixed)));
+
+/* ---------- Поріг задає магазин ---------- */
+
+/* Число живе в налаштуваннях і їде разом із каталогом: його бачить
+   покупець у кошику й на картці товару, за ним же адмінка вирішує,
+   хто платить перевізникові. Одне джерело — інакше сайт обіцяв би
+   одне, а накладна виписувалась за іншим. */
+ok(freeFromOf(null) === 1500, 'без налаштування діє число з коду', String(freeFromOf(null)));
+ok(freeFromOf({ freeFrom: 2000 }) === 2000, 'налаштування перебиває код');
+/* Нуль означає «не задано», а не «безкоштовно всім»: інакше
+   випадково стерте поле роздало б безкоштовну доставку кожному. */
+ok(freeFromOf({ freeFrom: 0 }) === 1500, 'нуль не робить доставку безкоштовною для всіх');
+ok(freeFromOf({ freeFrom: -5 }) === 1500, 'відʼємне теж не приймається');
+
+ok(!freeReached(1800, 2000), 'з вищим порогом 1800 грн уже не досить');
+ok(freeReached(2000, 2000), 'а рівно поріг — досить');
+ok(freeLeft(1800, 2000) === 200, 'і видно, скільки добрати', String(freeLeft(1800, 2000)));
 
 /* ---------- Нова Пошта ---------- */
 

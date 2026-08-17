@@ -749,5 +749,25 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
   ok('і без виконання скриптів', box.includes('sandbox=""'));
 }
 
+/* ---------- Примітки в картці товару ---------- */
+
+/* Спільні для магазину, поки товар не має власних. Власні
+   потрібні там, де спільні брешуть: «доставка БІЛИЗНИ безкоштовна»
+   на свічці читається як обіцянка, якої ніхто не давав. */
+{
+  const editor = readFileSync(new URL('../components/admin/ProductEditor.tsx', import.meta.url), 'utf8');
+  ok('примітки картки редагуються', editor.includes('id="fCards"'));
+  ok('порожні не перетворюються на «жодної»', editor.includes('lines(cards).length ? lines(cards) : undefined'));
+
+  const view = readFileSync(new URL('../views/ProductView.tsx', import.meta.url), 'utf8');
+  ok('товар показує власні, коли вони є', view.includes('p.cards?.length'));
+  /* Поріг підставляється в текст: інакше картка обіцяла б одне
+     число, а кошик рахував за іншим. */
+  ok('поріг підставляється в примітку', view.includes("replaceAll('{free}'"));
+
+  const settings = readFileSync(new URL('../components/admin/SettingsDialog.tsx', import.meta.url), 'utf8');
+  ok('поріг задається в налаштуваннях', settings.includes('id="stFreeFrom"'));
+}
+
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
 process.exit(failed ? 1 : 0);

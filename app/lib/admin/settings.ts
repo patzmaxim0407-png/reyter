@@ -158,6 +158,13 @@ export function removeAdminAsk(email: string): string {
 export interface SettingsForm {
   workerUrl: string;
   fsEmail: string;
+  /** Від якої суми білизни доставка по Україні безкоштовна, грн.
+   *
+   *  Живе саме в публічних налаштуваннях: це число бачить
+   *  покупець у кошику й на картці товару, за ним же адмінка
+   *  вирішує, хто платить перевізникові. Одне джерело — інакше
+   *  сайт обіцяв би одне, а накладна виписувалась за іншим. */
+  freeFrom: number;
 }
 
 /** Токен Telegram більше не редагується в адмінці — він живе у
@@ -175,6 +182,8 @@ export interface NotifyDoc {
   fsEmail?: string;
   tgToken?: string;
   tgChatId?: string;
+  /** Поріг безкоштовної доставки, грн. */
+  freeFrom?: number;
   /** Ключ службових запитів до воркера (ADMIN_KEY).
    *
    *  Лежить тут, а не лише в браузері, з простої причини: інакше
@@ -202,12 +211,16 @@ export interface NotifyDoc {
 export interface SettingsFormValues {
   workerUrl: string;
   fsEmail: string;
+  freeFrom: string;
 }
 
 export function settingsFromForm(values: SettingsFormValues): SettingsForm {
   return {
     workerUrl: normalizeUrl(values.workerUrl),
-    fsEmail: values.fsEmail.trim()
+    fsEmail: values.fsEmail.trim(),
+    /* Порожнє поле означає «як було в коді», а не нуль: нуль тут
+       зробив би доставку безкоштовною для всіх. */
+    freeFrom: Math.max(0, Math.round(Number(values.freeFrom) || 0))
   };
 }
 
@@ -256,7 +269,11 @@ export interface SettingsScreen {
 export function settingsScreen(s: NotifyDoc | null): SettingsScreen {
   const src = s || {};
   return {
-    values: { workerUrl: src.workerUrl || '', fsEmail: src.fsEmail || '' },
+    values: {
+      workerUrl: src.workerUrl || '',
+      fsEmail: src.fsEmail || '',
+      freeFrom: src.freeFrom ? String(src.freeFrom) : ''
+    },
     legacy: legacyTgFrom(src),
     adminKey: String(src.adminKey || '').trim()
   };
@@ -265,7 +282,11 @@ export function settingsScreen(s: NotifyDoc | null): SettingsScreen {
 /** Публічна копія: адреса воркера й пошта магазину, жодних
  *  ключів. Її читає браузер покупця. */
 export async function syncPublicSettings(db: Firestore, form: SettingsForm): Promise<void> {
-  await setDoc(doc(db, SETTINGS_COL, 'public'), form, { merge: true });
+  /* Нульовий поріг у документ не пишемо: порожнє поле означає
+     «як було», а не «безкоштовно всім». */
+  const data: Record<string, unknown> = { workerUrl: form.workerUrl, fsEmail: form.fsEmail };
+  if (form.freeFrom > 0) data.freeFrom = form.freeFrom;
+  await setDoc(doc(db, SETTINGS_COL, 'public'), data, { merge: true });
 }
 
 /** Дані для вікна налаштувань.
@@ -283,10 +304,7 @@ export async function openSettings(db: Firestore): Promise<SettingsScreen> {
   const screen = settingsScreen(await loadAdminSettings(db));
 
   if (screen.values.workerUrl || screen.values.fsEmail) {
-    void syncPublicSettings(db, {
-      workerUrl: screen.values.workerUrl,
-      fsEmail: screen.values.fsEmail
-    }).catch(() => {});
+    void syncPublicSettings(db, settingsFromForm(screen.values)).catch(() => {});
   }
 
   return screen;

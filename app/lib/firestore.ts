@@ -84,9 +84,15 @@ async function listDocs(collection: string, revalidate: number) {
    в published/next і вмикається сама, щойно настає її час. */
 
 export const loadCatalog = cache(async function loadCatalog(revalidate = CATALOG_TTL): Promise<Catalog> {
-  const [next, current] = await Promise.all([
+  /* Разом із каталогом читаємо й налаштування магазину: поріг
+     безкоштовної доставки потрібен усюди, де є каталог, а окремий
+     запит на кожній сторінці коштував би дорожче за одне поле.
+     Кеш той самий, тож зміна в адмінці доїжджає за той самий час,
+     що й новий каталог. */
+  const [next, current, settings] = await Promise.all([
     getDoc('published/next', revalidate),
-    getDoc('published/catalog', revalidate)
+    getDoc('published/catalog', revalidate),
+    getDoc('settings/public', revalidate)
   ]);
 
   const publishAt = Number(next?.publishAt ?? 0);
@@ -96,12 +102,15 @@ export const loadCatalog = cache(async function loadCatalog(revalidate = CATALOG
   const products = (snap?.products as Product[] | undefined) ?? [];
   const categories = (snap?.categories as Category[] | undefined) ?? [];
 
+  const freeFrom = Math.round(Number(settings?.freeFrom) || 0);
+
   return {
     products,
     categories: categories
       .slice()
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-    nextAt: !due && publishAt > 0 ? publishAt : null
+    nextAt: !due && publishAt > 0 ? publishAt : null,
+    ...(freeFrom > 0 ? { freeFrom } : {})
   };
 });
 

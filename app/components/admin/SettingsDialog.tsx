@@ -58,7 +58,7 @@ export default function SettingsDialog({
   const toast = useToast();
 
   const [tab, setTab] = useState<'notify' | 'admins'>('notify');
-  const [values, setValues] = useState<SettingsFormValues>({ workerUrl: '', fsEmail: '' });
+  const [values, setValues] = useState<SettingsFormValues>({ workerUrl: '', fsEmail: '', freeFrom: '' });
   const [legacy, setLegacy] = useState<LegacyTg | null>(null);
   const [admins, setAdmins] = useState<AdminEntry[]>([]);
   const [newAdmin, setNewAdmin] = useState('');
@@ -178,6 +178,30 @@ export default function SettingsDialog({
                 <p className="field__hint">
                   Воркер тримає в себе ключ Resend і токен Telegram — із коду сайту їх не
                   прочитати.
+                </p>
+              </div>
+
+              {/* Поріг безкоштовної доставки. Тут, а не в коді:
+                  його бачить покупець у кошику й на картці товару,
+                  за ним же адмінка вирішує, хто платить
+                  перевізникові. Одне число на всіх — інакше сайт
+                  обіцяв би одне, а накладна виписувалась за
+                  іншим. */}
+              <div className="field">
+                <label htmlFor="stFreeFrom">Безкоштовна доставка від, грн</label>
+                <input
+                  id="stFreeFrom"
+                  type="number"
+                  min="0"
+                  autoComplete="off"
+                  placeholder="1500"
+                  value={values.freeFrom}
+                  onChange={(e) => setValues((v) => ({ ...v, freeFrom: e.target.value }))}
+                />
+                <p className="field__hint">
+                  Рахується сумою білизни, без свічок і дрібниць. Це число одразу підставляється
+                  в кошик, у картку товару й у накладну — окремо їх правити не треба. Порожньо —
+                  лишається 1500 грн.
                 </p>
               </div>
 

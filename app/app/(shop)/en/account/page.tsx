@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default async function AccountPageEn() {
   const [catalog, stock] = await Promise.all([loadCatalog(), loadStock()]);
-  const c = cartCatalogue(catalog.products, stock, catalog.categories);
+  const c = cartCatalogue(catalog.products, stock, catalog.categories, catalog.freeFrom);
 
   return (
     <Suspense fallback={null}>

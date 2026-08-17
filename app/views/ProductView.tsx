@@ -5,7 +5,7 @@ import AddToCart from '@/components/AddToCart';
 import ProductGallery from '@/components/ProductGallery';
 import { StatusChip, StockProvider } from '@/components/StockStatus';
 import { loadCatalog, loadStock } from '@/lib/firestore';
-import { availability, getProduct, productColors, uah } from '@/lib/catalog';
+import { availability, freeFromOf, getProduct, productColors, uah } from '@/lib/catalog';
 import { t, tf, tx } from '@/lib/i18n';
 import type { Lang } from '@/lib/types';
 
@@ -20,7 +20,7 @@ export async function productParams() {
 
 async function load(id: string) {
   const [catalog, stock] = await Promise.all([loadCatalog(), loadStock()]);
-  const c = { products: catalog.products, stock };
+  const c = { products: catalog.products, stock, freeFrom: catalog.freeFrom };
   const p = getProduct(c, decodeURIComponent(id));
   return { c, p, categories: catalog.categories };
 }
@@ -86,6 +86,9 @@ export default async function ProductView({
   if (!p || p.hidden) notFound();
 
   const av = availability(c, p);
+  /* Поріг безкоштовної доставки — той самий, за яким рахує кошик
+     і виписується накладна. */
+  const freeFrom = freeFromOf(c);
 
   /* Зразки кольорів. Самі по собі кольори нічого не перемикають —
      їх і так видно на фото; блок має сенс лише тоді, коли є куди
@@ -266,10 +269,26 @@ export default async function ProductView({
             </div>
           ) : null}
 
+          {/* Примітки під кнопкою. Своїх у товару зазвичай немає —
+              тоді працюють спільні для магазину. Але «доставка
+              БІЛИЗНИ безкоштовна» на свічці чи сорочці читається
+              як обіцянка, якої ніхто не давав, і саме заради таких
+              випадків товар може мати власні.
+
+              {free} підставляється порогом із налаштувань — і в
+              спільних рядках, і у власних: інакше картка обіцяла б
+              одне число, а кошик рахував за іншим. */}
           <div className="pinfo__notes">
-            <div className="note-card" dangerouslySetInnerHTML={{ __html: t('p.note1', lang) }} />
-            <div className="note-card" dangerouslySetInnerHTML={{ __html: t('p.note2', lang) }} />
-            <div className="note-card" dangerouslySetInnerHTML={{ __html: t('p.note3', lang) }} />
+            {(p.cards?.length
+              ? p.cards.map((line) => tx(line, lang))
+              : [t('p.note1', lang), t('p.note2', lang), t('p.note3', lang)]
+            ).map((html, i) => (
+              <div
+                key={i}
+                className="note-card"
+                dangerouslySetInnerHTML={{ __html: html.replaceAll('{free}', String(freeFrom)) }}
+              />
+            ))}
           </div>
         </div>
         </StockProvider>

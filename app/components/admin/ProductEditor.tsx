@@ -74,6 +74,7 @@ export default function ProductEditor({
   const [notes, setNotes] = useState('');
   const [chars, setChars] = useState('');
   const [care, setCare] = useState('');
+  const [cards, setCards] = useState('');
   const [lowStock, setLowStock] = useState('');
   const [bad, setBad] = useState<{ field: CheckField; message: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -110,6 +111,7 @@ export default function ProductEditor({
     setNotes((src.notes ?? []).join('\n'));
     setChars((src.characteristics ?? []).join('\n'));
     setCare((src.care ?? []).join('\n'));
+    setCards((src.cards ?? []).join('\n'));
     setLowStock((src.lowStock ?? []).join(', '));
     setBad(null);
   }, [open, product?.id]);
@@ -144,6 +146,11 @@ export default function ProductEditor({
         notes: lines(notes),
         characteristics: lines(chars),
         care: lines(care),
+        /* Порожньо — товар користується спільними примітками
+           магазину. Саме тому тут undefined, а не порожній масив:
+           масив означав би «жодної примітки», і картка лишилась би
+           без слова про доставку. */
+        cards: lines(cards).length ? lines(cards) : undefined,
         lowStock: lowStock
           .split(',')
           .map((s) => s.trim().toUpperCase())
@@ -722,6 +729,28 @@ export default function ProductEditor({
                 Фото зберігаються у хмарному сховищі й самі стискаються у WebP. Перше —
                 обкладинка картки, друге показується при наведенні; порядок міняється
                 стрілками на мініатюрах.
+              </p>
+            </div>
+
+            {/* Примітки під кнопкою «Додати в кошик». Спільні для
+                магазину, поки товар не має власних: переписувати
+                їх у кожній картці — вірний спосіб отримати три
+                різні обіцянки про ту саму доставку. */}
+            <div className="field">
+              <label htmlFor="fCards">Примітки в картці товару (по одній у рядку)</label>
+              <textarea
+                id="fCards"
+                rows={3}
+                value={cards}
+                placeholder={'порожньо — покажемо спільні для магазину'}
+                onChange={(e) => setCards(e.target.value)}
+              />
+              <p className="field__hint">
+                Три картки під кнопкою «Додати в кошик». Порожньо — товар показує спільні для
+                магазину: про Нову Пошту, безкоштовну доставку й міжнародні замовлення. Власні
+                потрібні там, де спільні не про цей товар — наприклад, «доставка білизни
+                безкоштовна» на свічці. Можна писати <b>{'<strong>'}</b> і <b>{'<em>'}</b>, а{' '}
+                <b>{'{free}'}</b> підставиться порогом безкоштовної доставки з налаштувань.
               </p>
             </div>
 

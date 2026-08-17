@@ -13,7 +13,7 @@ import * as cart from '@/lib/cart';
 import * as fb from '@/lib/firebase';
 import { DEFAULT_RULES, discountFor, percentOf, type DiscountRules, type LevelNo } from '@/lib/loyalty';
 import { readMember, type MemberDoc } from '@/lib/admin/loyalty-db';
-import { catTitle, getProduct, uah } from '@/lib/catalog';
+import { catTitle, freeFromOf, getProduct, uah } from '@/lib/catalog';
 import {
   EMPTY_FORM,
   addressLine,
@@ -312,7 +312,7 @@ export default function CheckoutForm() {
   const loyaltyOff = money.loyalty;
   const offTotal = money.total;
   const goods = Math.max(0, subtotal - offTotal);
-  const freeShip = freeReached(underwearSum(c, lines));
+  const freeShip = freeReached(underwearSum(c, lines), freeFromOf(c));
   const [ship, setShip] = useState<Quote | null>(null);
   const [payShip, setPayShip] = useState<'branch' | 'order'>('branch');
 

@@ -89,14 +89,18 @@ export function underwearSum(c: Catalogue, lines: CartLine[]): number {
   }, 0);
 }
 
-/** Чи дотягнув кошик до безкоштовної доставки по Україні. */
-export function freeReached(sum: number): boolean {
-  return sum >= FREE_DELIVERY_FROM;
+/** Чи дотягнув кошик до безкоштовної доставки по Україні.
+ *
+ *  Поріг задає магазин у налаштуваннях і їде разом із каталогом;
+ *  без нього — число з коду. Передавати його ЯВНО важливо: інакше
+ *  кошик рахував би за одним числом, а картка товару обіцяла інше. */
+export function freeReached(sum: number, from = FREE_DELIVERY_FROM): boolean {
+  return sum >= from;
 }
 
 /** Скільки ще додати білизни до безкоштовної доставки. */
-export function freeLeft(sum: number): number {
-  return Math.max(0, FREE_DELIVERY_FROM - sum);
+export function freeLeft(sum: number, from = FREE_DELIVERY_FROM): number {
+  return Math.max(0, from - sum);
 }
 
 /* ---------- Нова Пошта, Україна ---------- */

@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useLang } from './LangProvider';
 import Link from 'next/link';
 import { useCart } from './CartProvider';
-import { catTitle, getProduct, uah, FREE_DELIVERY_FROM } from '@/lib/catalog';
+import { catTitle, freeFromOf, getProduct, uah } from '@/lib/catalog';
 import { freeLeft, underwearSum } from '@/lib/delivery';
 import { lockScroll, unlockScroll } from '@/lib/scroll-lock';
 
@@ -23,8 +23,12 @@ export default function CartDrawer() {
      І від суми ДО знижки: промокод тут іще не введено, а
      пообіцяти безкоштовну доставку й потім відняти її не можна. */
   const white = underwearSum(c, lines);
-  const left = freeLeft(white);
-  const pct = Math.min(100, Math.round((white / FREE_DELIVERY_FROM) * 100));
+  /* Поріг — той, що задав магазин у налаштуваннях: він їде разом
+     із каталогом. Інакше смужка обіцяла б одне число, а кошик
+     рахував за іншим. */
+  const from = freeFromOf(c);
+  const left = freeLeft(white, from);
+  const pct = Math.min(100, Math.round((white / from) * 100));
 
   /* Поки панель відкрита, сторінка під нею не має скролитись —
      інакше на мобільному палець тягне фон замість списку */

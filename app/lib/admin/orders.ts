@@ -42,7 +42,7 @@ import {
 } from 'firebase/firestore';
 
 import { addressLine, type Address } from '../address';
-import { ALL_SIZES, FREE_DELIVERY_FROM, setParts, type Catalogue } from '../catalog';
+import { ALL_SIZES, freeFromOf, setParts, type Catalogue } from '../catalog';
 import { UNDERWEAR } from '../delivery';
 import { orderNumber, type Confirm, type Customer } from '../order';
 import {
@@ -875,10 +875,16 @@ export function freeShipOf(order: AdminOrder, c?: Catalogue | null): FreeShip {
     return n + (Number(i.price) || 0) * (Number(i.qty) || 0);
   }, 0);
 
+  /* Поріг — той самий, що бачить покупець: він задається в
+     налаштуваннях магазину і їде разом із каталогом. Тримати тут
+     власне число означало б обіцяти на сайті одне, а виписувати
+     накладну за іншим. */
+  const from = freeFromOf(c);
+
   return {
-    reached: sum >= FREE_DELIVERY_FROM,
+    reached: sum >= from,
     sum,
-    need: Math.max(0, FREE_DELIVERY_FROM - sum)
+    need: Math.max(0, from - sum)
   };
 }
 

@@ -14,7 +14,7 @@ export default async function AccountPage() {
   /* Каталог потрібен двом вкладкам: повторити замовлення й
      показати умови персонального промокоду людською мовою. */
   const [catalog, stock] = await Promise.all([loadCatalog(), loadStock()]);
-  const c = cartCatalogue(catalog.products, stock, catalog.categories);
+  const c = cartCatalogue(catalog.products, stock, catalog.categories, catalog.freeFrom);
 
   return (
     /* Вкладка живе в адресі, а useSearchParams вимагає межі

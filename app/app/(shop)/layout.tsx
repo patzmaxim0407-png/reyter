@@ -25,7 +25,7 @@ export default async function ShopLayout({
      описи, догляд і решта картинок кошику ні до чого, а важить
      повний утричі більше. */
   const [catalog, stock] = await Promise.all([loadCatalog(), loadStock()]);
-  const c = cartCatalogue(catalog.products, stock, catalog.categories);
+  const c = cartCatalogue(catalog.products, stock, catalog.categories, catalog.freeFrom);
 
   return (
     <LangProvider>
