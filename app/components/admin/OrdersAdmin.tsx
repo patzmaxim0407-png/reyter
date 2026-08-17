@@ -109,9 +109,33 @@ export default function OrdersAdmin() {
   useEffect(() => watchDraft(setDraft), []);
   useEffect(() => watchInventory((v) => setInv(v as Stock)), []);
 
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  useEffect(() => {
+    /* Саме службові налаштування, а не публічні. Публічні читає
+       браузер покупця, тож ключів і відділення відправлення в них
+       немає й бути не може — а я спершу брав їх звідти, і тому
+       ані спільний ключ, ані збережене відділення не доїжджали. */
+    const d = db();
+    if (!d) return;
+    void loadAdminSettings(d).then((s) => setSettings((s || {}) as Record<string, string>));
+  }, []);
+
+  /* Поріг безкоштовної доставки бере адмінка звідти ж, звідки
+     сайт: із налаштувань магазину.
+
+     Доти його тут не було зовсім, і freeShipOf мовчки падав на
+     запасне число з коду. Виглядало це так, наче замовлення
+     памʼятає старий поріг: у налаштуваннях 1599, а картка пише
+     «бракує 260» — тобто рахує від 1500. Насправді вона просто
+     не знала нового числа. */
   const c = useMemo(
-    () => ({ products: draft.products, stock: inv, categories: draft.categories }),
-    [draft, inv]
+    () => ({
+      products: draft.products,
+      stock: inv,
+      categories: draft.categories,
+      freeFrom: Math.round(Number(settings.freeFrom) || 0) || undefined
+    }),
+    [draft, inv, settings]
   );
   const now = new Date();
   const scope = useMemo(
@@ -171,17 +195,6 @@ export default function OrdersAdmin() {
   /** Для якого замовлення зараз створюємо накладну. */
   const [ttnFor, setTtnFor] = useState<AdminOrder | null>(null);
   /** Налаштування воркера: там лежить ключ кабінету Нової Пошти. */
-  const [settings, setSettings] = useState<Record<string, string>>({});
-  useEffect(() => {
-    /* Саме службові налаштування, а не публічні. Публічні читає
-       браузер покупця, тож ключів і відділення відправлення в них
-       немає й бути не може — а я спершу брав їх звідти, і тому
-       ані спільний ключ, ані збережене відділення не доїжджали. */
-    const d = db();
-    if (!d) return;
-    void loadAdminSettings(d).then((s) => setSettings((s || {}) as Record<string, string>));
-  }, []);
-
   /* Ключ адміністратора воркера живе лише в браузері — у базу він
      не потрапляє навмисно: з нього можна створювати накладні за
      чужі гроші. Беремо його звідти ж, звідки його кладе вікно

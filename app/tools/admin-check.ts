@@ -799,6 +799,13 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
      відновитися не в той магазин. */
   const pub = readFileSync(new URL('../components/admin/PublishDialog.tsx', import.meta.url), 'utf8');
   ok('резервна копія бере поріг із налаштувань', pub.includes('freeDeliveryFrom: freeFrom'));
+
+  /* Адмінка мусить рахувати від того самого числа, що й сайт.
+     Доти вона його не знала зовсім і мовчки падала на запасне з
+     коду: у налаштуваннях 1599, а картка замовлення писала
+     «бракує 260» — тобто від 1500. */
+  const orders = readFileSync(new URL('../components/admin/OrdersAdmin.tsx', import.meta.url), 'utf8');
+  ok('картка замовлення знає поріг магазину', orders.includes('freeFrom: Math.round(Number(settings.freeFrom)'));
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));
