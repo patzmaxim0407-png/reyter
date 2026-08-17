@@ -2,7 +2,7 @@ import ProductCard from '@/components/ProductCard';
 import FriendlyShelf from '@/components/FriendlyShelf';
 import { FriendlyClub, HomeEffects, ReadMore, SizeGuideImage, ToTop } from '@/components/HomeInteractive';
 import { loadCatalog, loadDraftCatalog, loadStock } from '@/lib/firestore';
-import { inCategory, visibleProducts } from '@/lib/catalog';
+import { freeFromOf, inCategory, visibleProducts, withFree } from '@/lib/catalog';
 import { t, tf } from '@/lib/i18n';
 import { SITE_CONFIG } from '@/lib/site-config';
 import type { Lang } from '@/lib/types';
@@ -30,7 +30,7 @@ const delivery = [
 
 export default async function HomeView({ lang, previewDraft = false }: { lang: Lang; previewDraft?: boolean }) {
   const [catalog, stock] = await Promise.all([previewDraft ? loadDraftCatalog() : loadCatalog(), loadStock()]);
-  const c = { products: catalog.products, stock };
+  const c = { products: catalog.products, stock, freeFrom: catalog.freeFrom };
   const shown = visibleProducts(c);
   const sections = catalog.categories.map((cat) => ({ cat, items: shown.filter((p) => inCategory(p, cat.id)) })).filter((section) => section.items.length);
   let eagerLeft = 8;
@@ -43,7 +43,7 @@ export default async function HomeView({ lang, previewDraft = false }: { lang: L
         <p className="hero__subtitle" dangerouslySetInnerHTML={{ __html: t('hero.subtitle', lang) }} />
         <div className="hero__actions"><a className="btn btn--primary" href="#catalog">{t('hero.cta1', lang)}</a><a className="btn btn--ghost" href="#size-guide">{t('hero.cta2', lang)}</a></div>
         <ReadMore lang={lang} />
-        <ul className="hero__trust"><li>{t('hero.trust1', lang)}</li><li>{t('hero.trust2', lang)}</li><li>{t('hero.trust3', lang)}</li></ul>
+        <ul className="hero__trust"><li>{withFree(t('hero.trust1', lang), freeFromOf(c))}</li><li>{t('hero.trust2', lang)}</li><li>{t('hero.trust3', lang)}</li></ul>
       </div>
       <div className="hero__media reveal"><div className="hero__frame"><img src="/assets/images/Jule2026/Head.webp" alt={t('hero.alt', lang)} fetchPriority="high" /></div></div>
     </div></section>

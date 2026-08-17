@@ -30,7 +30,7 @@ export const LANGS: readonly Lang[] = ['uk', 'en'];
    як розмітка, а не як текст. */
 
 const uk = {
-  'marquee': 'Міжнародна доставка&ensp;✦&ensp;International delivery&ensp;✦&ensp;Безкоштовна доставка на білизну по Україні від 1500 грн&ensp;✦&ensp;',
+  'marquee': 'Міжнародна доставка&ensp;✦&ensp;International delivery&ensp;✦&ensp;Безкоштовна доставка на білизну по Україні від {free} грн&ensp;✦&ensp;',
 
   'nav.about': 'Про нас',
   'nav.catalog': 'Позиції',
@@ -67,7 +67,7 @@ const uk = {
   'pay.back': 'Кошти за цим замовленням повернуто.',
   'pay.failed': 'Оплата не пройшла.',
   'pay.failedNext': 'Замовлення збережено — ми надішлемо посилання на оплату ще раз.',
-  'hero.trust1': 'Безкоштовна доставка білизни по Україні від 1500 грн',
+  'hero.trust1': 'Безкоштовна доставка білизни по Україні від {free} грн',
   'hero.trust2': 'Відправка за 1–2 дні',
   'hero.trust3': 'Міжнародна доставка',
   'hero.alt': 'REYTER — український бренд чоловічої білизни',
@@ -477,7 +477,7 @@ export type UIKey = keyof typeof uk;
 export type UITable = Readonly<Record<UIKey, string>>;
 
 const en: Record<UIKey, string> = {
-  'marquee': 'International delivery&ensp;✦&ensp;Worldwide shipping&ensp;✦&ensp;Free underwear delivery within Ukraine on orders over UAH 1500&ensp;✦&ensp;',
+  'marquee': 'International delivery&ensp;✦&ensp;Worldwide shipping&ensp;✦&ensp;Free underwear delivery within Ukraine on orders over UAH {free}&ensp;✦&ensp;',
 
   'nav.about': 'About',
   'nav.catalog': 'Shop',
@@ -511,7 +511,7 @@ const en: Record<UIKey, string> = {
   'pay.back': 'This order has been refunded.',
   'pay.failed': 'The payment did not go through.',
   'pay.failedNext': 'Your order is saved — we will send a new payment link.',
-  'hero.trust1': 'Free underwear delivery in Ukraine over UAH 1500',
+  'hero.trust1': 'Free underwear delivery in Ukraine over UAH {free}',
   'hero.trust2': 'Dispatch within 1–2 days',
   'hero.trust3': 'Worldwide shipping',
   'hero.alt': 'REYTER — Ukrainian men\'s underwear brand',

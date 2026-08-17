@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { db } from '@/lib/firebase';
 import { SITE_CONFIG } from '@/lib/site-config';
+import { loadAdminSettings } from '@/lib/admin/settings';
 import { SHOP_URL } from './AdminBar';
 import { useToast } from '../Toasts';
 import {
@@ -61,6 +62,20 @@ export default function PublishDialog({
   const [token, setToken] = useState('');
   const [backupNote, setBackupNote] = useState('');
   const [busy, setBusy] = useState(false);
+  /* Поріг безкоштовної доставки для резервної копії. Він задається
+     в налаштуваннях, а копія існує, щоб із неї можна було
+     відновитись — законсервувати в ній старе число з коду означало
+     б відновитися не в той магазин. */
+  const [freeFrom, setFreeFrom] = useState(0);
+
+  useEffect(() => {
+    if (!open) return;
+    const d = db();
+    if (!d) return;
+    void loadAdminSettings(d).then((s) => setFreeFrom(Math.round(Number(s?.freeFrom) || 0)));
+  }, [open]);
+
+  const config = freeFrom > 0 ? { ...SITE_CONFIG, freeDeliveryFrom: freeFrom } : SITE_CONFIG;
   const toast = useToast();
 
   const saveToken = (v: string) => {
@@ -116,7 +131,7 @@ export default function PublishDialog({
            копія існує, щоб із неї можна було відновитись, а
            порожній обʼєкт тут забрав би з неї розмірну сітку,
            статуси, соцмережі й поріг безкоштовної доставки. */
-        config: SITE_CONFIG,
+        config,
         now: new Date(),
         onNote: setBackupNote,
         rememberToken: saveToken,
@@ -251,7 +266,7 @@ export default function PublishDialog({
                 className="a-linklike"
                 type="button"
                 onClick={() => {
-                  const text = buildDataJs(snapshotDraft(draft), SITE_CONFIG, new Date());
+                  const text = buildDataJs(snapshotDraft(draft), config, new Date());
                   const url = URL.createObjectURL(
                     new Blob([text], { type: 'text/javascript;charset=utf-8' })
                   );

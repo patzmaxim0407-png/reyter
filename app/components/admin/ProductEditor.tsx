@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ColorPicker from './ColorPicker';
-import { ALL_SIZES } from '@/lib/catalog';
+import { ALL_SIZES, NOTES } from '@/lib/catalog';
 import {
   adminColors,
   inCat,
@@ -14,7 +14,7 @@ import {
   slugify,
   type CheckField
 } from '@/lib/admin/draft';
-import type { Category, Color, Product } from '@/lib/types';
+import type { Category, Color, NoteId, Product } from '@/lib/types';
 
 /* ============================================================
    Редактор товару
@@ -74,7 +74,8 @@ export default function ProductEditor({
   const [notes, setNotes] = useState('');
   const [chars, setChars] = useState('');
   const [care, setCare] = useState('');
-  const [cards, setCards] = useState('');
+  /* Які з трьох приміток товар ховає. Порожньо — показує всі. */
+  const [noteOff, setNoteOff] = useState<NoteId[]>([]);
   const [lowStock, setLowStock] = useState('');
   const [bad, setBad] = useState<{ field: CheckField; message: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -111,7 +112,7 @@ export default function ProductEditor({
     setNotes((src.notes ?? []).join('\n'));
     setChars((src.characteristics ?? []).join('\n'));
     setCare((src.care ?? []).join('\n'));
-    setCards((src.cards ?? []).join('\n'));
+    setNoteOff(src.noteOff ?? []);
     setLowStock((src.lowStock ?? []).join(', '));
     setBad(null);
   }, [open, product?.id]);
@@ -146,11 +147,9 @@ export default function ProductEditor({
         notes: lines(notes),
         characteristics: lines(chars),
         care: lines(care),
-        /* Порожньо — товар користується спільними примітками
-           магазину. Саме тому тут undefined, а не порожній масив:
-           масив означав би «жодної примітки», і картка лишилась би
-           без слова про доставку. */
-        cards: lines(cards).length ? lines(cards) : undefined,
+        /* Порожньо — undefined, а не порожній масив: у документі
+           не має зʼявлятись поле, яке нічого не означає. */
+        noteOff: noteOff.length ? noteOff : undefined,
         lowStock: lowStock
           .split(',')
           .map((s) => s.trim().toUpperCase())
@@ -732,25 +731,33 @@ export default function ProductEditor({
               </p>
             </div>
 
-            {/* Примітки під кнопкою «Додати в кошик». Спільні для
-                магазину, поки товар не має власних: переписувати
-                їх у кожній картці — вірний спосіб отримати три
-                різні обіцянки про ту саму доставку. */}
+            {/* Примітки під кнопкою «Додати в кошик». Три на весь
+                магазин — тут вирішується, які з них показує саме
+                цей товар. Прибирають зазвичай одну: «доставка
+                БІЛИЗНИ безкоштовна» на свічці чи сорочці читається
+                як обіцянка, якої ніхто не давав. */}
             <div className="field">
-              <label htmlFor="fCards">Примітки в картці товару (по одній у рядку)</label>
-              <textarea
-                id="fCards"
-                rows={3}
-                value={cards}
-                placeholder={'порожньо — покажемо спільні для магазину'}
-                onChange={(e) => setCards(e.target.value)}
-              />
+              <span className="field__label">Примітки в картці товару</span>
+              <div className="a-sizes">
+                {NOTES.map((n) => (
+                  <label key={n.id}>
+                    <input
+                      type="checkbox"
+                      checked={!noteOff.includes(n.id)}
+                      onChange={(e) =>
+                        setNoteOff((v) =>
+                          e.target.checked ? v.filter((x) => x !== n.id) : [...v, n.id]
+                        )
+                      }
+                    />{' '}
+                    {n.title}
+                  </label>
+                ))}
+              </div>
               <p className="field__hint">
-                Три картки під кнопкою «Додати в кошик». Порожньо — товар показує спільні для
-                магазину: про Нову Пошту, безкоштовну доставку й міжнародні замовлення. Власні
-                потрібні там, де спільні не про цей товар — наприклад, «доставка білизни
-                безкоштовна» на свічці. Можна писати <b>{'<strong>'}</b> і <b>{'<em>'}</b>, а{' '}
-                <b>{'{free}'}</b> підставиться порогом безкоштовної доставки з налаштувань.
+                Три картки під кнопкою «Додати в кошик». Знята галочка ховає примітку саме в
+                цього товару — на решті вона лишається. Сам текст і поріг безкоштовної доставки
+                спільні для магазину й задаються в налаштуваннях.
               </p>
             </div>
 

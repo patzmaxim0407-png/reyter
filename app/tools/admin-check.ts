@@ -756,17 +756,49 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
    на свічці читається як обіцянка, якої ніхто не давав. */
 {
   const editor = readFileSync(new URL('../components/admin/ProductEditor.tsx', import.meta.url), 'utf8');
-  ok('примітки картки редагуються', editor.includes('id="fCards"'));
-  ok('порожні не перетворюються на «жодної»', editor.includes('lines(cards).length ? lines(cards) : undefined'));
+  ok('примітки вмикаються галочками', editor.includes('NOTES.map'));
+  /* Прибрані, а не дозволені: товар без цього поля показує всі
+     три, як і показував. Список дозволених лишив би всі старі
+     товари взагалі без приміток — мовчки. */
+  ok('порожньо в документ не пишеться', editor.includes('noteOff.length ? noteOff : undefined'));
 
   const view = readFileSync(new URL('../views/ProductView.tsx', import.meta.url), 'utf8');
-  ok('товар показує власні, коли вони є', view.includes('p.cards?.length'));
+  ok('товар ховає лише вимкнені', view.includes('!p.noteOff?.includes(n.id)'));
   /* Поріг підставляється в текст: інакше картка обіцяла б одне
      число, а кошик рахував за іншим. */
-  ok('поріг підставляється в примітку', view.includes("replaceAll('{free}'"));
+  ok('поріг підставляється в примітку', view.includes('withFree(t(n.key, lang), freeFrom)'));
 
   const settings = readFileSync(new URL('../components/admin/SettingsDialog.tsx', import.meta.url), 'utf8');
   ok('поріг задається в налаштуваннях', settings.includes('id="stFreeFrom"'));
+}
+
+/* ---------- Поріг згадується всюди однаково ---------- */
+
+/* Число живе в одному місці, а згадується в багатьох: рядок, що
+   біжить угорі, обіцянка на головній, примітка в картці товару,
+   смужка в кошику. Доти воно було вписане в кожен із них окремо —
+   і змінивши налаштування, магазин обіцяв би трьома різними
+   числами водночас. */
+{
+  const i18n = readFileSync(new URL('../lib/i18n.ts', import.meta.url), 'utf8');
+  const hard = i18n
+    .split('\n')
+    .filter((line) => /1500/.test(line) && /(грн|UAH)/.test(line));
+  ok('у текстах магазину числа не вписано', hard.length === 0, hard.join(' | ').slice(0, 160));
+  ok('рядок згори підставляє поріг', /'marquee':[^\n]*\{free\}/.test(i18n));
+  ok('обіцянка на головній теж', /'hero\.trust1':[^\n]*\{free\}/.test(i18n));
+
+  const chrome = readFileSync(new URL('../components/ShopChrome.tsx', import.meta.url), 'utf8');
+  ok('рядок згори підставляє його насправді', chrome.includes('withFree(t('));
+
+  const home = readFileSync(new URL('../views/HomeView.tsx', import.meta.url), 'utf8');
+  ok('і головна теж', home.includes('withFree(t('));
+
+  /* Резервна копія існує, щоб із неї можна було відновитись.
+     Законсервувати в ній старе число з коду означало б
+     відновитися не в той магазин. */
+  const pub = readFileSync(new URL('../components/admin/PublishDialog.tsx', import.meta.url), 'utf8');
+  ok('резервна копія бере поріг із налаштувань', pub.includes('freeDeliveryFrom: freeFrom'));
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));

@@ -29,7 +29,7 @@ export default async function ShopLayout({
 
   return (
     <LangProvider>
-      <ShopChrome />
+      <ShopChrome freeFrom={catalog.freeFrom} />
         <CartProvider c={c}>
           <SiteHeader />
           <main id="main-content">{children}</main>

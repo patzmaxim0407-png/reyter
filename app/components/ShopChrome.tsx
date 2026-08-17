@@ -6,10 +6,11 @@ import { useLang } from './LangProvider';
 import { noteNavigation } from '@/lib/nav-depth';
 import { lockScrollAhead } from '@/lib/scroll-lock';
 import ChunkGuard from './ChunkGuard';
+import { freeFromOf, withFree } from '@/lib/catalog';
 
 /** Спільні мовні елементи оболонки. Мова лишається частиною URL,
  *  а атрибут html синхронізуємо так само, як це робив старий i18n.js. */
-export default function ShopChrome() {
+export default function ShopChrome({ freeFrom }: { freeFrom?: number }) {
   const { lang, t } = useLang();
   const pathname = usePathname();
   const router = useRouter();
@@ -131,8 +132,11 @@ export default function ShopChrome() {
       </a>
       <div className="marquee" aria-hidden="true">
         <div className="marquee__track">
-          <span dangerouslySetInnerHTML={{ __html: t('marquee') }} />
-          <span dangerouslySetInnerHTML={{ __html: t('marquee') }} />
+          {/* Поріг підставляється, а не вписаний у текст: інакше
+              рядок обіцяв би одне число, поки кошик рахує за
+              іншим. */}
+          <span dangerouslySetInnerHTML={{ __html: withFree(t('marquee'), freeFromOf({ freeFrom })) }} />
+          <span dangerouslySetInnerHTML={{ __html: withFree(t('marquee'), freeFromOf({ freeFrom })) }} />
         </div>
       </div>
     </>

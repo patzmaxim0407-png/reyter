@@ -5,7 +5,7 @@ import AddToCart from '@/components/AddToCart';
 import ProductGallery from '@/components/ProductGallery';
 import { StatusChip, StockProvider } from '@/components/StockStatus';
 import { loadCatalog, loadStock } from '@/lib/firestore';
-import { availability, freeFromOf, getProduct, productColors, uah } from '@/lib/catalog';
+import { NOTES, availability, freeFromOf, getProduct, productColors, uah, withFree } from '@/lib/catalog';
 import { t, tf, tx } from '@/lib/i18n';
 import type { Lang } from '@/lib/types';
 
@@ -269,24 +269,18 @@ export default async function ProductView({
             </div>
           ) : null}
 
-          {/* Примітки під кнопкою. Своїх у товару зазвичай немає —
-              тоді працюють спільні для магазину. Але «доставка
-              БІЛИЗНИ безкоштовна» на свічці чи сорочці читається
-              як обіцянка, якої ніхто не давав, і саме заради таких
-              випадків товар може мати власні.
+          {/* Три примітки, спільні для магазину. Товар може
+              прибрати зайві: «доставка БІЛИЗНИ безкоштовна» на
+              свічці читається як обіцянка, якої ніхто не давав.
 
-              {free} підставляється порогом із налаштувань — і в
-              спільних рядках, і у власних: інакше картка обіцяла б
-              одне число, а кошик рахував за іншим. */}
+              Прибрані, а не дозволені: товар без цього поля
+              показує всі три, як і показував. */}
           <div className="pinfo__notes">
-            {(p.cards?.length
-              ? p.cards.map((line) => tx(line, lang))
-              : [t('p.note1', lang), t('p.note2', lang), t('p.note3', lang)]
-            ).map((html, i) => (
+            {NOTES.filter((n) => !p.noteOff?.includes(n.id)).map((n) => (
               <div
-                key={i}
+                key={n.id}
                 className="note-card"
-                dangerouslySetInnerHTML={{ __html: html.replaceAll('{free}', String(freeFrom)) }}
+                dangerouslySetInnerHTML={{ __html: withFree(t(n.key, lang), freeFrom) }}
               />
             ))}
           </div>
