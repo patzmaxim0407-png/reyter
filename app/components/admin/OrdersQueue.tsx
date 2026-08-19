@@ -6,6 +6,7 @@ import OrderRow from './OrderRow';
 import {
   BANDS,
   queue,
+  statusInfo,
   type AdminOrder,
   type Band,
   type ParcelHint,
@@ -139,6 +140,17 @@ export default function OrdersQueue({
                 num={order.num || ''}
                 name={String((order.customer as Record<string, unknown>)?.name ?? '')}
                 place={placeOf(order)}
+                /* Смуга каже, ЩО робити, а значок — на чому саме
+                   замовлення стоїть. Доти в черзі його не було
+                   зовсім: поки статусів було чотири, смуга й
+                   статус збігались один в один. Із «Підготовкою»
+                   збіг зник — в одній смузі «зібрати й
+                   відправити» тепер стоять і ті, що чекають
+                   накладної, і ті, що чекають лише кур'єра. */
+                badge={{
+                  id: order.status || 'new',
+                  title: statusInfo(order.status || 'new').title
+                }}
                 parcel={(() => {
                   if (order.pickup) return { text: 'Самовиніс', tone: 0 as const };
                   const parcel = parcels.get(String(order.ttn || '').replace(/\D/g, ''));

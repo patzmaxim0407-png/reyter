@@ -457,7 +457,7 @@ const uk = {
 
   'st.new': 'Нове',
   'st.confirmed': 'Підтверджено',
-  'st.packing': 'Готуємо до відправлення',
+  'st.packing': 'Пакуємо',
   'st.shipped': 'Відправлено',
   'st.done': 'Виконано',
   'st.cancelled': 'Скасовано',
@@ -900,7 +900,7 @@ const en: Record<UIKey, string> = {
 
   'st.new': 'New',
   'st.confirmed': 'Confirmed',
-  'st.packing': 'Getting ready to ship',
+  'st.packing': 'Packing',
   'st.shipped': 'Shipped',
   'st.done': 'Completed',
   'st.cancelled': 'Cancelled',
