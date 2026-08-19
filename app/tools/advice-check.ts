@@ -61,17 +61,48 @@ console.log('\nГРОШІ ТЕЧУТЬ ЗАРАЗ');
   ok('і це не те саме, що порожньо', !tips.some((t) => t.kind === 'stockout'));
 }
 {
-  const tips = tipsFor(row(), ctx({ gone: ['S', 'M'] }));
+  /* Продажі за розмірами: 6 у S, 4 у M, і жодного в XS та XXL. */
+  const real = { S: 6, M: 4 };
+
+  const tips = tipsFor(row(), ctx({ gone: ['S', 'M'], sizeSold: real, sizes: 4 }));
   const sizes = tips.find((t) => t.kind === 'sizes')!;
   ok('розібрані ходові розміри названо поіменно', sizes.title.includes('S, M'));
-  ok('два ходових — це вже терміново', sizes.urgency === 2);
+  ok('порада спирається на продажі, а не на перелік',
+     sizes.what.includes('10 з 10 проданих'), sizes.what);
+  ok('уся демонстрація розібрана — це терміново', sizes.urgency === 2);
+
+  /* Головне, заради чого це переписано. Товар продавався тільки
+     в M, а порада твердила «саме S і L беруть найчастіше»:
+     число було вигадане, а читалось як виміряне. */
+  const lie = tipsFor(row(), ctx({ gone: ['S', 'L'], sizeSold: { M: 10 }, sizes: 3 }));
+  ok('розмір без жодного продажу ходовим не називаємо',
+     !lie.some((t) => t.kind === 'sizes'),
+     lie.map((t) => t.title).join(' · ') || 'порад про розміри немає');
+
+  /* Продається, але слабко: сказати про це можна, назвати
+     ходовим — ні. */
+  const weak = tipsFor(row(), ctx({ gone: ['L'], sizeSold: { M: 9, L: 1 }, sizes: 3 }));
+  const soft = weak.find((t) => t.kind === 'sizes')!;
+  ok('рідкісний розмір названо чесно', soft.title.startsWith('Немає розмірів, які беруть'), soft.title);
+  ok('і терміновість менша', soft.urgency === 1);
+  ok('гроші рахуються з частки, а не з усіх продажів',
+     soft.money === Math.round((10 / 30) * 20 * 240 * 0.1), String(soft.money));
 
   /* Крайні розміри — не те саме. «Немає XS» у речі з одним
      продажем витісняло з екрана справжні проблеми. */
   ok('крайні розміри порадою не стають',
-     !tipsFor(row(), ctx({ gone: ['XS', 'XXL'] })).some((t) => t.kind === 'sizes'));
+     !tipsFor(row(), ctx({ gone: ['XS', 'XXL'], sizeSold: real })).some((t) => t.kind === 'sizes'));
   ok('і на поодиноких продажах теж мовчимо',
-     !tipsFor(row({ qty: 1 }), ctx({ gone: ['S', 'M'] })).some((t) => t.kind === 'sizes'));
+     !tipsFor(row({ qty: 1 }), ctx({ gone: ['S', 'M'], sizeSold: real })).some((t) => t.kind === 'sizes'));
+
+  /* Розміру в продажах не видно зовсім — старі замовлення. Тоді
+     лишається загальне правило, і воно назветься здогадом. */
+  const blind = tipsFor(row(), ctx({ gone: ['S', 'M'], sizeSold: {}, sizes: 4 }));
+  const guess = blind.find((t) => t.kind === 'sizes')!;
+  ok('без даних порада не вдає виміряну', guess.title.startsWith('Немає базових розмірів'), guess.title);
+  ok('і прямо каже, що розміру в продажах не видно',
+     guess.what.includes('у продажах розміру не видно'), guess.what);
+  ok('здогад коштує менше за вимір', guess.money < sizes.money, `${guess.money} < ${sizes.money}`);
 }
 
 console.log('\nВАЖЕЛІ: ЦІНА Й СОБІВАРТІСТЬ');

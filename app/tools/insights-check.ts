@@ -87,6 +87,21 @@ const orders: AdminOrder[] = [
 const from = new Date('2026-08-01T00:00:00Z');
 const to = new Date('2026-08-31T23:59:59Z');
 
+/* ---------- Розміри в продажах ---------- */
+console.log('\nРОЗМІРИ');
+{
+  const { sizeDemand } = await import('../lib/admin/insights.ts');
+  const bySize = sizeDemand(orders, from, to);
+  ok('розміри рахуються по товарах', JSON.stringify(bySize.get('A')) === '{"M":3}',
+     JSON.stringify(bySize.get('A')));
+  /* Ті самі замовлення, що й у виручці: відправлене й скасоване
+     сюди не входять. Інакше частка «скільки з проданих» рахувалась
+     би від іншого числа, ніж продажі, до яких її ж і порівнюють. */
+  ok('невиконані замовлення розмірів не додають',
+     (bySize.get('A') || {}).M === 3, JSON.stringify(bySize.get('A')));
+  ok('товар без продажів у переліку не зʼявляється', !bySize.has('D'));
+}
+
 /* ---------- Рядки й знижка ---------- */
 console.log('\nРЯДКИ');
 {

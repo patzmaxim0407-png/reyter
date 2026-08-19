@@ -393,6 +393,38 @@ export function rowsOf(orders: AdminOrder[], c: Catalogue, from: Date, to: Date)
     .sort((a, b) => b.revenue - a.revenue);
 }
 
+/** Скільки штук кожного розміру продали за період, по товарах.
+ *
+ *  Без цього порада про розміри спиралась на сталий перелік
+ *  S/M/L і твердила «саме їх беруть найчастіше» навіть там, де
+ *  цих розмірів не купили жодного разу. «Немає S» і «немає S,
+ *  який беруть найчастіше» — різні твердження, і друге треба
+ *  спершу порахувати.
+ *
+ *  Рахуємо лише верхні рядки замовлення — рівно те, з чого
+ *  складається row.qty. Розміри всередині комплектів сюди не
+ *  йдуть: інакше частки не збігалися б із продажами, до яких їх
+ *  же й порівнюють. */
+export function sizeDemand(
+  orders: AdminOrder[],
+  from: Date,
+  to: Date
+): Map<string, Record<string, number>> {
+  const out = new Map<string, Record<string, number>>();
+  for (const o of soldOrders(orders, from, to)) {
+    for (const i of Array.isArray(o.items) ? o.items : []) {
+      const id = String(i.id || '');
+      const size = String(i.size || '').trim();
+      const qty = Math.max(0, Math.round(Number(i.qty) || 0));
+      if (!id || !size || !qty) continue;
+      const box = out.get(id) || {};
+      box[size] = (box[size] || 0) + qty;
+      out.set(id, box);
+    }
+  }
+  return out;
+}
+
 export function byCategory(rows: Row[], titles: Map<string, string>): Row[] {
   const box = new Map<string, Row>();
   for (const r of rows) {

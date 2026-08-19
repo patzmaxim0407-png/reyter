@@ -17,6 +17,7 @@ import {
   previous,
   rangeOf,
   rowsOf,
+  sizeDemand,
   seriesOf,
   sliceBy,
   spentOn,
@@ -702,6 +703,9 @@ function adviceFor(
   const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86_400_000));
   const discounts = discountByProduct(orders, c, from, to);
   const quadrants = new Map(bcg.points.map((p) => [p.id, p.quadrant]));
+  /* Розміри в продажах — щоб порада про брак спиралась на те, що
+     справді купували, а не на сталий перелік S/M/L. */
+  const bySize = sizeDemand(orders, from, to);
 
   /* Знижка по магазину — база для порівняння. Товар зі знижкою
      18% при середніх 7% і той самий товар при середніх 17% — дві
@@ -741,6 +745,7 @@ function adviceFor(
       stock: av ? Math.max(0, av.total) : 0,
       gone: av?.soldOut ? [] : gone,
       sizes: sizes.length,
+      sizeSold: bySize.get(r.id) || {},
       days,
       catMargin: box.margins.length >= 2 ? mid(box.margins) : 0,
       catPrice: box.prices.length >= 3 ? mid(box.prices) : 0,
