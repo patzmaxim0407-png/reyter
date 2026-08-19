@@ -31,6 +31,7 @@ import type { CartLine, CartPart, OrderItem, OrderStatus } from './types';
 export const ORDER_STATUSES: readonly OrderStatus[] = [
   'new',
   'confirmed',
+  'packing',
   'shipped',
   'done',
   'cancelled'

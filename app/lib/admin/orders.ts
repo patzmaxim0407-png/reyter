@@ -55,6 +55,7 @@ import {
   type PromoText
 } from '../promo';
 import { SITE_CONFIG } from '../site-config';
+import { carrierHasIt } from './np';
 import { phoneTail, trackCreate, trackDelete, trackKey, trackUpdate } from '../track';
 import { paidGoods, planCredit, planRefund, readMemberTx, writeMoveTx } from './loyalty-db';
 import type { OrderItem, OrderStatus } from '../types';
@@ -117,6 +118,10 @@ export function statusInfo(id: string | null | undefined): AdminStatus {
 export const NEXT_STEP: Partial<Record<OrderStatus, { id: OrderStatus; label: string }>> = {
   new: { id: 'confirmed', label: 'Підтвердити' },
   confirmed: { id: 'shipped', label: 'Відправлено' },
+  /* Із «Підготовки» наступний крок теж «Відправлено» — але
+     зазвичай його ставить не рука, а трекер. Кнопка лишається
+     на випадок, коли перевізник мовчить, а посилку вже здали. */
+  packing: { id: 'shipped', label: 'Відправлено' },
   shipped: { id: 'done', label: 'Виконано' }
 };
 
@@ -214,9 +219,11 @@ export function nextTask(
   const since =
     (st === 'confirmed'
       ? whenStatus('confirmed')
-      : st === 'done'
-        ? whenStatus('done')
-        : null) || orderDate(o);
+      : st === 'packing'
+        ? whenStatus('packing')
+        : st === 'done'
+          ? whenStatus('done')
+          : null) || orderDate(o);
   const hours = since ? Math.max(0, Math.floor((now.getTime() - since.getTime()) / HOUR)) : 0;
 
   /* «Виконано» зазвичай живе в архіві. Але якщо трекер прямо
@@ -248,12 +255,22 @@ export function nextTask(
     };
   }
 
-  if (st === 'confirmed') {
+  /* «Підготовка до відправлення» стоїть у тій самій смузі, що й
+     «Підтверджено»: справа однакова — зібрати й віднести. Різниця
+     тільки в підказці, бо накладна вже є, і чекати нема чого. */
+  if (st === 'confirmed' || st === 'packing') {
     return {
       band: 'pack',
       hours,
       urgency: hours >= 48 ? 2 : hours >= 24 ? 1 : 0,
-      why: hours < 1 ? 'підтверджено щойно' : 'підтверджено ' + inHours(hours) + ' тому'
+      why:
+        st === 'packing'
+          ? hours < 1
+            ? 'накладна готова — здати на пошту'
+            : 'накладна готова ' + inHours(hours) + ' тому — здати на пошту'
+          : hours < 1
+            ? 'підтверджено щойно'
+            : 'підтверджено ' + inHours(hours) + ' тому'
     };
   }
 
@@ -314,6 +331,54 @@ export function queue(
     byBand[k].sort((a, b) => b.task.urgency - a.task.urgency || b.task.hours - a.task.hours);
   }
   return BANDS.map((band) => ({ band, rows: byBand[band.id] || [] }));
+}
+
+/* ============================================================
+   ЩО ВЖЕ НЕ ВІДКОТИТИ
+   ------------------------------------------------------------
+   Накладна й перевізник — події зовнішнього світу. Накладна
+   лежить у кабінеті Нової Пошти, посилку вже поклали в машину;
+   від того, що в картці натиснуть «Підтверджено», ані те, ані
+   те не зникне — зникне тільки правда в картці. А за нею йде
+   лист покупцеві й трекер у кабінеті: людина побачить, що
+   замовлення нібито ще не збирають, тримаючи в руках номер.
+
+   Тому два замки, обидва в один бік:
+   • є ТТН — назад у «Нове» чи «Підтверджено» не можна;
+   • перевізник узяв посилку — не можна нікуди раніше за
+     «Відправлено».
+
+   «Скасовано» не замикаємо ніколи. Від замовлення відмовляються
+   і тоді, коли посилка вже їде, — цей вихід має лишатись
+   відкритим завжди, інакше менеджеру нікуди буде подітись.
+   ============================================================ */
+
+const STATUS_STEP: Record<OrderStatus, number> = {
+  new: 0,
+  confirmed: 1,
+  packing: 2,
+  shipped: 3,
+  done: 4,
+  cancelled: 5
+};
+
+/** Чому цей статус зараз недоступний. null — можна ставити. */
+export function statusLock(
+  o: { ttn?: string | null; status?: OrderStatus | null },
+  parcel: ParcelHint | null | undefined,
+  next: OrderStatus
+): string | null {
+  if (next === 'cancelled') return null;
+  const step = STATUS_STEP[next];
+  if (step === undefined) return null;
+
+  if (carrierHasIt(parcel) && step < STATUS_STEP.shipped) {
+    return 'Нова Пошта вже прийняла посилку — раніші статуси недоступні';
+  }
+  if (String(o.ttn || '').trim() && step < STATUS_STEP.packing) {
+    return 'Накладна вже створена — повернути замовлення на крок назад не можна';
+  }
+  return null;
 }
 
 /** Скільки замовлень показуємо за раз. */
@@ -1093,6 +1158,10 @@ export interface StatusChangeDeps {
   by: string;
   /** true — масова зміна: не питаємо нічого й не показуємо тостів. */
   silent?: boolean;
+  /** Що каже трекер про цю посилку. Потрібне замкам: без нього
+   *  відкат «Відправлено → Підтверджено» пройде навіть тоді,
+   *  коли посилка вже їде. */
+  carrier?: ParcelHint | null;
 }
 
 export interface StatusChangeResult {
@@ -1100,8 +1169,9 @@ export interface StatusChangeResult {
   ok: boolean;
   /** 'same' — статус той самий; 'cancelled' — адмін передумав
    *  у діалозі; 'no-ttn' — відправлення без накладної;
+   *  'locked' — назад уже не можна (накладна або перевізник);
    *  'error' — запис не пройшов. */
-  reason?: 'same' | 'cancelled' | 'no-ttn' | 'error';
+  reason?: 'same' | 'cancelled' | 'no-ttn' | 'locked' | 'error';
   toast: Toast | null;
   /** Накладна, яку щойно вписали в діалозі: її треба зберегти
    *  разом зі статусом і надіслати покупцеві. */
@@ -1117,6 +1187,18 @@ export async function applyStatus(
   if (prev === next) return { ok: true, reason: 'same', toast: null };
 
   const silent = !!deps.silent;
+
+  /* Замок стоїть тут, а не тільки на кнопці. Статус міняють ще
+     й гуртом, і з черги, і сам трекер — одна перевірка на всіх
+     дешевша за три однакові. */
+  const locked = statusLock(order, deps.carrier, next);
+  if (locked) {
+    return {
+      ok: false,
+      reason: 'locked',
+      toast: silent ? null : { text: locked, success: false }
+    };
+  }
 
   /* «Відправлено» без накладної не буває. Саме тут менеджер і
      забуває: статус міняє, а номер лишається порожнім — і
@@ -1422,6 +1504,9 @@ export interface BulkDeps extends StatusChangeDeps {
    *  тривати помітно довго — без цього рядка здається, що
    *  кнопка не спрацювала. */
   onStart?: (toast: Toast) => void;
+  /** Стан посилок за номером накладної: пакет теж має спинятись
+   *  на тих замовленнях, які вже не відкотити. */
+  carriers?: Map<string, ParcelHint>;
 }
 
 export type BulkResult =
@@ -1480,13 +1565,22 @@ export async function bulkStatus(
      «оновлено 8» приховало б, що двоє покупців не дізнаються
      про свої посилки. */
   let noTtn = 0;
+  /* Замкнені — окремо від «без ТТН»: причина інша, і порада теж
+     інша. Там «впишіть номер», тут «нічого вписувати, назад уже
+     не можна». */
+  let locked = 0;
   for (let i = 0; i < toChange.length; i += BULK_CHUNK) {
     const chunk = toChange.slice(i, i + BULK_CHUNK);
     // послідовно, щоб не перевищити ліміт операцій у батчі
     for (const o of chunk) {
-      const res = await applyStatus(o, next, { ...deps, silent: true });
+      const res = await applyStatus(o, next, {
+        ...deps,
+        silent: true,
+        carrier: deps.carriers?.get(String(o.ttn || '').trim()) || null
+      });
       if (res.ok) done++;
       else if (res.reason === 'no-ttn') noTtn++;
+      else if (res.reason === 'locked') locked++;
     }
   }
 
@@ -1494,14 +1588,22 @@ export async function bulkStatus(
     kind: 'done',
     done: done,
     total: toChange.length,
-    toast: noTtn
-      ? {
-          text:
-            'Оновлено: ' + done + '. Пропущено без ТТН: ' + noTtn +
-            ' — впишіть номер у картці й змініть статус там.',
-          success: false
-        }
-      : { text: 'Оновлено замовлень: ' + done + ' ✓', success: true }
+    toast:
+      noTtn || locked
+        ? {
+            text:
+              'Оновлено: ' + done + '.' +
+              (noTtn
+                ? ' Пропущено без ТТН: ' + noTtn +
+                  ' — впишіть номер у картці й змініть статус там.'
+                : '') +
+              (locked
+                ? ' Пропущено ' + locked +
+                  ': там уже є накладна або посилку забрала Нова Пошта — назад не можна.'
+                : ''),
+            success: false
+          }
+        : { text: 'Оновлено замовлень: ' + done + ' ✓', success: true }
   };
 }
 

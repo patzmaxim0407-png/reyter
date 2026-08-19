@@ -1521,6 +1521,7 @@ label.a-sizes__chip,
 }
 
 .ao-card.st-confirmed { border-left-color: #7c3aed; }
+.ao-card.st-packing   { border-left-color: #0f766e; }
 .ao-card.st-shipped   { border-left-color: var(--c-amber); }
 .ao-card.st-done      { border-left-color: var(--c-green); }
 .ao-card.st-cancelled { border-left-color: var(--c-red); opacity: 0.72; }
@@ -1949,6 +1950,7 @@ label.a-promo-product i {
 
 .ao-status-select.st-new       { color: var(--c-blue); border-color: rgba(1, 74, 173, 0.4); }
 .ao-status-select.st-confirmed { color: #7c3aed; border-color: rgba(124, 58, 237, 0.4); }
+.ao-status-select.st-packing   { color: #0f766e; border-color: rgba(15, 118, 110, 0.4); }
 .ao-status-select.st-shipped   { color: var(--c-amber); border-color: rgba(180, 83, 9, 0.4); }
 .ao-status-select.st-done      { color: var(--c-green); border-color: rgba(21, 128, 61, 0.4); }
 .ao-status-select.st-cancelled { color: var(--c-red); border-color: rgba(200, 30, 30, 0.4); }
@@ -5003,6 +5005,7 @@ label.a-promo-product i {
    зелений «виконано», а не навпаки. */
 .aq-item.st-new { border-left-color: #1d4ed8; }
 .aq-item.st-confirmed { border-left-color: #6d28d9; }
+.aq-item.st-packing { border-left-color: #0f766e; }
 .aq-item.st-shipped { border-left-color: #b45309; }
 .aq-item.st-done { border-left-color: #15803d; }
 .aq-item.st-cancelled { border-left-color: #b3261e; }
@@ -5204,6 +5207,7 @@ label.a-promo-product i {
 
 .ao-bulk__st.st-new { color: #1d4ed8; }
 .ao-bulk__st.st-confirmed { color: #7c3aed; }
+.ao-bulk__st.st-packing { color: #0f766e; }
 .ao-bulk__st.st-shipped { color: #b45309; }
 .ao-bulk__st.st-done { color: #15803d; }
 .ao-bulk__st.st-cancelled { color: #b3261e; }
@@ -5218,6 +5222,7 @@ label.a-promo-product i {
 
 .ao-bulk__st.st-new:hover { background: #1d4ed8; border-color: #1d4ed8; }
 .ao-bulk__st.st-confirmed:hover { background: #7c3aed; border-color: #7c3aed; }
+.ao-bulk__st.st-packing:hover { background: #0f766e; border-color: #0f766e; }
 .ao-bulk__st.st-shipped:hover { background: #b45309; border-color: #b45309; }
 .ao-bulk__st.st-done:hover { background: #15803d; border-color: #15803d; }
 .ao-bulk__st.st-cancelled:hover { background: #b3261e; border-color: #b3261e; }
@@ -5324,6 +5329,7 @@ label.a-promo-product i {
 
 .aq-badge.st-new { color: #1d4ed8; background: #eef4ff; }
 .aq-badge.st-confirmed { color: #6d28d9; background: #f5f0ff; }
+.aq-badge.st-packing { color: #0f766e; background: #ecfaf7; }
 .aq-badge.st-shipped { color: #b45309; background: #fff7ec; }
 .aq-badge.st-done { color: #15803d; background: #f0faf3; }
 .aq-badge.st-cancelled { color: #b3261e; background: #fdecea; }
@@ -5679,8 +5685,18 @@ label.a-promo-product i {
   border-color: currentColor;
 }
 
+/* Замкнена кнопка не зникає, а гасне: перелік статусів має
+   лишатись цілим, інакше рядок стрибає, і замість «сюди не
+   можна» читається «такого статусу не буває». */
+.ao-setst__row .aq-badge.is-locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
 .ao-setst__row .aq-badge.st-new.is-on { color: #1d4ed8; background: #eef4ff; }
 .ao-setst__row .aq-badge.st-confirmed.is-on { color: #6d28d9; background: #f5f0ff; }
+.ao-setst__row .aq-badge.st-packing.is-on { color: #0f766e; background: #ecfaf7; }
 .ao-setst__row .aq-badge.st-shipped.is-on { color: #b45309; background: #fff7ec; }
 .ao-setst__row .aq-badge.st-done.is-on { color: #15803d; background: #f0faf3; }
 .ao-setst__row .aq-badge.st-cancelled.is-on { color: #b3261e; background: #fdecea; }
@@ -7105,7 +7121,7 @@ label.a-promo-product i {
 .cl-orders li:nth-child(odd) { background: rgba(6, 43, 92, 0.025); }
 .cl-orders li.st-done { border-left-color: #15803d; }
 .cl-orders li.st-cancelled { border-left-color: #b91c1c; opacity: 0.65; }
-.cl-orders li.st-new, .cl-orders li.st-confirmed { border-left-color: #d97706; }
+.cl-orders li.st-new, .cl-orders li.st-confirmed, .cl-orders li.st-packing { border-left-color: #d97706; }
 .cl-orders li.st-shipped { border-left-color: #014AAD; }
 
 .cl-orders__num { font-variant-numeric: tabular-nums; color: #6e6a5e; }

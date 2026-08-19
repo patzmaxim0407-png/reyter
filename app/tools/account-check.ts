@@ -54,7 +54,7 @@ const path = trackerSteps('shipped', t);
 ok('крокомір без скасування', path.length === ORDER_STATUSES.length - 1, `кроків: ${path.length}`);
 ok(
   'пройдені кроки позаду поточного',
-  path.filter((s) => s.done).length === 2 && path.find((s) => s.current)?.id === 'shipped',
+  path.filter((s) => s.done).length === 3 && path.find((s) => s.current)?.id === 'shipped',
   path.map((s) => `${s.id}${s.done ? '✓' : s.current ? '●' : '○'}`).join(' ')
 );
 ok('скасованому кроків не малюємо', trackerSteps('cancelled', t).length === 0);

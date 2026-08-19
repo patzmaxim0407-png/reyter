@@ -24,6 +24,7 @@
    ============================================================ */
 
 import {
+  consumesStock,
   hasInvDoc,
   invOf,
   isSized,
@@ -210,7 +211,11 @@ export function checkOrders(orders: SoldOrder[], moves: Move[]): OrderCheck[] {
   const out: OrderCheck[] = [];
   for (const o of orders) {
     const status = String(o.status || '');
-    if (status !== 'confirmed' && status !== 'shipped' && status !== 'done') continue;
+    /* Питаємо той самий код, що й списання: перелік статусів,
+       переписаний тут удруге, розійшовся б із ним на першому ж
+       новому статусі — і звірка мовчки перестала б бачити цілу
+       смугу замовлень. */
+    if (!consumesStock(status)) continue;
     const ref = String(o.num || '');
     if (!ref) continue;
 

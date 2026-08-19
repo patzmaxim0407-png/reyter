@@ -31,7 +31,8 @@ import {
   EMPTY_FORM,
   type AddressForm
 } from '../lib/address.ts';
-import { freeShipOf, payerOf } from '../lib/admin/orders.ts';
+import { freeShipOf, nextTask, payerOf, statusLock } from '../lib/admin/orders.ts';
+import { carrierHasIt, parcelState } from '../lib/admin/np.ts';
 import { t } from '../lib/i18n.ts';
 import type { CartLine } from '../lib/types.ts';
 
@@ -603,6 +604,61 @@ ok('сайт не пише полів поза правилами', !extraKeys.l
   const toStates = fromForm({ ...intlForm, countryCode: 'US', state: 'IL', regCity: 'Chicago' });
   ok('адреса з митними даними теж',
      holes(toStates).length === 0, holes(toStates).join(', ') || 'дірок немає');
+}
+
+/* ============================================================
+   ЗАМКИ СТАТУСУ
+   ------------------------------------------------------------
+   Накладна й перевізник рухають замовлення вперед і не дають
+   відкотити його назад. Перевіряємо саме межі: де замок ще не
+   стоїть, де вже стоїть і де його не буває ніколи.
+   ============================================================ */
+{
+  const noTtn = { ttn: '', status: 'confirmed' as const };
+  const withTtn = { ttn: '20450000000000', status: 'packing' as const };
+  const moving = { code: '5' }; // «прямує до міста одержувача»
+  const created = { code: '1' }; // накладну оформили, посилки ще немає
+
+  ok('без накладної назад можна', statusLock(noTtn, null, 'confirmed') === null);
+  ok('накладна є — у «Підтверджено» вже не можна',
+     statusLock(withTtn, null, 'confirmed') !== null,
+     String(statusLock(withTtn, null, 'confirmed')));
+  ok('накладна є — у «Нове» теж не можна', statusLock(withTtn, null, 'new') !== null);
+  ok('накладна є — «Підготовка» лишається доступною',
+     statusLock(withTtn, created, 'packing') === null);
+  ok('накладна є — «Відправлено» доступне', statusLock(withTtn, created, 'shipped') === null);
+
+  ok('перевізник узяв — «Підготовка» вже замкнена',
+     statusLock(withTtn, moving, 'packing') !== null,
+     String(statusLock(withTtn, moving, 'packing')));
+  ok('перевізник узяв — «Відправлено» лишається',
+     statusLock(withTtn, moving, 'shipped') === null);
+  ok('перевізник узяв — «Виконано» лишається',
+     statusLock(withTtn, moving, 'done') === null);
+  /* Найважливіший виняток: від замовлення відмовляються і тоді,
+     коли посилка вже їде. Замкнути цей вихід — значить лишити
+     менеджера без жодного. */
+  ok('скасувати можна завжди', statusLock(withTtn, moving, 'cancelled') === null);
+
+  ok('мовчання трекера — не привід замикати', carrierHasIt(null) === false);
+  ok('порожній код — не привід замикати', carrierHasIt({ code: '' }) === false);
+  ok('накладна створена — посилка ще в нас', carrierHasIt(created) === false);
+  ok('помилковий номер — теж не привід', carrierHasIt({ code: '3' }) === false);
+  ok('посилка в дорозі — перевізник її має', carrierHasIt(moving) === true);
+  ok('лежить у відділенні — перевізник її має', carrierHasIt({ code: '7' }) === true);
+  ok('отримано — перевізник її мав', carrierHasIt({ code: '9' }) === true);
+  ok('повертається — перевізник її мав',
+     carrierHasIt({ code: '102' }) === true, parcelState('102'));
+
+  /* Замовлення з накладною не має губитись у «дорозі»: посилка
+     ще лежить у нас на столі, і справа за нею — віднести. */
+  const packTask = nextTask(
+    { num: 'R-1', status: 'packing', ttn: '20450000000000' } as never,
+    created,
+    new Date()
+  );
+  ok('замовлення в підготовці стоїть у смузі «зібрати й відправити»',
+     packTask?.band === 'pack', String(packTask?.band) + ' · ' + String(packTask?.why));
 }
 
 console.log('\n' + (failed ? `розбіжностей: ${failed}` : 'усе зійшлося'));

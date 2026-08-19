@@ -3,7 +3,16 @@
 import { useState } from 'react';
 import { addressLine } from '@/lib/address';
 import { fmt, type Catalogue } from '@/lib/catalog';
-import { NEXT_STEP, STATUSES, confirmText, freeShipOf, itemCat, orderDate, statusInfo } from '@/lib/admin/orders';
+import {
+  NEXT_STEP,
+  STATUSES,
+  confirmText,
+  freeShipOf,
+  itemCat,
+  orderDate,
+  statusInfo,
+  statusLock
+} from '@/lib/admin/orders';
 import { label, parcelState, alarm, whenText, type Parcel } from '@/lib/admin/np';
 import { isPaid, payLabel, payTone, type PaySum, type PayStatus } from '@/lib/pay';
 import type { OrderItem } from '@/lib/types';
@@ -198,11 +207,15 @@ export default function OrderCard({
           value={st}
           onChange={(e) => onStatus(e.target.value)}
         >
-          {STATUSES.map((x) => (
-            <option value={x.id} key={x.id}>
-              {x.title}
-            </option>
-          ))}
+          {STATUSES.map((x) => {
+            const lock = x.id === st ? null : statusLock(o as never, parcel, x.id as never);
+            return (
+              <option value={x.id} key={x.id} disabled={!!lock} title={lock || undefined}>
+                {x.title}
+                {lock ? ' — недоступно' : ''}
+              </option>
+            );
+          })}
         </select>
 
         {/* Що каже сам перевізник. Це не прикраса: «лежить
@@ -557,16 +570,30 @@ export default function OrderCard({
             <div className="ao-setst">
               <span className="ao-field__label">Статус</span>
               <div className="ao-setst__row">
-                {STATUSES.map((x) => (
-                  <button
-                    key={x.id}
-                    type="button"
-                    className={'aq-badge st-' + x.id + (x.id === st ? ' is-on' : '')}
-                    onClick={() => x.id !== st && onStatus(x.id)}
-                  >
-                    {x.title}
-                  </button>
-                ))}
+                {STATUSES.map((x) => {
+                  /* Кнопка, яка нічого не зробить, — гірша за
+                     відсутню: її натискають, потім читають тост,
+                     потім натискають ще раз. Тому замкнені стани
+                     гаснуть одразу, а причина стоїть у підказці
+                     під курсором. */
+                  const lock = x.id === st ? null : statusLock(o as never, parcel, x.id as never);
+                  return (
+                    <button
+                      key={x.id}
+                      type="button"
+                      title={lock || undefined}
+                      disabled={!!lock}
+                      className={
+                        'aq-badge st-' + x.id +
+                        (x.id === st ? ' is-on' : '') +
+                        (lock ? ' is-locked' : '')
+                      }
+                      onClick={() => !lock && x.id !== st && onStatus(x.id)}
+                    >
+                      {x.title}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : null}

@@ -162,6 +162,20 @@ export function alarm(parcel: Parcel, WARN_AT = 3, ALARM_AT = 5): 0 | 1 | 2 {
   return 0;
 }
 
+/** Чи посилка вже не в нас: перевізник її прийняв — везе, вона
+ *  лежить у відділенні, її отримали чи вона повертається.
+ *
+ *  Порожній код — не «ні», а «не знаємо»: трекер міг не
+ *  відповісти. Тому тут саме false, і жоден замок на цьому не
+ *  тримається: краще дозволити зайве, ніж замкнути картку через
+ *  мовчання чужого сервера. */
+export function carrierHasIt(parcel?: { code?: string | null } | null): boolean {
+  const code = String(parcel?.code || '').trim();
+  if (!code) return false;
+  const s = parcelState(code);
+  return s !== 'created' && s !== 'missing';
+}
+
 /** Куди рухається замовлення за словами перевізника: 'shipped' —
  *  посилка вже в руках Нової Пошти, 'done' — її забрали.
  *  null — статус міняти не можна: або нічого не сталося, або

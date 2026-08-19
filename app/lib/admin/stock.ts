@@ -692,7 +692,12 @@ export function adjustOrderStock(
 /* Статуси, за яких товар вважається списаним зі складу. Перехід
    у будь-який із них списує, вихід із них — повертає; переходи
    всередині переліку складу не торкаються зовсім. */
-export const CONSUMING: readonly OrderStatus[] = ['confirmed', 'shipped', 'done'];
+export const CONSUMING: readonly OrderStatus[] = [
+  'confirmed',
+  'packing',
+  'shipped',
+  'done'
+];
 
 export function consumesStock(status: string | null | undefined): boolean {
   return CONSUMING.includes(status as OrderStatus);

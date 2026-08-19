@@ -238,9 +238,19 @@ export default function OrdersAdmin() {
       /* нічого не вдієш */
     }
   };
+  /* Ключ мусить перелічувати рівно ті самі статуси, що й добір
+     нижче. Доти в ньому не було ані «Підтверджено», ані
+     «Підготовки»: щойно вписаний номер не зрушував запит до
+     перевізника, і замовлення сиділо без трекера аж до
+     наступного знімка бази з чужої причини. */
   const inTransitKey = orders
     .map((o) =>
-      o.status === 'shipped' || o.status === 'done' ? o._id + ':' + (o.ttn || '') : ''
+      o.status === 'confirmed' ||
+      o.status === 'packing' ||
+      o.status === 'shipped' ||
+      o.status === 'done'
+        ? o._id + ':' + (o.ttn || '')
+        : ''
     )
     .filter(Boolean)
     .join('|');
@@ -276,6 +286,7 @@ export default function OrdersAdmin() {
     /* Питаємо і про відправлені, і про недавно закриті: в архіві
        менеджер теж хоче бачити, чим скінчилось, а не порожнє
        місце там, де в черзі був стан посилки. */
+    const rank = (st?: string) => (st === 'shipped' || st === 'packing' ? -1 : 1);
     const inTransit = orders
       .filter(
         (o) =>
@@ -284,13 +295,19 @@ export default function OrdersAdmin() {
              зовсім: ані номера, ані значка. А саме на цьому кроці
              її й створюють, і саме тоді корисно знати, що
              перевізник посилку ще не прийняв. */
-          (o.status === 'confirmed' || o.status === 'shipped' || o.status === 'done') &&
+          (o.status === 'confirmed' ||
+            o.status === 'packing' ||
+            o.status === 'shipped' ||
+            o.status === 'done') &&
           String(o.ttn || '').trim()
       )
       /* Спершу ті, що їдуть: у жваві дні сотня найновіших — це
          переважно виконані, і саме ті посилки, заради яких усе
          це робиться, у запит не потрапляли. */
-      .sort((a, b) => (a.status === 'shipped' ? -1 : 1) - (b.status === 'shipped' ? -1 : 1))
+      /* «Підготовка» — нарівні з «Відправлено»: саме ці
+         замовлення чекають на слово перевізника, щоб рушити
+         далі самі. */
+      .sort((a, b) => rank(a.status) - rank(b.status))
       .slice(0, 200)
       .map((o) => ({ ttn: o.ttn, phone: String(o.customer?.phone || '') }));
     if (!inTransit.length) return;
@@ -828,7 +845,7 @@ export default function OrdersAdmin() {
         const now = o.status || 'new';
         if (!want || want === now) continue;
         if (now === 'cancelled' || now === 'done') continue;
-        if (want === 'shipped' && now !== 'confirmed') continue;
+        if (want === 'shipped' && now !== 'confirmed' && now !== 'packing') continue;
         /* Менеджер міг свідомо відкотити «Відправлено →
            Підтверджено»: домовились переоформити, покупець
            передумав. Слід цього рішення є в журналі — і воно
@@ -848,7 +865,11 @@ export default function OrdersAdmin() {
           ask: dialogs,
           now: new Date(),
           by: 'Нова Пошта',
-          silent: true
+          silent: true,
+          /* Трекер рухає статус тільки вперед, тож замок його не
+             стосується. Але передаємо чесно: правило одне для
+             всіх, і виняток довелось би памʼятати. */
+          carrier: parcel
         });
         if (res.ok) {
           toast(
@@ -863,7 +884,8 @@ export default function OrdersAdmin() {
     [orders, c, dialogs, toast]
   );
 
-  function deps(silent = false) {
+
+  function deps(silent = false, o?: AdminOrder) {
     const d = db();
     if (!d) {
       toast('Немає звʼязку з базою');
@@ -871,8 +893,20 @@ export default function OrdersAdmin() {
     }
     /* Каталог іде разом із залишками: за ним applyStatus рахує
        нестачу й списує товар — саме тим самим кодом, що й
-       сторінка складу. */
-    return { db: d, c, ask: dialogs, now: new Date(), by: user.email ?? '', silent };
+       сторінка складу.
+
+       Разом із ним — те, що каже трекер: за цим applyStatus
+       вирішує, чи можна ще відкотити статус назад. */
+    return {
+      db: d,
+      c,
+      ask: dialogs,
+      now: new Date(),
+      by: user.email ?? '',
+      silent,
+      carrier: o ? parcels.get(String(o.ttn || '').trim()) || null : null,
+      carriers: parcels
+    };
   }
 
   /* Номер накладної покупцеві. Раніше він осідав в адмінці й
@@ -933,6 +967,63 @@ export default function OrdersAdmin() {
     },
     [toast, sendTtnLetter]
   );
+
+  /* Накладна є — замовлення вже не «просто підтверджене»: воно
+     зібране, підписане й чекає на перевізника. Статус має
+     сказати це сам, бо номер зʼявляється по-різному: його
+     створюють у кабінеті, вписують руками, приносять із
+     телефонної розмови. Просити після кожного з цих шляхів ще й
+     натиснути статус — значить домовитись, що колись забудуть.
+
+     Рухаємо тільки з «Підтверджено». У «Новому» товар ще не
+     списаний, і тихо списати його за менеджера не можна: там
+     своє питання про склад, на яке відповідає людина.
+
+     Пам'ять у ref, бо список замовлень приходить новим обʼєктом
+     після кожного знімка бази — без неї ефект ганявся б за
+     власним записом. */
+  const packedRef = useRef(new Set<string>());
+  useEffect(() => {
+    const d = db();
+    if (!d) return;
+    let stop = false;
+    void (async () => {
+      for (const o of orders) {
+        if (stop) return;
+        if ((o.status || 'new') !== 'confirmed') continue;
+        const ttn = String(o.ttn || '').trim();
+        /* Накладну скасували — забуваємо про замовлення зовсім,
+           інакше наступний номер уже нікуди не зрушить статус. */
+        if (!ttn) {
+          packedRef.current.delete(o._id);
+          continue;
+        }
+        if (packedRef.current.has(o._id)) continue;
+        packedRef.current.add(o._id);
+        const res = await applyStatus(o, 'packing', {
+          db: d,
+          c,
+          ask: dialogs,
+          now: new Date(),
+          by: user.email ?? '',
+          silent: true,
+          carrier: parcels.get(ttn) || null
+        });
+        if (res.ok) {
+          toast('№' + (o.num || '') + ': накладна є — «Підготовка до відправлення»', 'success');
+          /* Номер вписали руками — лист із ним досі нікуди не
+             йшов: раніше його слав перехід у «Відправлено», а
+             тепер туди веде трекер, який листів не пише.
+             Покупцеві номер потрібен у мить, коли він зʼявився,
+             а не коли машина доїде до сортування. */
+          if (!o.ttnSentAt) void sendTtnLetter(o, ttn);
+        }
+      }
+    })();
+    return () => {
+      stop = true;
+    };
+  }, [orders, c, dialogs, parcels, user.email, toast, sendTtnLetter]);
 
   const copyOrder = useCallback(
     async (o: AdminOrder) => {
@@ -1092,10 +1183,11 @@ export default function OrdersAdmin() {
           return;
         }
       }
-      if ((o.status || 'new') === 'shipped') {
+      if (['packing', 'shipped'].includes(o.status || 'new')) {
         /* Саме 'confirmed', а не 'new': товар уже підтверджений і
            списаний, і повертати його на склад тут нема потреби —
            замовлення просто чекає нової накладної. */
+        packedRef.current.delete(o._id);
         await onStatus({ ...o, ttn: '' } as AdminOrder, 'confirmed');
       }
       toast('Накладну скасовано — замовлення знову можна редагувати ✓', 'success');
@@ -1130,7 +1222,7 @@ export default function OrdersAdmin() {
   confirmPaid.current = (o: AdminOrder) => onStatus(o, 'confirmed');
 
   async function onStatus(o: AdminOrder, next: string) {
-    const dd = deps();
+    const dd = deps(false, o);
     if (!dd) return;
     const res = await applyStatus(o, next as OrderStatus, dd);
     if (res.toast) toast(res.toast.text, res.toast.success ? 'success' : 'plain');
@@ -1537,11 +1629,17 @@ export default function OrdersAdmin() {
                питала його вдруге, просто у вікні поверх щойно
                створеної накладної. */
             const fresh = { ...o, ttn } as AdminOrder;
-            /* Виконане замовлення накладна не відкочує назад:
-               накладну для нього створюють на обмін або дослання,
-               і «Відправлено» тут було б неправдою. */
+            /* Накладна створена — але посилка ще на столі, її
+               ніхто нікуди не повіз. Тому «Підготовка до
+               відправлення», а не «Відправлено»: у «Відправлено»
+               замовлення переведе сама Нова Пошта, коли справді
+               візьме посилку.
+
+               Виконане замовлення накладна не відкочує назад:
+               для нього її створюють на обмін або дослання. */
             if (['new', 'confirmed'].includes(o.status || 'new')) {
-              await onStatus(fresh, 'shipped');
+              packedRef.current.add(o._id);
+              await onStatus(fresh, 'packing');
             }
 
             /* І лист. Сам він не пішов би: зберігання надсилає

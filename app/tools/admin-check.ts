@@ -397,6 +397,23 @@ for (const file of adminFiles) {
   ok(`${file}: усі класи описані в стилях`, orphans.length === 0, orphans.join(', '));
 }
 
+/* ---------- Накладна веде статус ----------
+   Три речі, які легко розібрати назад під час наступної правки,
+   і жодна з них не впаде в типах: статус зʼявляється сам, назад
+   кнопка не пускає, а трекер підхоплює його з «Підготовки». */
+{
+  const card = readFileSync(new URL('../components/admin/OrderCard.tsx', import.meta.url), 'utf8');
+  ok('картка гасить замкнені статуси, а не мовчить',
+     card.includes('statusLock(') && card.includes('disabled={!!lock}'));
+
+  const oa = readFileSync(new URL('../components/admin/OrdersAdmin.tsx', import.meta.url), 'utf8');
+  ok('накладна сама переводить у «Підготовку»', oa.includes("applyStatus(o, 'packing'"));
+  ok('створена накладна не стрибає одразу у «Відправлено»',
+     oa.includes("await onStatus(fresh, 'packing')") && !oa.includes("onStatus(fresh, 'shipped')"));
+  ok('трекер підхоплює замовлення і з «Підготовки»',
+     oa.includes("now !== 'confirmed' && now !== 'packing'"));
+}
+
 /* ---------- Прихід ----------
    Розділ, який користувач просив перенести повністю. */
 
@@ -452,6 +469,25 @@ ok('дати показані словами, а не ISO', rinfo.includes('shor
     { ...deps, ask: dialogs(null) as never }
   );
   ok('замовлення з номером про нього не перепитують', withTtn.reason !== 'no-ttn' && withTtn.reason !== 'cancelled');
+
+  /* Замок — не прикраса кнопки, а перевірка в самому записі:
+     статус міняють ще й гуртом, і з черги. Одна відмова на
+     всіх — інакше три однакові перевірки розійдуться. */
+  const back = await applyStatus(
+    { ...(order as object), status: 'packing', ttn: '20450000000000' } as never,
+    'confirmed',
+    { ...deps, ask: dialogs(null) as never }
+  );
+  ok('накладна є — запис не пускає назад у «Підтверджено»',
+     back.ok === false && back.reason === 'locked', String(back.toast?.text || ''));
+
+  const backFromCarrier = await applyStatus(
+    { ...(order as object), status: 'shipped', ttn: '20450000000000' } as never,
+    'packing',
+    { ...deps, ask: dialogs(null) as never, carrier: { code: '5' } }
+  );
+  ok('перевізник узяв — запис не пускає в «Підготовку»',
+     backFromCarrier.ok === false && backFromCarrier.reason === 'locked');
 
   const counts = orderStats([
     { _id: '1', num: 'a', status: 'shipped', total: 100 },

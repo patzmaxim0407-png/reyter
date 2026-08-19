@@ -167,4 +167,14 @@ export interface OrderItem {
   parts?: OrderPart[];
 }
 
-export type OrderStatus = 'new' | 'confirmed' | 'shipped' | 'done' | 'cancelled';
+/* 'packing' — накладна вже існує, посилка ще в нас. Стан
+   короткий, але без нього «Підтверджено» означало б і «щойно
+   домовились», і «лежить зібране з номером»: два різні заняття
+   під однією назвою. */
+export type OrderStatus =
+  | 'new'
+  | 'confirmed'
+  | 'packing'
+  | 'shipped'
+  | 'done'
+  | 'cancelled';
