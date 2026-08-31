@@ -73,6 +73,35 @@ async function liveBuild(origin) {
   return last;
 }
 
+/* Запасна адреса воркера — та сама, що в базі?
+   ------------------------------------------------------------
+   У lib/firebase.ts лежить адреса воркера на випадок, коли
+   settings/public не прочитався: без неї один невдалий запит
+   лишає замовлення без оплати й без сповіщення (так сталося
+   31.08.2026 з R-260831-566).
+
+   Запасний варіант, який розійшовся з дійсністю, гірший за його
+   відсутність: він мовчки поведе оплату в нікуди. Тому питаємо
+   живу базу — читати settings/public дозволено всім, ключів там
+   немає. */
+{
+  const src = readFileSync(new URL('../lib/firebase.ts', import.meta.url), 'utf8');
+  const mineUrl = (src.match(/WORKER_FALLBACK\s*=\s*'([^']+)'/) || [])[1] || '';
+  const DB = 'https://firestore.googleapis.com/v1/projects/reyter-18d2c/databases/(default)/documents/settings/public';
+  const KEY = (src.match(/apiKey:\s*'([^']+)'/) || [])[1] || '';
+  let liveUrl = '';
+  try {
+    const r = await fetch(DB + '?key=' + KEY);
+    const j = await r.json();
+    liveUrl = ((j.fields || {}).workerUrl || {}).stringValue || '';
+  } catch (e) {
+    liveUrl = 'база не відповіла';
+  }
+  const same = !!mineUrl && mineUrl.replace(/\/+$/, '') === liveUrl.replace(/\/+$/, '');
+  ok(same, 'запасна адреса воркера збігається з тією, що в базі',
+     same ? mineUrl : 'у коді ' + (mineUrl || '—') + ', у базі ' + (liveUrl || '—'));
+}
+
 for (const site of SITES) {
   const origin = new URL(site).origin;
 

@@ -537,17 +537,46 @@ export function forgetNotifySettings(): void {
   settingsCache = null;
 }
 
+/* Адреса воркера — не таємниця: правила бази прямо кажуть, що
+   settings/public читає будь-хто, а ключі Resend і Telegram лежать
+   у змінних самого воркера. Тому вона може лежати ще й тут.
+
+   Це не дублювання налаштування, а запасний шлях. 31.08.2026
+   замовлення R-260831-566 лишилось і без оплати, і без сповіщення
+   в Telegram через ОДИН невдалий читальний запит до цього
+   документа: адреса воркера не дісталась, а на ній тримаються
+   обидві дії. Запис самого замовлення при цьому пройшов — і
+   магазин дізнався про нього тільки від покупця.
+
+   Гість особливо беззахисний: у нього цей документ читається
+   рівно раз, у мить натискання «Оформити». Промахнувся той
+   єдиний запит — промахнулось усе.
+
+   Налаштування лишається головним: код підставляється тільки
+   тоді, коли база не відповіла. Що ці двоє не розійшлись,
+   стежить tools/deploy-check.mjs — він питає живу базу. */
+const WORKER_FALLBACK = 'https://reyter.pzh6yz55nw.workers.dev';
+
 export async function loadNotifySettings(): Promise<Record<string, unknown> | null> {
   if (settingsCache) return settingsCache;
   const d = db();
-  if (!d) return null;
-  try {
-    const snap = await getDoc(doc(d, 'settings', 'public'));
-    settingsCache = snap.exists() ? (snap.data() as Record<string, unknown>) : {};
-    return settingsCache;
-  } catch {
-    return null;
+  if (!d) return { workerUrl: WORKER_FALLBACK };
+  /* Дві спроби: перша могла впасти на мить поганого звʼязку —
+     а ціна тієї миті — ціле замовлення. */
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const snap = await getDoc(doc(d, 'settings', 'public'));
+      settingsCache = snap.exists() ? (snap.data() as Record<string, unknown>) : {};
+      return settingsCache;
+    } catch {
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
+    }
   }
+  /* Навмисно НЕ кешуємо: тут лише адреса, без правил лояльності
+     й порога безкоштовної доставки. Наступний виклик має ще раз
+     спитати базу, а не жити із запасним варіантом до кінця
+     сеансу. */
+  return { workerUrl: WORKER_FALLBACK };
 }
 
 /* ---------- Очікуваний прихід і підписка ---------- */
