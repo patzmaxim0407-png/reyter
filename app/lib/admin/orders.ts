@@ -770,7 +770,18 @@ export function statusCounts(list: AdminOrder[]): Record<string, number> {
 
 /* Сума позицій має сходитися з тим, що прислав браузер.
    Розбіжність — привід перевірити замовлення вручну: або ціну
-   змінили між кошиком і оплатою, або хтось підправив запит. */
+   змінили між кошиком і оплатою, або хтось підправив запит.
+
+   ДОСТАВКА ТУТ ОБОВʼЯЗКОВА. Формула мусить бути та сама, що в
+   buildOrder: товари − знижка + доставка, і зрізана нулем так
+   само. Доти тут стояло «товари − знижка», як було до того, як
+   доставку почали класти в суму, — і кожне замовлення, де
+   покупець оплатив доставку разом із товаром, ця перевірка
+   називала зіпсованим. На даних магазину таких шість із двадцяти
+   трьох виконаних, тобто чверть тривог була б фальшивою.
+
+   Числа в тексті — щоб той, хто це побачить, одразу знав, яке
+   саме поле розійшлося, і не звіряв картку з базою вручну. */
 export function orderMismatch(o: AdminOrder): string {
   if (!(o.items || []).length || o.subtotal === undefined) return '';
   const itemsSum = (o.items || []).reduce(
@@ -779,10 +790,17 @@ export function orderMismatch(o: AdminOrder): string {
   );
   const sub = Number(o.subtotal) || 0;
   const off = Number(o.discount) || 0;
+  const ship = Math.max(0, Number(o.shipping) || 0);
   const tot = Number(o.total) || 0;
   if (itemsSum !== sub) return 'сума позицій ' + fmt(itemsSum) + ' грн ≠ вказана ' + fmt(sub) + ' грн';
+  const want = Math.max(0, sub - off + ship);
   // гривня різниці — це округлення відсоткової знижки, а не помилка
-  if (Math.abs(sub - off - tot) > 1) return 'підсумок не сходиться';
+  if (Math.abs(want - tot) > 1) {
+    return (
+      'підсумок не сходиться: ' + fmt(sub) + ' − ' + fmt(off) +
+      (ship ? ' + ' + fmt(ship) : '') + ' = ' + fmt(want) + ' грн, а вказано ' + fmt(tot) + ' грн'
+    );
+  }
   return '';
 }
 
