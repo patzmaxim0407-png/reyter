@@ -203,6 +203,12 @@ export default function Insights({ orders, c }: { orders: AdminOrder[]; c: Catal
         <Kpi title="Знижок віддано" value={kpi.discounts} was={was?.discounts} money tone="warn" invert />
         <Kpi title="Скасовано" value={kpi.cancelled} was={was?.cancelled} tone="warn" invert
              note={kpi.cancelledSum ? kpi.cancelledSum.toLocaleString('uk') + ' грн' : ''} />
+        {/* Порівнювати «у роботі» з минулим періодом нема сенсу:
+            ці замовлення на те й у роботі, що завтра їх тут не
+            буде. Тому без was — у підписі стоїть сума, а не
+            стрілка в нікуди. */}
+        <Kpi title="У роботі" value={kpi.pending}
+             note={kpi.pendingSum ? kpi.pendingSum.toLocaleString('uk') + ' грн — ще не у виручці' : 'усе закрито'} />
       </div>
 
       <section className="ins__card">

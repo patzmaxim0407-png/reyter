@@ -10,6 +10,7 @@ import {
   freeShipOf,
   itemCat,
   orderDate,
+  orderMismatch,
   statusInfo,
   statusLock
 } from '@/lib/admin/orders';
@@ -34,6 +35,9 @@ export interface AdminOrder {
   date?: string;
   status?: string;
   total: number;
+  /** Вартість товарів до знижки. Без неї orderMismatch мовчить:
+   *  звіряти вказану суму нема з чим. */
+  subtotal?: number;
   discount?: number;
   shipping?: number;
   promoCode?: string;
@@ -177,6 +181,14 @@ export default function OrderCard({
   const disc = Number(o.discount) || 0;
   const ship = Number(o.shipping) || 0;
   const free = freeShipOf(o as never, catalog as never);
+
+  /* Картка малює «До сплати» з доданків, а не зі збереженого
+     total — і саме тому мовчки ховає випадок, коли ці два числа
+     розійшлись. А розійтися вони можуть лише двома способами:
+     ціну змінили між кошиком і оплатою або хтось підправив запит.
+     Обидва — привід подивитися вручну, і обидва досі не було
+     видно нізвідки. */
+  const gap = orderMismatch(o as never);
 
   /* Той самий orderDate, що й у сортуванні списку: у найперших
      замовленнях часу в date немає, він лежить у created — і без
@@ -412,6 +424,10 @@ export default function OrderCard({
               <span>До сплати</span>
               <span>{fmt(Math.max(0, goods - disc + ship))} грн</span>
             </div>
+            {/* Тривога стоїть саме тут, під числами, яких вона
+                стосується: інакше менеджер прочитає її й піде
+                шукати, про що вона. */}
+            {gap ? <p className="ao-note ao-note--gap">Перевірити вручну: {gap}</p> : null}
           </div>
 
           {/* Оплата. Стан беремо в банку щоразу наново — у нас він

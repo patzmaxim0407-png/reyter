@@ -64,6 +64,12 @@ export interface Kpi extends Money {
   /** Скільки замовлень скасовано й на яку суму. */
   cancelled: number;
   cancelledSum: number;
+  /** Ще не «Виконано» й не скасовані: гроші, яких у виручці
+   *  свідомо немає, бо їх ще не отримано. Сума — за total, тобто
+   *  разом із доставкою: це те, що має пройти через касу, а не
+   *  заробіток. */
+  pending: number;
+  pendingSum: number;
   /** Частка виручки, покрита собівартістю: наскільки маржі
    *  взагалі можна вірити. */
   covered: number;
@@ -245,6 +251,13 @@ export function kpiOf(orders: AdminOrder[], c: Catalogue, from: Date, to: Date):
   }
 
   const dead = orders.filter((o) => o.status === 'cancelled' && within(o, from, to));
+  /* Замовлення в дорозі. Без цього числа екран не пояснював
+     найчастішого питання до себе: чому тут виручка менша, ніж в
+     архіві. Тепер різницю видно на місці, а не вираховують її,
+     перемикаючись між вкладками. */
+  const busy = orders.filter(
+    (o) => o.status !== SOLD && o.status !== 'cancelled' && within(o, from, to)
+  );
 
   return {
     revenue,
@@ -255,6 +268,8 @@ export function kpiOf(orders: AdminOrder[], c: Catalogue, from: Date, to: Date):
     discounts,
     cancelled: dead.length,
     cancelledSum: dead.reduce((s, o) => s + Math.max(0, Math.round(Number(o.total) || 0)), 0),
+    pending: busy.length,
+    pendingSum: busy.reduce((s, o) => s + Math.max(0, Math.round(Number(o.total) || 0)), 0),
     covered: revenue > 0 ? withCost / revenue : 0,
     buyers: buyers.size,
     repeat: [...buyers.values()].filter((n) => n > 1).length

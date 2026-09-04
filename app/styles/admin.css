@@ -4855,6 +4855,15 @@ label.a-promo-product i {
   color: #171b26;
 }
 
+/* Уточнення до числа, а не окремий рядок: воно потрібне рівно в
+   ту мить, коли на число дивляться, і не варте власного місця. */
+.ao-sum__hint {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  color: #8a8578;
+}
+
 /* ---------- Смуга архіву ---------- */
 
 .ar-bar {
@@ -6474,7 +6483,9 @@ label.a-promo-product i {
    не годиться: на широкому екрані він ставив пʼять і переносив
    шосте саме, а рядок із однієї картки читається як помилка.
    Тому явні межі: 6 → 3 → 2. */
-.ins__kpis { display: grid; gap: 12px; grid-template-columns: repeat(6, 1fr); }
+/* Сім, а не шість: додалась «У роботі». Одна картка, що звисає
+   під рядком, читається як помилка верстки, тож ряд розширено. */
+.ins__kpis { display: grid; gap: 12px; grid-template-columns: repeat(7, 1fr); }
 @media (max-width: 1400px) { .ins__kpis { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 760px) { .ins__kpis { grid-template-columns: repeat(2, 1fr); } }
 
@@ -6898,6 +6909,19 @@ label.a-promo-product i {
    підказка менеджерові, а не частина рахунку. */
 .ao-sumline.is-onhim span:last-child { color: var(--c-muted); font-weight: 500; }
 .ao-sumline.is-onhim em { font-style: normal; font-size: 11px; opacity: .8; }
+
+/* Підсумок замовлення розійшовся зі збереженим. Бурштиновий, а не
+   червоний: це не поломка, а прохання подивитись очима — сама
+   картка при цьому лишається робочою. */
+.ao-note--gap {
+  margin-top: 8px;
+  padding: 8px 11px;
+  border: 1px solid rgba(180, 83, 9, 0.35);
+  border-radius: 10px;
+  background: var(--c-amber-soft);
+  color: var(--c-amber);
+  font-weight: 600;
+}
 
 /* Умови накладної під адресою: оголошена вартість і хто платить.
    Дрібним, бо це довідка — але видно, бо саме ці два числа
